@@ -47,6 +47,12 @@ public class GenerationService {
      * prompt per formare l'input della prediction.
      */
     public Generation create(String model, String version, String prompt, String parametersJson) {
+        // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
+        // a null, altrimenti "" viene persistita e i th:if dei template (per cui una
+        // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
+        version = blankToNull(version);
+        parametersJson = blankToNull(parametersJson);
+
         Map<String, Object> input = parseParameters(parametersJson);
         input.put("prompt", prompt);
 
@@ -55,6 +61,10 @@ public class GenerationService {
         Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson);
         generation.setStatus(mapStatus(prediction.status()));
         return repository.save(generation);
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
     }
 
     /**
