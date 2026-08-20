@@ -44,8 +44,10 @@ public class ItemsController {
         model.addAttribute("hasMore", hasMore);
 
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
+        // Nota: come vista di risposta diretta (non dentro un th:replace inline)
+        // Thymeleaf richiede parametri nominati, non posizionali.
         return isHtmxRequest
-                ? "fragments/items :: rows(${items}, ${nextPage}, ${hasMore})"
+                ? "fragments/items :: rows(items=${items}, nextPage=${nextPage}, hasMore=${hasMore})"
                 : "items";
     }
 }

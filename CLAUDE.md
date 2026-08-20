@@ -145,6 +145,16 @@ public String search(@RequestParam(defaultValue = "") String q,
 }
 ```
 
+Attenzione se il fragment prende parametri (es. il pattern "load more" sotto):
+restituito come **vista di risposta diretta** da un controller, Thymeleaf
+richiede parametri **nominati**, non posizionali — `frag(nome=${valore})`,
+non `frag(${valore})`. La forma posizionale funziona solo dentro un
+`th:replace` inline in un altro template (dove la espressione la valuta
+il parser OGNL/SpringEL, non `ThymeleafView.renderFragment`), altrimenti
+va in 500 con `IllegalArgumentException: Parameters in a view
+specification must be named`. Vedi `ItemsController`/`GalleryController`
+per l'uso corretto.
+
 Vantaggi di questo pattern rispetto ad avere due endpoint separati:
 
 - un solo URL, condivisibile/bookmarkabile, che funziona sia con

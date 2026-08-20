@@ -43,8 +43,10 @@ public class GalleryController {
         model.addAttribute("hasMore", result.hasNext());
 
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
+        // Nota: come vista di risposta diretta (non dentro un th:replace inline)
+        // Thymeleaf richiede parametri nominati, non posizionali.
         return isHtmxRequest
-                ? "fragments/gallery :: cards(${generations}, ${nextPage}, ${hasMore})"
+                ? "fragments/gallery :: cards(generations=${generations}, nextPage=${nextPage}, hasMore=${hasMore})"
                 : "gallery";
     }
 

@@ -8,6 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Wrapper sottile sulle API REST di Replicate (https://replicate.com/docs/reference/http).
@@ -49,22 +51,40 @@ public class ReplicateClient {
         }
         body.put("input", input);
 
-        return restClient.post()
-                .uri(path)
-                .headers(this::authHeaders)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(PredictionResponse.class);
+        try {
+            return restClient.post()
+                    .uri(path)
+                    .headers(this::authHeaders)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(PredictionResponse.class);
+        } catch (RestClientException e) {
+            throw toReplicateException(e);
+        }
     }
 
     public PredictionResponse getPrediction(String externalId) {
         requireToken();
-        return restClient.get()
-                .uri("/predictions/{id}", externalId)
-                .headers(this::authHeaders)
-                .retrieve()
-                .body(PredictionResponse.class);
+        try {
+            return restClient.get()
+                    .uri("/predictions/{id}", externalId)
+                    .headers(this::authHeaders)
+                    .retrieve()
+                    .body(PredictionResponse.class);
+        } catch (RestClientException e) {
+            throw toReplicateException(e);
+        }
+    }
+
+    /** Traduce un errore RestClient (HTTP non-2xx o connessione fallita) in un messaggio leggibile. */
+    private ReplicateException toReplicateException(RestClientException e) {
+        if (e instanceof RestClientResponseException responseException) {
+            String body = responseException.getResponseBodyAsString();
+            return new ReplicateException("Replicate ha risposto con errore (%s): %s"
+                    .formatted(responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e);
+        }
+        return new ReplicateException("Impossibile contattare Replicate: " + e.getMessage(), e);
     }
 
     private void authHeaders(HttpHeaders headers) {
