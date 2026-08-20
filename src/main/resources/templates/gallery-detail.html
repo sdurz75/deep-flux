@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title th:text="'Immagine #' + ${generation.id}">Immagine</title>
+</head>
+<body>
+<main>
+    <p><a th:href="@{/gallery}">&larr; Torna alla galleria</a></p>
+
+    <img th:src="@{'/images/' + ${generation.imageFilename}}"
+         th:alt="${generation.prompt}"
+         class="generated-image">
+
+    <dl class="generation-details">
+        <dt>Prompt</dt>
+        <dd th:text="${generation.prompt}">prompt</dd>
+
+        <dt>Modello</dt>
+        <dd th:text="${generation.model}">modello</dd>
+
+        <dt th:if="${generation.version}">Version</dt>
+        <dd th:if="${generation.version}" th:text="${generation.version}">version</dd>
+
+        <dt th:if="${generation.parametersJson}">Parametri</dt>
+        <dd th:if="${generation.parametersJson}"><pre th:text="${generation.parametersJson}">{}</pre></dd>
+
+        <dt>Generata il</dt>
+        <dd th:text="${generation.completedAt}">timestamp</dd>
+    </dl>
+</main>
+</body>
+</html>

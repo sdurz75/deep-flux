@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<ul th:fragment="results" id="search-results-list">
+    <li th:if="${query.isBlank()}" class="hint">Digita per cercare tra le tecnologie dello starter.</li>
+    <li th:if="${!query.isBlank() and results.isEmpty()}">
+        Nessun risultato per &laquo;<span th:text="${query}">query</span>&raquo;.
+    </li>
+    <li th:each="r : ${results}" th:text="${r}">Risultato</li>
+</ul>
+
+</body>
+</html>

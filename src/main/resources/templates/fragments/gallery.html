@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Stesso schema di fragments/items.html: il fragment produce
+  direttamente le card, cosi' il chiamante lo inserisce dentro la grid
+  sia al primo caricamento (th:replace) sia sulle risposte htmx
+  successive (che sostituiscono solo #load-more-gallery).
+-->
+<th:block th:fragment="cards(generations, nextPage, hasMore)">
+    <div class="gallery-card" th:each="g : ${generations}">
+        <a th:href="@{'/gallery/' + ${g.id}}">
+            <img th:src="@{'/images/' + ${g.imageFilename}}" th:alt="${g.prompt}" loading="lazy">
+        </a>
+        <p class="gallery-card-prompt" th:text="${g.prompt}">prompt</p>
+        <p class="gallery-card-model" th:text="${g.model}">modello</p>
+    </div>
+
+    <div th:if="${hasMore}" id="load-more-gallery" class="gallery-load-more">
+        <button type="button"
+                th:hx-get="@{/gallery(page=${nextPage})}"
+                hx-target="#load-more-gallery"
+                hx-swap="outerHTML"
+                hx-indicator="#load-more-gallery-indicator">
+            Carica altre
+        </button>
+        <span id="load-more-gallery-indicator" class="htmx-indicator">&hellip;</span>
+    </div>
+</th:block>
+
+</body>
+</html>

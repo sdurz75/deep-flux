@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Stato di una generazione. Finche' non e' terminale il div si
+  ripolla da solo (hx-trigger="every 2s"), chiamando sempre lo stesso
+  GET /generations/{id} che fa avanzare lo stato lato server -
+  coerente col pattern "stessa URL, due risposte" usato altrove.
+-->
+<th:block th:fragment="status">
+    <div id="generation-status"
+         th:if="${generation.status.name() == 'PENDING' or generation.status.name() == 'PROCESSING'}"
+         th:hx-get="@{'/generations/' + ${generation.id}}"
+         hx-trigger="every 2s"
+         hx-swap="outerHTML">
+        <span class="spinner" aria-hidden="true"></span>
+        In corso&hellip; (<span th:text="${generation.status}">PENDING</span>)
+    </div>
+
+    <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">
+        <img th:src="@{'/images/' + ${generation.imageFilename}}"
+             th:alt="${generation.prompt}"
+             class="generated-image">
+        <p><a th:href="@{'/gallery/' + ${generation.id}}">Vedi il dettaglio in galleria</a></p>
+    </div>
+
+    <div id="generation-status" th:if="${generation.status.name() == 'FAILED'}">
+        <p class="form-error" th:text="${generation.errorMessage}">Errore</p>
+    </div>
+</th:block>
+
+</body>
+</html>

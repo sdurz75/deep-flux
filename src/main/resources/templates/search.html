@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Search demo</title>
+</head>
+<body>
+<main>
+    <h1>Search</h1>
+    <p>
+        Stessa URL <code>/search</code>, due risposte: pagina intera al primo
+        caricamento, solo fragment dei risultati alle richieste htmx
+        successive (header <code>HX-Request</code>).
+    </p>
+
+    <input type="search"
+           name="q"
+           placeholder="Cerca una tecnologia..."
+           th:value="${query}"
+           hx-get="/search"
+           hx-trigger="input changed delay:300ms, search"
+           hx-target="#search-results"
+           hx-swap="innerHTML">
+
+    <div id="search-results">
+        <div th:replace="~{fragments/search :: results}"></div>
+    </div>
+</main>
+</body>
+</html>

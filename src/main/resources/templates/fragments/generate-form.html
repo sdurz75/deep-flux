@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Fragment riusabile sia dal primo caricamento di /generations/new (via
+  th:replace) sia dalla risposta di POST /generations quando la
+  creazione fallisce e htmx deve solo ri-sostituire il form con
+  l'errore inline (nessuna pagina di errore generica).
+-->
+<th:block th:fragment="form">
+    <div>
+        <p th:if="${error}" class="form-error" th:text="${error}">Errore</p>
+
+        <form hx-post="/generations" hx-target="#generation-panel" hx-swap="innerHTML"
+              action="/generations" method="post">
+            <label for="model">Modello (owner/nome)</label>
+            <input type="text" id="model" name="model" th:value="${model}"
+                   placeholder="black-forest-labs/flux-schnell" required>
+
+            <label for="version">Version (opzionale, hash pinnato)</label>
+            <input type="text" id="version" name="version" th:value="${version}"
+                   placeholder="lascia vuoto per usare l'ultima versione pubblicata">
+
+            <label for="prompt">Prompt</label>
+            <textarea id="prompt" name="prompt" rows="3" required th:text="${prompt}"></textarea>
+
+            <label for="parameters">Parametri extra (opzionale, JSON)</label>
+            <textarea id="parameters" name="parameters" rows="4"
+                      placeholder='{"aspect_ratio": "1:1", "num_outputs": 1}'
+                      th:text="${parameters}"></textarea>
+
+            <button type="submit">Genera</button>
+        </form>
+    </div>
+</th:block>
+
+</body>
+</html>

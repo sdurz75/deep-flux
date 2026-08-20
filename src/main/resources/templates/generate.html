@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Genera immagine</title>
+</head>
+<body>
+<main>
+    <h1>Genera immagine</h1>
+    <p>
+        Scegli un modello Replicate (es. <code>black-forest-labs/flux-schnell</code>),
+        scrivi un prompt e, se vuoi, aggiungi parametri extra come JSON
+        (es. <code>aspect_ratio</code>, <code>num_outputs</code>, <code>seed</code>...).
+    </p>
+
+    <div id="generation-panel">
+        <div th:replace="~{fragments/generate-form :: form}"></div>
+    </div>
+</main>
+</body>
+</html>

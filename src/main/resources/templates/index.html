@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Home</title>
+</head>
+<body>
+<main>
+    <h1>spring-htmx-starter</h1>
+    <p>
+        Webapp minimale: navigazione via HTML renderizzato dal server
+        (Spring MVC + Thymeleaf), interattivita' locale con Alpine.js,
+        aggiornamenti parziali via htmx. Nessuno step di build frontend.
+    </p>
+
+    <h2>Demo incluse</h2>
+    <ul class="plain">
+        <li>
+            <a th:href="@{/items}">Load more</a>
+            &mdash; paginazione incrementale: l'endpoint restituisce solo i nuovi
+            <code>&lt;li&gt;</code>, mai l'intera pagina.
+        </li>
+        <li>
+            <a th:href="@{/search}">Search</a>
+            &mdash; stessa URL, due risposte: fragment se la richiesta arriva da
+            htmx, pagina intera altrimenti (vedi header <code>HX-Request</code>).
+        </li>
+    </ul>
+
+    <p>
+        Per i dettagli su struttura, convenzioni e come estendere il progetto,
+        vedi <code>CLAUDE.md</code> nella root del repository.
+    </p>
+</main>
+</body>
+</html>

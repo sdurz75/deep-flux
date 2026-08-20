@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: spring-htmx-starter
+  thymeleaf:
+    # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
+    cache: false
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true
+  datasource:
+    url: jdbc:h2:file:./data/db/app;AUTO_SERVER=TRUE
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+# Token generato su https://replicate.com/account/api-tokens.
+# Da esportare come variabile d'ambiente, mai committato:
+#   export REPLICATE_API_TOKEN=r8_...
+replicate:
+  api-token: ${REPLICATE_API_TOKEN:}
+  api-base-url: https://api.replicate.com/v1
+
+storage:
+  # Directory locale dove vengono salvate le immagini scaricate da
+  # Replicate, servite poi via /images/** (vedi StorageConfig).
+  images-dir: ./data/images
+
+logging:
+  level:
+    org.springframework.web: INFO

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Galleria</title>
+</head>
+<body>
+<main>
+    <h1>Galleria</h1>
+    <p th:if="${#lists.isEmpty(generations)}">
+        Nessuna immagine ancora. <a th:href="@{/generations/new}">Generane una</a>.
+    </p>
+
+    <div id="gallery-grid" class="gallery-grid">
+        <div th:replace="~{fragments/gallery :: cards(${generations}, ${nextPage}, ${hasMore})}"></div>
+    </div>
+</main>
+</body>
+</html>

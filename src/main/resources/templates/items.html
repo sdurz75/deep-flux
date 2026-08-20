@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Load more demo</title>
+</head>
+<body>
+<main>
+    <h1>Load more</h1>
+    <p>Il pulsante in fondo alla lista chiama sempre lo stesso endpoint <code>/items</code>, che risponde sempre e solo con un fragment.</p>
+
+    <ul id="item-list">
+        <li th:replace="~{fragments/items :: rows(${items}, ${nextPage}, ${hasMore})}"></li>
+    </ul>
+</main>
+</body>
+</html>

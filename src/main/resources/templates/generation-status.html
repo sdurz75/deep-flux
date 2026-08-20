@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Generazione in corso</title>
+    <!--
+      Fallback per navigazione senza JS: dentro <noscript> non compete
+      mai col polling htmx del fragment (hx-trigger="every 2s"), che
+      resta il meccanismo primario quando JS e' disponibile.
+    -->
+    <noscript th:if="${generation.status.name() == 'PENDING' or generation.status.name() == 'PROCESSING'}">
+        <meta http-equiv="refresh" content="3">
+    </noscript>
+</head>
+<body>
+<main>
+    <h1>Generazione #<span th:text="${generation.id}">1</span></h1>
+    <p><em th:text="${generation.prompt}">prompt</em></p>
+
+    <div th:replace="~{fragments/generation :: status}"></div>
+</main>
+</body>
+</html>

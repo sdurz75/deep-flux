@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!--
+  Layout parametrizzato in Thymeleaf "vanilla": nessuna libreria di
+  layout esterna (niente thymeleaf-layout-dialect). Ogni pagina si
+  autosostituisce con th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}"
+  passando il proprio <title> e il proprio <main> come argomenti.
+-->
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:fragment="layout(title, content)">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <th:block th:replace="${title}">
+        <title>App</title>
+    </th:block>
+
+    <!--
+      Boot sincrono del tema PRIMA del CSS: evita il flash bianco/nero
+      (FOUC) al primo render. Alpine, una volta partito, prende il
+      controllo dello stato "theme" ma parte gia' dal valore corretto.
+    -->
+    <script>
+        (function () {
+            var stored = localStorage.getItem('theme') || 'auto';
+            var resolved = stored === 'auto'
+                ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                : stored;
+            document.documentElement.setAttribute('data-theme', resolved);
+        })();
+    </script>
+
+    <link rel="stylesheet" th:href="@{/css/theme.css}">
+
+    <!-- Nessun bundler: htmx e Alpine arrivano da CDN, zero build step -->
+    <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
+</head>
+<body x-data="{ theme: localStorage.getItem('theme') || 'auto' }"
+      x-init="$watch('theme', function (v) {
+                localStorage.setItem('theme', v);
+                var resolved = v === 'auto'
+                    ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : v;
+                document.documentElement.setAttribute('data-theme', resolved);
+              })">
+
+<header class="site-header">
+    <nav class="container">
+        <a th:href="@{/}" class="brand">spring-htmx-starter</a>
+        <div class="nav-links">
+            <a th:href="@{/}">Home</a>
+            <a th:href="@{/generations/new}">Genera immagine</a>
+            <a th:href="@{/gallery}">Galleria</a>
+            <a th:href="@{/items}">Load more demo</a>
+            <a th:href="@{/search}">Search demo</a>
+        </div>
+        <div class="theme-switch">
+            <button type="button" @click="theme = 'light'" :class="{ active: theme === 'light' }" title="Light">☀️</button>
+            <button type="button" @click="theme = 'dark'" :class="{ active: theme === 'dark' }" title="Dark">🌙</button>
+            <button type="button" @click="theme = 'auto'" :class="{ active: theme === 'auto' }" title="Auto">Auto</button>
+        </div>
+    </nav>
+</header>
+
+<main class="container" th:replace="${content}">
+    <!-- contenuto pagina -->
+</main>
+
+<footer class="site-footer container">
+    <small>Spring Boot &middot; Thymeleaf &middot; htmx &middot; Alpine.js &mdash; nessuno step di build frontend.</small>
+</footer>
+
+</body>
+</html>
