@@ -160,6 +160,7 @@ button:hover {
 
 input[type="search"],
 input[type="text"],
+select,
 textarea {
     width: 100%;
     padding: var(--spacing-unit) calc(var(--spacing-unit) * 1.5);
@@ -175,7 +176,8 @@ textarea {
     resize: vertical;
 }
 
-form label {
+form label,
+.field-label {
     display: block;
     margin: calc(var(--spacing-unit) * 2) 0 var(--spacing-unit);
     font-size: .9rem;

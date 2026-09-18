@@ -38,6 +38,11 @@ class TemplateRenderingTests {
     }
 
     @Test
+    void deepChatPageRenders() throws Exception {
+        mockMvc.perform(get("/deep-chat")).andExpect(status().isOk());
+    }
+
+    @Test
     void emptyGalleryRenders() throws Exception {
         mockMvc.perform(get("/gallery")).andExpect(status().isOk());
     }

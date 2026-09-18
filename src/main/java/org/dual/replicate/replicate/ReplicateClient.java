@@ -64,6 +64,20 @@ public class ReplicateClient {
         }
     }
 
+    /** GET /collections/{slug}: elenco curato di modelli per una categoria (es. "text-to-image"). */
+    public CollectionResponse getCollection(String slug) {
+        requireToken();
+        try {
+            return restClient.get()
+                    .uri("/collections/{slug}", slug)
+                    .headers(this::authHeaders)
+                    .retrieve()
+                    .body(CollectionResponse.class);
+        } catch (RestClientException e) {
+            throw toReplicateException(e);
+        }
+    }
+
     public PredictionResponse getPrediction(String externalId) {
         requireToken();
         try {

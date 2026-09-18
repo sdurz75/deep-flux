@@ -55,6 +55,21 @@ spring:
 replicate:
   api-token: ${REPLICATE_API_TOKEN:}
   api-base-url: https://api.replicate.com/v1
+  # Collection curata da Replicate usata per precaricare, all'avvio, i
+  # modelli proposti nella dropdown di /deep-chat (vedi ReplicateModelCatalog).
+  model-collection: text-to-image
+
+# Istanza SearXNG usata dal tool di web search del modello su /deep-chat
+# (vedi WebSearchTool/SearxngClient). Richiede che il formato JSON sia
+# abilitato lato server (settings.yml: search.formats: [html, json]),
+# altrimenti risponde 403. Credenziali Basic Auth da esportare come
+# variabili d'ambiente, mai committate:
+#   export SEARXNG_USERNAME=...
+#   export SEARXNG_PASSWORD=...
+searxng:
+  base-url: ${SEARXNG_BASE_URL:https://sdurz.me/xng/}
+  username: ${SEARXNG_USERNAME:}
+  password: ${SEARXNG_PASSWORD:}
 
 storage:
   # Directory locale dove vengono salvate le immagini scaricate da

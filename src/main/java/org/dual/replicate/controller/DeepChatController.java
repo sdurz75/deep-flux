@@ -1,6 +1,8 @@
 package org.dual.replicate.controller;
 
+import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
 /**
@@ -10,8 +12,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class DeepChatController {
 
+    private final ReplicateModelCatalog modelCatalog;
+
+    public DeepChatController(ReplicateModelCatalog modelCatalog) {
+        this.modelCatalog = modelCatalog;
+    }
+
     @GetMapping("/deep-chat")
-    public String page() {
+    public String page(Model model) {
+        model.addAttribute("models", modelCatalog.models());
         return "deep-chat";
     }
 }

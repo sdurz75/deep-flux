@@ -25,6 +25,21 @@ import org.springframework.stereotype.Service;
 public class GenerationService {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
+    private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
+
+    /**
+     * L'API di Replicate risponde occasionalmente con 503 transitori su
+     * GET /predictions/{id} (osservato in pratica, non solo teorico).
+     * Senza un ritentativo qui, il primo di questi blip fa fallire
+     * definitivamente la generazione: {@link #refresh} tratta qualunque
+     * eccezione come terminale, e il polling sincrono del tool di
+     * generazione immagini su /deep-chat (waitUntilTerminal) chiama
+     * refresh() molte piu' volte in rapida sequenza di quanto farebbe
+     * un utente che aggiorna la pagina di stato, aumentando le occasioni
+     * di incapparci.
+     */
+    private static final int GET_PREDICTION_RETRIES = 2;
+    private static final Duration GET_PREDICTION_RETRY_BACKOFF = Duration.ofMillis(500);
 
     private final GenerationRepository repository;
     private final ReplicateClient replicateClient;
@@ -81,7 +96,7 @@ public class GenerationService {
 
         PredictionResponse prediction;
         try {
-            prediction = replicateClient.getPrediction(generation.getExternalId());
+            prediction = getPredictionWithRetry(generation.getExternalId());
         } catch (Exception e) {
             generation.setStatus(GenerationStatus.FAILED);
             generation.setErrorMessage("Errore nel contattare Replicate: " + e.getMessage());
@@ -113,6 +128,54 @@ public class GenerationService {
         }
 
         return repository.save(generation);
+    }
+
+    /**
+     * Blocca fino a che la generazione non e' terminale o scade
+     * {@code timeout}, richiamando {@link #refresh} a intervalli. Usato
+     * dal tool di generazione immagini su /deep-chat, che deve
+     * restituire un risultato sincrono al modello: il polling via htmx
+     * (GenerationController) resta il pattern primario per l'uso
+     * "normale" dell'app, questo e' l'eccezione per il contesto
+     * tool-calling. Se scade il timeout la generazione puo' tornare
+     * ancora PENDING/PROCESSING (non e' un errore, il chiamante decide
+     * come comunicarlo).
+     */
+    public Generation waitUntilTerminal(Long id, Duration timeout) {
+        Instant deadline = Instant.now().plus(timeout);
+        Generation generation = refresh(id);
+        while (!generation.isTerminal() && Instant.now().isBefore(deadline)) {
+            try {
+                Thread.sleep(POLL_INTERVAL.toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            generation = refresh(id);
+        }
+        return generation;
+    }
+
+    private PredictionResponse getPredictionWithRetry(String externalId) {
+        RuntimeException lastError;
+        int attempt = 0;
+        while (true) {
+            try {
+                return replicateClient.getPrediction(externalId);
+            } catch (RuntimeException e) {
+                lastError = e;
+            }
+            attempt++;
+            if (attempt > GET_PREDICTION_RETRIES) {
+                throw lastError;
+            }
+            try {
+                Thread.sleep(GET_PREDICTION_RETRY_BACKOFF.toMillis());
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw lastError;
+            }
+        }
     }
 
     public Generation get(Long id) {

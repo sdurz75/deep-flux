@@ -13,8 +13,19 @@
         JSON con <code>POST /api/deep-chat</code>, che chiama lo stesso
         assistente (Spring AI su OpenRouter) usato altrove nel progetto.
         Chat libera, senza persistenza: la cronologia vive solo nel
-        browser finche' la pagina resta aperta.
+        browser finche' la pagina resta aperta. L'assistente puo' anche
+        cercare sul web e generare immagini con Replicate quando serve.
     </p>
+
+    <div class="field">
+        <label class="field-label" for="image-model">Modello per la generazione immagini</label>
+        <select id="image-model" th:if="${!models.isEmpty()}">
+            <option th:each="m : ${models}" th:value="${m.id()}" th:text="${m.id()}" th:title="${m.description()}"></option>
+        </select>
+        <p th:if="${models.isEmpty()}" class="form-error">
+            Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
+        </p>
+    </div>
 
     <!--
       Componente complesso montato isolato su un singolo elemento (vedi
@@ -36,6 +47,29 @@
          <script> classico lo scarta con "Unexpected token 'export'" senza
          mai registrare l'elemento -> serve type="module". -->
     <script type="module" src="https://unpkg.com/deep-chat@2.5.1/dist/deepChat.bundle.js"></script>
+
+    <!--
+      Inoltra il modello scelto nella dropdown al backend: additionalBodyProps
+      e' l'unico modo per aggiungere campi custom al top level del body che
+      deep-chat invia (oltre a "messages"), vedi DeepChatApiController.
+      type="module" (non uno script classico) cosi' l'ordine di esecuzione
+      resta quello del documento rispetto al bundle sopra, che e' anch'esso
+      un modulo; whenDefined() e' comunque una rete di sicurezza se in futuro
+      l'ordine dovesse cambiare.
+    -->
+    <script type="module">
+        customElements.whenDefined('deep-chat').then(() => {
+            const chatEl = document.querySelector('deep-chat');
+            const modelSelect = document.getElementById('image-model');
+            const syncSelectedModel = () => {
+                chatEl.additionalBodyProps = {model: modelSelect ? modelSelect.value : ''};
+            };
+            if (modelSelect) {
+                modelSelect.addEventListener('change', syncSelectedModel);
+            }
+            syncSelectedModel();
+        });
+    </script>
 </main>
 </body>
 </html>
