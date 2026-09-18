@@ -183,6 +183,13 @@ public class GenerationService {
                 .orElseThrow(() -> new ReplicateException("Generazione non trovata: " + id));
     }
 
+    /** Elimina una generazione e, se presente, il file immagine associato. Usata dalla galleria. */
+    public void delete(Long id) {
+        Generation generation = get(id);
+        imageStorageService.delete(generation.getImageFilename());
+        repository.delete(generation);
+    }
+
     private Map<String, Object> parseParameters(String parametersJson) {
         if (parametersJson == null || parametersJson.isBlank()) {
             return new LinkedHashMap<>();

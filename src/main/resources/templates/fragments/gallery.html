@@ -3,31 +3,54 @@
 <body>
 
 <!--
-  Il fragment produce direttamente le card, cosi' il chiamante lo
-  inserisce dentro la grid sia al primo caricamento (th:replace) sia
-  sulle risposte htmx successive (che sostituiscono solo
-  #load-more-gallery).
+  Il fragment produce grid + paginazione insieme, cosi' il chiamante lo
+  inserisce dentro #gallery-content sia al primo caricamento
+  (th:replace) sia sulle risposte htmx successive di un cambio pagina
+  (che sostituiscono l'intero contenuto di #gallery-content, non solo
+  un pezzo: cambiare pagina rimpiazza la lista, non la accoda come
+  faceva il vecchio "load more").
 -->
-<th:block th:fragment="cards(generations, nextPage, hasMore)">
-    <div class="gallery-card" th:each="g : ${generations}">
-        <a th:href="@{'/gallery/' + ${g.id}}">
-            <img th:src="@{'/images/' + ${g.imageFilename}}" th:alt="${g.prompt}" loading="lazy">
-        </a>
-        <p class="gallery-card-prompt" th:text="${g.prompt}">prompt</p>
-        <p class="gallery-card-model" th:text="${g.model}">modello</p>
+<th:block th:fragment="content(generations, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
+    <div class="gallery-grid">
+        <div class="gallery-card" th:each="g : ${generations}">
+            <a th:href="@{'/gallery/' + ${g.id}}">
+                <img th:src="@{'/images/' + ${g.imageFilename}}" th:alt="${g.prompt}" loading="lazy">
+            </a>
+            <p class="gallery-card-prompt" th:text="${g.prompt}">prompt</p>
+            <p class="gallery-card-model" th:text="${g.model}">modello</p>
+            <form class="gallery-card-delete" th:action="@{'/gallery/' + ${g.id} + '/delete'}" method="post"
+                  th:hx-post="@{'/gallery/' + ${g.id} + '/delete'}"
+                  hx-target="closest .gallery-card" hx-swap="outerHTML"
+                  hx-confirm="Eliminare questa immagine?">
+                <button type="submit" class="button-danger">Elimina</button>
+            </form>
+        </div>
     </div>
 
-    <div th:if="${hasMore}" id="load-more-gallery" class="gallery-load-more">
-        <button type="button"
-                th:hx-get="@{/gallery(page=${nextPage})}"
-                hx-target="#load-more-gallery"
-                hx-swap="outerHTML"
-                hx-indicator="#load-more-gallery-indicator">
-            Carica altre
-        </button>
-        <span id="load-more-gallery-indicator" class="htmx-indicator">&hellip;</span>
-    </div>
+    <nav th:if="${totalPages > 1}" class="gallery-pagination" aria-label="Paginazione galleria">
+        <a th:if="${hasPrevious}" th:href="@{/gallery(page=${currentPage - 1})}"
+           th:hx-get="@{/gallery(page=${currentPage - 1})}"
+           hx-target="#gallery-content" hx-swap="innerHTML">&laquo; Precedente</a>
+        <span th:unless="${hasPrevious}" class="gallery-pagination-disabled">&laquo; Precedente</span>
+
+        <th:block th:each="p : ${pageNumbers}">
+            <span th:if="${p == null}" class="gallery-pagination-ellipsis">&hellip;</span>
+            <span th:if="${p != null and p == currentPage}" class="gallery-pagination-current"
+                  th:text="${p}" aria-current="page">1</span>
+            <a th:if="${p != null and p != currentPage}" th:href="@{/gallery(page=${p})}"
+               th:hx-get="@{/gallery(page=${p})}"
+               hx-target="#gallery-content" hx-swap="innerHTML" th:text="${p}">1</a>
+        </th:block>
+
+        <a th:if="${hasNext}" th:href="@{/gallery(page=${currentPage + 1})}"
+           th:hx-get="@{/gallery(page=${currentPage + 1})}"
+           hx-target="#gallery-content" hx-swap="innerHTML">Successiva &raquo;</a>
+        <span th:unless="${hasNext}" class="gallery-pagination-disabled">Successiva &raquo;</span>
+    </nav>
 </th:block>
+
+<!-- Risposta vuota alla cancellazione: hx-swap="outerHTML" la usa per rimuovere la card. -->
+<th:block th:fragment="deleted"></th:block>
 
 </body>
 </html>

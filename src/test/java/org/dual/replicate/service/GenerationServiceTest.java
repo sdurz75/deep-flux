@@ -85,4 +85,18 @@ class GenerationServiceTest {
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.SUCCEEDED);
         verify(replicateClient, org.mockito.Mockito.never()).getPrediction(anyString());
     }
+
+    @Test
+    void deleteRemovesImageFileAndRepositoryRow() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper);
+
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        generation.setImageFilename("1.png");
+        when(repository.findById(1L)).thenReturn(Optional.of(generation));
+
+        service.delete(1L);
+
+        verify(imageStorageService).delete("1.png");
+        verify(repository).delete(generation);
+    }
 }

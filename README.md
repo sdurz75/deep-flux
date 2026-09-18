@@ -53,6 +53,35 @@ esclusi da git.
    una pagina di dettaglio per ciascuna che mostra prompt, modello e
    parametri usati.
 
+## Dietro un reverse proxy
+
+L'app (`server.forward-headers-strategy: framework` in `application.yml`)
+si aspetta di stare dietro un reverse proxy che termina TLS e inoltra le
+richieste su HTTP semplice, impostando gli header standard:
+
+- `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Port` — sempre,
+  altrimenti l'app costruisce redirect e link con lo scheme/host interni
+  invece di quelli pubblici.
+- `X-Forwarded-Prefix` — solo se il proxy espone l'app sotto un path
+  (es. `https://host/immagini/` mentre l'app gira alla radice), cosi'
+  i link generati da Thymeleaf includono il prefisso.
+
+Configurazione di default sia di nginx (`proxy_set_header X-Forwarded-*`
+nei setup standard, es. Certbot) sia di Traefik/Caddy: di norma non
+serve altro.
+
+Un solo timeout da alzare esplicitamente: `/api/deep-chat` (il backend
+del Web Component `<deep-chat>`) puo' restare in attesa fino a ~90s
+mentre l'assistente genera un'immagine su Replicate (vedi
+`ImageGenerationTool.WAIT_TIMEOUT`), oltre al tempo della chiamata LLM
+stessa. Il timeout di lettura/proxy sulla rotta deve essere piu' alto
+di quello (es. `proxy_read_timeout 120s;` su nginx), altrimenti il
+proxy chiude la connessione prima che l'assistente risponda anche se la
+generazione va a buon fine.
+
+Non essendoci sessioni/cookie ne' Spring Security in questa app, non
+c'e' altro stato lato server da propagare attraverso il proxy.
+
 ## Dettagli
 
 Per stack, convenzioni e come estendere il progetto vedi [`CLAUDE.md`](./CLAUDE.md).

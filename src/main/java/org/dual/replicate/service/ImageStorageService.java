@@ -50,6 +50,18 @@ public class ImageStorageService {
         return filename;
     }
 
+    /** Elimina il file immagine {@code filename} sotto storage.images-dir, se presente. No-op se {@code filename} e' null. */
+    public void delete(String filename) {
+        if (filename == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(imagesDir.resolve(filename));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Impossibile eliminare l'immagine " + filename, e);
+        }
+    }
+
     private String extensionFrom(String url) {
         String path = URI.create(url).getPath();
         int dot = path.lastIndexOf('.');

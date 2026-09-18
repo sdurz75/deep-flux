@@ -11,8 +11,8 @@
         Nessuna immagine ancora. <a th:href="@{/generations/new}">Generane una</a>.
     </p>
 
-    <div id="gallery-grid" class="gallery-grid">
-        <div th:replace="~{fragments/gallery :: cards(${generations}, ${nextPage}, ${hasMore})}"></div>
+    <div id="gallery-content">
+        <div th:replace="~{fragments/gallery :: content(${generations}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
     </div>
 </main>
 </body>
