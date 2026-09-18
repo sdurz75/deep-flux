@@ -13,15 +13,12 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Service;
 
 /**
- * Spike per verificare l'integrazione del Web Component &lt;deep-chat&gt;
- * col resto dell'architettura: chat libera, senza persistenza, sullo
- * stesso ChatClient (Spring AI su OpenRouter) gia' usato da ChatService.
- * La cronologia vive solo nel browser: deep-chat la rimanda per intero
- * ad ogni turno (vedi requestBodyLimits in templates/deep-chat.html).
- * A differenza di ChatService, qui il modello ha due tool (WebSearchTool
- * via SearXNG, ImageGenerationTool via Replicate) che decide da solo se
- * e quando usare: scelta deliberata, scoped a questa chat libera, non
- * alla chat di rifinitura prompt.
+ * Orchestrazione del Web Component &lt;deep-chat&gt;: chat libera, senza
+ * persistenza (la cronologia vive solo nel browser, deep-chat la rimanda
+ * per intero ad ogni turno, vedi requestBodyLimits in
+ * templates/deep-chat.html), sul ChatClient di Spring AI (OpenRouter).
+ * Il modello ha due tool (WebSearchTool via SearXNG, ImageGenerationTool
+ * via Replicate) che decide da solo se e quando usare.
  */
 @Service
 public class DeepChatService {
@@ -44,9 +41,9 @@ public class DeepChatService {
     }
 
     /**
-     * {@code selectedModel} e' il modello Replicate scelto nella dropdown
+     * {@code selectedModel} e' il modello Replicate scelto nel combobox
      * lato UI (vedi templates/deep-chat.html), inviato dal client su ogni
-     * turno tramite additionalBodyProps: viene passato al modello come
+     * turno tramite requestInterceptor: viene passato al modello come
      * nota di contesto, non imposto a livello di tool, cosi' l'utente
      * puo' comunque chiederne un altro esplicitamente in chat.
      */

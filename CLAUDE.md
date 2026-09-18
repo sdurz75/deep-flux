@@ -4,6 +4,38 @@ Guida di riferimento per lavorare su questo repository. Leggerla prima di
 aggiungere pagine, endpoint o dipendenze: le scelte qui sotto non sono
 casuali, sono vincoli deliberati per mantenere il progetto snello.
 
+## Scopo
+
+L'applicazione serve a:
+
+1. **Generare immagini con l'ausilio di un chatbot** — `/deep-chat`:
+   descrivi cosa vuoi, l'assistente puo' cercare sul web per informarsi
+   (`WebSearchTool`, via SearXNG) e generare l'immagine su Replicate
+   (`ImageGenerationTool`) col modello scelto nel combobox o un altro se
+   richiesto esplicitamente in chat. `/generations/new` resta la via
+   diretta (form, senza chatbot) per chi vuole specificare modello/
+   parametri a mano.
+2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
+   tramite un archivio** — ogni generazione (chatbot o form diretto)
+   diventa una riga `Generation`, consultabile in `/gallery`.
+3. **Mantenere una storia delle conversazioni e poterle riprendere in
+   futuro** — obiettivo dichiarato, **non ancora implementato**: oggi
+   `/deep-chat` non persiste nulla lato server (la cronologia vive solo
+   nel browser, persa alla chiusura pagina). Quando questa feature verra'
+   costruita, richiedera' una nuova migrazione Flyway per lo storage
+   delle conversazioni — non riesumare le vecchie tabelle
+   `CHAT_CONVERSATION`/`CHAT_MESSAGE` (rimosse in V2, erano legate a una
+   chat di rifinitura prompt ormai eliminata, non necessariamente lo
+   schema giusto per questo obiettivo).
+
+Ulteriori evoluzioni seguiranno, ma sempre pertinenti a questi tre punti:
+non aggiungere feature (pagine demo, integrazioni, pattern) che non
+servono direttamente a generare, archiviare o conversare sulle immagini.
+Se un domani serve dimostrare un pattern htmx/Alpine non ancora coperto
+dal codice reale, farlo aggiungendolo a una feature vera, non con una
+pagina demo isolata (le pagine demo starter — "Load more", "Search",
+chat di rifinitura prompt — sono state rimosse per questo).
+
 ## Filosofia
 
 Hypermedia-first, non SPA. Il server resta la fonte di verità dello stato
@@ -53,7 +85,7 @@ serve vendorizzarli offline, basta scaricare i due file JS in
 | Navigazione parziale | htmx (via CDN) | Markup dichiarativo via attributi, niente build |
 | Micro-interattività | Alpine.js (via CDN) | Stato dichiarato inline, niente build |
 | Theming | CSS Custom Properties | Cambio tema = cambio attributo `data-theme`, zero ricalcolo server |
-| Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni e delle conversazioni chat (prompt/parametri/stato, messaggi); DB embedded su file locale, zero server esterno |
+| Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni (prompt/parametri/stato/file immagine); DB embedded su file locale, zero server esterno |
 | Migrazioni schema DB | Flyway (`spring-boot-starter-flyway`) | Lo schema e' versionato in SQL esplicito, non dedotto da Hibernate (`ddl-auto: validate`): ogni modifica al DB e' una migrazione tracciabile, riproducibile, mai un'alterazione implicita a runtime |
 | Client HTTP verso Replicate | `RestClient` (`spring-boot-starter-restclient`) | Sincrono, nessuna dipendenza WebFlux/reactor per questo client |
 | Assistente chat (OpenRouter) | Spring AI (`spring-ai-starter-model-openai`) via `ChatClient`, `base-url` puntato su `https://openrouter.ai/api/v1` | OpenRouter espone un'API OpenAI-compatibile: nessun client HTTP custom da scrivere/mantenere. Richiede Spring Boot 4.x (Spring AI 2.0.x) — vedi eccezione WebFlux sopra |
@@ -69,33 +101,32 @@ src/main/java/org/dual/replicate/
   Application.java              # entry point Spring Boot
   controller/
     HomeController.java         # pagina intera, esempio minimo
-    ItemsController.java        # pattern "load more" (paginazione incrementale)
-    SearchController.java       # pattern "stessa URL, due risposte"
     GenerationController.java   # crea una generazione + polling htmx dello stato
     GalleryController.java      # galleria (load more) + dettaglio singola immagine
-    ChatController.java         # elenco conversazioni, invio messaggi (pattern "stessa URL, due risposte")
     DeepChatController.java     # pagina che ospita il Web Component <deep-chat>
     DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
   domain/
     Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
     GenerationStatus.java
-    ChatConversation.java       # entity JPA: una conversazione con l'assistente
-    ChatMessage.java            # entity JPA: un turno (USER/ASSISTANT) di una conversazione
-    ChatRole.java
   repository/
     GenerationRepository.java
-    ChatConversationRepository.java
-    ChatMessageRepository.java
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
     PredictionResponse.java
     ReplicateException.java
+    CollectionResponse.java     # risposta di GET /collections/{slug}
+    ReplicateModelSummary.java  # owner/name/description di un modello (collection o singolo)
+    ReplicateModelCatalog.java  # precarica all'avvio i modelli per la dropdown di /deep-chat
+  search/
+    SearxngClient.java          # wrapper RestClient su un'istanza SearXNG (Basic Auth)
+    SearxngResponse.java, SearchResult.java, SearxngException.java
   service/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
-    ChatService.java            # persiste i turni, chiama il ChatClient (Spring AI) su OpenRouter
-    ChatException.java
-    DeepChatService.java        # chat libera senza persistenza per il Web Component <deep-chat>
+    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, senza persistenza
+    WebSearchTool.java          # tool Spring AI: ricerca web via SearxngClient
+    ImageGenerationTool.java    # tool Spring AI: genera un'immagine via GenerationService
+    GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext)
   config/
     StorageConfig.java          # espone storage.images-dir come /images/**
 
@@ -103,22 +134,19 @@ src/main/resources/
   application.yml
   db/migration/
     V1__create_initial_schema.sql   # schema Flyway, vedi sezione dedicata sotto
+    V2__drop_chat_tables.sql         # rimossa la persistenza della vecchia chat di rifinitura prompt
   templates/
-    index.html, items.html, search.html   # pagine demo starter
-    generate.html                # form nuova generazione
+    index.html                   # home
+    generate.html                 # form nuova generazione
     generation-status.html       # pagina di stato/polling di una generazione
     gallery.html                 # galleria (load more)
     gallery-detail.html          # dettaglio di una generazione
-    chat-list.html               # elenco conversazioni chat
-    chat.html                    # una conversazione (messaggi + form invio)
-    deep-chat.html               # demo del Web Component <deep-chat>
+    deep-chat.html                # pagina che ospita <deep-chat> + combobox modello
     fragments/
       layout.html                # shell HTML condivisa (head, header, footer)
-      items.html, search.html    # fragment riusabili delle demo starter
       generate-form.html         # fragment del form (riusato anche per mostrare errori)
       generation.html            # fragment di stato di una generazione (polling)
       gallery.html               # fragment card + load more della galleria
-      chat.html                  # fragment dei messaggi di una conversazione
   static/
     css/theme.css                # tutti i design token e gli stili
 ```
@@ -167,13 +195,13 @@ Regola: **stessa URL, due risposte**, distinguendo in base all'header
 `HX-Request` che htmx aggiunge automaticamente a ogni sua richiesta.
 
 ```java
-@GetMapping
-public String search(@RequestParam(defaultValue = "") String q,
+@GetMapping("/{id}")
+public String status(@PathVariable Long id,
                       @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                       Model model) {
     // ... popolare il model ...
     boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
-    return isHtmxRequest ? "fragments/search :: results" : "search";
+    return isHtmxRequest ? "fragments/generation :: status" : "generation-status";
 }
 ```
 
@@ -184,8 +212,7 @@ non `frag(${valore})`. La forma posizionale funziona solo dentro un
 `th:replace` inline in un altro template (dove la espressione la valuta
 il parser OGNL/SpringEL, non `ThymeleafView.renderFragment`), altrimenti
 va in 500 con `IllegalArgumentException: Parameters in a view
-specification must be named`. Vedi `ItemsController`/`GalleryController`
-per l'uso corretto.
+specification must be named`. Vedi `GalleryController` per l'uso corretto.
 
 Vantaggi di questo pattern rispetto ad avere due endpoint separati:
 
@@ -197,17 +224,18 @@ Vantaggi di questo pattern rispetto ad avere due endpoint separati:
 
 Esempi già implementati da copiare:
 
-- `SearchController` — ricerca live, `hx-trigger="input changed delay:300ms"`.
-- `ItemsController` — paginazione "load more", il pulsante si sostituisce
-  con `hx-target="this" hx-swap="outerHTML"` (o target esplicito + swap
-  `outerHTML`/`beforeend` a seconda del caso).
+- `GenerationController` — polling di stato, fragment senza parametri.
+- `GalleryController` — paginazione "load more", il pulsante si sostituisce
+  con `hx-target` esplicito + `hx-swap="outerHTML"` (vedi
+  `fragments/gallery.html`); il fragment prende parametri nominati, e'
+  l'esempio da seguire per quel caso.
 
 ## Convenzione: attributi `hx-*` dinamici in Thymeleaf
 
 Per un attributo `hx-*` con valore statico, scriverlo come HTML puro:
 
 ```html
-<input hx-get="/search" hx-trigger="input changed delay:300ms, search" hx-target="#search-results-list">
+<form hx-post="/generations" hx-target="#generation-panel" hx-swap="innerHTML" action="/generations" method="post">
 ```
 
 Per un valore dinamico (es. un parametro calcolato dal model), usare il
@@ -215,7 +243,7 @@ prefisso `th:` — Thymeleaf lo riconosce come "generic attribute setter"
 anche per attributi non standard come `hx-get`:
 
 ```html
-<button th:hx-get="@{/items(page=${nextPage})}" hx-target="#load-more" hx-swap="outerHTML">
+<button th:hx-get="@{/gallery(page=${nextPage})}" hx-target="#load-more-gallery" hx-swap="outerHTML">
 ```
 
 ## Convenzione: theming
@@ -287,7 +315,7 @@ mvn clean package          # build del jar eseguibile
 2. Serve un aggiornamento parziale (ricerca live, paginazione, form senza
    reload)? → estrarre la porzione riusabile in `fragments/<nome>.html`,
    far restituire al controller quel fragment quando `HX-Request` è
-   presente, la pagina intera altrimenti (vedi `SearchController`).
+   presente, la pagina intera altrimenti (vedi `GalleryController`).
 3. Serve solo interattività locale, nessuna chiamata al server (aprire/
    chiudere un pannello, validare un campo)? → `x-data`/`x-show`/`x-on`
    di Alpine.js, direttamente nel template, senza controller dedicato.

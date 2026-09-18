@@ -8,22 +8,25 @@
 <main class="container">
     <h1>spring-htmx-starter</h1>
     <p>
-        Webapp minimale: navigazione via HTML renderizzato dal server
-        (Spring MVC + Thymeleaf), interattivita' locale con Alpine.js,
-        aggiornamenti parziali via htmx. Nessuno step di build frontend.
+        Genera immagini con l'aiuto di un assistente, ritrovale in galleria.
+        Navigazione via HTML renderizzato dal server (Spring MVC +
+        Thymeleaf), interattivita' locale con Alpine.js, aggiornamenti
+        parziali via htmx. Nessuno step di build frontend.
     </p>
 
-    <h2>Demo incluse</h2>
     <ul class="plain">
         <li>
-            <a th:href="@{/items}">Load more</a>
-            &mdash; paginazione incrementale: l'endpoint restituisce solo i nuovi
-            <code>&lt;li&gt;</code>, mai l'intera pagina.
+            <a th:href="@{/deep-chat}">Deep Chat</a>
+            &mdash; descrivi l'immagine che vuoi, l'assistente puo' cercare
+            sul web e generarla su Replicate.
         </li>
         <li>
-            <a th:href="@{/search}">Search</a>
-            &mdash; stessa URL, due risposte: fragment se la richiesta arriva da
-            htmx, pagina intera altrimenti (vedi header <code>HX-Request</code>).
+            <a th:href="@{/generations/new}">Genera immagine</a>
+            &mdash; form diretto: modello, prompt e parametri, senza chatbot.
+        </li>
+        <li>
+            <a th:href="@{/gallery}">Galleria</a>
+            &mdash; tutte le immagini generate, con prompt e modello usato.
         </li>
     </ul>
 

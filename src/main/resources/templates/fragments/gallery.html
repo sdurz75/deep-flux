@@ -3,10 +3,10 @@
 <body>
 
 <!--
-  Stesso schema di fragments/items.html: il fragment produce
-  direttamente le card, cosi' il chiamante lo inserisce dentro la grid
-  sia al primo caricamento (th:replace) sia sulle risposte htmx
-  successive (che sostituiscono solo #load-more-gallery).
+  Il fragment produce direttamente le card, cosi' il chiamante lo
+  inserisce dentro la grid sia al primo caricamento (th:replace) sia
+  sulle risposte htmx successive (che sostituiscono solo
+  #load-more-gallery).
 -->
 <th:block th:fragment="cards(generations, nextPage, hasMore)">
     <div class="gallery-card" th:each="g : ${generations}">

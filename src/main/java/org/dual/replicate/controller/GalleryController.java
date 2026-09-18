@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Galleria delle immagini generate: pattern "load more" identico a
- * ItemsController per la lista, pagina di dettaglio dedicata per
+ * Galleria delle immagini generate: pattern "load more" per la lista
+ * (vedi fragments/gallery.html), pagina di dettaglio dedicata per
  * consultare prompt e parametri di una singola generazione.
  */
 @Controller

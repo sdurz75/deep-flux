@@ -2,19 +2,19 @@
 <html lang="it" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
 <head>
-    <title>Deep Chat (demo)</title>
+    <title>Deep Chat</title>
 </head>
 <body>
 <main class="container">
-    <h1>Deep Chat (demo)</h1>
+    <h1>Deep Chat</h1>
     <p>
-        Spike per verificare l'integrazione del Web Component
-        <code>&lt;deep-chat&gt;</code> col resto dell'architettura: parla
-        JSON con <code>POST /api/deep-chat</code>, che chiama lo stesso
-        assistente (Spring AI su OpenRouter) usato altrove nel progetto.
-        Chat libera, senza persistenza: la cronologia vive solo nel
-        browser finche' la pagina resta aperta. L'assistente puo' anche
-        cercare sul web e generare immagini con Replicate quando serve.
+        Genera immagini con l'aiuto dell'assistente: descrivi cosa vuoi,
+        l'assistente puo' cercare sul web per informarsi e generare
+        l'immagine su Replicate col modello scelto qui sotto (o un altro,
+        se lo chiedi esplicitamente in chat). Le immagini generate finiscono
+        anche in <a th:href="@{/gallery}">Galleria</a>. La cronologia della
+        conversazione vive solo nel browser finche' la pagina resta aperta
+        (nessuna persistenza lato server, per ora — vedi CLAUDE.md).
     </p>
 
     <!--
