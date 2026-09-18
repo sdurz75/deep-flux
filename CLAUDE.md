@@ -54,6 +54,7 @@ serve vendorizzarli offline, basta scaricare i due file JS in
 | Micro-interattività | Alpine.js (via CDN) | Stato dichiarato inline, niente build |
 | Theming | CSS Custom Properties | Cambio tema = cambio attributo `data-theme`, zero ricalcolo server |
 | Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni e delle conversazioni chat (prompt/parametri/stato, messaggi); DB embedded su file locale, zero server esterno |
+| Migrazioni schema DB | Flyway (`spring-boot-starter-flyway`) | Lo schema e' versionato in SQL esplicito, non dedotto da Hibernate (`ddl-auto: validate`): ogni modifica al DB e' una migrazione tracciabile, riproducibile, mai un'alterazione implicita a runtime |
 | Client HTTP verso Replicate | `RestClient` (`spring-boot-starter-restclient`) | Sincrono, nessuna dipendenza WebFlux/reactor per questo client |
 | Assistente chat (OpenRouter) | Spring AI (`spring-ai-starter-model-openai`) via `ChatClient`, `base-url` puntato su `https://openrouter.ai/api/v1` | OpenRouter espone un'API OpenAI-compatibile: nessun client HTTP custom da scrivere/mantenere. Richiede Spring Boot 4.x (Spring AI 2.0.x) — vedi eccezione WebFlux sopra |
 | Build | Maven | — |
@@ -73,6 +74,8 @@ src/main/java/org/dual/replicate/
     GenerationController.java   # crea una generazione + polling htmx dello stato
     GalleryController.java      # galleria (load more) + dettaglio singola immagine
     ChatController.java         # elenco conversazioni, invio messaggi (pattern "stessa URL, due risposte")
+    DeepChatController.java     # pagina che ospita il Web Component <deep-chat>
+    DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
   domain/
     Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
     GenerationStatus.java
@@ -92,11 +95,14 @@ src/main/java/org/dual/replicate/
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
     ChatService.java            # persiste i turni, chiama il ChatClient (Spring AI) su OpenRouter
     ChatException.java
+    DeepChatService.java        # chat libera senza persistenza per il Web Component <deep-chat>
   config/
     StorageConfig.java          # espone storage.images-dir come /images/**
 
 src/main/resources/
   application.yml
+  db/migration/
+    V1__create_initial_schema.sql   # schema Flyway, vedi sezione dedicata sotto
   templates/
     index.html, items.html, search.html   # pagine demo starter
     generate.html                # form nuova generazione
@@ -105,6 +111,7 @@ src/main/resources/
     gallery-detail.html          # dettaglio di una generazione
     chat-list.html               # elenco conversazioni chat
     chat.html                    # una conversazione (messaggi + form invio)
+    deep-chat.html               # demo del Web Component <deep-chat>
     fragments/
       layout.html                # shell HTML condivisa (head, header, footer)
       items.html, search.html    # fragment riusabili delle demo starter
@@ -235,6 +242,32 @@ legge `localStorage`, risolve `auto` in `light`/`dark` in base a
 CSS venga applicato. Alpine prende il controllo dello stato subito dopo,
 ma parte già dal valore corretto — non spostarlo più in basso nella pagina.
 
+## Convenzione: migrazioni database (Flyway)
+
+Lo schema del database **non** e' gestito da Hibernate: `spring.jpa.hibernate.ddl-auto`
+e' `validate`, non `update`/`create`. Hibernate all'avvio controlla solo che
+le tabelle create da Flyway corrispondano alle entity JPA — se non
+corrispondono l'app non parte (fail-fast, niente drift silenzioso tra
+codice e schema).
+
+Ogni modifica alla persistenza (nuova entity, nuovo campo, nuovo indice,
+rename di colonna...) va fatta con una **nuova migrazione SQL** in
+`src/main/resources/db/migration/`, mai lasciando che sia
+`ddl-auto: update` a dedurla da solo:
+
+1. Aggiungere/modificare l'entity JPA come al solito.
+2. Creare `V<N+1>__<descrizione>.sql` (numero progressivo, mai riusare
+   uno gia' applicato — Flyway calcola un checksum di ogni file e fallisce
+   l'avvio se un file gia' eseguito viene modificato) con il DDL H2
+   corrispondente (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, ecc.).
+3. Avviare l'app: Flyway applica automaticamente le migrazioni non ancora
+   eseguite (traccia lo stato in `flyway_schema_history`) prima che
+   Hibernate validi lo schema.
+
+In sviluppo, se serve ripartire da zero (schema o dati inconsistenti),
+si puo' cancellare l'intera `./data/db/` (e' stato locale, non versionato,
+vedi sopra): Flyway ricrea tutto dalle migrazioni al prossimo avvio.
+
 ## Comandi utili
 
 Nessun Maven Wrapper incluso: serve Maven installato sulla macchina
@@ -261,3 +294,6 @@ mvn clean package          # build del jar eseguibile
 4. Serve davvero un componente complesso stateful (editor, canvas,
    grafico)? → valutare un Web Component isolato prima di introdurre un
    framework SPA per l'intera app.
+5. La feature tocca un'entity JPA (nuovo campo, nuova tabella, nuova
+   relazione)? → nuova migrazione Flyway in `db/migration/` (vedi
+   sezione dedicata sopra), mai affidarsi a `ddl-auto` per crearla.

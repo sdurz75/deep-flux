@@ -67,6 +67,16 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <!-- In Boot 4 l'autoconfigurazione di Flyway e' nel modulo
+                 spring-boot-flyway, non piu' bundled: serve lo starter
+                 esplicito, non basta flyway-core sul classpath (come
+                 invece bastava in Boot 3). H2 e' supportato direttamente
+                 da flyway-core, non serve un modulo flyway-database-*
+                 separato (a differenza di Postgres/Oracle/etc.). -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

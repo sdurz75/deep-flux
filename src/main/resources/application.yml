@@ -27,8 +27,15 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: update
+      # Lo schema e' governato da Flyway (vedi resources/db/migration/),
+      # non da Hibernate: "validate" verifica solo che le entity JPA
+      # corrispondano alle tabelle create dalle migrazioni, non le crea
+      # ne' le altera. Ogni modifica al DB va fatta con una nuova
+      # migrazione, mai lasciando che Hibernate la dedurrebbe da solo.
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    locations: classpath:db/migration
   # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone
   # un'API OpenAI-compatibile (https://openrouter.ai/docs): basta puntare lo
   # starter Spring AI per OpenAI sul suo base-url, nessun client custom.
@@ -40,7 +47,7 @@ spring:
       base-url: https://openrouter.ai/api/v1
       chat:
         options:
-          model: ${OPENROUTER_CHAT_MODEL:openai/gpt-4o-mini}
+          model: ${OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
 
 # Token generato su https://replicate.com/account/api-tokens.
 # Da esportare come variabile d'ambiente, mai committato:
