@@ -9,8 +9,10 @@ spring:
     # ecc.), senza bisogno di "sourcizzarlo" a mano nella shell prima di
     # ogni avvio. "optional:" evita che l'app fallisca ad avviarsi se
     # .env non esiste (es. in CI, dove i token arrivano da vere
-    # variabili d'ambiente).
-    import: optional:file:.env[.properties]
+    # variabili d'ambiente). prompts.properties (nessun "optional:": e'
+    # nel jar, deve sempre esistere) porta il testo dei system prompt,
+    # vedi DeepChatService.
+    import: optional:file:.env[.properties],classpath:prompts.properties
   application:
     name: spring-htmx-starter
   thymeleaf:

@@ -10,6 +10,7 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,7 +28,8 @@ public class DeepChatService {
 
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
-                            ImageGenerationTool imageGenerationTool) {
+                            ImageGenerationTool imageGenerationTool,
+                            @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
                         You are a helpful, friendly assistant. You can search the public web
@@ -35,7 +37,9 @@ public class DeepChatService {
                         or facts you may not know. You can also generate images with the
                         generateImage tool when the user asks for one; use the model you are
                         told is currently selected in the UI unless the user explicitly names
-                        a different one in the chat.""")
+                        a different one in the chat.
+
+                        """ + imagePromptingGuide)
                 .defaultTools(webSearchTool, imageGenerationTool)
                 .build();
     }
