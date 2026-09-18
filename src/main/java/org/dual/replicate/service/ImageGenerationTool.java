@@ -51,7 +51,11 @@ public class ImageGenerationTool {
             return "Modello \"%s\" non disponibile. Modelli disponibili: %s".formatted(model, modelCatalog.idsAsCsv());
         }
 
-        Generation generation = generationService.create(model, null, prompt, null);
+        // Passare esplicitamente la versione (se nota) invece di lasciare
+        // che ReplicateClient usi lo shortcut "ultima versione": non tutti
+        // i modelli lo supportano, vedi ReplicateModelCatalog.latestVersionOf.
+        String version = modelCatalog.latestVersionOf(model).orElse(null);
+        Generation generation = generationService.create(model, version, prompt, null);
         generation = generationService.waitUntilTerminal(generation.getId(), WAIT_TIMEOUT);
 
         if (generation.getStatus() == GenerationStatus.SUCCEEDED) {

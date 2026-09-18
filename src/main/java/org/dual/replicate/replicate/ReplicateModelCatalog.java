@@ -3,6 +3,7 @@ package org.dual.replicate.replicate;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -99,12 +100,31 @@ public class ReplicateModelCatalog {
     }
 
     public boolean contains(String id) {
-        return Stream.concat(personalModels.stream(), models.stream()).anyMatch(m -> m.id().equals(id));
+        return find(id).isPresent();
+    }
+
+    /**
+     * Hash della versione pubblicata piu' recente per {@code id}
+     * ("owner/name"), se nota. Va sempre passata esplicitamente a
+     * ReplicateClient.createPrediction: non tutti i modelli supportano
+     * lo shortcut "/models/{owner}/{name}/predictions" che userebbe
+     * implicitamente l'ultima versione (verificato dal vivo: 404 su
+     * tutti i modelli personali account sdurz75, pur esistendo ed
+     * essendo pubblici — vedi ReplicateModelSummary.latestVersionId).
+     */
+    public Optional<String> latestVersionOf(String id) {
+        return find(id).map(ReplicateModelSummary::latestVersionId);
     }
 
     public String idsAsCsv() {
-        return Stream.concat(personalModels.stream(), models.stream())
-                .map(ReplicateModelSummary::id)
-                .collect(Collectors.joining(", "));
+        return all().map(ReplicateModelSummary::id).collect(Collectors.joining(", "));
+    }
+
+    private Optional<ReplicateModelSummary> find(String id) {
+        return all().filter(m -> m.id().equals(id)).findFirst();
+    }
+
+    private Stream<ReplicateModelSummary> all() {
+        return Stream.concat(personalModels.stream(), models.stream());
     }
 }
