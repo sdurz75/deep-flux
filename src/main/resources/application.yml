@@ -58,6 +58,12 @@ replicate:
   # Collection curata da Replicate usata per precaricare, all'avvio, i
   # modelli proposti nella dropdown di /deep-chat (vedi ReplicateModelCatalog).
   model-collection: text-to-image
+  # Modelli personali (account sdurz75) affiancati alla collection curata
+  # nella stessa dropdown. Manutenuta a mano: l'API Replicate non offre
+  # un modo per elencare i modelli di un owner (GET /v1/models ignora un
+  # parametro "owner", vedi ReplicateModelCatalog) — aggiornare questa
+  # lista quando si pubblica un nuovo modello personale.
+  personal-models: ${REPLICATE_PERSONAL_MODELS:sdurz75/flux-lora-teresa,sdurz75/flux-lora-ff3,sdurz75/flux-lora-ff2,sdurz75/flux-lora-ff,sdurz75/lora-ff,sdurz75/sks-whole,sdurz75/sks-face-2}
 
 # Istanza SearXNG usata dal tool di web search del modello su /deep-chat
 # (vedi WebSearchTool/SearxngClient). Richiede che il formato JSON sia

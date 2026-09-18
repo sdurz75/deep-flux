@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  * "componente complesso" montato come Web Component isolato su un div.
  * Il contratto richiesta/risposta qui sotto ricalca il default di
  * deep-chat: {"messages":[...], "model": "..."} in ingresso (il campo
- * "model" arriva via additionalBodyProps, vedi il template), {"text":
+ * "model" arriva via requestInterceptor, vedi il template), {"text":
  * "...", "files":[{"src","name","type":"image"}]} o {"error":"..."} in
  * uscita — "files" con type "image" e' il formato che deep-chat
  * riconosce per mostrare un'immagine in chat, non solo testo.

@@ -17,12 +17,95 @@
         cercare sul web e generare immagini con Replicate quando serve.
     </p>
 
-    <div class="field">
-        <label class="field-label" for="image-model">Modello per la generazione immagini</label>
-        <select id="image-model" th:if="${!models.isEmpty()}">
-            <option th:each="m : ${models}" th:value="${m.id()}" th:text="${m.id()}" th:title="${m.description()}"></option>
-        </select>
-        <p th:if="${models.isEmpty()}" class="form-error">
+    <!--
+      Setup sincrono PRIMA del combobox Alpine sotto (stesso principio
+      del boot del tema in fragments/layout.html: uno script classico,
+      non deferred/module, eseguito durante il parsing, garantito prima
+      che Alpine (script deferred in head) scansioni il DOM e valuti
+      x-init). Alpine puo' partire non appena il SUO script deferred
+      viene eseguito, il che avviene PRIMA degli script "type=module"
+      piu' sotto (il bundle di deep-chat e' un modulo esterno da
+      scaricare, quindi anche uno script module inline in coda a lui
+      parte piu' tardi) — verificato dal vivo: window.setDeepChatModel
+      definito in uno script module veniva chiamato da x-init prima di
+      esistere. Qui sotto niente di tutto questo: solo dati e una
+      funzione che scrive su window, zero dipendenze dall'elemento
+      <deep-chat> (quello lo aspetta lo script module in fondo alla
+      pagina, via customElements.whenDefined).
+      th:inline="javascript" su una stringa (non su un oggetto) sfrutta
+      l'escaping JS-safe di Thymeleaf per il caso "inlinea questa
+      String" invece di doversi affidare a come Thymeleaf serializzerebbe
+      i record Java (owner()/name() non sono getter "getOwner()" in
+      stile JavaBean) — le liste arrivano gia' come JSON dal controller
+      (DeepChatController), qui solo JSON.parse.
+    -->
+    <script th:inline="javascript">
+        window.deepChatPersonalModels = JSON.parse(/*[[${personalModelsJson}]]*/ '[]');
+        window.deepChatCatalogModels = JSON.parse(/*[[${catalogModelsJson}]]*/ '[]');
+        window.setDeepChatModel = function (modelId) {
+            window.deepChatSelectedModel = modelId;
+        };
+    </script>
+
+    <!--
+      Combobox filtrabile invece di un <select>: col catalogo curato piu'
+      i modelli personali (vedi ReplicateModelCatalog) sono troppe voci
+      per scorrere a occhio. x-data e' JS puro valutato da Alpine, non
+      un contesto Thymeleaf: i dati arrivano dalle variabili globali
+      impostate nello script sopra.
+    -->
+    <div class="field model-picker"
+         x-data="{
+            query: '',
+            open: false,
+            selected: '',
+            personal: window.deepChatPersonalModels || [],
+            catalog: window.deepChatCatalogModels || [],
+            idOf(m) { return m.owner + '/' + m.name; },
+            matches(m) {
+                const q = this.query.trim().toLowerCase();
+                return !q || this.idOf(m).toLowerCase().includes(q);
+            },
+            get filteredPersonal() { return this.personal.filter(m => this.matches(m)); },
+            get filteredCatalog() { return this.catalog.filter(m => this.matches(m)); },
+            pick(m) {
+                this.selected = this.idOf(m);
+                this.query = this.selected;
+                this.open = false;
+                window.setDeepChatModel(this.selected);
+            },
+            init() {
+                const first = this.personal[0] || this.catalog[0];
+                if (first) { this.pick(first); }
+            }
+         }"
+         x-init="init()"
+         @click.outside="open = false; query = selected">
+        <label class="field-label" for="image-model-input">Modello per la generazione immagini</label>
+        <input type="text" id="image-model-input" autocomplete="off"
+               x-model="query"
+               @focus="open = true"
+               @input="open = true"
+               @keydown.escape="open = false; query = selected"
+               placeholder="Cerca un modello…">
+        <ul class="model-options" x-show="open && (filteredPersonal.length || filteredCatalog.length)">
+            <template x-if="filteredPersonal.length">
+                <li class="model-options-group">I tuoi modelli</li>
+            </template>
+            <template x-for="m in filteredPersonal" :key="idOf(m)">
+                <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
+            </template>
+            <template x-if="filteredCatalog.length">
+                <li class="model-options-group">Modelli disponibili</li>
+            </template>
+            <template x-for="m in filteredCatalog" :key="idOf(m)">
+                <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
+            </template>
+        </ul>
+        <p x-show="open && !filteredPersonal.length && !filteredCatalog.length" class="form-error">
+            Nessun modello corrisponde alla ricerca.
+        </p>
+        <p x-show="!personal.length && !catalog.length" class="form-error">
             Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
         </p>
     </div>
@@ -49,25 +132,24 @@
     <script type="module" src="https://unpkg.com/deep-chat@2.5.1/dist/deepChat.bundle.js"></script>
 
     <!--
-      Inoltra il modello scelto nella dropdown al backend: additionalBodyProps
-      e' l'unico modo per aggiungere campi custom al top level del body che
-      deep-chat invia (oltre a "messages"), vedi DeepChatApiController.
-      type="module" (non uno script classico) cosi' l'ordine di esecuzione
-      resta quello del documento rispetto al bundle sopra, che e' anch'esso
-      un modulo; whenDefined() e' comunque una rete di sicurezza se in futuro
-      l'ordine dovesse cambiare.
+      Inoltra il modello scelto nel combobox al backend, vedi
+      DeepChatApiController. Usa requestInterceptor (chiamato da deep-chat
+      ad ogni invio, letto dal bundle stesso, verificato leggendo il
+      bundle) e non additionalBodyProps: quest'ultimo viene unito al body
+      "grezzo" una volta sola quando l'handler interno viene costruito, e
+      non si aggiorna piu' se il modello selezionato cambia dopo il primo
+      turno. requestInterceptor invece legge window.deepChatSelectedModel
+      fresco ad ogni invio (impostato dal combobox sopra, non da questo
+      script: vedi il commento su Alpine/timing piu' in alto).
     -->
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
-            const chatEl = document.querySelector('deep-chat');
-            const modelSelect = document.getElementById('image-model');
-            const syncSelectedModel = () => {
-                chatEl.additionalBodyProps = {model: modelSelect ? modelSelect.value : ''};
+            document.querySelector('deep-chat').requestInterceptor = (details) => {
+                if (window.deepChatSelectedModel) {
+                    details.body.model = window.deepChatSelectedModel;
+                }
+                return details;
             };
-            if (modelSelect) {
-                modelSelect.addEventListener('change', syncSelectedModel);
-            }
-            syncSelectedModel();
         });
     </script>
 </main>

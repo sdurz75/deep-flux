@@ -197,6 +197,44 @@ form button {
 }
 
 /* ==========================================================================
+   Combobox filtrabile per la scelta del modello immagini (/deep-chat)
+   ========================================================================== */
+.model-picker {
+    position: relative;
+}
+
+.model-options {
+    position: absolute;
+    z-index: 20;
+    left: 0;
+    right: 0;
+    margin: 2px 0 0;
+    padding: calc(var(--spacing-unit) / 2) 0;
+    max-height: 260px;
+    overflow-y: auto;
+    list-style: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.model-options-group {
+    padding: calc(var(--spacing-unit) / 2) calc(var(--spacing-unit) * 1.5);
+    font-size: .75rem;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.model-option {
+    padding: calc(var(--spacing-unit) / 2) calc(var(--spacing-unit) * 1.5);
+    cursor: pointer;
+}
+
+.model-option:hover {
+    background: var(--color-bg-secondary);
+}
+
+/* ==========================================================================
    Generazione: spinner di stato durante il polling
    ========================================================================== */
 .spinner {

@@ -78,6 +78,26 @@ public class ReplicateClient {
         }
     }
 
+    /**
+     * GET /models/{owner}/{name}: dettaglio di un singolo modello. Usato
+     * per risolvere i modelli personali configurati in
+     * replicate.personal-models (vedi ReplicateModelCatalog): Replicate
+     * non offre un endpoint per elencare i modelli di un owner, solo
+     * questo per uno gia' conosciuto per nome.
+     */
+    public ReplicateModelSummary getModel(String owner, String name) {
+        requireToken();
+        try {
+            return restClient.get()
+                    .uri("/models/{owner}/{name}", owner, name)
+                    .headers(this::authHeaders)
+                    .retrieve()
+                    .body(ReplicateModelSummary.class);
+        } catch (RestClientException e) {
+            throw toReplicateException(e);
+        }
+    }
+
     public PredictionResponse getPrediction(String externalId) {
         requireToken();
         try {
