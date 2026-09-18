@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Deep Chat (demo)</title>
+</head>
+<body>
+<main class="container">
+    <h1>Deep Chat (demo)</h1>
+    <p>
+        Spike per verificare l'integrazione del Web Component
+        <code>&lt;deep-chat&gt;</code> col resto dell'architettura: parla
+        JSON con <code>POST /api/deep-chat</code>, che chiama lo stesso
+        assistente (Spring AI su OpenRouter) usato altrove nel progetto.
+        Chat libera, senza persistenza: la cronologia vive solo nel
+        browser finche' la pagina resta aperta.
+    </p>
+
+    <!--
+      Componente complesso montato isolato su un singolo elemento (vedi
+      CLAUDE.md, "Componenti davvero complessi"): nessun impatto sul
+      resto delle pagine, solo questa carica lo script.
+      connect/requestBodyLimits sono statici: HTML puro, niente th:*.
+      width/height 100%/generosa in vh: deve occupare tutto lo spazio
+      centrale della pagina, non un riquadro piccolo. display:block e'
+      necessario perche' il componente di default e' display:table-cell
+      (stile interno di deep-chat), che rende width:100% inefficace.
+    -->
+    <deep-chat
+            connect='{"url": "/api/deep-chat"}'
+            requestBodyLimits='{"maxMessages": 0}'
+            style="display: block; border-radius: var(--radius); border: 1px solid var(--color-border); width: 100%; height: 75vh; min-height: 420px;">
+    </deep-chat>
+
+    <!-- deepChat.bundle.js e' un modulo ES (termina con "export{...}"): un
+         <script> classico lo scarta con "Unexpected token 'export'" senza
+         mai registrare l'elemento -> serve type="module". -->
+    <script type="module" src="https://unpkg.com/deep-chat@2.5.1/dist/deepChat.bundle.js"></script>
+</main>
+</body>
+</html>

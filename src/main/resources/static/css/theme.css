@@ -62,9 +62,14 @@ a {
    Layout
    ========================================================================== */
 .container {
-    max-width: 880px;
+    /* Larghezza massima "standard" da desktop (stessa scala usata da
+       Bootstrap/Tailwind per il breakpoint piu' ampio) con un margine
+       laterale fluido: minimo 16px su mobile, cresce con la viewport,
+       si ferma a 64px sui monitor larghi. Nessun breakpoint fisso da
+       mantenere, resta CSS puro. */
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0 calc(var(--spacing-unit) * 2);
+    padding: 0 clamp(16px, 5vw, 64px);
 }
 
 main {
@@ -281,6 +286,45 @@ form button {
     overflow-x: auto;
     font-family: var(--font-mono);
     font-size: .85rem;
+}
+
+/* ==========================================================================
+   Chat
+   ========================================================================== */
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing-unit) * 1.5);
+    margin: calc(var(--spacing-unit) * 2) 0;
+}
+
+.chat-message {
+    border: none;
+    border-radius: var(--radius);
+    padding: var(--spacing-unit) calc(var(--spacing-unit) * 1.5);
+    max-width: 80%;
+}
+
+.chat-message-content {
+    margin: 0 0 var(--spacing-unit);
+    white-space: pre-wrap;
+}
+
+.chat-message-user {
+    align-self: flex-end;
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
+}
+
+.chat-message-user a {
+    color: var(--color-accent-contrast);
+}
+
+.chat-message-assistant {
+    align-self: flex-start;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
 }
 
 /* ==========================================================================

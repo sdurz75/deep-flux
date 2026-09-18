@@ -30,7 +30,8 @@ public class GenerationController {
     }
 
     @GetMapping("/new")
-    public String form() {
+    public String form(@RequestParam(required = false) String prompt, Model model) {
+        model.addAttribute("prompt", prompt);
         return "generate";
     }
 

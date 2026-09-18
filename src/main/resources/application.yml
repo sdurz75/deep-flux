@@ -2,6 +2,15 @@ server:
   port: 8080
 
 spring:
+  config:
+    # Carica .env (nella working directory, tipicamente la root del
+    # progetto) come fosse un file .properties: le righe KEY=VALUE
+    # finiscono tra le proprieta' lette sotto (${REPLICATE_API_TOKEN},
+    # ecc.), senza bisogno di "sourcizzarlo" a mano nella shell prima di
+    # ogni avvio. "optional:" evita che l'app fallisca ad avviarsi se
+    # .env non esiste (es. in CI, dove i token arrivano da vere
+    # variabili d'ambiente).
+    import: optional:file:.env[.properties]
   application:
     name: spring-htmx-starter
   thymeleaf:
@@ -20,6 +29,18 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone
+  # un'API OpenAI-compatibile (https://openrouter.ai/docs): basta puntare lo
+  # starter Spring AI per OpenAI sul suo base-url, nessun client custom.
+  # Da esportare come variabile d'ambiente, mai committato:
+  #   export OPENROUTER_API_TOKEN=sk-or-...
+  ai:
+    openai:
+      api-key: ${OPENROUTER_API_TOKEN:}
+      base-url: https://openrouter.ai/api/v1
+      chat:
+        options:
+          model: ${OPENROUTER_CHAT_MODEL:openai/gpt-4o-mini}
 
 # Token generato su https://replicate.com/account/api-tokens.
 # Da esportare come variabile d'ambiente, mai committato:

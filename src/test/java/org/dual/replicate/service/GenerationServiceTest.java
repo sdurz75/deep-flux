@@ -3,7 +3,7 @@ package org.dual.replicate.service;
 import java.util.Map;
 import java.util.Optional;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.replicate.PredictionResponse;

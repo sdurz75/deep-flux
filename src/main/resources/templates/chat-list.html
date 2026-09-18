@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<head>
+    <title>Chat</title>
+</head>
+<body>
+<main class="container">
+    <h1>Chat</h1>
+    <p>
+        Conversa con un assistente (via OpenRouter) per rifinire l'idea di
+        un'immagine: quando una sua risposta ti convince, usala come prompt
+        per lanciare la generazione vera e propria.
+    </p>
+
+    <form th:action="@{/chat}" method="post">
+        <button type="submit">Nuova conversazione</button>
+    </form>
+
+    <p th:if="${#lists.isEmpty(conversations)}">Nessuna conversazione ancora.</p>
+
+    <ul th:unless="${#lists.isEmpty(conversations)}">
+        <li th:each="conversation : ${conversations}">
+            <a th:href="@{'/chat/' + ${conversation.id}}"
+               th:text="'Conversazione del ' + ${conversation.createdAt}">conversazione</a>
+        </li>
+    </ul>
+</main>
+</body>
+</html>

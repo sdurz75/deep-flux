@@ -5,8 +5,8 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.replicate.PredictionResponse;
@@ -128,7 +128,7 @@ public class GenerationService {
             @SuppressWarnings("unchecked")
             Map<String, Object> parsed = objectMapper.readValue(parametersJson, Map.class);
             return parsed == null ? new LinkedHashMap<>() : new LinkedHashMap<>(parsed);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ReplicateException("I parametri devono essere un oggetto JSON valido: " + e.getOriginalMessage());
         }
     }

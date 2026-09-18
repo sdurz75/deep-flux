@@ -5,7 +5,7 @@
     <title th:text="'Immagine #' + ${generation.id}">Immagine</title>
 </head>
 <body>
-<main>
+<main class="container">
     <p><a th:href="@{/gallery}">&larr; Torna alla galleria</a></p>
 
     <img th:src="@{'/images/' + ${generation.imageFilename}}"

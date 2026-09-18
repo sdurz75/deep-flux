@@ -26,9 +26,14 @@ serve vendorizzarli offline, basta scaricare i due file JS in
 
 ### Cosa NON introdurre senza una ragione concreta
 
-- **Spring WebFlux** — nessun beneficio reale per una webapp a navigazione
-  prevalentemente server-rendered; aggiunge solo complessità (Mono/Flux).
-  Restare su Spring MVC classico (`spring-boot-starter-web`).
+- **Spring WebFlux come modello di programmazione del server** — nessun
+  beneficio reale per una webapp a navigazione prevalentemente
+  server-rendered; aggiunge solo complessità (Mono/Flux nei controller).
+  Restare su Spring MVC classico (`spring-boot-starter-webmvc`). Eccezione
+  isolata e deliberata: lo starter Spring AI (vedi Stack sotto) porta
+  Reactor/WebFlux in classpath per il *client* HTTP verso i provider LLM,
+  non per servire richieste — non è un'apertura generale a WebFlux nel
+  resto del progetto.
 - **React/Vue/Angular come framework applicativo** — duplicherebbe la
   gestione di routing/stato che il server già fa. Se serve un widget
   isolato, montarlo come Web Component su un `<div>` mirato, non riscrivere
@@ -43,13 +48,14 @@ serve vendorizzarli offline, basta scaricare i due file JS in
 
 | Livello | Scelta | Perché |
 |---|---|---|
-| Backend | Spring Boot 3.x, Spring MVC | Coerente con lo stack Spring esistente, nessun context-switch |
+| Backend | Spring Boot 4.x, Spring MVC | Coerente con lo stack Spring esistente, nessun context-switch |
 | Template engine | Thymeleaf | Fragment nativi, integrazione naturale con Spring MVC |
 | Navigazione parziale | htmx (via CDN) | Markup dichiarativo via attributi, niente build |
 | Micro-interattività | Alpine.js (via CDN) | Stato dichiarato inline, niente build |
 | Theming | CSS Custom Properties | Cambio tema = cambio attributo `data-theme`, zero ricalcolo server |
-| Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni (prompt/parametri/stato); DB embedded su file locale, zero server esterno |
-| Client HTTP verso Replicate | `RestClient` (Spring Framework 6.1+) | Sincrono, già incluso in `spring-boot-starter-web`: nessuna dipendenza WebFlux/reactor |
+| Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni e delle conversazioni chat (prompt/parametri/stato, messaggi); DB embedded su file locale, zero server esterno |
+| Client HTTP verso Replicate | `RestClient` (`spring-boot-starter-restclient`) | Sincrono, nessuna dipendenza WebFlux/reactor per questo client |
+| Assistente chat (OpenRouter) | Spring AI (`spring-ai-starter-model-openai`) via `ChatClient`, `base-url` puntato su `https://openrouter.ai/api/v1` | OpenRouter espone un'API OpenAI-compatibile: nessun client HTTP custom da scrivere/mantenere. Richiede Spring Boot 4.x (Spring AI 2.0.x) — vedi eccezione WebFlux sopra |
 | Build | Maven | — |
 | Java | 21 | LTS |
 
@@ -66,11 +72,17 @@ src/main/java/org/dual/replicate/
     SearchController.java       # pattern "stessa URL, due risposte"
     GenerationController.java   # crea una generazione + polling htmx dello stato
     GalleryController.java      # galleria (load more) + dettaglio singola immagine
+    ChatController.java         # elenco conversazioni, invio messaggi (pattern "stessa URL, due risposte")
   domain/
     Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
     GenerationStatus.java
+    ChatConversation.java       # entity JPA: una conversazione con l'assistente
+    ChatMessage.java            # entity JPA: un turno (USER/ASSISTANT) di una conversazione
+    ChatRole.java
   repository/
     GenerationRepository.java
+    ChatConversationRepository.java
+    ChatMessageRepository.java
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
     PredictionResponse.java
@@ -78,6 +90,8 @@ src/main/java/org/dual/replicate/
   service/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
+    ChatService.java            # persiste i turni, chiama il ChatClient (Spring AI) su OpenRouter
+    ChatException.java
   config/
     StorageConfig.java          # espone storage.images-dir come /images/**
 
@@ -89,12 +103,15 @@ src/main/resources/
     generation-status.html       # pagina di stato/polling di una generazione
     gallery.html                 # galleria (load more)
     gallery-detail.html          # dettaglio di una generazione
+    chat-list.html               # elenco conversazioni chat
+    chat.html                    # una conversazione (messaggi + form invio)
     fragments/
       layout.html                # shell HTML condivisa (head, header, footer)
       items.html, search.html    # fragment riusabili delle demo starter
       generate-form.html         # fragment del form (riusato anche per mostrare errori)
       generation.html            # fragment di stato di una generazione (polling)
       gallery.html               # fragment card + load more della galleria
+      chat.html                  # fragment dei messaggi di una conversazione
   static/
     css/theme.css                # tutti i design token e gli stili
 ```
@@ -117,7 +134,7 @@ come argomenti:
     <title>Titolo pagina</title>
 </head>
 <body>
-<main>
+<main class="container">
     <!-- contenuto -->
 </main>
 </body>
@@ -128,6 +145,14 @@ come argomenti:
 giusto (`<title th:replace="${title}">` nell'head, `<main th:replace="${content}">`
 nel body). Per creare una nuova pagina: copiare questo scheletro, non
 serve toccare `layout.html`.
+
+Attenzione: `th:replace` sostituisce l'intero elemento target, attributi
+inclusi — il `<main class="container">` di `layout.html` viene rimpiazzato
+di netto dal `<main>` della pagina, quindi la classe `container` **va
+scritta sul `<main>` di ogni pagina**, non basta metterla in `layout.html`
+(che infatti non la porta piu' su questo tag). Senza `class="container"`
+il contenuto si estende a tutta larghezza, senza il margine laterale
+standard usato dal resto dell'app.
 
 ## Pattern controller: quando restituire fragment vs pagina intera
 
