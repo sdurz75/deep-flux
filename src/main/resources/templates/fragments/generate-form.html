@@ -12,8 +12,8 @@
     <div>
         <p th:if="${error}" class="form-error" th:text="${error}">Errore</p>
 
-        <form hx-post="/generations" hx-target="#generation-panel" hx-swap="innerHTML"
-              action="/generations" method="post">
+        <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
+              th:action="@{/generations}" method="post">
             <label for="model">Modello (owner/nome)</label>
             <input type="text" id="model" name="model" th:value="${model}"
                    placeholder="black-forest-labs/flux-schnell" required>

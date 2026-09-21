@@ -12,9 +12,9 @@
         l'assistente puo' cercare sul web per informarsi e generare
         l'immagine su Replicate col modello scelto qui sotto (o un altro,
         se lo chiedi esplicitamente in chat). Le immagini generate finiscono
-        anche in <a th:href="@{/gallery}">Galleria</a>. La cronologia della
-        conversazione vive solo nel browser finche' la pagina resta aperta
-        (nessuna persistenza lato server, per ora — vedi CLAUDE.md).
+        anche in <a th:href="@{/gallery}">Galleria</a>. La conversazione e'
+        persistita lato server e riprende da dove l'avevi lasciata ad ogni
+        apertura di questa pagina.
     </p>
 
     <!--
@@ -42,6 +42,7 @@
     <script th:inline="javascript">
         window.deepChatPersonalModels = JSON.parse(/*[[${personalModelsJson}]]*/ '[]');
         window.deepChatCatalogModels = JSON.parse(/*[[${catalogModelsJson}]]*/ '[]');
+        window.deepChatHistory = JSON.parse(/*[[${chatHistoryJson}]]*/ '[]');
         window.setDeepChatModel = function (modelId) {
             window.deepChatSelectedModel = modelId;
         };
@@ -111,17 +112,40 @@
     </div>
 
     <!--
+      Reset della conversazione: cancella la cronologia persistita
+      (DeepChatApiController#reset) e forza un reload della pagina via
+      l'header di risposta HX-Refresh, che ripopola initialMessages a
+      vuoto dal controller — piu' semplice che conoscere l'API JS di
+      deep-chat per svuotare i messaggi gia' in pagina. hx-swap="none"
+      perche' non c'e' nessun fragment da inserire, solo l'header da
+      processare.
+    -->
+    <div class="deep-chat-toolbar">
+        <button type="button" class="button-danger"
+                th:hx-post="@{/api/deep-chat/reset}"
+                hx-swap="none"
+                hx-confirm="Cancellare la conversazione? L'azione non si puo' annullare.">
+            Nuova conversazione
+        </button>
+    </div>
+
+    <!--
       Componente complesso montato isolato su un singolo elemento (vedi
       CLAUDE.md, "Componenti davvero complessi"): nessun impatto sul
       resto delle pagine, solo questa carica lo script.
-      connect/requestBodyLimits sono statici: HTML puro, niente th:*.
+      requestBodyLimits e' statico: HTML puro, niente th:*. connect
+      invece deve passare da @{...}: e' un URL assoluto dal root del
+      dominio che il browser di deep-chat usa cosi' com'e', quindi se
+      scritto come stringa letterale ignora del tutto sotto quale path
+      l'app e' montata da un reverse proxy (es. /deep) — vedi
+      server.forward-headers-strategy in application.yml.
       width/height 100%/generosa in vh: deve occupare tutto lo spazio
       centrale della pagina, non un riquadro piccolo. display:block e'
       necessario perche' il componente di default e' display:table-cell
       (stile interno di deep-chat), che rende width:100% inefficace.
     -->
     <deep-chat
-            connect='{"url": "/api/deep-chat"}'
+            th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
             requestBodyLimits='{"maxMessages": 0}'
             style="display: block; border-radius: var(--radius); border: 1px solid var(--color-border); width: 100%; height: 75vh; min-height: 420px;">
     </deep-chat>
@@ -144,7 +168,9 @@
     -->
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
-            document.querySelector('deep-chat').requestInterceptor = (details) => {
+            const deepChat = document.querySelector('deep-chat');
+            deepChat.initialMessages = window.deepChatHistory || [];
+            deepChat.requestInterceptor = (details) => {
                 if (window.deepChatSelectedModel) {
                     details.body.model = window.deepChatSelectedModel;
                 }

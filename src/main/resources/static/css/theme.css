@@ -137,6 +137,38 @@ main {
     color: var(--color-accent);
 }
 
+/* Sotto una certa larghezza (es. iPhone in verticale) brand + nav-links
+   + theme-switch su una riga sola (flex-wrap:nowrap di default) non ci
+   stanno: vanno a capo storti e si accavallano. Tenere solo nav-links
+   su una riga propria non basta: white-space:nowrap sul brand gli
+   impedisce di restringersi, quindi anche solo brand+theme-switch
+   affiancati possono eccedere la larghezza e tagliare i bottoni del
+   tema fuori schermo (verificato a 390px). Piu' robusto: ognuno dei
+   tre blocchi sulla propria riga, a piena larghezza — non dipende dalle
+   larghezze esatte di brand/testo dei link/bottoni tema. */
+@media (max-width: 640px) {
+    .site-header nav {
+        flex-wrap: wrap;
+        row-gap: var(--spacing-unit);
+    }
+
+    .brand,
+    .nav-links,
+    .theme-switch {
+        flex: 1 1 100%;
+    }
+
+    .nav-links {
+        order: 1;
+        flex-wrap: wrap;
+        gap: var(--spacing-unit) calc(var(--spacing-unit) * 1.5);
+    }
+
+    .theme-switch {
+        order: 2;
+    }
+}
+
 /* ==========================================================================
    Form controls
    ========================================================================== */
@@ -232,6 +264,39 @@ form button {
 
 .model-option:hover {
     background: var(--color-bg-secondary);
+}
+
+.deep-chat-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--spacing-unit);
+}
+
+/* <deep-chat> NON puo' prendere la sua larghezza da flex-grow (ne' da
+   grid-template-columns:1fr, stessa famiglia di algoritmo "flexible
+   length"): verificato isolando il componente in una pagina minima
+   fuori da quest'app, popolata di messaggi come in produzione — con
+   flex-grow/1fr il layout INTERNO dei messaggi (dentro la sua shadow
+   root) resta ancorato al default della libreria (~320px, dichiarato
+   nel suo `:host` interno), con spazio vuoto a destra dentro
+   l'elemento stesso; con un `width` esplicito (anche calc()) no. Quindi
+   qui sotto un width calcolato, non un flex-grow sul tag (vedi
+   deep-chat.html) — e va tenuto sincronizzato "a mano" con la
+   larghezza del pannello impostazioni (280px aperto, 56px collassato)
+   tramite :has(). */
+.deep-chat-layout deep-chat {
+    width: calc(100% - 280px - var(--spacing-unit) * 2);
+}
+
+.deep-chat-layout:has(.deep-chat-settings.collapsed) deep-chat {
+    width: calc(100% - 56px - var(--spacing-unit) * 2);
+}
+
+@media (max-width: 860px) {
+    .deep-chat-layout deep-chat,
+    .deep-chat-layout:has(.deep-chat-settings.collapsed) deep-chat {
+        width: 100%;
+    }
 }
 
 /* ==========================================================================

@@ -19,14 +19,16 @@ L'applicazione serve a:
    tramite un archivio** — ogni generazione (chatbot o form diretto)
    diventa una riga `Generation`, consultabile in `/gallery`.
 3. **Mantenere una storia delle conversazioni e poterle riprendere in
-   futuro** — obiettivo dichiarato, **non ancora implementato**: oggi
-   `/deep-chat` non persiste nulla lato server (la cronologia vive solo
-   nel browser, persa alla chiusura pagina). Quando questa feature verra'
-   costruita, richiedera' una nuova migrazione Flyway per lo storage
-   delle conversazioni — non riesumare le vecchie tabelle
-   `CHAT_CONVERSATION`/`CHAT_MESSAGE` (rimosse in V2, erano legate a una
-   chat di rifinitura prompt ormai eliminata, non necessariamente lo
-   schema giusto per questo obiettivo).
+   futuro** — `/deep-chat` persiste ogni turno lato server (`ChatMessage`/
+   `ChatMessageRepository`, migrazione V3) e ripristina la cronologia ad
+   ogni apertura della pagina (`DeepChatController` la passa al template
+   come JSON, deep-chat la carica via `initialMessages`). Un'unica
+   conversazione continua, non multi-utente (come il resto dell'app:
+   `Generation` non ha un owner) — niente tabella "conversazione"
+   separata come nello schema rimosso in V2 (`CHAT_CONVERSATION`/
+   `CHAT_MESSAGE`, legato a una chat di rifinitura prompt ormai
+   eliminata): qui basta l'elenco messaggi, azzerabile per intero dal
+   bottone "Nuova conversazione" in UI (`POST /api/deep-chat/reset`).
 
 Ulteriori evoluzioni seguiranno, ma sempre pertinenti a questi tre punti:
 non aggiungere feature (pagine demo, integrazioni, pattern) che non
@@ -108,8 +110,11 @@ src/main/java/org/dual/replicate/
   domain/
     Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
     GenerationStatus.java
+    ChatMessage.java            # entity JPA: un turno persistito di /deep-chat (ruolo, testo, immagine opzionale)
+    ChatMessageRole.java
   repository/
     GenerationRepository.java
+    ChatMessageRepository.java
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
     PredictionResponse.java
@@ -123,7 +128,7 @@ src/main/java/org/dual/replicate/
   service/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
-    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, senza persistenza
+    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia
     WebSearchTool.java          # tool Spring AI: ricerca web via SearxngClient
     ImageGenerationTool.java    # tool Spring AI: genera un'immagine via GenerationService
     GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext)
@@ -135,6 +140,7 @@ src/main/resources/
   db/migration/
     V1__create_initial_schema.sql   # schema Flyway, vedi sezione dedicata sotto
     V2__drop_chat_tables.sql         # rimossa la persistenza della vecchia chat di rifinitura prompt
+    V3__create_chat_message.sql      # persistenza della cronologia di /deep-chat (vedi Scopo, punto 3)
   templates/
     index.html                   # home
     generate.html                 # form nuova generazione
@@ -205,14 +211,15 @@ public String status(@PathVariable Long id,
 }
 ```
 
-Attenzione se il fragment prende parametri (es. il pattern "load more" sotto):
-restituito come **vista di risposta diretta** da un controller, Thymeleaf
-richiede parametri **nominati**, non posizionali — `frag(nome=${valore})`,
-non `frag(${valore})`. La forma posizionale funziona solo dentro un
-`th:replace` inline in un altro template (dove la espressione la valuta
-il parser OGNL/SpringEL, non `ThymeleafView.renderFragment`), altrimenti
-va in 500 con `IllegalArgumentException: Parameters in a view
-specification must be named`. Vedi `GalleryController` per l'uso corretto.
+Attenzione se il fragment prende parametri (es. la paginazione della
+galleria sotto): restituito come **vista di risposta diretta** da un
+controller, Thymeleaf richiede parametri **nominati**, non posizionali
+— `frag(nome=${valore})`, non `frag(${valore})`. La forma posizionale
+funziona solo dentro un `th:replace` inline in un altro template (dove
+la espressione la valuta il parser OGNL/SpringEL, non
+`ThymeleafView.renderFragment`), altrimenti va in 500 con
+`IllegalArgumentException: Parameters in a view specification must be
+named`. Vedi `GalleryController` per l'uso corretto.
 
 Vantaggi di questo pattern rispetto ad avere due endpoint separati:
 
@@ -225,26 +232,44 @@ Vantaggi di questo pattern rispetto ad avere due endpoint separati:
 Esempi già implementati da copiare:
 
 - `GenerationController` — polling di stato, fragment senza parametri.
-- `GalleryController` — paginazione "load more", il pulsante si sostituisce
-  con `hx-target` esplicito + `hx-swap="outerHTML"` (vedi
-  `fragments/gallery.html`); il fragment prende parametri nominati, e'
-  l'esempio da seguire per quel caso.
+- `GalleryController` — paginazione numerata, i link sostituiscono
+  l'intero contenuto con `hx-target="#gallery-content"` +
+  `hx-swap="innerHTML"` (vedi `fragments/gallery.html`); il fragment
+  prende parametri nominati, e' l'esempio da seguire per quel caso.
 
-## Convenzione: attributi `hx-*` dinamici in Thymeleaf
+## Convenzione: attributi che portano un URL dell'app
 
-Per un attributo `hx-*` con valore statico, scriverlo come HTML puro:
+Ogni attributo che porta un URL dell'app — `href`, `src`, `action`,
+`hx-get`/`hx-post`/`hx-put`/`hx-delete`, o un URL passato a un Web
+Component (es. `connect` di `<deep-chat>`, vedi `deep-chat.html`) —
+passa **sempre** da `@{...}`, anche quando il path e' letterale e non
+dipende dal model. L'app puo' girare dietro un reverse proxy su un
+subpath (vedi `server.forward-headers-strategy` in `application.yml`):
+solo `@{...}` tiene conto del prefisso (`X-Forwarded-Prefix`) a
+runtime — una stringa scritta a mano come `"/generations"` lo ignora
+sempre, "statica" o no. Non e' teorico: e' un bug reale che si e'
+presentato appena l'app e' stata montata sotto un subpath (vedi il fix
+su `fragments/generate-form.html` e `deep-chat.html`).
+
+Per un attributo `hx-*` standard basta il prefisso `th:` — Thymeleaf lo
+riconosce come "generic attribute setter" anche per attributi non
+standard come `hx-get` — con `@{...}` dentro, path letterale o con
+parametri dal model:
 
 ```html
-<form hx-post="/generations" hx-target="#generation-panel" hx-swap="innerHTML" action="/generations" method="post">
+<form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
+      th:action="@{/generations}" method="post">
 ```
-
-Per un valore dinamico (es. un parametro calcolato dal model), usare il
-prefisso `th:` — Thymeleaf lo riconosce come "generic attribute setter"
-anche per attributi non standard come `hx-get`:
 
 ```html
-<button th:hx-get="@{/gallery(page=${nextPage})}" hx-target="#load-more-gallery" hx-swap="outerHTML">
+<a th:hx-get="@{/gallery(page=${p})}" hx-target="#gallery-content" hx-swap="innerHTML">...</a>
 ```
+
+Fuori da un attributo htmx (es. `connect` di `<deep-chat>`, letto dal
+componente via JavaScript, non da htmx: non esiste un `th:connect`) non
+c'e' un prefisso `th:` diretto da applicare: serve `th:attr` con
+`@{...}` interpolato dentro una literal substitution Thymeleaf
+(`|...|`), vedi `deep-chat.html`.
 
 ## Convenzione: theming
 

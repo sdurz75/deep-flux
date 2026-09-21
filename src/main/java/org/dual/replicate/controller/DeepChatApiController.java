@@ -5,6 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.service.DeepChatService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,7 +44,22 @@ public class DeepChatApiController {
         }
     }
 
-    private List<FileRef> toFiles(Generation image) {
+    /**
+     * Azzera la cronologia persistita (vedi DeepChatService.resetHistory)
+     * e forza un reload completo della pagina via l'header di risposta
+     * "HX-Refresh" che htmx riconosce nativamente: piu' semplice che
+     * conoscere l'API JS di deep-chat per svuotare i messaggi gia' in
+     * pagina, e comunque servirebbe un reload per ripopolare
+     * initialMessages da capo (vedi DeepChatController).
+     */
+    @PostMapping("/reset")
+    public ResponseEntity<Void> reset() {
+        deepChatService.resetHistory();
+        return ResponseEntity.ok().header("HX-Refresh", "true").build();
+    }
+
+    /** Package-private: riusata da DeepChatController per ricostruire l'allegato immagine al ripristino della cronologia. */
+    static List<FileRef> toFiles(Generation image) {
         if (image == null || image.getImageFilename() == null) {
             return null;
         }
