@@ -58,13 +58,16 @@ class DeepChatServiceTest {
     private ChatMessageRepository chatMessageRepository;
 
     @Mock
+    private DeepChatGenerationWatcher generationWatcher;
+
+    @Mock
     private Messages i18n;
 
     @Test
     void replyThrowsWhenConversationNotFound() {
         ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                chatConversationRepository, chatMessageRepository, i18n, "guida");
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, "guida");
         when(chatConversationRepository.findById(1L)).thenReturn(Optional.empty());
         when(i18n.get("deepchat.error.conversationNotFound")).thenReturn("Conversazione non trovata");
 
@@ -84,7 +87,7 @@ class DeepChatServiceTest {
                 .thenReturn(chatResponse);
 
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                chatConversationRepository, chatMessageRepository, i18n, "guida");
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, "guida");
 
         ChatConversation conversation = new ChatConversation();
         Instant createdAt = conversation.getUpdatedAt();

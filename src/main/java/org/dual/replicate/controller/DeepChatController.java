@@ -12,6 +12,7 @@ import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.service.ChatConversationService;
+import org.dual.replicate.service.DeepChatService;
 import org.dual.replicate.service.GenerationParameters;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -196,11 +197,11 @@ public class DeepChatController {
 
     private HistoryMessage toHistoryMessage(ChatMessage message) {
         String role = message.getRole() == ChatMessageRole.USER ? "user" : "ai";
-        List<DeepChatApiController.FileRef> files = DeepChatApiController.toFiles(message.getGeneration());
+        List<DeepChatService.FileRef> files = DeepChatService.toFiles(message.getGeneration());
         return new HistoryMessage(role, message.getContent(), files);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private record HistoryMessage(String role, String text, List<DeepChatApiController.FileRef> files) {
+    private record HistoryMessage(String role, String text, List<DeepChatService.FileRef> files) {
     }
 }

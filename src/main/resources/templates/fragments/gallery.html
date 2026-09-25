@@ -14,9 +14,39 @@
   intera" - una vista fragment risolta direttamente dal controller
   richiede parametri nominati).
 -->
+<!--
+  Il wrapper con hx-trigger="gallery-update from:body" (evento SSE
+  ri-dispatchato da fragments/live-events.html, vedi
+  GenerationEventBroadcaster) deve stare QUI dentro, non sul div
+  #gallery-content in gallery.html: quel div e' il target dello swap
+  (hx-swap="innerHTML"), sopravvive intatto a ogni ricarica, quindi un
+  hx-get="@{/gallery(page=...)}" li' sopra congelerebbe currentPage al
+  valore del primo caricamento. Qui dentro invece si ri-renderizza a ogni
+  swap (pagina cambiata O refresh da SSE), cosi' currentPage e' sempre
+  quello appena servito da GalleryController. style="display:contents":
+  serve solo da hook per gli attributi hx-*, non deve influire sul layout
+  (la griglia CSS vive sul div grid() qui sotto, la paginazione e' un
+  fratello separato).
+-->
 <th:block th:fragment="content(generations, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
-    <div th:replace="~{fragments/gallery :: grid(${generations})}"></div>
-    <div th:replace="~{fragments/pagination :: nav('/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+    <div style="display:contents" th:hx-get="@{/gallery(page=${currentPage})}"
+         hx-trigger="gallery-update from:body" hx-target="#gallery-content" hx-swap="innerHTML">
+        <!--
+          Il messaggio "galleria vuota" vive QUI (non piu' in gallery.html,
+          fuori da #gallery-content) per lo stesso motivo del wrapper
+          sopra: deve ricomparire/sparire a ogni refresh (SSE incluso),
+          non restare congelato allo stato del primo caricamento - una
+          prima generazione completata mentre la pagina e' aperta su una
+          galleria vuota deve far sparire questo messaggio, non lasciarlo
+          sopra alla nuova immagine.
+        -->
+        <p th:if="${#lists.isEmpty(generations)}">
+            <span th:text="#{gallery.empty.prefix}">Nessuna immagine ancora.</span>
+            <a th:href="@{/generations/new}" th:text="#{gallery.empty.link}">Generane una</a>.
+        </p>
+        <div th:replace="~{fragments/gallery :: grid(${generations})}"></div>
+        <div th:replace="~{fragments/pagination :: nav('/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+    </div>
 </th:block>
 
 <!--

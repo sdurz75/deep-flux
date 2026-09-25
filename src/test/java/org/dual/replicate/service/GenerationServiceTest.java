@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,11 +44,14 @@ class GenerationServiceTest {
     @Mock
     private Messages messages;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void createSavesGenerationWithPredictionIdAndMergedInput() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new PredictionResponse("pred-1", "starting", null, null, null));
@@ -66,7 +70,7 @@ class GenerationServiceTest {
 
     @Test
     void createRejectsWhenTooManyPredictionsInProgress() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         when(replicateClient.countInProgressPredictions(4)).thenReturn(4);
         when(messages.get(eq("generation.error.tooManyInProgress"), any())).thenReturn("troppe generazioni in corso");
@@ -80,7 +84,7 @@ class GenerationServiceTest {
 
     @Test
     void createProceedsWhenBelowInProgressThreshold() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         when(replicateClient.countInProgressPredictions(4)).thenReturn(3);
         when(replicateClient.createPrediction(anyString(), any(), any()))
@@ -95,7 +99,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDownloadsImageWhenPredictionSucceeded() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         when(repository.findById(1L)).thenReturn(Optional.of(generation));
@@ -109,11 +113,12 @@ class GenerationServiceTest {
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.SUCCEEDED);
         assertThat(result.getImageFilenames()).containsExactly("1-0.png");
         assertThat(result.getCompletedAt()).isNotNull();
+        verify(eventPublisher).publishEvent(any(GenerationCompletedEvent.class));
     }
 
     @Test
     void refreshDownloadsAllImagesWhenPredictionHasMultipleOutputs() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         Generation generation = new Generation("pred-5", "owner/model", null, "a cat", null);
         when(repository.findById(5L)).thenReturn(Optional.of(generation));
@@ -132,7 +137,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDoesNotCallReplicateWhenAlreadyTerminal() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -146,7 +151,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteRemovesImageFileAndRepositoryRow() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setImageFilenames(List.of("1-0.png", "1-1.png"));

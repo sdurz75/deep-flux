@@ -319,8 +319,32 @@
                 details.body.conversationId = window.deepChatConversationId;
                 return details;
             };
+
+            // Completamento asincrono di una generazione avviata in QUESTA
+            // conversazione (vedi ImageGenerationTool/DeepChatGenerationWatcher):
+            // l'evento "chat-message" (ri-dispatchato da
+            // fragments/live-events.html da GET /events, incluso piu' sotto)
+            // arriva a TUTTE le tab connesse, non solo a questa conversazione
+            // - da qui il controllo su conversationId, scartando i push
+            // destinati ad altre conversazioni aperte altrove.
+            // addMessage potrebbe gia' sparare da solo l'evento che
+            // alimenta "new-message from:#deep-chat-el" sopra (dipende da
+            // "isUpdate", non specificato qui: la doc di deep-chat non e'
+            // univoca sul default) - dispatch manuale ed esplicito subito
+            // dopo, invece di fare affidamento su quel comportamento: nel
+            // peggiore dei casi (deep-chat lo spara gia' da solo) la
+            // galleria contestuale fa una GET in piu', innocua.
+            document.body.addEventListener('chat-message', (event) => {
+                if (event.detail.conversationId !== window.deepChatConversationId) {
+                    return;
+                }
+                deepChat.addMessage({role: 'ai', text: event.detail.text, files: event.detail.files || undefined});
+                deepChat.dispatchEvent(new CustomEvent('new-message'));
+            });
         });
     </script>
+
+    <div th:replace="~{fragments/live-events :: connect}"></div>
 </div>
 </body>
 </html>

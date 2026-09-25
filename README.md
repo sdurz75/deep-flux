@@ -70,14 +70,23 @@ Configurazione di default sia di nginx (`proxy_set_header X-Forwarded-*`
 nei setup standard, es. Certbot) sia di Traefik/Caddy: di norma non
 serve altro.
 
-Un solo timeout da alzare esplicitamente: `/api/deep-chat` (il backend
-del Web Component `<deep-chat>`) puo' restare in attesa fino a ~90s
-mentre l'assistente genera un'immagine su Replicate (vedi
-`ImageGenerationTool.WAIT_TIMEOUT`), oltre al tempo della chiamata LLM
-stessa. Il timeout di lettura/proxy sulla rotta deve essere piu' alto
-di quello (es. `proxy_read_timeout 120s;` su nginx), altrimenti il
-proxy chiude la connessione prima che l'assistente risponda anche se la
-generazione va a buon fine.
+`/api/deep-chat` (il backend del Web Component `<deep-chat>`) non
+aspetta piu' che un'immagine sia pronta: `ImageGenerationTool` avvia la
+generazione e torna subito, il risultato arriva dopo via push (vedi
+sotto) — nessun timeout esplicito da alzare per questa rotta.
+
+`GET /events` (SSE, vedi `EventStreamController`/`GenerationEventBroadcaster`)
+e' invece una connessione tenuta aperta apposta, verso cui `/gallery` e
+`/deep-chat` si registrano per ricevere il risultato di una generazione
+non appena pronto. Il proxy davanti all'app deve:
+- **non bufferizzare** questa rotta (`proxy_buffering off;` su nginx,
+  posto specificamente su `location /events`), altrimenti gli eventi
+  restano bufferizzati e non arrivano mai al browser;
+- avere un `proxy_read_timeout` lungo, o accettare che la connessione
+  cada periodicamente. Non e' un problema se cade: `EventSource` si
+  riconnette da solo, e un eventuale evento perso nella finestra di
+  disconnessione non e' definitivo — il messaggio e' comunque gia'
+  persistito, ricompare al primo reload/cambio conversazione.
 
 Non essendoci sessioni/cookie ne' Spring Security in questa app, non
 c'e' altro stato lato server da propagare attraverso il proxy.

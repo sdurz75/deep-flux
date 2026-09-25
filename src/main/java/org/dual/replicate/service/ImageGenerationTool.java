@@ -1,12 +1,10 @@
 package org.dual.replicate.service;
 
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.springframework.ai.chat.model.ToolContext;
@@ -15,13 +13,15 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * Tool Spring AI registrato sul ChatClient di DeepChatService: genera
- * un'immagine su Replicate (riusando GenerationService, la stessa
- * orchestrazione di GenerationController), attende sincronamente il
- * risultato e lo comunica al modello. Il file viene sempre salvato
- * tramite GenerationService/ImageStorageService come per il resto
- * dell'app: DeepChatService legge poi il risultato da ToolContext per
- * farlo comparire come immagine nella risposta di /api/deep-chat.
+ * Tool Spring AI registrato sul ChatClient di DeepChatService: avvia una
+ * generazione immagine su Replicate (riusando GenerationService, la
+ * stessa orchestrazione di GenerationController) e torna subito, senza
+ * attenderne l'esito. Il file viene sempre salvato tramite
+ * GenerationService/ImageStorageService come per il resto dell'app;
+ * l'esito arriva in un secondo momento in modo asincrono (poll in
+ * background + push SSE, vedi DeepChatGenerationWatcher, avviato da
+ * DeepChatService.reply usando gli id raccolti qui in
+ * GenerationResultHolder), non da questo metodo.
  */
 @Component
 public class ImageGenerationTool {
@@ -35,15 +35,6 @@ public class ImageGenerationTool {
      */
     public static final String PARAMETERS_CONTEXT_KEY = "generationParameters";
 
-    /**
-     * Tetto per non bloccare troppo a lungo la richiesta HTTP di
-     * /api/deep-chat: piu' breve del timeout di 5 minuti usato da
-     * GenerationService per marcare una generazione FAILED (quello resta
-     * il ciclo di vita "vero" della generazione, consultabile via
-     * /generations/{id} anche se questa chiamata scade prima).
-     */
-    private static final Duration WAIT_TIMEOUT = Duration.ofSeconds(90);
-
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
     private final ObjectMapper objectMapper;
@@ -56,8 +47,11 @@ public class ImageGenerationTool {
         this.objectMapper = objectMapper;
     }
 
-    @Tool(description = "Generate an image from a text prompt using Replicate; the image is stored and "
-            + "shown to the user automatically, you don't need to include its URL in your reply. "
+    @Tool(description = "Generate an image from a text prompt using Replicate. This starts the generation and "
+            + "returns immediately, before the image is ready: it will be stored and shown to the user "
+            + "automatically once done (usually within a couple of minutes), in this conversation and in the "
+            + "gallery. Tell the user it's being generated, don't claim it's already available. You don't need "
+            + "to include its URL in your reply. "
             + "The 'model' parameter must be one of the available models (in \"owner/name\" form); if you "
             + "are not sure of the exact id, try the one you were told is currently selected in the UI.")
     public String generateImage(
@@ -85,20 +79,13 @@ public class ImageGenerationTool {
             // DeepChatApiController, che non persiste nulla).
             return "Impossibile avviare la generazione: " + e.getMessage() + " Non ritentare automaticamente.";
         }
-        generation = generationService.waitUntilTerminal(generation.getId(), WAIT_TIMEOUT);
 
-        if (generation.getStatus() == GenerationStatus.SUCCEEDED) {
-            Object holder = toolContext.getContext().get(GenerationResultHolder.CONTEXT_KEY);
-            if (holder instanceof GenerationResultHolder resultHolder) {
-                resultHolder.setGeneration(generation);
-            }
-            return "Immagine generata con successo con il modello " + model + ".";
+        Object holder = toolContext.getContext().get(GenerationResultHolder.CONTEXT_KEY);
+        if (holder instanceof GenerationResultHolder resultHolder) {
+            resultHolder.addStartedGeneration(generation.getId());
         }
-        if (generation.getStatus() == GenerationStatus.FAILED) {
-            return "Generazione fallita: " + generation.getErrorMessage();
-        }
-        return "La generazione e' ancora in corso, ci sta mettendo piu' del previsto. "
-                + "Stato consultabile su /generations/" + generation.getId() + ".";
+        return "Generazione avviata con il modello " + model + ": l'immagine comparira' "
+                + "automaticamente in questa conversazione e in Galleria non appena pronta.";
     }
 
     /**

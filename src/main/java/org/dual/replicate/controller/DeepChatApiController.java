@@ -5,7 +5,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.dual.replicate.domain.Generation;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.service.DeepChatService;
 import org.dual.replicate.service.GenerationParameters;
@@ -44,10 +43,13 @@ public class DeepChatApiController {
     @PostMapping
     public Reply chat(@RequestBody Request request) {
         try {
+            // "files" e' sempre null qui: un'eventuale immagine non arriva
+            // mai in questa risposta sincrona, il tool torna subito e il
+            // risultato arriva in un secondo momento via push SSE (vedi
+            // DeepChatGenerationWatcher/fragments/live-events.html).
             DeepChatService.Reply reply = deepChatService.reply(
                     request.conversationId(), request.messages(), request.model(), toGenerationParameters(request));
-            List<FileRef> files = toFiles(reply.image());
-            return new Reply(reply.text(), null, files);
+            return new Reply(reply.text(), null, null);
         } catch (Exception e) {
             return new Reply(null, messages.get("deepchat.error.contactAssistant", e.getMessage()), null);
         }
@@ -64,22 +66,6 @@ public class DeepChatApiController {
         return GenerationParameters.toMap(request.aspectRatio(), request.width(), request.height(),
                 request.outputFormat(), request.numInferenceSteps(), request.guidanceScale(),
                 request.seed(), request.loraScale(), request.fluxModel(), request.numOutputs());
-    }
-
-    /**
-     * Package-private: riusata da DeepChatController per ricostruire gli
-     * allegati immagine al ripristino della cronologia. Una generazione
-     * puo' avere piu' di un'immagine (num_outputs > 1): tutte finiscono
-     * nella stessa risposta/turno di chat, deep-chat le mostra come piu'
-     * file nella stessa bolla.
-     */
-    static List<FileRef> toFiles(Generation image) {
-        if (image == null || image.getImageFilenames().isEmpty()) {
-            return null;
-        }
-        return image.getImageFilenames().stream()
-                .map(filename -> new FileRef("/images/" + filename, filename, "image"))
-                .toList();
     }
 
     public record Request(
@@ -99,9 +85,6 @@ public class DeepChatApiController {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Reply(String text, String error, List<FileRef> files) {
-    }
-
-    public record FileRef(String src, String name, String type) {
+    public record Reply(String text, String error, List<DeepChatService.FileRef> files) {
     }
 }

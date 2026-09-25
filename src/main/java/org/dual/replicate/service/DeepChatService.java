@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.dual.replicate.domain.ChatConversation;
@@ -23,6 +24,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 
 /**
@@ -56,6 +58,7 @@ public class DeepChatService {
     private final ChatClient chatClient;
     private final ChatConversationRepository chatConversationRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final DeepChatGenerationWatcher generationWatcher;
     // Nome "i18n", non "messages": la classe usa gia' "messages" come
     // nome locale per List<Message> (i turni della conversazione, vedi
     // reply()/buildMessages()), collisione con Messages se chiamato
@@ -67,10 +70,12 @@ public class DeepChatService {
                             ImageGenerationTool imageGenerationTool,
                             ChatConversationRepository chatConversationRepository,
                             ChatMessageRepository chatMessageRepository,
+                            DeepChatGenerationWatcher generationWatcher,
                             Messages i18n,
                             @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.generationWatcher = generationWatcher;
         this.i18n = i18n;
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
@@ -136,31 +141,49 @@ public class DeepChatService {
         persistLatestUserTurn(conversation, history);
 
         GenerationResultHolder resultHolder = new GenerationResultHolder();
+        // Catturata nel thread della richiesta (l'unico con una locale
+        // valorizzata da AcceptHeaderLocaleResolver): i watch avviati piu'
+        // sotto girano su thread @Async, dove LocaleContextHolder e' vuoto
+        // e cadrebbe sulla locale della JVM, non quella del browser.
+        Locale locale = LocaleContextHolder.getLocale();
         Instant start = Instant.now();
-        ChatResponse chatResponse;
         try {
-            chatResponse = chatClient.prompt()
-                    .messages(messages)
-                    .toolContext(Map.of(
-                            GenerationResultHolder.CONTEXT_KEY, resultHolder,
-                            ImageGenerationTool.PARAMETERS_CONTEXT_KEY, generationParameters))
-                    .call()
-                    .chatResponse();
-        } catch (RuntimeException e) {
-            log.warn("Chiamata al modello LLM remoto (OpenRouter) fallita dopo {} ms: {}",
-                    Duration.between(start, Instant.now()).toMillis(), e.getMessage(), e);
-            throw e;
-        }
+            ChatResponse chatResponse;
+            try {
+                chatResponse = chatClient.prompt()
+                        .messages(messages)
+                        .toolContext(Map.of(
+                                GenerationResultHolder.CONTEXT_KEY, resultHolder,
+                                ImageGenerationTool.PARAMETERS_CONTEXT_KEY, generationParameters))
+                        .call()
+                        .chatResponse();
+            } catch (RuntimeException e) {
+                log.warn("Chiamata al modello LLM remoto (OpenRouter) fallita dopo {} ms: {}",
+                        Duration.between(start, Instant.now()).toMillis(), e.getMessage(), e);
+                throw e;
+            }
 
-        Duration elapsed = Duration.between(start, Instant.now());
-        logChatResponse(chatResponse, elapsed);
-        if (chatResponse.getResult() == null) {
-            throw new IllegalStateException(i18n.get("deepchat.error.llmEmptyResult"));
-        }
-        String text = chatResponse.getResult().getOutput().getText();
+            Duration elapsed = Duration.between(start, Instant.now());
+            logChatResponse(chatResponse, elapsed);
+            if (chatResponse.getResult() == null) {
+                throw new IllegalStateException(i18n.get("deepchat.error.llmEmptyResult"));
+            }
+            String text = chatResponse.getResult().getOutput().getText();
 
-        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, resultHolder.getGeneration()));
-        return new Reply(text, resultHolder.getGeneration());
+            chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, null));
+            return new Reply(text);
+        } finally {
+            // Nel finally PIU' ESTERNO, dopo aver salvato il turno AI (non
+            // solo sul percorso di successo: una generazione gia' avviata
+            // dal tool deve arrivare comunque via push anche se la
+            // chiamata all'LLM fallisce dopo) — cosi' l'ordine cronologico/
+            // di persistenza resta sempre corretto: un modello veloce
+            // (es. flux-schnell) puo' finire prima che l'LLM produca il
+            // testo del turno, il messaggio "immagine pronta" non deve mai
+            // precedere quello del turno che l'ha avviata.
+            resultHolder.getStartedGenerationIds()
+                    .forEach(id -> generationWatcher.watch(id, conversation.getId(), locale));
+        }
     }
 
     /**
@@ -236,7 +259,37 @@ public class DeepChatService {
     public record Turn(String role, String text) {
     }
 
-    /** {@code image} e' non-null solo se in questo turno e' stata generata con successo un'immagine. */
-    public record Reply(String text, Generation image) {
+    /**
+     * Non porta piu' un'eventuale immagine: il tool ritorna subito, prima
+     * che una generazione avviata in questo turno sia pronta (vedi
+     * ImageGenerationTool/DeepChatGenerationWatcher) — arriva sempre in
+     * un secondo momento via push SSE, mai nella risposta sincrona.
+     */
+    public record Reply(String text) {
+    }
+
+    /**
+     * Vocabolario JSON di deep-chat per un allegato: {@code type} e'
+     * sempre "image", il solo che deep-chat riconosca per mostrare
+     * un'immagine in chat invece di un link. Vive qui (non in
+     * DeepChatApiController, che pure lo espone in risposta) perche' lo
+     * usano anche la ricostruzione della history (DeepChatController) e
+     * il payload del push asincrono (DeepChatGenerationWatcher).
+     */
+    public record FileRef(String src, String name, String type) {
+    }
+
+    /**
+     * Una generazione puo' avere piu' di un'immagine (num_outputs > 1):
+     * tutte finiscono nella stessa bolla di chat, deep-chat le mostra come
+     * piu' file nello stesso turno.
+     */
+    public static List<FileRef> toFiles(Generation generation) {
+        if (generation == null || generation.getImageFilenames().isEmpty()) {
+            return null;
+        }
+        return generation.getImageFilenames().stream()
+                .map(filename -> new FileRef("/images/" + filename, filename, "image"))
+                .toList();
     }
 }

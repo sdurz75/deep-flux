@@ -14,10 +14,19 @@ L'applicazione serve a:
    (`ImageGenerationTool`) col modello scelto nel combobox o un altro se
    richiesto esplicitamente in chat. `/generations/new` resta la via
    diretta (form, senza chatbot) per chi vuole specificare modello/
-   parametri a mano.
+   parametri a mano. `ImageGenerationTool` avvia la generazione e torna
+   subito, senza attenderne l'esito: il polling verso Replicate continua
+   in background (`DeepChatGenerationWatcher`, `@Async`) e il risultato
+   arriva in un secondo momento come nuovo turno della conversazione,
+   pushato via SSE (`GET /events`, `GenerationEventBroadcaster`) a chi ha
+   quella conversazione aperta — nessun polling client-side per la chat.
+   `/generations/{id}` (form diretto) resta invece a polling client-side
+   htmx ogni 2s, invariato.
 2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
    tramite un archivio** — ogni generazione (chatbot o form diretto)
-   diventa una riga `Generation`, consultabile in `/gallery`.
+   diventa una riga `Generation`, consultabile in `/gallery`, che si
+   aggiorna da sola (SSE, vedi punto 1 sopra) quando una qualunque
+   generazione completa, indipendentemente da come e' stata avviata.
 3. **Mantenere una storia delle conversazioni e poterle riprendere in
    futuro** — `/deep-chat` supporta piu' conversazioni, ognuna una riga
    `ChatConversation` (migrazione V5) che raggruppa i propri turni
@@ -133,6 +142,7 @@ src/main/java/org/dual/replicate/
     GalleryController.java      # galleria (load more) + dettaglio singola immagine
     DeepChatController.java     # pagina <deep-chat> + lista conversazioni + galleria contestuale (tutte le route HTML sotto /deep-chat/*)
     DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
+    EventStreamController.java  # GET /events (SSE): unico endpoint di push, vedi GenerationEventBroadcaster
   domain/
     Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
     GenerationStatus.java
@@ -156,13 +166,16 @@ src/main/java/org/dual/replicate/
     SearxngClient.java          # wrapper RestClient su un'istanza SearXNG (Basic Auth)
     SearxngResponse.java, SearchResult.java, SearxngException.java
   service/
-    GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download
+    GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download; pubblica GenerationCompletedEvent a ogni transizione terminale
+    GenerationCompletedEvent.java # evento di dominio: una Generation e' diventata terminale (successo o fallimento), qualunque sia il percorso che ce l'ha portata
+    GenerationEventBroadcaster.java # registro degli emitter SSE di GET /events, broadcast "gallery-update"/"chat-message"
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
-    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione
+    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
+    DeepChatGenerationWatcher.java # @Async: attende in background l'esito di una generazione avviata da /deep-chat, la persiste come nuovo turno e la notifica via SSE
     WebSearchTool.java          # tool Spring AI: ricerca web via SearxngClient
-    ImageGenerationTool.java    # tool Spring AI: genera un'immagine via GenerationService
-    GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext)
+    ImageGenerationTool.java    # tool Spring AI: avvia una generazione via GenerationService e torna subito, senza attenderne l'esito
+    GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext): gli id delle generazioni avviate nel turno, non piu' un risultato gia' pronto
   config/
     StorageConfig.java          # espone storage.images-dir come /images/**
 
@@ -193,6 +206,7 @@ src/main/resources/
       pagination.html            # paginazione generica (non specifica della galleria), riusabile da futuri listati
       accordion.html             # accordion Pines UI generico a N pannelli (labels/bodies accoppiate per indice): panels(...) collassabile (galleria contestuale di deep-chat.html), staticPanels(...) non collassabile, tutti i pannelli sempre visibili (rail sinistro di deep-chat.html: lista conversazioni + impostazioni)
       conversation-list.html     # contenuto della lista conversazioni di /deep-chat (elenco, rinomina, cancellazione), sezione del rail sinistro non collassabile
+      live-events.html           # connessione SSE a GET /events, ri-dispatchata come CustomEvent su document.body; incluso solo da gallery.html e deep-chat.html
 ```
 
 Le immagini generate e il DB H2 vivono in `./data/` (fuori da git, vedi

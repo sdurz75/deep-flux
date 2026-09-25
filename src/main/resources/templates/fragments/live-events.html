@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Unico punto che sa parlare SSE: apre GET /events (EventStreamController)
+  e ri-dispatcha ogni evento ricevuto come CustomEvent su document.body,
+  cosi' ogni pagina/fragment decide cosa farne con gli strumenti che gia'
+  usa altrove (htmx hx-trigger="nome-evento from:body" per un refresh,
+  vedi fragments/gallery.html; un listener JS dedicato per un caso piu'
+  specifico, vedi deep-chat.html) senza dover conoscere SSE.
+
+  Incluso solo dalle pagine che ne hanno bisogno (gallery.html,
+  deep-chat.html), non da fragments/layout.html: una connessione persistente
+  aperta su OGNI pagina saturerebbe le ~6 connessioni HTTP/1.1 per host che
+  i browser concedono quando l'utente tiene piu' tab dell'app aperte
+  contemporaneamente.
+
+  "gallery-update": nessun dettaglio, e' solo un segnale "qualcosa e'
+  cambiato, ricarica". "chat-message": il dettaglio e' il payload JSON
+  (conversationId/text/files) cosi' com'e' mandato da
+  GenerationEventBroadcaster.ChatMessagePush.
+-->
+<th:block th:fragment="connect">
+    <script th:inline="javascript">
+        (function () {
+            var eventsUrl = /*[[@{/events}]]*/ '/events';
+            var source = new EventSource(eventsUrl);
+            source.addEventListener('gallery-update', function () {
+                document.body.dispatchEvent(new CustomEvent('gallery-update'));
+            });
+            source.addEventListener('chat-message', function (event) {
+                document.body.dispatchEvent(new CustomEvent('chat-message', {detail: JSON.parse(event.data)}));
+            });
+        })();
+    </script>
+</th:block>
+
+</body>
+</html>

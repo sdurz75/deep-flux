@@ -19,6 +19,7 @@ import org.dual.replicate.replicate.TooManyPredictionsException;
 import org.dual.replicate.repository.GenerationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -57,17 +58,20 @@ public class GenerationService {
     private final ImageStorageService imageStorageService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
+    private final ApplicationEventPublisher eventPublisher;
 
     public GenerationService(GenerationRepository repository,
                               ReplicateClient replicateClient,
                               ImageStorageService imageStorageService,
                               ObjectMapper objectMapper,
-                              Messages messages) {
+                              Messages messages,
+                              ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.replicateClient = replicateClient;
         this.imageStorageService = imageStorageService;
         this.objectMapper = objectMapper;
         this.messages = messages;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -166,6 +170,7 @@ public class GenerationService {
         if (!saved.isTerminal()) {
             return saved;
         }
+        eventPublisher.publishEvent(new GenerationCompletedEvent(saved));
         if (saved.getStatus() == GenerationStatus.FAILED) {
             log.warn("Generazione fallita: id={}, model={}, externalId={}, error={}",
                     saved.getId(), saved.getModel(), saved.getExternalId(), saved.getErrorMessage());
