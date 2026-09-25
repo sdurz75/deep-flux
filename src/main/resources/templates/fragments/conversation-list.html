@@ -3,19 +3,17 @@
 <body>
 
 <!--
-  Contenuto della lista conversazioni di /deep-chat: due fragment.
-  - list(...) e' il bottone "Nuova conversazione" + items(...): non
-    piu' un <aside> autonomo (auto-collassabile, con una propria icona
-    hamburger) come in precedenza - e' ora una SEZIONE sempre visibile
-    del rail sinistro non collassabile di deep-chat.html
-    (fragments/accordion.html :: staticPanels, insieme al pannello
-    impostazioni di generazione), che fornisce gia' lui il contenitore
-    (bordo/sfondo/larghezza): list(...) e' percio' un th:block, senza
-    markup di cornice proprio.
-  - items(...) e' solo il <ul>, il target htmx di rename/delete
-    (#conversation-list-items): uno swap della SOLA lista, non
-    dell'intero list(...) (che re-includerebbe anche il bottone "Nuova
-    conversazione" a ogni rename/delete, inutilmente).
+  Contenuto della lista conversazioni di /deep-chat: solo items(...),
+  il <ul> - incluso da deep-chat.html dentro il rail sinistro non
+  collassabile (fragments/accordion.html :: staticPanels, sezione
+  "Conversazioni", insieme al pannello impostazioni), che fornisce gia'
+  lui il contenitore (bordo/sfondo/larghezza). Il bottone "Nuova
+  conversazione" NON e' piu' qui (ne' in un ipotetico list(...) che lo
+  includesse insieme a items(...)): deve restare visibile a prescindere
+  dai pannelli sotto, quindi vive in deep-chat.html sopra l'intero
+  accordion, non dentro una sua sezione - vedi il commento li'.
+  items(...) e' anche il target htmx di rename/delete
+  (#conversation-list-items): uno swap della SOLA lista.
 
   activeConversationId viaggia come query param appeso a ogni URL
   @{...} di questo fragment (rename/delete), non come campo hidden nel
@@ -34,14 +32,6 @@
   equivalente a un no-op invece di richiedere una logica di annullo
   separata.
 -->
-<th:block th:fragment="list(conversations, activeConversationId)">
-    <form th:action="@{/deep-chat/new}" th:hx-post="@{/deep-chat/new}" method="post" hx-swap="none" class="mb-3">
-        <button th:replace="~{fragments/button :: primary(type='submit', text=#{deepChat.button.newConversation}, extraClass='w-full text-[0.85rem] py-1.5')}">Nuova conversazione</button>
-    </form>
-
-    <div th:replace="~{fragments/conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
-</th:block>
-
 <ul th:fragment="items(conversations, activeConversationId)" id="conversation-list-items" class="flex flex-col gap-1">
     <li th:if="${#lists.isEmpty(conversations)}" th:text="#{deepChat.sidebar.empty}"
         class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark px-2 py-1">Nessuna conversazione.</li>

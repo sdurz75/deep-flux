@@ -55,55 +55,75 @@
     </script>
 
     <!--
-      Layout a due colonne: rail sinistro NON collassabile
-      (fragments/accordion.html :: staticPanels - lista conversazioni +
-      impostazioni di generazione, sempre entrambe visibili, mai una
-      alla volta) + <deep-chat> a destra (occupa lo spazio restante).
-      Sotto gli 861px torna a impilarsi (flex-col di base,
-      min-[861px]:flex-row per le due colonne - vedi anche il commento
-      su <deep-chat> sotto per il calcolo della larghezza).
+      Layout a due colonne: colonna sinistra a larghezza FISSA (280px
+      da 861px in su, mai variabile in base al contenuto/pannello) con
+      bottone "Nuova conversazione" + rail NON collassabile sotto
+      (fragments/accordion.html :: staticPanels - lista conversazioni
+      e impostazioni di generazione, sempre entrambe visibili) +
+      <deep-chat> a destra (occupa lo spazio restante). Sotto gli
+      861px torna a impilarsi (flex-col di base, min-[861px]:flex-row
+      per le due colonne - vedi anche il commento su <deep-chat> sotto
+      per il calcolo della larghezza).
+
+      Il bottone vive FUORI da staticPanels, non dentro alla sezione
+      "Conversazioni": deve restare visibile a prescindere da quale
+      pannello sta mostrando contenuto piu' lungo sotto, quindi e' un
+      fratello che precede l'accordion nella stessa colonna, non un
+      figlio del suo primo pannello. La larghezza fissa vive su QUESTA
+      colonna (non piu' dentro staticPanels, vedi fragments/accordion.html):
+      un solo posto tiene bottone e accordion alla stessa identica
+      larghezza sempre, invece di doverli sincronizzare in due punti.
     -->
     <div class="flex flex-col gap-4 items-start min-[861px]:flex-row">
-        <!--
-          conversationsBody/settingsBody sono parametri-fragment
-          (~{::#id}): il markup dentro resta scritto una sola volta
-          qui, staticPanels si limita a comporlo nel proprio slot -
-          stesso pattern e stessa necessita' di risolvere prima le
-          #{...} in variabili semplici (vedi il commento sull'accordion
-          in fondo alla pagina, identico problema/soluzione qui).
-          conversation-list-section e' un <div> con id ma SENZA
-          th:replace su se stesso (a differenza del <form> sotto, che
-          fa lo stesso lavoro in un colpo solo perche' e' gia' lui
-          l'elemento con l'id): list(...) e' un th:block (nessun tag
-          proprio, vedi fragments/conversation-list.html), serve percio'
-          un div "vero" che lo ospiti perche' ~{::#conversation-list-section}
-          abbia un elemento con quell'id da selezionare.
-        -->
-        <th:block th:with="conversationsLabel=#{deepChat.accordion.conversations},
-                            settingsLabel=#{deepChat.accordion.settings},
-                            conversationsBody=~{::#conversation-list-section},
-                            settingsBody=~{::#generation-settings-form},
-                            leftLabels=${ {conversationsLabel, settingsLabel} },
-                            leftBodies=${ {conversationsBody, settingsBody} }">
-        <div th:replace="~{fragments/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies})}">
-            <div id="conversation-list-section">
-                <div th:replace="~{fragments/conversation-list :: list(${conversations}, ${activeConversationId})}"></div>
-            </div>
+        <div class="w-full min-[861px]:w-[280px] min-[861px]:flex-none">
+            <form th:action="@{/deep-chat/new}" th:hx-post="@{/deep-chat/new}" method="post" hx-swap="none" class="mb-3">
+                <button th:replace="~{fragments/button :: primary(type='submit', text=#{deepChat.button.newConversation}, extraClass='w-full text-[0.85rem] py-1.5')}">Nuova conversazione</button>
+            </form>
 
             <!--
-              onsubmit="return false" perche' questo <form> non viene mai
-              sottomesso a nessun endpoint: serve solo a raggruppare i
-              campi del fragment cosi' che new FormData(form) (script piu'
-              sotto) possa leggerli tutti in un colpo, come farebbe una
-              vera sottomissione — stesso identico fragment usato da
-              generate.html dentro il SUO <form>, che invece si sottomette
-              davvero (vedi fragments/generate-form.html).
+              conversationsBody/settingsBody sono parametri-fragment
+              (~{::#id}): il markup dentro resta scritto una sola volta
+              qui, staticPanels si limita a comporlo nel proprio slot -
+              stesso pattern e stessa necessita' di risolvere prima le
+              #{...} in variabili semplici (vedi il commento sull'accordion
+              in fondo alla pagina, identico problema/soluzione qui).
+              conversation-list-section e' un <div> con id ma SENZA
+              th:replace su se stesso (a differenza del <form> sotto,
+              che fa lo stesso lavoro in un colpo solo perche' e' gia'
+              lui l'elemento con l'id): serve perche' ~{::#id} risolve
+              SOLO contro il sorgente di QUESTO template (deep-chat.html) -
+              #conversation-list-items esiste solo dentro
+              fragments/conversation-list.html, un file diverso, quindi
+              non e' visibile al selettore finche' non e' anche
+              scritto, letteralmente, qui - da cui il div wrapper con
+              id apposta.
             -->
-            <form id="generation-settings-form" onsubmit="return false;">
-                <div th:replace="~{fragments/generation-params :: fields(personalModelsJson=${personalModelsJson}, catalogModelsJson=${catalogModelsJson}, model=${model}, width=${width}, height=${height}, outputFormat=${outputFormat}, numInferenceSteps=${numInferenceSteps}, guidanceScale=${guidanceScale}, seed=${seed}, loraScale=${loraScale}, fluxModel=${fluxModel}, numOutputs=${numOutputs})}"></div>
-            </form>
+            <th:block th:with="conversationsLabel=#{deepChat.accordion.conversations},
+                                settingsLabel=#{deepChat.accordion.settings},
+                                conversationsBody=~{::#conversation-list-section},
+                                settingsBody=~{::#generation-settings-form},
+                                leftLabels=${ {conversationsLabel, settingsLabel} },
+                                leftBodies=${ {conversationsBody, settingsBody} }">
+            <div th:replace="~{fragments/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies})}">
+                <div id="conversation-list-section">
+                    <div th:replace="~{fragments/conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
+                </div>
+
+                <!--
+                  onsubmit="return false" perche' questo <form> non viene mai
+                  sottomesso a nessun endpoint: serve solo a raggruppare i
+                  campi del fragment cosi' che new FormData(form) (script piu'
+                  sotto) possa leggerli tutti in un colpo, come farebbe una
+                  vera sottomissione — stesso identico fragment usato da
+                  generate.html dentro il SUO <form>, che invece si sottomette
+                  davvero (vedi fragments/generate-form.html).
+                -->
+                <form id="generation-settings-form" onsubmit="return false;">
+                    <div th:replace="~{fragments/generation-params :: fields(personalModelsJson=${personalModelsJson}, catalogModelsJson=${catalogModelsJson}, model=${model}, width=${width}, height=${height}, outputFormat=${outputFormat}, numInferenceSteps=${numInferenceSteps}, guidanceScale=${guidanceScale}, seed=${seed}, loraScale=${loraScale}, fluxModel=${fluxModel}, numOutputs=${numOutputs})}"></div>
+                </form>
+            </div>
+            </th:block>
         </div>
-        </th:block>
 
         <!--
           Componente complesso montato isolato su un singolo elemento
@@ -119,31 +139,40 @@
           disponibile, non un riquadro piccolo. display:block e'
           necessario perche' il componente di default e'
           display:table-cell (stile interno di deep-chat), che rende
-          width:100% inefficace. La LARGHEZZA pero' non si imposta qui:
-          niente flex-grow sul tag. Verificato dal vivo (screenshot +
-          repro isolato fuori da quest'app, popolato di messaggi come in
-          produzione): con un flex-grow/flex-basis qualunque su questo
-          tag, il componente prende comunque la larghezza corretta come
-          BOX esterno (bordo visibile a larghezza piena), ma il layout
-          DEI MESSAGGI dentro la sua shadow root resta ancorato al
-          default della libreria (~320px, dal suo `:host` interno) con
-          spazio vuoto a destra — stesso risultato con
-          grid-template-columns:1fr al posto del flex-grow, quindi non è
-          un problema di flexbox in sé ma di qualunque sizing "flessibile
-          risolto in un secondo passo". Un width esplicito invece
-          funziona: sotto, una classe Tailwind con valore arbitrario
-          calc() - 280px e' la larghezza fissa del rail sinistro
-          (fragments/accordion.html :: staticPanels, non piu' variabile
-          da quando non e' piu' collassabile). Sotto 861px la regola
-          min-[861px]: non si applica, resta il fallback w-full
-          mobile-first.
+          width:100% inefficace.
+
+          LARGHEZZA: min-[861px]:flex-1 (flex-grow/shrink/basis via
+          flexbox) + min-[861px]:w-auto, MAI un valore calc() sulla
+          proprieta' width qui — anche se sembra il modo piu' diretto
+          per "100% meno i 280px della colonna sinistra". Root cause
+          verificata dal vivo (ispezionando lo shadow DOM con Chrome
+          devtools): lo shadow root di deep-chat ha una regola interna
+          `#container { width: inherit; ... }`. Il valore ereditato da
+          `width: inherit` e' il COMPUTED value della proprieta' `width`
+          sull'host, non il suo used value (il box renderizzato): per un
+          `calc()`/percentuale il computed value resta simbolico (non si
+          risolve in px), quindi #container lo RIVALUTA da capo contro
+          il proprio containing block — che e' lo stesso box dell'host.
+          Con `width: calc(100% - 280px - 1rem)` sull'host, il risultato
+          e' che i 280px+1rem vengono sottratti DUE VOLTE (una volta per
+          il box esterno, una seconda implicita nell'inherit), lasciando
+          uno spazio vuoto a destra esattamente di quella larghezza — il
+          box esterno risultava effettivamente piu' grande del suo
+          stesso #container. `flex-1` + `w-auto` evita il problema alla
+          radice: 'auto' come valore specificato di `width` ha un
+          computed value gia' risolto in px (non simbolico), quindi
+          l'inherit lo copia cosi' com'e', una sola volta. Sotto 861px
+          la regola min-[861px]: non si applica, resta il fallback
+          w-full mobile-first (una percentuale pura, senza sottrazioni —
+          non soffre dello stesso problema perche' non c'e' nulla da
+          raddoppiare).
         -->
         <deep-chat
                 id="deep-chat-el"
                 th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
                 requestBodyLimits='{"maxMessages": 0}'
                 class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
-                       min-[861px]:w-[calc(100%_-_280px_-_1rem)]">
+                       min-[861px]:flex-1 min-[861px]:w-auto">
         </deep-chat>
     </div>
 

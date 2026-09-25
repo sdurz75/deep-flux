@@ -83,18 +83,23 @@
   entrambe visibili insieme, mai una a scapito dell'altra - a
   differenza di panels(...) sopra, che mostra un pannello alla volta).
 
-  bg-surface e la larghezza fissa (w-full min-[861px]:w-[280px]) sono
-  hardcoded qui, non parametrizzate: replicano esattamente lo stile
-  del vecchio <aside> auto-collassabile di fragments/conversation-list.html
-  che questo fragment sostituisce (vedi il fragment stesso), ed e'
-  l'UNICO chiamante oggi (stessa scelta gia' fatta per fields(...) di
-  generation-params.html, CLAUDE.md scoraggia l'astrazione anticipata):
-  se un domani serve altrove con una larghezza diversa, aggiungere un
-  parametro allora, non ora.
+  bg-surface e' hardcoded qui, non parametrizzata: replica lo stile del
+  vecchio <aside> auto-collassabile di fragments/conversation-list.html
+  che questo fragment sostituisce, ed e' l'UNICO chiamante oggi (stessa
+  scelta gia' fatta per fields(...) di generation-params.html, CLAUDE.md
+  scoraggia l'astrazione anticipata): se un domani serve altrove con
+  uno sfondo diverso, aggiungere un parametro allora, non ora. La
+  LARGHEZZA invece non e' hardcoded qui (solo w-full, riempie il
+  genitore): il chiamante di deep-chat.html mette un bottone "Nuova
+  conversazione" SOPRA questo fragment nella stessa colonna (deve
+  restare visibile a prescindere dai pannelli sotto, quindi vive fuori
+  da staticPanels) - la larghezza fissa vive percio' sul contenitore di
+  quella colonna nel chiamante, un solo posto per bottone+pannelli
+  invece di doverla ripetere qui E li' (e rischiare che disallineino).
 -->
 <div th:fragment="staticPanels(labels, bodies)"
      class="border border-line dark:border-line-dark rounded-md divide-y divide-line dark:divide-line-dark
-            bg-surface dark:bg-surface-dark p-3 w-full min-[861px]:w-[280px] min-[861px]:flex-none">
+            bg-surface dark:bg-surface-dark p-3 w-full">
     <div th:each="label, iter : ${labels}" th:classappend="${iter.index > 0} ? 'pt-3' : ''">
         <div class="font-medium mb-2" th:text="${label}">Pannello</div>
         <div th:insert="${bodies[iter.index]}"></div>

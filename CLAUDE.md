@@ -21,15 +21,16 @@ L'applicazione serve a:
 3. **Mantenere una storia delle conversazioni e poterle riprendere in
    futuro** — `/deep-chat` supporta piu' conversazioni, ognuna una riga
    `ChatConversation` (migrazione V5) che raggruppa i propri turni
-   (`ChatMessage`/`ChatMessageRepository`, migrazione V3). Un rail
-   sinistro NON collassabile (`fragments/accordion.html :: staticPanels`)
-   ospita due sezioni sempre entrambe visibili: la lista delle
-   conversazioni esistenti (`fragments/conversation-list.html`, piu' di
-   recente attiva prima — selezionarne una ricarica la cronologia
-   completa, comprese le immagini; rinomina/cancellazione inline; una
-   nuova conversazione si crea dal bottone dedicato,
-   `POST /deep-chat/new`, `ChatConversationService`) e il pannello
-   impostazioni di generazione (`fragments/generation-params.html`).
+   (`ChatMessage`/`ChatMessageRepository`, migrazione V3). Una colonna
+   sinistra a larghezza fissa ospita, sopra un bottone "Nuova
+   conversazione" sempre visibile (`POST /deep-chat/new`,
+   `ChatConversationService`), un rail NON collassabile
+   (`fragments/accordion.html :: staticPanels`) con due sezioni sempre
+   entrambe visibili: la lista delle conversazioni esistenti
+   (`fragments/conversation-list.html`, piu' di recente attiva prima —
+   selezionarne una ricarica la cronologia completa, comprese le
+   immagini; rinomina/cancellazione inline) e il pannello impostazioni
+   di generazione (`fragments/generation-params.html`).
    Resta non multi-utente (come il resto dell'app: `Generation` non ha
    un owner), solo multi-conversazione per lo stesso singolo utente.
    Sotto la chat, un secondo accordion — questo collassabile (Pines UI,
