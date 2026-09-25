@@ -10,20 +10,34 @@
   su quella dei template sorgente) resta invariato.
 -->
 <th:block th:fragment="header">
-    <header class="site-header">
-        <nav class="container">
-            <a th:href="@{/}" class="brand">deepl-flux</a>
-            <div class="nav-links">
-                <a th:href="@{/}" th:text="#{header.nav.home}">Home</a>
-                <a th:href="@{/generations/new}" th:text="#{header.nav.generate}">Genera immagine</a>
-                <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a>
-                <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}">Deep Chat</a>
+    <header class="border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark">
+        <!--
+          px-4 fisso (non il clamp fluido di <main>/<footer>, vedi
+          fragments/layout.html): comportamento gia' cosi' prima di
+          questa migrazione, riprodotto qui, non una differenza
+          introdotta ora. max-sm: sotto i 640px: ognuno dei tre blocchi
+          (brand, nav-links, theme-switch) va sulla propria riga a piena
+          larghezza, altrimenti a quella soglia si accavallano (brand
+          non si restringe, verificato a 390px).
+        -->
+        <nav class="max-w-[1200px] mx-auto px-4 py-4 flex items-center justify-between gap-4
+                    max-sm:flex-wrap max-sm:gap-2">
+            <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-sm:basis-full">deep-flux</a>
+            <div class="flex gap-4 flex-1 max-sm:order-1 max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-2 max-sm:basis-full">
+                <a th:href="@{/}" th:text="#{header.nav.home}"
+                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Home</a>
+                <a th:href="@{/generations/new}" th:text="#{header.nav.generate}"
+                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Genera immagine</a>
+                <a th:href="@{/gallery}" th:text="#{header.nav.gallery}"
+                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Galleria</a>
+                <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}"
+                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Deep Chat</a>
             </div>
 
-            <div class="theme-switch">
-                <button type="button" @click="theme = 'light'" :class="{ active: theme === 'light' }" th:title="#{header.theme.light}">☀️</button>
-                <button type="button" @click="theme = 'dark'" :class="{ active: theme === 'dark' }" th:title="#{header.theme.dark}">🌙</button>
-                <button type="button" @click="theme = 'auto'" :class="{ active: theme === 'auto' }" th:title="#{header.theme.auto}" th:text="#{header.theme.auto}">Auto</button>
+            <div class="flex gap-1 max-sm:order-2 max-sm:basis-full">
+                <button th:replace="~{fragments/button :: themeToggle(value='light', content='☀️', title=#{header.theme.light})}">☀️</button>
+                <button th:replace="~{fragments/button :: themeToggle(value='dark', content='🌙', title=#{header.theme.dark})}">🌙</button>
+                <button th:replace="~{fragments/button :: themeToggle(value='auto', content=#{header.theme.auto}, title=#{header.theme.auto})}">Auto</button>
             </div>
         </nav>
     </header>

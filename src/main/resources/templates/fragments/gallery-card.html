@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Card di una singola generazione: riusabile ovunque serva mostrare una
+  generazione come thumbnail (oggi solo fragments/gallery.html :: grid,
+  domani altre liste). Un solo parametro (generation), nessuna variabile
+  di loop implicita: il chiamante fa th:each fuori da questo fragment,
+  non su questo tag - th:each e th:replace sullo stesso elemento non
+  funzionano insieme (l'inclusione fragment ha precedenza piu' alta
+  dell'iterazione in Thymeleaf, la replace eseguirebbe una volta sola
+  invece di iterare), serve un th:block th:each="..." che avvolge un
+  div th:replace="..." figlio (vedi fragments/gallery.html).
+
+  ATTENZIONE - riuso solo parziale: il click di zoom
+  (@click="imageGalleryOpen") assume un antenato Alpine con quel metodo
+  e con x-ref="gallery" - oggi sempre vero perche' l'unico chiamante e'
+  fragments/gallery.html :: grid, che fornisce quello stato. Una
+  ipotetica lista futura senza lightbox dovrebbe copiare/adattare
+  questo fragment omettendo @click, non riusarlo cosi' com'e'.
+
+  .gallery-card resta l'hook letterale letto da imageGalleryImages() in
+  fragments/gallery.html (querySelectorAll('.gallery-card img')) - deve
+  restare su QUESTO elemento radice anche se ora vive in un file
+  diverso da quello del lightbox.
+
+  Niente prompt qui (solo nel dettaglio, vedi gallery-detail.html) e
+  niente bottone elimina (spostato anche quello nel dettaglio): la card
+  mostra solo l'immagine (zoom al click) e il modello, con una piccola
+  icona overlay al hover per raggiungere il dettaglio.
+
+  Una generazione puo' avere piu' di un'immagine (num_outputs > 1): la
+  card ne resta comunque a UNA sola (imageFilenames[0]), con un badge
+  "+N" se ce ne sono altre, invece di renderizzare N <img> qui dentro -
+  scelta deliberata, non solo per il layout della card (pensata per una
+  singola thumbnail a aspect-ratio fisso, non per una sotto-griglia),
+  ma anche perche' un'altra <img> qui corromperebbe l'indice della
+  lightbox (vedi il commento sull'overlay SVG sotto). Tutte le immagini
+  restano comunque raggiungibili dal dettaglio (gallery-detail.html),
+  che le mostra tutte.
+-->
+<div th:fragment="card(generation)"
+     class="gallery-card border border-line dark:border-line-dark rounded-lg overflow-hidden
+            bg-surface dark:bg-surface-dark shadow-sm hover:shadow-md transition-shadow duration-200">
+
+    <!--
+      "group" solo su questo wrapper (non sull'intera card): l'icona di
+      overlay deve apparire solo passando il mouse sull'immagine, non
+      su tutta la card (scelta esplicita: niente "whole card link", il
+      click sull'immagine resta riservato allo zoom).
+    -->
+    <div class="relative group">
+        <img th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
+             th:alt="${generation.prompt}"
+             class="w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-cover block cursor-zoom-in"
+             @click="imageGalleryOpen"
+             loading="lazy">
+
+        <span th:if="${generation.imageFilenames.size() > 1}"
+              th:text="'+' + (${generation.imageFilenames.size()} - 1)"
+              class="absolute bottom-2 left-2 text-xs font-semibold text-white bg-black/60 rounded-full px-2 py-0.5 pointer-events-none"></span>
+
+        <!--
+          Overlay di navigazione al dettaglio: <a> reale (niente JS),
+          sibling di <img> dentro il wrapper "relative" - non figlio di
+          <img> stesso, quindi nessun @click.stop necessario (sono
+          fratelli, niente bubbling dall'uno all'altro da fermare). SVG
+          inline, mai <img>: imageGalleryImages() in fragments/gallery.html
+          fa querySelectorAll('.gallery-card img') - un'altra <img> qui
+          dentro corromperebbe l'indice della lightbox.
+          focus-visible:opacity-100 per l'accesso da tastiera (altrimenti
+          un link visibile solo al mouse-hover sarebbe un target
+          invisibile e inutilizzabile da tastiera). [@media(hover:none)]:
+          per il fallback touch: sintassi variante arbitraria Tailwind v3
+          (il Play CDN e' fisso sulla v3, coerente con min-[861px]:/
+          grid-cols-[...] gia' in uso altrove in questo repo - niente
+          pointer-coarse:, quello e' solo v4).
+        -->
+        <a th:href="@{'/gallery/' + ${generation.id}}"
+           th:aria-label="#{gallery.card.viewDetail}"
+           class="absolute top-2 right-2 flex items-center justify-center w-8 h-8 rounded-full
+                  bg-black/50 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100
+                  [@media(hover:none)]:opacity-100 transition-opacity duration-150">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+            </svg>
+        </a>
+    </div>
+
+    <p th:text="${generation.model}" class="mt-2 mx-3 mb-3 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">modello</p>
+</div>
+
+</body>
+</html>

@@ -1,21 +1,29 @@
 package org.dual.replicate.domain;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
+import jakarta.persistence.OrderColumn;
 
 /**
  * Una richiesta di generazione immagine su Replicate: tiene insieme il
  * prompt e i parametri usati (per poterli riconsultare in galleria), lo
- * stato della prediction remota e, una volta pronta, il nome del file
- * immagine salvato localmente sotto storage.images-dir.
+ * stato della prediction remota e, una volta pronta, i nomi dei file
+ * immagine salvati localmente sotto storage.images-dir (uno o piu', a
+ * seconda del parametro num_outputs).
  */
 @Entity
 public class Generation {
@@ -47,8 +55,20 @@ public class Generation {
     @Column(nullable = false)
     private GenerationStatus status;
 
-    /** Nome file sotto storage.images-dir, valorizzato solo a status SUCCEEDED. */
-    private String imageFilename;
+    /**
+     * Nomi file sotto storage.images-dir, uno per immagine prodotta da
+     * questa generazione (num_outputs puo' chiedere piu' di un'immagine
+     * per richiesta), valorizzati solo a status SUCCEEDED. EAGER perche'
+     * open-in-view e' disattivato (application.yml) e la collezione va
+     * letta anche fuori dalla transazione che ha caricato l'entity
+     * (ripristino cronologia di /deep-chat, rendering di galleria/stato)
+     * — stesso motivo per cui ChatMessage.generation e' EAGER.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "generation_image", joinColumns = @JoinColumn(name = "generation_id"))
+    @OrderColumn(name = "ordinal")
+    @Column(name = "filename")
+    private List<String> imageFilenames = new ArrayList<>();
 
     @Lob
     private String errorMessage;
@@ -108,12 +128,12 @@ public class Generation {
         this.status = status;
     }
 
-    public String getImageFilename() {
-        return imageFilename;
+    public List<String> getImageFilenames() {
+        return imageFilenames;
     }
 
-    public void setImageFilename(String imageFilename) {
-        this.imageFilename = imageFilename;
+    public void setImageFilenames(List<String> imageFilenames) {
+        this.imageFilenames = imageFilenames;
     }
 
     public String getErrorMessage() {

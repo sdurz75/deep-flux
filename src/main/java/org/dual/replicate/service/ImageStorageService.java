@@ -29,8 +29,16 @@ public class ImageStorageService {
         this.messages = messages;
     }
 
-    /** Scarica {@code sourceUrl} e salva il risultato come {@code "<generationId>.<ext>"}. Ritorna il filename. */
-    public String downloadAndStore(Long generationId, String sourceUrl) {
+    /**
+     * Scarica {@code sourceUrl} e salva il risultato come
+     * {@code "<generationId>-<index>.<ext>"}. Ritorna il filename.
+     * {@code index} (posizione nella lista di output della prediction,
+     * vedi PredictionResponse.outputUrls) evita che due immagini della
+     * stessa generazione (num_outputs > 1) si sovrascrivano a vicenda:
+     * senza di esso il nome dipenderebbe solo da generationId, identico
+     * per tutte le immagini di una stessa richiesta.
+     */
+    public String downloadAndStore(Long generationId, int index, String sourceUrl) {
         try {
             Files.createDirectories(imagesDir);
         } catch (IOException e) {
@@ -43,7 +51,7 @@ public class ImageStorageService {
                 .body(byte[].class);
 
         String extension = extensionFrom(sourceUrl);
-        String filename = generationId + "." + extension;
+        String filename = generationId + "-" + index + "." + extension;
         Path target = imagesDir.resolve(filename);
         try {
             Files.write(target, bytes);

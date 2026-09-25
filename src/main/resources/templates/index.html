@@ -14,17 +14,17 @@
         parziali via htmx. Nessuno step di build frontend.
     </p>
 
-    <ul class="plain">
-        <li>
-            <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}">Deep Chat</a>
+    <ul class="list-none p-0 my-4">
+        <li class="py-2">
+            <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}">Deep Flux</a>
             &mdash; <span th:text="#{index.link.deepChat.suffix}">descrivi l'immagine che vuoi, l'assistente puo' cercare
             sul web e generarla su Replicate.</span>
         </li>
-        <li>
+        <li class="py-2">
             <a th:href="@{/generations/new}" th:text="#{header.nav.generate}">Genera immagine</a>
             &mdash; <span th:text="#{index.link.generate.suffix}">form diretto: modello, prompt e parametri, senza chatbot.</span>
         </li>
-        <li>
+        <li class="py-2">
             <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a>
             &mdash; <span th:text="#{index.link.gallery.suffix}">tutte le immagini generate, con prompt e modello usato.</span>
         </li>

@@ -3,6 +3,8 @@ package org.dual.replicate.controller;
 import java.util.ArrayList;
 import java.util.List;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
@@ -23,9 +25,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Galleria delle immagini generate: paginazione classica (numeri di
- * pagina + precedente/successiva, vedi fragments/gallery.html), pagina
- * di dettaglio dedicata per consultare prompt e parametri di una
- * singola generazione.
+ * pagina + precedente/successiva, markup in fragments/pagination.html,
+ * riusabile da futuri altri listati), pagina di dettaglio dedicata per
+ * consultare prompt/parametri di una singola generazione ed eliminarla
+ * (unico punto dove l'eliminazione e' disponibile: la card della
+ * griglia, in fragments/gallery-card.html, non la espone piu').
  */
 @Controller
 @RequestMapping("/gallery")
@@ -111,15 +115,44 @@ public class GalleryController {
     /**
      * Elimina una generazione (riga + file immagine). Niente verbo DELETE:
      * un form HTML non puo' inviarlo senza JavaScript, quindi si usa POST
-     * come per la creazione (vedi GenerationController). Stesso pattern
-     * "stessa URL, due risposte": fragment vuoto per htmx (rimuove solo la
-     * card via hx-swap="outerHTML"), redirect alla galleria altrimenti.
+     * come per la creazione (vedi GenerationController). Chiamato solo dal
+     * form nella pagina di dettaglio (gallery-detail.html): dopo la
+     * cancellazione l'id non esiste piu', quindi il browser deve SEMPRE
+     * lasciare quella pagina — niente piu' "stessa URL, due risposte" con
+     * un fragment vuoto per rimuovere solo la card in place (non c'e' piu'
+     * nessuna card da cui questo form possa fare hx-target="closest"),
+     * entrambi i rami sono un redirect a /gallery.
+     * <p>
+     * Per htmx si usa l'header di risposta "HX-Redirect", non "HX-Refresh"
+     * (che ricaricherebbe la SOLA pagina corrente): qui invece serve
+     * navigare altrove, la pagina corrente non esiste piu'. L'URL rispetta
+     * un eventuale prefisso di
+     * reverse proxy esattamente come farebbe {@code @{...}} in un
+     * template: {@link HttpServletRequest#getContextPath()} e' gia' stato
+     * riscritto a runtime da {@code ForwardedHeaderFilter} per includere
+     * {@code X-Forwarded-Prefix} (vedi {@code server.forward-headers-strategy}
+     * in application.yml) — primo caso in questo codebase di URL costruito
+     * lato Java che deve rispettare quel subpath, vedi CLAUDE.md.
+     * <p>
+     * Iniettare {@link HttpServletResponse} e ritornare {@code null} e' la
+     * convenzione standard Spring MVC per "risposta gia' gestita a mano,
+     * nessuna vista da renderizzare" (vedi Javadoc di
+     * {@code ServletResponseMethodArgumentResolver}): il ramo non-htmx,
+     * ritornando {@code "redirect:/gallery"} (non null), fa comunque
+     * renderizzare il redirect esattamente come prima — nessun conflitto
+     * tra i due rami nello stesso metodo.
      */
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable Long id,
-                          @RequestHeader(value = "HX-Request", required = false) String hxRequest) {
+                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
+                          HttpServletRequest request,
+                          HttpServletResponse response) {
         generationService.delete(id);
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
-        return isHtmxRequest ? "fragments/gallery :: deleted" : "redirect:/gallery";
+        if (isHtmxRequest) {
+            response.setHeader("HX-Redirect", request.getContextPath() + "/gallery");
+            return null;
+        }
+        return "redirect:/gallery";
     }
 }

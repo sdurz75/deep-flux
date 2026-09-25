@@ -20,15 +20,25 @@ public record PredictionResponse(
         Map<String, Object> input
 ) {
 
-    /** Estrae il primo URL utile da "output", qualunque sia la sua forma. */
-    public String firstOutputUrl() {
+    /**
+     * Estrae tutti gli URL utili da "output", qualunque sia la sua forma
+     * (una stringa singola, o una lista quando num_outputs > 1 chiede
+     * piu' di un'immagine per richiesta). Lista vuota se assente o di
+     * forma inattesa, mai null: il chiamante (GenerationService.refresh)
+     * tratta una lista vuota come "nessun output", non ha bisogno di un
+     * caso null separato.
+     */
+    public List<String> outputUrls() {
         if (output instanceof String s) {
-            return s;
+            return List.of(s);
         }
-        if (output instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof String s) {
-            return s;
+        if (output instanceof List<?> list) {
+            return list.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .toList();
         }
-        return null;
+        return List.of();
     }
 
     public boolean succeeded() {

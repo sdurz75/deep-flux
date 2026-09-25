@@ -2,7 +2,9 @@ package org.dual.replicate.service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import tools.jackson.core.JacksonException;
@@ -115,13 +117,16 @@ public class GenerationService {
         }
 
         if (prediction.succeeded()) {
-            String outputUrl = prediction.firstOutputUrl();
-            if (outputUrl == null) {
+            List<String> outputUrls = prediction.outputUrls();
+            if (outputUrls.isEmpty()) {
                 generation.setStatus(GenerationStatus.FAILED);
                 generation.setErrorMessage(messages.get("generation.error.noOutput"));
             } else {
-                String filename = imageStorageService.downloadAndStore(generation.getId(), outputUrl);
-                generation.setImageFilename(filename);
+                List<String> filenames = new ArrayList<>();
+                for (int i = 0; i < outputUrls.size(); i++) {
+                    filenames.add(imageStorageService.downloadAndStore(generation.getId(), i, outputUrls.get(i)));
+                }
+                generation.setImageFilenames(filenames);
                 generation.setStatus(GenerationStatus.SUCCEEDED);
             }
             generation.setCompletedAt(Instant.now());
@@ -156,8 +161,8 @@ public class GenerationService {
             log.warn("Generazione fallita: id={}, model={}, externalId={}, error={}",
                     saved.getId(), saved.getModel(), saved.getExternalId(), saved.getErrorMessage());
         } else {
-            log.info("Generazione completata: id={}, model={}, externalId={}, file={}",
-                    saved.getId(), saved.getModel(), saved.getExternalId(), saved.getImageFilename());
+            log.info("Generazione completata: id={}, model={}, externalId={}, files={}",
+                    saved.getId(), saved.getModel(), saved.getExternalId(), saved.getImageFilenames());
         }
         return saved;
     }
@@ -215,10 +220,10 @@ public class GenerationService {
                 .orElseThrow(() -> new ReplicateException(messages.get("generation.error.notFound", id)));
     }
 
-    /** Elimina una generazione e, se presente, il file immagine associato. Usata dalla galleria. */
+    /** Elimina una generazione e tutti i file immagine associati. Usata dalla galleria. */
     public void delete(Long id) {
         Generation generation = get(id);
-        imageStorageService.delete(generation.getImageFilename());
+        generation.getImageFilenames().forEach(imageStorageService::delete);
         repository.delete(id);
     }
 

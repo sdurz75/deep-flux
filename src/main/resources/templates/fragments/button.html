@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Bottoni riusabili: le classi Tailwind di ogni variante vivono qui,
+  una sola volta, non ripetute in ogni template che ne ha bisogno
+  (form, galleria, deep-chat, header). Ogni fragment prende parametri
+  per contenuto/comportamento (testo, type, attributi htmx opzionali,
+  extraClass per aggiustamenti di layout del chiamante), mai per le
+  classi di base: quelle sono fisse, un solo punto di verita' per come
+  deve apparire un bottone di un certo tipo. Chiamare sempre con
+  parametri nominati (frag(nome=valore)), non posizionali: permette di
+  omettere quelli opzionali, Thymeleaf li valorizza a null da solo
+  (vedi CLAUDE.md, "Pattern controller: quando restituire fragment vs
+  pagina intera" per la stessa nota su nominati vs posizionali).
+-->
+
+<!--
+  Bottone primario (accent): nessuna classe di colore/bordo/padding
+  qui, arrivano gia' dalla regola generica "button" nel layer base di
+  fragments/layout.html (ogni <button> nudo e' primario di default).
+  extraClass e' solo per aggiustamenti di LAYOUT del chiamante (es.
+  margine sopra in un form), mai per cambiare la variante.
+-->
+<button th:fragment="primary(type, text, extraClass)"
+        th:type="${type} ?: 'button'"
+        th:classappend="${extraClass}"
+        th:text="${text}">Bottone</button>
+
+<!--
+  Bottone pericoloso (azioni distruttive: elimina, cancella
+  conversazione): sovrascrive solo bg/testo rispetto al default
+  "button" del layer base (bordo/radius/padding/cursor/hover restano
+  ereditati, stessa relazione di theme.css tra "button" e
+  ".button-danger" di prima). hxPost/hxConfirm/hxSwap/hxTarget: null
+  quando l'htmx sta sul <form> che contiene il bottone, non sul bottone
+  stesso (pattern a livello di form, per degradare senza JavaScript -
+  vedi gallery-detail.html); non null quando invece l'htmx sta
+  direttamente sul bottone, senza <form> (vedi il delete per-riga di
+  fragments/conversation-list.html, che usa anche hxTarget per puntare
+  a #conversation-list-items invece che a se stesso).
+-->
+<button th:fragment="danger(type, text, hxPost, hxConfirm, hxSwap, hxTarget, extraClass)"
+        th:type="${type} ?: 'button'"
+        class="bg-danger dark:bg-danger-dark text-accent-contrast dark:text-accent-contrast-dark"
+        th:classappend="${extraClass}"
+        th:hx-post="${hxPost}"
+        th:hx-confirm="${hxConfirm}"
+        th:hx-swap="${hxSwap}"
+        th:hx-target="${hxTarget}"
+        th:text="${text}">Bottone</button>
+
+<!--
+  Bottone del theme-switch nell'header (☀️/🌙/Auto): value e' il
+  valore assegnato alla variabile Alpine "theme" dichiarata su <body>
+  in layout.html (light/dark/auto), content il testo/icona visibile,
+  title l'attributo title (gia' risolto con #{...} dal chiamante, vedi
+  fragments/header.html). @click/:class restano Alpine puro, MAI
+  processati da Thymeleaf (th:attr non accetta nomi con "@"/":" nella
+  sua sintassi di assegnazione, verificato): "value" arriva invece via
+  th:data-theme-value, letto a runtime con $el.dataset.themeValue -
+  stesso ponte data-*/$el.dataset documentato in CLAUDE.md,
+  "Convenzione: theming".
+-->
+<button th:fragment="themeToggle(value, content, title)"
+        type="button"
+        th:data-theme-value="${value}"
+        class="border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
+               rounded-md px-2 py-1 cursor-pointer text-[0.85rem] leading-none"
+        @click="theme = $el.dataset.themeValue"
+        :class="{ 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark': theme === $el.dataset.themeValue }"
+        th:title="${title}"
+        th:text="${content}">Bottone</button>
+
+</body>
+</html>

@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
-    <title>Deep Chat</title>
+    <title>Deep Flux</title>
 </head>
 <body>
 <div layout:fragment="content">
@@ -10,12 +10,11 @@
     <p>
         <span th:text="#{deepChat.intro.prefix}">Genera immagini con l'aiuto dell'assistente: descrivi cosa vuoi,
         l'assistente puo' cercare sul web per informarsi e generare
-        l'immagine su Replicate col modello e i parametri scelti nel
-        pannello a destra (o con un modello diverso, se lo chiedi
+        l'immagine su Replicate col modello e i parametri scelti
+        nel pannello a sinistra (o con un modello diverso, se lo chiedi
         esplicitamente in chat). Le immagini generate finiscono anche in</span>
-        <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a><span th:text="#{deepChat.intro.suffix}">. La conversazione e'
-        persistita lato server e riprende da dove l'avevi lasciata ad ogni
-        apertura di questa pagina.</span>
+        <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a><span th:text="#{deepChat.intro.suffix}">. Ogni conversazione e' persistita lato server: scegline una dalla
+        lista a sinistra per riprenderla, o creane una nuova.</span>
     </p>
 
     <!--
@@ -36,44 +35,76 @@
       th:inline="javascript" su una stringa (non su un oggetto) sfrutta
       l'escaping JS-safe di Thymeleaf per il caso "inlinea questa
       String" invece di doversi affidare a come Thymeleaf serializzerebbe
-      i record Java (owner()/name() non sono getter "getOwner()" in
-      stile JavaBean) — le liste arrivano gia' come JSON dal controller
-      (DeepChatController), qui solo JSON.parse.
+      un elenco di ChatMessage — chatHistoryJson arriva gia' come JSON
+      dal controller (DeepChatController), qui solo JSON.parse. I
+      modelli (personalModelsJson/catalogModelsJson) non passano piu' da
+      qui: sono parametri di fragments/generation-params.html, letti li'
+      via il bridge data-* (vedi il commento sul fragment stesso).
+      deepChatConversationId identifica la conversazione corrente
+      (attiva lato server, vedi DeepChatController): il
+      requestInterceptor piu' in basso lo inietta in ogni richiesta a
+      DeepChatApiController, cosi' un turno arriva sempre gia' associato
+      alla conversazione giusta.
     -->
     <script th:inline="javascript">
-        window.deepChatPersonalModels = JSON.parse(/*[[${personalModelsJson}]]*/ '[]');
-        window.deepChatCatalogModels = JSON.parse(/*[[${catalogModelsJson}]]*/ '[]');
         window.deepChatHistory = JSON.parse(/*[[${chatHistoryJson}]]*/ '[]');
+        window.deepChatConversationId = /*[[${activeConversationId}]]*/ null;
         window.setDeepChatSettings = function (settings) {
             window.deepChatSettings = settings;
         };
     </script>
 
     <!--
-      Reset della conversazione: cancella la cronologia persistita
-      (DeepChatApiController#reset) e forza un reload della pagina via
-      l'header di risposta HX-Refresh, che ripopola initialMessages a
-      vuoto dal controller — piu' semplice che conoscere l'API JS di
-      deep-chat per svuotare i messaggi gia' in pagina. hx-swap="none"
-      perche' non c'e' nessun fragment da inserire, solo l'header da
-      processare.
+      Layout a due colonne: rail sinistro NON collassabile
+      (fragments/accordion.html :: staticPanels - lista conversazioni +
+      impostazioni di generazione, sempre entrambe visibili, mai una
+      alla volta) + <deep-chat> a destra (occupa lo spazio restante).
+      Sotto gli 861px torna a impilarsi (flex-col di base,
+      min-[861px]:flex-row per le due colonne - vedi anche il commento
+      su <deep-chat> sotto per il calcolo della larghezza).
     -->
-    <div class="deep-chat-toolbar">
-        <button type="button" class="button-danger"
-                th:hx-post="@{/api/deep-chat/reset}"
-                hx-swap="none"
-                th:hx-confirm="#{deepChat.confirm.reset}">
-            <span th:text="#{deepChat.button.newConversation}">Nuova conversazione</span>
-        </button>
-    </div>
+    <div class="flex flex-col gap-4 items-start min-[861px]:flex-row">
+        <!--
+          conversationsBody/settingsBody sono parametri-fragment
+          (~{::#id}): il markup dentro resta scritto una sola volta
+          qui, staticPanels si limita a comporlo nel proprio slot -
+          stesso pattern e stessa necessita' di risolvere prima le
+          #{...} in variabili semplici (vedi il commento sull'accordion
+          in fondo alla pagina, identico problema/soluzione qui).
+          conversation-list-section e' un <div> con id ma SENZA
+          th:replace su se stesso (a differenza del <form> sotto, che
+          fa lo stesso lavoro in un colpo solo perche' e' gia' lui
+          l'elemento con l'id): list(...) e' un th:block (nessun tag
+          proprio, vedi fragments/conversation-list.html), serve percio'
+          un div "vero" che lo ospiti perche' ~{::#conversation-list-section}
+          abbia un elemento con quell'id da selezionare.
+        -->
+        <th:block th:with="conversationsLabel=#{deepChat.accordion.conversations},
+                            settingsLabel=#{deepChat.accordion.settings},
+                            conversationsBody=~{::#conversation-list-section},
+                            settingsBody=~{::#generation-settings-form},
+                            leftLabels=${ {conversationsLabel, settingsLabel} },
+                            leftBodies=${ {conversationsBody, settingsBody} }">
+        <div th:replace="~{fragments/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies})}">
+            <div id="conversation-list-section">
+                <div th:replace="~{fragments/conversation-list :: list(${conversations}, ${activeConversationId})}"></div>
+            </div>
 
-    <!--
-      Layout a due colonne: <deep-chat> a sinistra (occupa lo spazio
-      restante), pannello impostazioni a destra (larghezza fissa,
-      collassabile). Sotto una certa larghezza torna a impilarsi (vedi
-      .deep-chat-layout in theme.css).
-    -->
-    <div class="deep-chat-layout">
+            <!--
+              onsubmit="return false" perche' questo <form> non viene mai
+              sottomesso a nessun endpoint: serve solo a raggruppare i
+              campi del fragment cosi' che new FormData(form) (script piu'
+              sotto) possa leggerli tutti in un colpo, come farebbe una
+              vera sottomissione — stesso identico fragment usato da
+              generate.html dentro il SUO <form>, che invece si sottomette
+              davvero (vedi fragments/generate-form.html).
+            -->
+            <form id="generation-settings-form" onsubmit="return false;">
+                <div th:replace="~{fragments/generation-params :: fields(personalModelsJson=${personalModelsJson}, catalogModelsJson=${catalogModelsJson}, model=${model}, width=${width}, height=${height}, outputFormat=${outputFormat}, numInferenceSteps=${numInferenceSteps}, guidanceScale=${guidanceScale}, seed=${seed}, loraScale=${loraScale}, fluxModel=${fluxModel}, numOutputs=${numOutputs})}"></div>
+            </form>
+        </div>
+        </th:block>
+
         <!--
           Componente complesso montato isolato su un singolo elemento
           (vedi CLAUDE.md, "Componenti davvero complessi"): nessun
@@ -100,166 +131,114 @@
           grid-template-columns:1fr al posto del flex-grow, quindi non è
           un problema di flexbox in sé ma di qualunque sizing "flessibile
           risolto in un secondo passo". Un width esplicito invece
-          funziona: vedi ".deep-chat-layout deep-chat" in theme.css
-          (calc() sincronizzato via :has() con lo stato aperto/
-          collassato del pannello, dato che qui non può più seguirlo
-          automaticamente come faceva flex-grow).
+          funziona: sotto, una classe Tailwind con valore arbitrario
+          calc() - 280px e' la larghezza fissa del rail sinistro
+          (fragments/accordion.html :: staticPanels, non piu' variabile
+          da quando non e' piu' collassabile). Sotto 861px la regola
+          min-[861px]: non si applica, resta il fallback w-full
+          mobile-first.
         -->
         <deep-chat
+                id="deep-chat-el"
                 th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
                 requestBodyLimits='{"maxMessages": 0}'
-                style="display: block; border-radius: var(--radius); border: 1px solid var(--color-border); min-width: 0; height: 75vh; min-height: 420px;">
+                class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
+                       min-[861px]:w-[calc(100%_-_280px_-_1rem)]">
         </deep-chat>
+    </div>
+
+    <!--
+      Accordion generico (fragments/accordion.html :: panels(labels,
+      bodies), collassabile - qui con un solo pannello, la galleria
+      contestuale a questa conversazione: le impostazioni di
+      generazione sono finite nel rail sinistro non collassabile sopra,
+      insieme alla lista conversazioni). Gli elementi di bodies sono
+      parametri-fragment (~{::selector}): il markup dentro resta
+      scritto una sola volta qui, l'accordion si limita a comporlo nel
+      proprio slot.
+
+      accordionLabels/accordionBodies (liste, qui di un solo elemento)
+      passano da un th:with su un th:block avvolgente, non da literal
+      inline nel th:replace - non e' un capriccio stilistico, le
+      alternative piu' dirette falliscono entrambe (verificato dal
+      vivo, 500 in parsing):
+      1. Un literal-lista {a} scritto DIRETTAMENTE come valore di un
+         parametro-fragment (dentro panels(...)) o di un th:with - il
+         parser di Thymeleaf che spezza la lista di parametri/
+         assegnazioni sulle virgole di primo livello non riconosce le
+         graffe NUDE {..} come regione protetta (lo fa solo per
+         ${..}/#{..}/@{..}/~{..}/(..)); con piu' di un elemento la
+         virgola INTERNA alla lista viene letta come separatore tra
+         parametri diversi - "Could not parse as expression/assignation
+         sequence" (qui con un solo elemento il sintomo non si
+         manifesterebbe, ma la stessa espressione viene riusata in
+         punti con piu' pannelli, vedi sopra: un pattern solo per
+         coerenza).
+      2. Avvolgerla in ${ {a} } risolve il punto 1 (l'intero literal
+         e' ora dentro un ${...} protetto) ma sposta il problema: il
+         contenuto tra le doppie graffe viene passato a SpEL puro (non
+         piu' al parser di Thymeleaf), che non conosce la sintassi
+         #{...}/~{...} - serve quindi che gli ELEMENTI della lista siano
+         gia' variabili semplici (galleryLabel/galleryBody sotto,
+         risolte separatamente con #{...}/~{...} PRIMA), non le
+         espressioni #{...}/~{...} scritte inline dentro le graffe.
+    -->
+    <th:block th:with="galleryLabel=#{deepChat.accordion.gallery},
+                        galleryBody=~{::#contextual-gallery},
+                        accordionLabels=${ {galleryLabel} },
+                        accordionBodies=${ {galleryBody} }">
+    <div th:replace="~{fragments/accordion :: panels(labels=${accordionLabels}, bodies=${accordionBodies})}">
 
         <!--
-          Pannello impostazioni: un solo x-data per tutto (combobox
-          modello + parametri di generazione + stato collassato), cosi'
-          publish() puo' leggere in un colpo tutti i valori correnti e
-          mandarli a window.setDeepChatSettings. I campi numerici usano
-          x-model.number (non x-model) per ottenere numeri JS veri, non
-          stringhe, nel body JSON verso /api/deep-chat.
+          Galleria contestuale: solo le immagini generate in QUESTA
+          conversazione. gridOrEmpty(...) (fragments/gallery.html,
+          vedi CLAUDE.md/il piano di questa feature) e' condivisa con
+          DeepChatController#gallery, l'endpoint htmx sotto: stesso
+          identico markup (griglia o messaggio vuoto) sia al caricamento
+          pagina sia al refresh, un solo posto da cui deriva. Si
+          aggiorna da sola dopo ogni risposta della chat: deep-chat
+          spara un evento "new-message" (non-bubbling) sull'elemento
+          <deep-chat id="deep-chat-el"> sopra ad ogni turno, "from:" lo
+          intercetta lo stesso (htmx ascolta l'evento sull'elemento
+          indicato, non richiede bubbling).
         -->
-        <aside class="deep-chat-settings" :class="{ collapsed: collapsed }"
-               x-data="{
-                  collapsed: false,
-                  query: '',
-                  open: false,
-                  selected: '',
-                  personal: window.deepChatPersonalModels || [],
-                  catalog: window.deepChatCatalogModels || [],
-                  width: 848,
-                  height: 1280,
-                  outputFormat: 'jpg',
-                  numInferenceSteps: 28,
-                  guidanceScale: 3,
-                  seed: '',
-                  loraScale: 1,
-                  idOf(m) { return m.owner + '/' + m.name; },
-                  matches(m) {
-                      const q = this.query.trim().toLowerCase();
-                      return !q || this.idOf(m).toLowerCase().includes(q);
-                  },
-                  get filteredPersonal() { return this.personal.filter(m => this.matches(m)); },
-                  get filteredCatalog() { return this.catalog.filter(m => this.matches(m)); },
-                  pick(m) {
-                      this.selected = this.idOf(m);
-                      this.query = this.selected;
-                      this.open = false;
-                      this.publish();
-                  },
-                  publish() {
-                      window.setDeepChatSettings({
-                          model: this.selected,
-                          aspect_ratio: 'custom',
-                          width: this.width,
-                          height: this.height,
-                          output_format: this.outputFormat,
-                          num_inference_steps: this.numInferenceSteps,
-                          guidance_scale: this.guidanceScale,
-                          seed: this.seed,
-                          lora_scale: this.loraScale,
-                      });
-                  },
-                  init() {
-                      const first = this.personal[0] || this.catalog[0];
-                      if (first) { this.pick(first); } else { this.publish(); }
-                  }
-               }"
-               x-init="init()">
-            <!--
-              :title e' un binding Alpine, mai processato da Thymeleaf
-              server-side: #{...} sull'attributo non avrebbe effetto.
-              Le due etichette arrivano invece via data-* renderizzati
-              dal server, lette a runtime con $el.dataset (pattern
-              riusabile per qualunque altra stringa client-only, vedi
-              CLAUDE.md).
-            -->
-            <button type="button" class="deep-chat-settings-toggle"
-                    th:data-label-show="#{deepChat.settings.show}"
-                    th:data-label-hide="#{deepChat.settings.hide}"
-                    @click="collapsed = !collapsed"
-                    :title="collapsed ? $el.dataset.labelShow : $el.dataset.labelHide"
-                    x-text="collapsed ? '⚙' : '✕'"></button>
-
-            <div class="deep-chat-settings-body" x-show="!collapsed">
-                <div class="field model-picker" @click.outside="open = false; query = selected">
-                    <label class="field-label" for="image-model-input" th:text="#{deepChat.label.model}">Modello</label>
-                    <input type="text" id="image-model-input" autocomplete="off"
-                           x-model="query"
-                           @focus="open = true"
-                           @input="open = true"
-                           @keydown.escape="open = false; query = selected"
-                           th:placeholder="#{deepChat.placeholder.searchModel}" placeholder="Cerca un modello…">
-                    <ul class="model-options" x-show="open && (filteredPersonal.length || filteredCatalog.length)">
-                        <template x-if="filteredPersonal.length">
-                            <li class="model-options-group" th:text="#{deepChat.group.personalModels}">I tuoi modelli</li>
-                        </template>
-                        <template x-for="m in filteredPersonal" :key="idOf(m)">
-                            <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
-                        </template>
-                        <template x-if="filteredCatalog.length">
-                            <li class="model-options-group" th:text="#{deepChat.group.catalogModels}">Modelli disponibili</li>
-                        </template>
-                        <template x-for="m in filteredCatalog" :key="idOf(m)">
-                            <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
-                        </template>
-                    </ul>
-                    <p x-show="open && !filteredPersonal.length && !filteredCatalog.length" class="form-error" th:text="#{deepChat.error.noMatch}">
-                        Nessun modello corrisponde alla ricerca.
-                    </p>
-                    <p x-show="!personal.length && !catalog.length" class="form-error" th:text="#{deepChat.error.noModels}">
-                        Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
-                    </p>
-                </div>
-
-                <div class="field-row">
-                    <div class="field">
-                        <label class="field-label" for="param-width" th:text="#{deepChat.label.width}">Larghezza</label>
-                        <input type="number" id="param-width" min="256" max="1440" step="16"
-                               x-model.number="width" @input="publish()">
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="param-height" th:text="#{deepChat.label.height}">Altezza</label>
-                        <input type="number" id="param-height" min="256" max="1440" step="16"
-                               x-model.number="height" @input="publish()">
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="field-label" for="param-output-format" th:text="#{deepChat.label.format}">Formato</label>
-                    <select id="param-output-format" x-model="outputFormat" @change="publish()">
-                        <option value="jpg">jpg</option>
-                        <option value="webp">webp</option>
-                        <option value="png">png</option>
-                    </select>
-                </div>
-
-                <div class="field">
-                    <label class="field-label" for="param-steps" th:text="#{deepChat.label.steps}">Passi di inferenza</label>
-                    <input type="number" id="param-steps" min="1" max="50"
-                           x-model.number="numInferenceSteps" @input="publish()">
-                </div>
-
-                <div class="field">
-                    <label class="field-label" for="param-guidance" th:text="#{deepChat.label.guidance}">Guidance scale</label>
-                    <input type="number" id="param-guidance" min="0" max="10" step="0.1"
-                           x-model.number="guidanceScale" @input="publish()">
-                </div>
-
-                <div class="field">
-                    <label class="field-label" for="param-seed" th:text="#{deepChat.label.seed}">Seed</label>
-                    <input type="number" id="param-seed" th:placeholder="#{deepChat.placeholder.seed}" placeholder="casuale"
-                           x-model.number="seed" @input="publish()">
-                </div>
-
-                <div class="field">
-                    <label class="field-label" for="param-lora-scale" th:text="#{deepChat.label.loraScale}">Intensita' LoRA</label>
-                    <input type="number" id="param-lora-scale" min="-1" max="3" step="0.1"
-                           x-model.number="loraScale" @input="publish()">
-                </div>
-            </div>
-        </aside>
+        <div id="contextual-gallery"
+             th:hx-get="@{/deep-chat/{id}/gallery(id=${activeConversationId})}"
+             hx-trigger="new-message from:#deep-chat-el" hx-swap="innerHTML">
+            <div th:replace="~{fragments/gallery :: gridOrEmpty(${contextualGenerations}, #{deepChat.accordion.gallery.empty})}"></div>
+        </div>
     </div>
+    </th:block>
+
+    <!--
+      Sincronizza il fragment condiviso (fragments/generation-params.html,
+      incluso sopra dentro #generation-settings-form) verso
+      window.setDeepChatSettings: un solo listener "input" delegato sul
+      <form>, non un @input per campo. Funziona sia per la digitazione
+      nei campi tipizzati (input nativi, nessun Alpine coinvolto) sia
+      per la scelta di un modello dal combobox (l'x-init del fragment
+      spara un evento "input" sintetico dopo pick()/al primo render,
+      vedi il fragment) — delegato qui perche' deve leggere TUTTI i
+      campi in un colpo a ogni cambiamento, non solo quello che ha
+      scatenato l'evento. Script classico (non module/deferred): gia'
+      eseguito durante il parsing, il <form> sopra (nel rail sinistro
+      non collassabile, vedi fragments/accordion.html :: staticPanels)
+      esiste gia' quando arriva qui, niente attesa di DOMContentLoaded.
+    -->
+    <script>
+        (function () {
+            var NUMERIC_FIELDS = ['width', 'height', 'num_inference_steps', 'guidance_scale', 'seed', 'lora_scale', 'num_outputs'];
+            var form = document.getElementById('generation-settings-form');
+            form.addEventListener('input', function () {
+                var data = new FormData(form);
+                var settings = {};
+                data.forEach(function (value, key) {
+                    settings[key] = (NUMERIC_FIELDS.indexOf(key) !== -1 && value !== '') ? Number(value) : value;
+                });
+                window.setDeepChatSettings(settings);
+            });
+        })();
+    </script>
 
     <!-- deepChat.bundle.js e' un modulo ES (termina con "export{...}"): un
          <script> classico lo scarta con "Unexpected token 'export'" senza
@@ -269,7 +248,7 @@
     <!--
       Ripristina la cronologia persistita (window.deepChatHistory, vedi
       sopra) e inoltra le impostazioni del pannello (modello + parametri)
-      al backend, vedi DeepChatApiController.
+      e la conversazione corrente al backend, vedi DeepChatApiController.
 
       initialMessages e' una PROPRIETA' JS (un array), non un attributo
       HTML: verificato dal vivo che deep-chat non fa JSON.parse di un
@@ -292,10 +271,14 @@
       impostati (stringa vuota, null, undefined) non vengono inclusi nel
       body: cosi' un modello che non supporta un parametro non lo
       riceve, invece di fallire su un valore imposto ma inutile per lui.
+      conversationId e' assegnato SEMPRE (non e' un parametro di
+      generazione opzionale come gli altri nel loop sopra: senza,
+      DeepChatApiController non saprebbe a quale conversazione
+      persistere il turno).
     -->
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
-            const deepChat = document.querySelector('deep-chat');
+            const deepChat = document.getElementById('deep-chat-el');
             deepChat.initialMessages = window.deepChatHistory || [];
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
@@ -304,6 +287,7 @@
                         details.body[key] = value;
                     }
                 }
+                details.body.conversationId = window.deepChatConversationId;
                 return details;
             };
         });

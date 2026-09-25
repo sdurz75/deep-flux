@@ -2,10 +2,16 @@ package org.dual.replicate.controller;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Properties;
 
+import org.dual.replicate.domain.ChatConversation;
+import org.dual.replicate.domain.ChatMessage;
+import org.dual.replicate.domain.ChatMessageRole;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.repository.ChatConversationRepository;
+import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.repository.GenerationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -14,9 +20,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -39,14 +49,80 @@ class TemplateRenderingTests {
     @Autowired
     private GenerationRepository repository;
 
+    @Autowired
+    private ChatConversationRepository chatConversationRepository;
+
+    @Autowired
+    private ChatMessageRepository chatMessageRepository;
+
     @Test
     void generationFormRenders() throws Exception {
         mockMvc.perform(get("/generations/new")).andExpect(status().isOk());
     }
 
+    /**
+     * Nessuna pagina "senza conversazione": /deep-chat nudo risolve/crea
+     * sempre quella di default e ci naviga (vedi DeepChatController).
+     * @Transactional: senza, ogni esecuzione di questo test (e degli
+     * altri due sotto che toccano CHAT_CONVERSATION/CHAT_MESSAGE)
+     * lascerebbe righe permanenti nel DB H2 file-based condiviso con
+     * l'ambiente di sviluppo (niente datasource separato per i test in
+     * questo progetto) - il rollback automatico a fine test evita
+     * l'accumulo silenzioso ad ogni `mvn test`.
+     */
     @Test
-    void deepChatPageRenders() throws Exception {
-        mockMvc.perform(get("/deep-chat")).andExpect(status().isOk());
+    @Transactional
+    void bareDeepChatRedirectsToAConversation() throws Exception {
+        mockMvc.perform(get("/deep-chat"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    @Transactional
+    void deepChatConversationPageRenders() throws Exception {
+        String location = mockMvc.perform(get("/deep-chat"))
+                .andReturn().getResponse().getRedirectedUrl();
+
+        mockMvc.perform(get(location)).andExpect(status().isOk());
+    }
+
+    /**
+     * Copre sia il ramo vuoto (nessuna generazione riuscita in questa
+     * conversazione: messaggio i18n) sia quello pieno (grid riusata da
+     * fragments/gallery.html, vedi CLAUDE.md/il piano di questa feature)
+     * dell'accordion "galleria" di /deep-chat/{id} - in particolare che
+     * il th:block che avvolge il th:replace condizionale funzioni
+     * davvero (th:if/th:unless sullo STESSO tag di th:replace non
+     * basterebbe, th:replace ha precedenza piu' alta e scatterebbe
+     * comunque: vedi il commento in deep-chat.html).
+     */
+    @Test
+    @Transactional
+    void deepChatContextualGalleryShowsOnlyImagesFromThatConversation() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+
+        Generation generation = new Generation("pred-dc-1", "owner/model", null, "a fox", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("dc-1.png"));
+        generation = repository.save(generation);
+
+        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.USER, "genera una volpe", null));
+        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, "ecco la volpe", generation));
+
+        String body = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("/images/dc-1.png");
+        assertThat(body).doesNotContain("Nessuna immagine ancora in questa conversazione");
+
+        ChatConversation otherConversation = chatConversationRepository.save(new ChatConversation());
+        String otherBody = mockMvc.perform(get("/deep-chat/" + otherConversation.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(otherBody).doesNotContain("/images/dc-1.png");
+        assertThat(otherBody).contains("Nessuna immagine ancora in questa conversazione");
     }
 
     @Test
@@ -63,7 +139,7 @@ class TemplateRenderingTests {
     void galleryDetailAndStatusRenderForSucceededGeneration() throws Exception {
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", "{\"seed\":1}");
         generation.setStatus(GenerationStatus.SUCCEEDED);
-        generation.setImageFilename("1.png");
+        generation.setImageFilenames(List.of("1.png"));
         generation = repository.save(generation);
 
         mockMvc.perform(get("/gallery")).andExpect(status().isOk());
@@ -71,6 +147,37 @@ class TemplateRenderingTests {
         mockMvc.perform(get("/gallery/" + generation.getId())).andExpect(status().isOk());
         // Terminale: refresh() ritorna subito, nessuna chiamata a Replicate.
         mockMvc.perform(get("/generations/" + generation.getId())).andExpect(status().isOk());
+    }
+
+    /**
+     * L'eliminazione vive ora solo nella pagina di dettaglio (vedi
+     * gallery-detail.html/fragments/gallery-card.html): dopo la
+     * cancellazione la pagina corrente non esiste piu', quindi entrambi
+     * i rami del controller devono portare il browser a /gallery,
+     * l'htmx via l'header HX-Redirect (non uno swap di contenuto), il
+     * non-htmx via un vero redirect HTTP.
+     */
+    @Test
+    void deleteViaHtmxSetsHxRedirectHeader() throws Exception {
+        Generation generation = new Generation("pred-3", "owner/model", null, "a bird", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("3.png"));
+        generation = repository.save(generation);
+
+        mockMvc.perform(post("/gallery/" + generation.getId() + "/delete").header("HX-Request", "true"))
+                .andExpect(header().string("HX-Redirect", "/gallery"));
+    }
+
+    @Test
+    void deleteWithoutHtmxRedirectsToGallery() throws Exception {
+        Generation generation = new Generation("pred-4", "owner/model", null, "a fish", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("4.png"));
+        generation = repository.save(generation);
+
+        mockMvc.perform(post("/gallery/" + generation.getId() + "/delete"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/gallery"));
     }
 
     @Test

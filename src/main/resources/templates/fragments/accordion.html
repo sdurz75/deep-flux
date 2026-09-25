@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Accordion generico a N pannelli (Pines UI, devdojo.com/pines/docs/
+  accordion). labels e bodies sono due liste parallele della stessa
+  lunghezza, accoppiate per indice (labels[i] e' l'header del pannello
+  il cui corpo e' bodies[i]) - bodies e' una lista di fragment-expression
+  (~{...}), non di stringhe: primo uso in questo codebase di un LISTA di
+  fragment-expression come slot di composizione (in precedenza un
+  th:insert prendeva una singola ~{...} per parametro, es.
+  generation-params.html :: fields(...)). th:INSERT, non th:replace:
+  replace sostituirebbe l'intero <div class="px-4 pb-4"> col contenuto
+  dello slot, perdendo il padding del pannello (verificato dal vivo) -
+  insert lo inserisce DENTRO quel div, che quindi resta nell'output.
+
+  Il pannello attivo e' tracciato per INDICE (0-based, il primo aperto
+  di default), non per id semantico come in una versione precedente di
+  questo fragment (letterali 'settings'/'gallery', un solo chiamante
+  fisso) - qui i pannelli sono anonimi lato Alpine, l'indice arriva da
+  th:each. Un @click/:class/x-show con l'indice per-iterazione non puo'
+  pero' passare da th:attr (il suo parser di assegnazione non accetta
+  nomi con "@"/":", stessa limitazione di fragments/button.html ::
+  themeToggle, vedi CLAUDE.md): si ponte con th:data-index (Thymeleaf,
+  statico per iterazione) letto UNA sola volta da un x-data annidato
+  su "panelIndex" - le espressioni Alpine sotto (@click/:class/x-show)
+  restano cosi' puro HTML statico mai toccato da Thymeleaf, e
+  "activeAccordion" resta visibile ai figli per la catena di scope
+  annidati di Alpine (x-data annidato ESTENDE quello del genitore, non
+  lo sostituisce).
+
+  Due scostamenti deliberati dallo snippet originale Pines (stesso
+  stile di documentazione delle deviazioni gia' usato in
+  fragments/gallery.html), entrambi generici e non legati a un
+  chiamante specifico:
+  1. Niente classe "group"/"cursor-pointer" sui wrapper dei pannelli
+     (Pines la mette li' per la sottolineatura all'hover dell'header):
+     un corpo pannello puo' contenere elementi con una propria classe
+     "group" (es. fragments/gallery-card.html, per l'overlay hover
+     sulla singola card) - group-hover: risale al piu' vicino ".group"
+     ANTENATO, non necessariamente quello dell'elemento interno, quindi
+     un "group" sul wrapper del pannello accenderebbe l'hover di quegli
+     elementi passando sopra l'header/il corpo del pannello. La
+     sottolineatura hover va quindi direttamente sul <button>.
+  2. Niente overflow-hidden sulla radice (comune nello snippet Pines,
+     per tagliare l'ombra della transizione ai bordi arrotondati): un
+     corpo pannello puo' contenere un dropdown position:absolute (es.
+     il combobox modello di fragments/generation-params.html) che
+     verrebbe tagliato da un overflow-hidden su un antenato.
+-->
+<div th:fragment="panels(labels, bodies)"
+     x-data="{ activeAccordion: 0 }"
+     class="border border-line dark:border-line-dark rounded-md divide-y divide-line dark:divide-line-dark mt-6">
+
+    <div th:each="label, iter : ${labels}"
+         th:data-index="${iter.index}"
+         x-data="{ panelIndex: Number($el.dataset.index) }">
+        <button type="button"
+                @click="activeAccordion = (activeAccordion === panelIndex ? null : panelIndex)"
+                class="flex justify-between items-center w-full px-4 py-3 text-left font-medium cursor-pointer hover:text-accent dark:hover:text-accent-dark">
+            <span th:text="${label}">Pannello</span>
+            <svg class="w-4 h-4 shrink-0 transition-transform duration-200"
+                 :class="{ 'rotate-180': activeAccordion === panelIndex }"
+                 xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+        </button>
+        <div x-show="activeAccordion === panelIndex" x-collapse x-cloak>
+            <div class="px-4 pb-4" th:insert="${bodies[iter.index]}"></div>
+        </div>
+    </div>
+
+</div>
+
+<!--
+  Variante NON collassabile di panels(...) sopra: stessa forma
+  labels/bodies (liste parallele accoppiate per indice) e stesso
+  contenitore visivo (border/divide-y/rounded-md), ma ogni pannello e'
+  SEMPRE visibile - nessun bottone, nessuna icona, nessuno stato
+  Alpine, nessuna interazione. Nasce per il rail sinistro di
+  deep-chat.html (lista conversazioni + impostazioni di generazione,
+  entrambe visibili insieme, mai una a scapito dell'altra - a
+  differenza di panels(...) sopra, che mostra un pannello alla volta).
+
+  bg-surface e la larghezza fissa (w-full min-[861px]:w-[280px]) sono
+  hardcoded qui, non parametrizzate: replicano esattamente lo stile
+  del vecchio <aside> auto-collassabile di fragments/conversation-list.html
+  che questo fragment sostituisce (vedi il fragment stesso), ed e'
+  l'UNICO chiamante oggi (stessa scelta gia' fatta per fields(...) di
+  generation-params.html, CLAUDE.md scoraggia l'astrazione anticipata):
+  se un domani serve altrove con una larghezza diversa, aggiungere un
+  parametro allora, non ora.
+-->
+<div th:fragment="staticPanels(labels, bodies)"
+     class="border border-line dark:border-line-dark rounded-md divide-y divide-line dark:divide-line-dark
+            bg-surface dark:bg-surface-dark p-3 w-full min-[861px]:w-[280px] min-[861px]:flex-none">
+    <div th:each="label, iter : ${labels}" th:classappend="${iter.index > 0} ? 'pt-3' : ''">
+        <div class="font-medium mb-2" th:text="${label}">Pannello</div>
+        <div th:insert="${bodies[iter.index]}"></div>
+    </div>
+</div>
+
+</body>
+</html>

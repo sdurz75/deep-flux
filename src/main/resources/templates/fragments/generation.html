@@ -14,19 +14,25 @@
          th:hx-get="@{'/generations/' + ${generation.id}}"
          hx-trigger="every 2s"
          hx-swap="outerHTML">
-        <span class="spinner" aria-hidden="true"></span>
+        <span class="inline-block size-[1em] border-2 border-line dark:border-line-dark border-t-accent dark:border-t-accent-dark
+                     rounded-full animate-[spin_0.7s_linear_infinite] align-[-0.15em] mr-2" aria-hidden="true"></span>
         <span th:text="#{generation.status.inProgress(${generation.status})}">In corso&hellip; (PENDING)</span>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">
-        <img th:src="@{'/images/' + ${generation.imageFilename}}"
-             th:alt="${generation.prompt}"
-             class="generated-image">
+        <!-- Una generazione puo' avere piu' di un'immagine (num_outputs > 1, vedi CLAUDE.md): tutte mostrate qui, non solo la prima. -->
+        <div class="flex flex-wrap gap-4 my-4">
+            <img th:each="filename : ${generation.imageFilenames}"
+                 th:src="@{'/images/' + ${filename}}"
+                 th:alt="${generation.prompt}"
+                 class="max-w-full rounded-md border border-line dark:border-line-dark block">
+        </div>
         <p><a th:href="@{'/gallery/' + ${generation.id}}" th:text="#{generation.link.viewDetail}">Vedi il dettaglio in galleria</a></p>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'FAILED'}">
-        <p class="form-error" th:text="${generation.errorMessage}">Errore</p>
+        <p class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
+           th:text="${generation.errorMessage}">Errore</p>
     </div>
 </th:block>
 

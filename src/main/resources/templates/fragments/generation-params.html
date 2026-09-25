@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Fragment condiviso tra fragments/generate-form.html (dentro il <form>
+  gia' esistente) e deep-chat.html (dentro un <form> non-submitting
+  dedicato, per poter leggere i valori con FormData): stesso identico
+  markup in entrambe le pagine (CLAUDE.md, "nessuna duplicazione di
+  markup"). Il selettore modello ha un proprio x-data locale
+  (ricerca/dropdown, testo libero incluso: non e' un vincolo di scelta
+  da elenco come nella vecchia versione solo-deep-chat); dei restanti 9
+  campi tipizzati solo la coppia flux_model/num_inference_steps ha
+  bisogno di uno stato Alpine condiviso (vedi il commento su quel blocco
+  piu' sotto), gli altri 7 restano input semplici senza binding Alpine
+  — la sincronizzazione verso window.setDeepChatSettings (solo rilevante
+  su deep-chat.html) e' un listener "input" delegato a livello di
+  pagina, non qui: l'x-init sul combobox si limita a sparare un evento
+  "input" sintetico dopo il primo render (bubbles: true), cosi' un
+  eventuale listener delegato su un <form> antenato riceve i valori
+  iniziali senza bisogno di un init()/publish() scritto pagina per
+  pagina — su generate.html, dove nessun listener ascolta, l'evento
+  risale e basta, senza effetti.
+
+  personalModelsJson/catalogModelsJson arrivano gia' serializzati dal
+  controller (vedi DeepChatController/GenerationController): owner()/
+  name() non sono getter in stile JavaBean e latestVersion ha un
+  @JsonProperty che solo l'ObjectMapper di Spring rispetta, quindi non e'
+  th:inline="javascript" a serializzare le liste Java qui (rischierebbe
+  anche di essere ri-eseguito a ogni swap htmx sul path di errore di
+  generate.html, in corsa con l'init di Alpine). Passate invece via
+  data-* (stesso bridge di CLAUDE.md, "Convenzione: theming", gia' usato
+  per i binding Alpine non esprimibili con th:attr) e lette a runtime
+  con JSON.parse($el.dataset...) dentro l'x-data.
+-->
+<th:block th:fragment="fields(personalModelsJson, catalogModelsJson, model, width, height, outputFormat, numInferenceSteps, guidanceScale, seed, loraScale, fluxModel, numOutputs)">
+    <div class="relative"
+         th:data-model="${model}"
+         th:data-personal-models="${personalModelsJson}"
+         th:data-catalog-models="${catalogModelsJson}"
+         x-data="{
+            model: $el.dataset.model || '',
+            open: false,
+            personal: JSON.parse($el.dataset.personalModels || '[]'),
+            catalog: JSON.parse($el.dataset.catalogModels || '[]'),
+            idOf(m) { return m.owner + '/' + m.name; },
+            matches(m) {
+                const q = this.model.trim().toLowerCase();
+                return !q || this.idOf(m).toLowerCase().includes(q);
+            },
+            get filteredPersonal() { return this.personal.filter(m => this.matches(m)); },
+            get filteredCatalog() { return this.catalog.filter(m => this.matches(m)); },
+            pick(m) {
+                this.model = this.idOf(m);
+                this.open = false;
+                this.$nextTick(() => this.$refs.modelInput.dispatchEvent(new Event('input', { bubbles: true })));
+            }
+         }"
+         x-init="$nextTick(() => $refs.modelInput.dispatchEvent(new Event('input', { bubbles: true })))"
+         @click.outside="open = false">
+        <label class="block mt-0 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="image-model-input" th:text="#{generationParams.label.model}">Modello</label>
+        <input type="text" id="image-model-input" name="model" autocomplete="off" x-ref="modelInput"
+               x-model="model"
+               @focus="open = true"
+               @input="open = true"
+               @keydown.escape="open = false"
+               required
+               th:placeholder="#{generationParams.placeholder.searchModel}" placeholder="Cerca un modello…">
+        <input type="hidden" name="aspect_ratio" value="custom">
+        <ul class="absolute z-20 left-0 right-0 mt-0.5 py-1 max-h-[260px] overflow-y-auto list-none
+                   bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-md"
+            x-show="open && (filteredPersonal.length || filteredCatalog.length)">
+            <template x-if="filteredPersonal.length">
+                <li class="px-3 py-1 text-xs uppercase text-ink-muted dark:text-ink-muted-dark border-b border-line dark:border-line-dark"
+                    th:text="#{generationParams.group.personalModels}">I tuoi modelli</li>
+            </template>
+            <template x-for="m in filteredPersonal" :key="idOf(m)">
+                <li class="px-3 py-1 cursor-pointer border-b border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark"
+                    @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
+            </template>
+            <template x-if="filteredCatalog.length">
+                <li class="px-3 py-1 text-xs uppercase text-ink-muted dark:text-ink-muted-dark border-b border-line dark:border-line-dark"
+                    th:text="#{generationParams.group.catalogModels}">Modelli disponibili</li>
+            </template>
+            <template x-for="m in filteredCatalog" :key="idOf(m)">
+                <li class="px-3 py-1 cursor-pointer border-b border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark"
+                    @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
+            </template>
+        </ul>
+        <p x-show="open && !filteredPersonal.length && !filteredCatalog.length"
+           class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
+           th:text="#{generationParams.error.noMatch}">
+            Nessun modello corrisponde alla ricerca.
+        </p>
+        <p x-show="!personal.length && !catalog.length"
+           class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
+           th:text="#{generationParams.error.noModels}">
+            Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
+        </p>
+    </div>
+
+    <div>
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
+        <input type="number" id="param-num-outputs" name="num_outputs" min="1" max="8" th:value="${numOutputs}">
+    </div>
+
+    <div class="flex gap-2">
+        <div class="flex-1 min-w-0">
+            <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-width" th:text="#{generationParams.label.width}">Larghezza</label>
+            <input type="number" id="param-width" name="width" min="256" max="1440" step="16" th:value="${width}">
+        </div>
+        <div class="flex-1 min-w-0">
+            <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-height" th:text="#{generationParams.label.height}">Altezza</label>
+            <input type="number" id="param-height" name="height" min="256" max="1440" step="16" th:value="${height}">
+        </div>
+    </div>
+
+    <div>
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
+        <select id="param-output-format" name="output_format">
+            <option value="jpg" th:selected="${outputFormat == 'jpg'}">jpg</option>
+            <option value="webp" th:selected="${outputFormat == 'webp'}">webp</option>
+            <option value="png" th:selected="${outputFormat == 'png'}">png</option>
+        </select>
+    </div>
+
+    <!--
+      flux_model e num_inference_steps sono accoppiati: e' l'unico punto
+      del fragment dove un campo tipizzato ha bisogno di stato Alpine
+      condiviso con un altro (gli altri 6 restano input semplici, vedi
+      il commento in cima al file). "schnell" accetta solo pochi passi
+      di inferenza (4, valore fisso) mentre "dev" ne accetta 1-50 (28 di
+      default) — passare da un modello all'altro forza il numero di
+      passi coerente e lo rende immutabile solo per "schnell", con
+      readonly (non disabled: un campo disabled non verrebbe incluso
+      nel submit del form dedicato di /generations/new, mentre readonly
+      mantiene comunque il valore nella richiesta). Il numero di passi
+      resta comunque un <input type="number"> "semplice" verso l'esterno:
+      il valore viaggia nel submit/nella sincronizzazione FormData di
+      deep-chat.html esattamente come per gli altri campi, x-ref serve
+      solo per scriverlo da qui dentro.
+    -->
+    <div th:data-flux-model="${fluxModel}"
+         x-data="{ fluxModel: $el.dataset.fluxModel || 'dev' }"
+         x-init="$nextTick(() => { $refs.stepsInput.readOnly = (fluxModel === 'schnell') })">
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-flux-model" th:text="#{generationParams.label.fluxModel}">Variante Flux</label>
+        <select id="param-flux-model" name="flux_model" x-model="fluxModel"
+                @change="$refs.stepsInput.value = (fluxModel === 'schnell' ? 4 : 28);
+                         $refs.stepsInput.readOnly = (fluxModel === 'schnell');
+                         $nextTick(() => $refs.stepsInput.dispatchEvent(new Event('input', { bubbles: true })))">
+            <option value="dev">dev</option>
+            <option value="schnell">schnell</option>
+        </select>
+
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
+        <input type="number" id="param-steps" name="num_inference_steps" min="1" max="50" th:value="${numInferenceSteps}"
+               x-ref="stepsInput" class="read-only:opacity-60 read-only:cursor-not-allowed">
+    </div>
+
+    <div>
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
+        <input type="number" id="param-guidance" name="guidance_scale" min="0" max="10" step="0.1" th:value="${guidanceScale}">
+    </div>
+
+    <div>
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
+        <input type="number" id="param-seed" name="seed" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
+    </div>
+
+    <div>
+        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-lora-scale" th:text="#{generationParams.label.loraScale}">Intensita' LoRA</label>
+        <input type="number" id="param-lora-scale" name="lora_scale" min="-1" max="3" step="0.1" th:value="${loraScale}">
+    </div>
+</th:block>
+
+</body>
+</html>

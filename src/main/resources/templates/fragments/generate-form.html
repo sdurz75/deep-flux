@@ -10,13 +10,13 @@
 -->
 <th:block th:fragment="form">
     <div>
-        <p th:if="${error}" class="form-error" th:text="${error}">Errore</p>
+        <p th:if="${error}"
+           class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
+           th:text="${error}">Errore</p>
 
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
               th:action="@{/generations}" method="post">
-            <label for="model" th:text="#{generateForm.label.model}">Modello (owner/nome)</label>
-            <input type="text" id="model" name="model" th:value="${model}"
-                   placeholder="black-forest-labs/flux-schnell" required>
+            <div th:replace="~{fragments/generation-params :: fields(personalModelsJson=${personalModelsJson}, catalogModelsJson=${catalogModelsJson}, model=${model}, width=${width}, height=${height}, outputFormat=${outputFormat}, numInferenceSteps=${numInferenceSteps}, guidanceScale=${guidanceScale}, seed=${seed}, loraScale=${loraScale}, fluxModel=${fluxModel}, numOutputs=${numOutputs})}"></div>
 
             <label for="version" th:text="#{generateForm.label.version}">Version (opzionale, hash pinnato)</label>
             <input type="text" id="version" name="version" th:value="${version}"
@@ -25,12 +25,7 @@
             <label for="prompt" th:text="#{generateForm.label.prompt}">Prompt</label>
             <textarea id="prompt" name="prompt" rows="3" required th:text="${prompt}"></textarea>
 
-            <label for="parameters" th:text="#{generateForm.label.parameters}">Parametri extra (opzionale, JSON)</label>
-            <textarea id="parameters" name="parameters" rows="4"
-                      placeholder='{"aspect_ratio": "1:1", "num_outputs": 1}'
-                      th:text="${parameters}"></textarea>
-
-            <button type="submit" th:text="#{generateForm.button.submit}">Genera</button>
+            <button th:replace="~{fragments/button :: primary(type='submit', text=#{generateForm.button.submit}, extraClass='mt-4')}">Genera</button>
         </form>
     </div>
 </th:block>

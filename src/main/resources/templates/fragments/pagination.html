@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Paginazione generica, NON specifica della galleria: qualunque listato
+  paginato futuro la riusa passando il proprio basePath/hxTarget, senza
+  toccare questo file. basePath va passato come stringa letterale
+  grezza (es. '/gallery'), MAI gia' passata da @{...} dal chiamante -
+  e' questo fragment che la avvolge in @{${basePath}(page=${p})}, una
+  sola volta: farlo anche a monte applicherebbe due volte il prefisso
+  di un eventuale reverse proxy (X-Forwarded-Prefix, vedi CLAUDE.md).
+  ariaLabel e' opzionale (default a una chiave i18n generica): un
+  chiamante puo' sovrascriverla senza toccare questo file.
+
+  Stile Pines UI (devdojo.com/pines/docs/pagination) adattato, non
+  copiato 1:1: barra unica bordata con divide-x + sottolineatura
+  animata all'hover, invece delle pillole individualmente
+  bordate/arrotondate della vecchia paginazione. rounded-md overflow-hidden
+  sul <ul> invece di rounded-l/rounded-r per-item come nello snippet
+  Pines originale (li' serve perche' il primo/ultimo <li> effettivo
+  puo' variare con l'ellissi/il nascondimento mobile - qui il
+  contenitore arrotondato funziona a prescindere da quali <li> sono
+  effettivamente visibili).
+-->
+<nav th:fragment="nav(basePath, hxTarget, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, ariaLabel)"
+     th:if="${totalPages > 1}"
+     th:aria-label="${ariaLabel} ?: #{pagination.ariaLabel}"
+     class="mt-6">
+    <ul class="inline-flex items-stretch h-9 border border-line dark:border-line-dark divide-x divide-line dark:divide-line-dark rounded-md overflow-hidden text-[0.9rem]">
+
+        <li>
+            <a th:if="${hasPrevious}" th:href="@{${basePath}(page=${currentPage - 1})}"
+               th:hx-get="@{${basePath}(page=${currentPage - 1})}"
+               th:hx-target="${hxTarget}" hx-swap="innerHTML"
+               th:text="#{pagination.previous}"
+               class="group relative flex items-center h-full px-3 no-underline text-ink dark:text-ink-dark hover:text-accent dark:hover:text-accent-dark">&laquo; Precedente
+                <span class="absolute left-0 -bottom-px w-0 h-0.5 bg-accent dark:bg-accent-dark transition-all duration-200 ease-out group-hover:w-full"></span>
+            </a>
+            <span th:unless="${hasPrevious}" th:text="#{pagination.previous}"
+                  class="flex items-center h-full px-3 text-ink-muted dark:text-ink-muted-dark opacity-50">&laquo; Precedente</span>
+        </li>
+
+        <!-- Numeri di pagina/ellissi: nascosti sotto md (solo le frecce restano sempre visibili su mobile, come nel componente Pines). -->
+        <th:block th:each="p : ${pageNumbers}">
+            <li th:if="${p == null}" class="hidden md:flex items-center h-full px-3 text-ink-muted dark:text-ink-muted-dark">&hellip;</li>
+            <li th:if="${p != null and p == currentPage}" th:text="${p}" aria-current="page"
+                class="hidden md:flex items-center h-full px-3 font-semibold bg-surface dark:bg-surface-dark text-accent dark:text-accent-dark">1</li>
+            <li th:if="${p != null and p != currentPage}">
+                <a th:href="@{${basePath}(page=${p})}" th:hx-get="@{${basePath}(page=${p})}"
+                   th:hx-target="${hxTarget}" hx-swap="innerHTML" th:text="${p}"
+                   class="group relative hidden md:flex items-center h-full px-3 no-underline text-ink dark:text-ink-dark hover:text-accent dark:hover:text-accent-dark">1
+                    <span class="absolute left-0 -bottom-px w-0 h-0.5 bg-accent dark:bg-accent-dark transition-all duration-200 ease-out group-hover:w-full"></span>
+                </a>
+            </li>
+        </th:block>
+
+        <li>
+            <a th:if="${hasNext}" th:href="@{${basePath}(page=${currentPage + 1})}"
+               th:hx-get="@{${basePath}(page=${currentPage + 1})}"
+               th:hx-target="${hxTarget}" hx-swap="innerHTML"
+               th:text="#{pagination.next}"
+               class="group relative flex items-center h-full px-3 no-underline text-ink dark:text-ink-dark hover:text-accent dark:hover:text-accent-dark">Successiva &raquo;
+                <span class="absolute left-0 -bottom-px w-0 h-0.5 bg-accent dark:bg-accent-dark transition-all duration-200 ease-out group-hover:w-full"></span>
+            </a>
+            <span th:unless="${hasNext}" th:text="#{pagination.next}"
+                  class="flex items-center h-full px-3 text-ink-muted dark:text-ink-muted-dark opacity-50">Successiva &raquo;</span>
+        </li>
+    </ul>
+</nav>
+
+</body>
+</html>

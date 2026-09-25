@@ -1,6 +1,5 @@
 package org.dual.replicate.controller;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -9,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.service.DeepChatService;
-import org.springframework.http.ResponseEntity;
+import org.dual.replicate.service.GenerationParameters;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,7 +45,7 @@ public class DeepChatApiController {
     public Reply chat(@RequestBody Request request) {
         try {
             DeepChatService.Reply reply = deepChatService.reply(
-                    request.messages(), request.model(), toGenerationParameters(request));
+                    request.conversationId(), request.messages(), request.model(), toGenerationParameters(request));
             List<FileRef> files = toFiles(reply.image());
             return new Reply(reply.text(), null, files);
         } catch (Exception e) {
@@ -55,54 +54,36 @@ public class DeepChatApiController {
     }
 
     /**
-     * Azzera la cronologia persistita (vedi DeepChatService.resetHistory)
-     * e forza un reload completo della pagina via l'header di risposta
-     * "HX-Refresh" che htmx riconosce nativamente: piu' semplice che
-     * conoscere l'API JS di deep-chat per svuotare i messaggi gia' in
-     * pagina, e comunque servirebbe un reload per ripopolare
-     * initialMessages da capo (vedi DeepChatController).
-     */
-    @PostMapping("/reset")
-    public ResponseEntity<Void> reset() {
-        deepChatService.resetHistory();
-        return ResponseEntity.ok().header("HX-Refresh", "true").build();
-    }
-
-    /**
-     * Solo i campi effettivamente presenti (il pannello lato UI non
-     * invia quelli lasciati vuoti/di default, vedi requestInterceptor
-     * nel template): cosi' un modello che non supporta uno di questi
+     * Delega a GenerationParameters.toMap (condiviso con GenerationController,
+     * il form diretto): solo i campi effettivamente presenti finiscono
+     * nella mappa, cosi' un modello che non supporta uno di questi
      * parametri non lo riceve proprio, invece di fallire su un valore
      * imposto ma inutile per lui.
      */
     private Map<String, Object> toGenerationParameters(Request request) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        putIfPresent(params, "aspect_ratio", request.aspectRatio());
-        putIfPresent(params, "width", request.width());
-        putIfPresent(params, "height", request.height());
-        putIfPresent(params, "output_format", request.outputFormat());
-        putIfPresent(params, "num_inference_steps", request.numInferenceSteps());
-        putIfPresent(params, "guidance_scale", request.guidanceScale());
-        putIfPresent(params, "seed", request.seed());
-        putIfPresent(params, "lora_scale", request.loraScale());
-        return params;
+        return GenerationParameters.toMap(request.aspectRatio(), request.width(), request.height(),
+                request.outputFormat(), request.numInferenceSteps(), request.guidanceScale(),
+                request.seed(), request.loraScale(), request.fluxModel(), request.numOutputs());
     }
 
-    private void putIfPresent(Map<String, Object> params, String key, Object value) {
-        if (value != null) {
-            params.put(key, value);
-        }
-    }
-
-    /** Package-private: riusata da DeepChatController per ricostruire l'allegato immagine al ripristino della cronologia. */
+    /**
+     * Package-private: riusata da DeepChatController per ricostruire gli
+     * allegati immagine al ripristino della cronologia. Una generazione
+     * puo' avere piu' di un'immagine (num_outputs > 1): tutte finiscono
+     * nella stessa risposta/turno di chat, deep-chat le mostra come piu'
+     * file nella stessa bolla.
+     */
     static List<FileRef> toFiles(Generation image) {
-        if (image == null || image.getImageFilename() == null) {
+        if (image == null || image.getImageFilenames().isEmpty()) {
             return null;
         }
-        return List.of(new FileRef("/images/" + image.getImageFilename(), image.getImageFilename(), "image"));
+        return image.getImageFilenames().stream()
+                .map(filename -> new FileRef("/images/" + filename, filename, "image"))
+                .toList();
     }
 
     public record Request(
+            Long conversationId,
             List<DeepChatService.Turn> messages,
             String model,
             @JsonProperty("aspect_ratio") String aspectRatio,
@@ -112,7 +93,9 @@ public class DeepChatApiController {
             @JsonProperty("num_inference_steps") Integer numInferenceSteps,
             @JsonProperty("guidance_scale") Double guidanceScale,
             Long seed,
-            @JsonProperty("lora_scale") Double loraScale) {
+            @JsonProperty("lora_scale") Double loraScale,
+            @JsonProperty("flux_model") String fluxModel,
+            @JsonProperty("num_outputs") Integer numOutputs) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,20 +31,30 @@ import org.springframework.stereotype.Service;
  * (WebSearchTool via SearXNG, ImageGenerationTool via Replicate) che
  * decide da solo se e quando usare.
  *
- * La cronologia e' persistita (ChatMessage/ChatMessageRepository, vedi
- * CLAUDE.md punto 3 dello Scopo) ma resta anche interamente lato client:
- * deep-chat la rimanda per intero ad ogni turno (vedi requestBodyLimits
- * in templates/deep-chat.html) ed e' quella che alimenta il modello
- * (buildMessages sotto) — la persistenza qui e' solo una copia durevole
- * per ripristinare la UI al prossimo caricamento di /deep-chat
- * (DeepChatController) e non rientra nel giro di richieste verso l'LLM.
+ * /deep-chat supporta piu' conversazioni (ChatConversation), ognuna con
+ * la propria cronologia (ChatMessage/ChatMessageRepository, vedi
+ * CLAUDE.md punto 3 dello Scopo): {@link #reply} opera sempre su una
+ * conversazione precisa, passata per id dal client. La cronologia resta
+ * anche interamente lato client: deep-chat la rimanda per intero ad ogni
+ * turno (vedi requestBodyLimits in templates/deep-chat.html) ed e' quella
+ * che alimenta il modello (buildMessages sotto) — la persistenza qui e'
+ * solo una copia durevole per ripristinare la UI al prossimo caricamento
+ * di quella conversazione (DeepChatController) e non rientra nel giro di
+ * richieste verso l'LLM. La gestione CRUD delle conversazioni stesse
+ * (creazione/rinomina/cancellazione) vive invece in
+ * ChatConversationService, non qui: vedi la sua javadoc per il perche'
+ * della separazione.
  */
 @Service
 public class DeepChatService {
 
     private static final Logger log = LoggerFactory.getLogger(DeepChatService.class);
 
+    /** Lunghezza massima del titolo auto-derivato dal primo turno utente di una conversazione, oltre la quale viene troncato. */
+    private static final int TITLE_MAX_LENGTH = 60;
+
     private final ChatClient chatClient;
+    private final ChatConversationRepository chatConversationRepository;
     private final ChatMessageRepository chatMessageRepository;
     // Nome "i18n", non "messages": la classe usa gia' "messages" come
     // nome locale per List<Message> (i turni della conversazione, vedi
@@ -53,9 +65,11 @@ public class DeepChatService {
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
                             ImageGenerationTool imageGenerationTool,
+                            ChatConversationRepository chatConversationRepository,
                             ChatMessageRepository chatMessageRepository,
                             Messages i18n,
                             @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
+        this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.i18n = i18n;
         this.chatClient = chatClientBuilder
@@ -93,6 +107,14 @@ public class DeepChatService {
     }
 
     /**
+     * {@code conversationId} identifica la conversazione a cui questo
+     * turno appartiene (scelta/gia' aperta lato UI, vedi
+     * DeepChatController): risolta subito, prima della chiamata
+     * all'LLM, cosi' un id sconosciuto o non piu' valido non spreca una
+     * chiamata remota — l'eccezione risale al chiamante (DeepChatApiController),
+     * che la traduce gia' genericamente in un messaggio d'errore in
+     * chat, nessuna gestione dedicata necessaria qui.
+     *
      * {@code selectedModel} e' il modello Replicate scelto nel combobox
      * lato UI (vedi templates/deep-chat.html), inviato dal client su ogni
      * turno tramite requestInterceptor: viene passato al modello come
@@ -106,9 +128,12 @@ public class DeepChatService {
      * nella UI, non vogliamo che l'LLM le componga o le interpreti (a
      * differenza del modello, che l'LLM sceglie come argomento del tool).
      */
-    public Reply reply(List<Turn> history, String selectedModel, Map<String, Object> generationParameters) {
+    public Reply reply(Long conversationId, List<Turn> history, String selectedModel, Map<String, Object> generationParameters) {
+        ChatConversation conversation = chatConversationRepository.findById(conversationId)
+                .orElseThrow(() -> new IllegalArgumentException(i18n.get("deepchat.error.conversationNotFound")));
+
         List<Message> messages = buildMessages(history, selectedModel);
-        persistLatestUserTurn(history);
+        persistLatestUserTurn(conversation, history);
 
         GenerationResultHolder resultHolder = new GenerationResultHolder();
         Instant start = Instant.now();
@@ -134,7 +159,7 @@ public class DeepChatService {
         }
         String text = chatResponse.getResult().getOutput().getText();
 
-        chatMessageRepository.save(new ChatMessage(ChatMessageRole.AI, text, resultHolder.getGeneration()));
+        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, resultHolder.getGeneration()));
         return new Reply(text, resultHolder.getGeneration());
     }
 
@@ -166,20 +191,33 @@ public class DeepChatService {
      * messaggio utente che ha innescato questa chiamata): i turni
      * precedenti sono gia' su DB dalle chiamate passate, deep-chat li
      * rimanda tutti ad ogni richiesta ma andrebbero salvati di nuovo.
+     *
+     * Se la conversazione non ha ancora un titolo, lo deriva (troncato)
+     * da questo stesso turno — mai un letterale di default persistito,
+     * vedi ChatConversation — e aggiorna updatedAt (touch): e' questo il
+     * punto che riordina la sidebar per recenza, PRIMA della chiamata
+     * all'LLM sotto, cosi' l'ordine si aggiorna anche se quella chiamata
+     * fallisce.
      */
-    private void persistLatestUserTurn(List<Turn> history) {
+    private void persistLatestUserTurn(ChatConversation conversation, List<Turn> history) {
         if (history.isEmpty()) {
             return;
         }
         Turn latest = history.get(history.size() - 1);
-        if ("user".equals(latest.role())) {
-            chatMessageRepository.save(new ChatMessage(ChatMessageRole.USER, latest.text(), null));
+        if (!"user".equals(latest.role())) {
+            return;
         }
+        if (conversation.getTitle() == null) {
+            conversation.setTitle(truncateTitle(latest.text()));
+        }
+        conversation.touch();
+        chatConversationRepository.save(conversation);
+        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.USER, latest.text(), null));
     }
 
-    /** Azzera la cronologia persistita. Usata dal controllo di reset in UI (vedi DeepChatApiController). */
-    public void resetHistory() {
-        chatMessageRepository.deleteAllInBatch();
+    private static String truncateTitle(String text) {
+        String trimmed = text.strip();
+        return trimmed.length() <= TITLE_MAX_LENGTH ? trimmed : trimmed.substring(0, TITLE_MAX_LENGTH) + "…";
     }
 
     private List<Message> buildMessages(List<Turn> history, String selectedModel) {

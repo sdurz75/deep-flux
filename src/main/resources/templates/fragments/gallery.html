@@ -3,36 +3,76 @@
 <body>
 
 <!--
-  Il fragment produce grid + paginazione insieme, cosi' il chiamante lo
-  inserisce dentro #gallery-content sia al primo caricamento
-  (th:replace) sia sulle risposte htmx successive di un cambio pagina
-  (che sostituiscono l'intero contenuto di #gallery-content, non solo
-  un pezzo: cambiare pagina rimpiazza la lista, non la accoda come
-  faceva il vecchio "load more").
+  content(...) e' il collante specifico della galleria: compone la
+  griglia (grid, sotto) con la paginazione generica
+  (fragments/pagination.html), passandole basePath="/gallery" e
+  hxTarget="#gallery-content" - i due soli dettagli davvero specifici
+  di QUESTA lista, che un futuro listato diverso passerebbe diversi
+  senza toccare fragments/pagination.html. Stessi 6 parametri nominati
+  di sempre: il contratto verso GalleryController non cambia (vedi
+  CLAUDE.md, "Pattern controller: quando restituire fragment vs pagina
+  intera" - una vista fragment risolta direttamente dal controller
+  richiede parametri nominati).
 -->
 <th:block th:fragment="content(generations, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
-    <!--
-      Griglia + lightbox: adattamento del componente "Image Gallery" di
-      Pines UI (https://devdojo.com/pines/docs/image-gallery), con tre
-      scostamenti deliberati dallo snippet originale:
-      1. Niente array JS "imageGallery" duplicato con photo/alt, ne'
-         un conteggio/indice cachato: i dati sono gia' nel DOM (th:each
-         sotto), qui il wraparound di next/prev ricalcola ogni volta la
-         lista live delle <img> (imageGalleryImages()), cosi' resta
-         corretto anche dopo che il bottone "Elimina" di una card ha
-         tolto un'immagine dal DOM via htmx senza un reload di pagina.
-      2. Niente x-teleport="body" sul modal: il fragment viene sostituito
-         per intero dalle risposte htmx di paginazione
-         (hx-target="#gallery-content" hx-swap="innerHTML"); un nodo
-         teletrasportato fuori da quel contenitore resterebbe orfano nel
-         <body> ad ogni cambio pagina. position:fixed funziona lo stesso
-         senza teleport (nessun antenato usa transform/filter).
-      3. Grid/card restano <div>, non <ul>/<li>: si riusano le classi
-         .gallery-grid/.gallery-card esistenti senza reset list-style.
-      x-trap.inert.noscroll sul modal richiede il plugin @alpinejs/focus
-      caricato in fragments/layout.html prima del core Alpine.
-    -->
-    <div class="gallery-grid"
+    <div th:replace="~{fragments/gallery :: grid(${generations})}"></div>
+    <div th:replace="~{fragments/pagination :: nav('/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+</th:block>
+
+<!--
+  gridOrEmpty(...) e' grid(...) con un messaggio al posto della griglia
+  quando la lista e' vuota: usata dalla galleria contestuale di
+  /deep-chat (deep-chat.html E DeepChatController#gallery, l'endpoint
+  htmx richiamato ad ogni "new-message" - stesso identico markup in
+  entrambi i punti, un solo posto da cui deriva). th:if/th:unless non
+  possono stare sullo STESSO tag di th:replace (th:insert/th:replace ha
+  precedenza piu' alta, scatterebbe comunque a prescindere dalla
+  condizione, verificato dal vivo): serve il th:block che avvolge il
+  th:replace condizionale, stesso principio gia' documentato sopra per
+  th:each+th:replace in grid(...).
+-->
+<th:block th:fragment="gridOrEmpty(generations, emptyMessage)">
+    <p th:if="${#lists.isEmpty(generations)}" th:text="${emptyMessage}"
+       class="text-ink-muted dark:text-ink-muted-dark">Nessuna immagine.</p>
+    <th:block th:unless="${#lists.isEmpty(generations)}">
+        <div th:replace="~{fragments/gallery :: grid(${generations})}"></div>
+    </th:block>
+</th:block>
+
+<!--
+  Griglia + lightbox: adattamento del componente "Image Gallery" di
+  Pines UI (https://devdojo.com/pines/docs/image-gallery), con tre
+  scostamenti deliberati dallo snippet originale:
+  1. Niente array JS "imageGallery" duplicato con photo/alt, ne'
+     un conteggio/indice cachato: i dati sono gia' nel DOM (th:each
+     sotto), qui il wraparound di next/prev ricalcola ogni volta la
+     lista live delle <img> (imageGalleryImages()), cosi' resta
+     corretto anche dopo che una generazione viene eliminata (dal
+     dettaglio, non piu' da qui, vedi gallery-detail.html) e la card
+     sparisce dalla griglia al prossimo caricamento.
+  2. Niente x-teleport="body" sul modal: il fragment viene sostituito
+     per intero dalle risposte htmx di paginazione
+     (hx-target="#gallery-content" hx-swap="innerHTML"); un nodo
+     teletrasportato fuori da quel contenitore resterebbe orfano nel
+     <body> ad ogni cambio pagina. position:fixed funziona lo stesso
+     senza teleport (nessun antenato usa transform/filter).
+  3. Grid/card restano <div>, non <ul>/<li>: niente reset list-style
+     da preoccuparsi. .gallery-card (in fragments/gallery-card.html,
+     non piu' in questo file) e' l'unica classe non-Tailwind rimasta
+     su questi elementi, ed e' un hook di selezione cross-file (letto
+     da imageGalleryImages() qui sotto), non una classe di stile - il
+     suo aspetto visivo e' Tailwind inline nella card.
+  x-trap.inert.noscroll sul modal richiede il plugin @alpinejs/focus
+  caricato in fragments/layout.html prima del core Alpine.
+
+  th:each su fragments/gallery-card :: card non puo' stare sullo stesso
+  tag di th:replace (Thymeleaf processa l'inclusione fragment PRIMA
+  dell'iterazione: la replace scatterebbe una volta sola, non per ogni
+  elemento) - serve il th:block th:each sotto che avvolge un div
+  th:replace figlio.
+-->
+<th:block th:fragment="grid(generations)">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
          x-ref="gallery"
          x-data="{
             imageGalleryOpened: false,
@@ -68,22 +108,11 @@
          @keyup.right.window="imageGalleryNext()"
          @keyup.left.window="imageGalleryPrev()">
 
-        <div class="gallery-card" th:each="g : ${generations}">
-            <img th:src="@{'/images/' + ${g.imageFilename}}"
-                 th:alt="${g.prompt}"
-                 @click="imageGalleryOpen"
-                 loading="lazy">
-            <a class="gallery-card-prompt" th:href="@{'/gallery/' + ${g.id}}" th:text="${g.prompt}">prompt</a>
-            <p class="gallery-card-model" th:text="${g.model}">modello</p>
-            <form class="gallery-card-delete" th:action="@{'/gallery/' + ${g.id} + '/delete'}" method="post"
-                  th:hx-post="@{'/gallery/' + ${g.id} + '/delete'}"
-                  hx-target="closest .gallery-card" hx-swap="outerHTML"
-                  th:hx-confirm="#{gallery.confirm.delete}">
-                <button type="submit" class="button-danger" th:text="#{gallery.button.delete}">Elimina</button>
-            </form>
-        </div>
+        <th:block th:each="g : ${generations}">
+            <div th:replace="~{fragments/gallery-card :: card(${g})}"></div>
+        </th:block>
 
-        <!-- Lightbox fullscreen: apertura via imageGalleryOpen sul click di un'immagine sopra. -->
+        <!-- Lightbox fullscreen: apertura via imageGalleryOpen sul click di un'immagine (in fragments/gallery-card.html). -->
         <div x-show="imageGalleryOpened"
              x-transition:enter="transition ease-in-out duration-300"
              x-transition:enter-start="opacity-0"
@@ -120,31 +149,7 @@
             </div>
         </div>
     </div>
-
-    <nav th:if="${totalPages > 1}" class="gallery-pagination" th:aria-label="#{gallery.pagination.ariaLabel}">
-        <a th:if="${hasPrevious}" th:href="@{/gallery(page=${currentPage - 1})}"
-           th:hx-get="@{/gallery(page=${currentPage - 1})}"
-           hx-target="#gallery-content" hx-swap="innerHTML" th:text="#{gallery.pagination.previous}">&laquo; Precedente</a>
-        <span th:unless="${hasPrevious}" class="gallery-pagination-disabled" th:text="#{gallery.pagination.previous}">&laquo; Precedente</span>
-
-        <th:block th:each="p : ${pageNumbers}">
-            <span th:if="${p == null}" class="gallery-pagination-ellipsis">&hellip;</span>
-            <span th:if="${p != null and p == currentPage}" class="gallery-pagination-current"
-                  th:text="${p}" aria-current="page">1</span>
-            <a th:if="${p != null and p != currentPage}" th:href="@{/gallery(page=${p})}"
-               th:hx-get="@{/gallery(page=${p})}"
-               hx-target="#gallery-content" hx-swap="innerHTML" th:text="${p}">1</a>
-        </th:block>
-
-        <a th:if="${hasNext}" th:href="@{/gallery(page=${currentPage + 1})}"
-           th:hx-get="@{/gallery(page=${currentPage + 1})}"
-           hx-target="#gallery-content" hx-swap="innerHTML" th:text="#{gallery.pagination.next}">Successiva &raquo;</a>
-        <span th:unless="${hasNext}" class="gallery-pagination-disabled" th:text="#{gallery.pagination.next}">Successiva &raquo;</span>
-    </nav>
 </th:block>
-
-<!-- Risposta vuota alla cancellazione: hx-swap="outerHTML" la usa per rimuovere la card. -->
-<th:block th:fragment="deleted"></th:block>
 
 </body>
 </html>

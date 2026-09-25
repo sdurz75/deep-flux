@@ -43,31 +43,100 @@
         })();
     </script>
 
-    <link rel="stylesheet" th:href="@{/css/theme.css}">
-
     <!-- Nessun bundler: htmx e Alpine arrivano da CDN, zero build step -->
     <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
     <!-- Plugin Alpine richiesto da x-trap (usato dalla lightbox di Pines UI in fragments/gallery.html): va caricato PRIMA del core Alpine sotto, entrambi defer. -->
     <script src="https://unpkg.com/@alpinejs/focus@3.14.3/dist/cdn.min.js" defer></script>
+    <!-- Plugin Alpine richiesto da x-collapse (usato dall'accordion di Pines UI in fragments/accordion.html): stessa regola di ordine/defer del plugin focus sopra. -->
+    <script src="https://unpkg.com/@alpinejs/collapse@3.14.3/dist/cdn.min.js" defer></script>
     <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
 
     <!--
-      Tailwind via Play CDN: compilatore JIT eseguito nel browser via
-      MutationObserver, nessuno step di build (niente npm/postcss). Solo
-      per lo stile dei componenti Pines UI (Alpine + Tailwind) copiati in
-      pagina: preflight disattivato per non toccare lo stile di base
-      (heading, form, bottoni...) gia' definito da theme.css su tutto il
-      resto del sito.
+      Tailwind via Play CDN (compilatore JIT nel browser via
+      MutationObserver, nessuno step di build: niente npm/postcss/
+      tailwind.config.js su disco) e' il sistema di stile dell'INTERO
+      sito, non solo dei componenti Pines UI come in passato: vedi
+      CLAUDE.md, "Convenzione: theming". preflight e' attivo (fa da
+      reset di base al posto del vecchio theme.css). I design token
+      (colori chiaro/scuro) vivono qui sotto in theme.extend.colors,
+      ognuno con una coppia {DEFAULT, dark}: la variante dark: (attivata
+      da darkMode sotto, non da prefers-color-scheme direttamente) legge
+      la shade "-dark" solo quando <html> porta data-theme="dark" - lo
+      stesso attributo gia' gestito dal boot script qui sopra e dal
+      toggle Alpine su <body>, invariati. Il suffisso "-dark" nel nome
+      della shade e il prefisso "dark:" della variante sono due cose
+      diverse che solo si assomigliano: "canvas-dark" e' un colore come
+      un altro nella palette, "dark:" e' cio' che decide quando usarlo.
     -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            corePlugins: { preflight: false },
+            darkMode: ['selector', '[data-theme="dark"]'],
+            corePlugins: { preflight: true },
+            theme: {
+                extend: {
+                    colors: {
+                        canvas:            { DEFAULT: '#ffffff', dark: '#0d1117' },
+                        surface:           { DEFAULT: '#f6f8fa', dark: '#161b22' },
+                        ink:               { DEFAULT: '#1f2328', dark: '#e6edf3' },
+                        'ink-muted':       { DEFAULT: '#59636e', dark: '#8b949e' },
+                        line:              { DEFAULT: '#d0d7de', dark: '#30363d' },
+                        accent:            { DEFAULT: '#0969da', dark: '#58a6ff' },
+                        'accent-contrast': { DEFAULT: '#ffffff', dark: '#0d1117' },
+                        danger:            { DEFAULT: '#cf222e', dark: '#f85149' },
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+                    },
+                },
+            },
         };
     </script>
+
+    <!--
+      Stili trasversali che altrimenti andrebbero ripetuti identici su
+      decine di tag in ogni pagina (link, <code>, form "nudi" senza
+      classi nel markup): un blocco @layer base, meccanismo NATIVO di
+      Tailwind (il Play CDN compila JIT anche questo tag), non un
+      secondo sistema di stile parallelo. Ogni componente specifico
+      (bottoni-variante, card, pannelli...) resta invece utility inline
+      nel proprio template. Sicurezza della cascata: ogni selettore qui
+      e' un tag nudo (specificita' 0,0,1 o 0,0,2) o un attributo
+      semplice - qualunque classe inline nei template (specificita'
+      0,1,0+) vince sempre, a prescindere dall'ordine.
+    -->
+    <style type="text/tailwindcss">
+        @layer base {
+            /* Alpine.js: nasconde un elemento finche' Alpine non e'
+               partito (usato dalla lightbox in fragments/gallery.html).
+               Nessuna relazione col tema: preflight non lo fornisce. */
+            [x-cloak] { display: none !important; }
+
+            h1 { @apply text-[2em] font-bold my-[0.67em]; }
+            p, dl, pre { @apply my-[1em]; }
+            dd { @apply ml-[40px]; }
+            a { @apply text-accent dark:text-accent-dark underline; }
+            code {
+                @apply bg-surface dark:bg-surface-dark rounded px-[5px] py-[2px] text-[0.9em];
+            }
+
+            button {
+                @apply bg-accent dark:bg-accent-dark text-accent-contrast dark:text-accent-contrast-dark
+                       border-0 rounded-md px-4 py-2 cursor-pointer hover:opacity-90;
+            }
+            input[type="search"], input[type="text"], input[type="number"], select, textarea {
+                @apply w-full px-3 py-2 border border-line dark:border-line-dark rounded-md
+                       bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark;
+            }
+            textarea { @apply resize-y; }
+            label { @apply block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark; }
+        }
+    </style>
 </head>
 
-<body x-data="{ theme: localStorage.getItem('theme') || 'auto' }"
+<body class="m-0 bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark font-sans leading-normal transition-colors duration-150"
+      x-data="{ theme: localStorage.getItem('theme') || 'auto' }"
       x-init="$watch('theme', function (v) {
                 localStorage.setItem('theme', v);
                 var resolved = v === 'auto'
@@ -78,7 +147,16 @@
 
 <header th:replace="~{fragments/header :: header}"></header>
 
-<main class="container">
+<!--
+  max-w-[1200px]/px-[clamp(...)] invece del container "stock" di
+  Tailwind: preserva esattamente il contenitore fluido di prima (largo
+  al massimo 1200px, margine laterale minimo 16px che cresce fino a
+  64px sui monitor larghi, nessun breakpoint fisso). Il <nav> dell'header
+  usa invece un padding fisso (px-4): comportamento gia' cosi' anche
+  prima di questa migrazione, non una differenza introdotta ora - vedi
+  fragments/header.html.
+-->
+<main class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] py-8 min-h-[60vh]">
 
     <div layout:fragment="breadcrumbs">
         <!-- breadcrumbs -->
@@ -90,7 +168,7 @@
 
 </main>
 
-<footer class="site-footer container">
+<footer class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] border-t border-line dark:border-line-dark py-6 text-ink-muted dark:text-ink-muted-dark">
     <small>Spring Boot &middot; Thymeleaf &middot; htmx &middot; Alpine.js</small>
 </footer>
 

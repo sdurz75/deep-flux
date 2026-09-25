@@ -19,16 +19,25 @@ L'applicazione serve a:
    tramite un archivio** — ogni generazione (chatbot o form diretto)
    diventa una riga `Generation`, consultabile in `/gallery`.
 3. **Mantenere una storia delle conversazioni e poterle riprendere in
-   futuro** — `/deep-chat` persiste ogni turno lato server (`ChatMessage`/
-   `ChatMessageRepository`, migrazione V3) e ripristina la cronologia ad
-   ogni apertura della pagina (`DeepChatController` la passa al template
-   come JSON, deep-chat la carica via `initialMessages`). Un'unica
-   conversazione continua, non multi-utente (come il resto dell'app:
-   `Generation` non ha un owner) — niente tabella "conversazione"
-   separata come nello schema rimosso in V2 (`CHAT_CONVERSATION`/
-   `CHAT_MESSAGE`, legato a una chat di rifinitura prompt ormai
-   eliminata): qui basta l'elenco messaggi, azzerabile per intero dal
-   bottone "Nuova conversazione" in UI (`POST /api/deep-chat/reset`).
+   futuro** — `/deep-chat` supporta piu' conversazioni, ognuna una riga
+   `ChatConversation` (migrazione V5) che raggruppa i propri turni
+   (`ChatMessage`/`ChatMessageRepository`, migrazione V3). Un rail
+   sinistro NON collassabile (`fragments/accordion.html :: staticPanels`)
+   ospita due sezioni sempre entrambe visibili: la lista delle
+   conversazioni esistenti (`fragments/conversation-list.html`, piu' di
+   recente attiva prima — selezionarne una ricarica la cronologia
+   completa, comprese le immagini; rinomina/cancellazione inline; una
+   nuova conversazione si crea dal bottone dedicato,
+   `POST /deep-chat/new`, `ChatConversationService`) e il pannello
+   impostazioni di generazione (`fragments/generation-params.html`).
+   Resta non multi-utente (come il resto dell'app: `Generation` non ha
+   un owner), solo multi-conversazione per lo stesso singolo utente.
+   Sotto la chat, un secondo accordion — questo collassabile (Pines UI,
+   `fragments/accordion.html :: panels`) — ospita una galleria
+   "contestuale" (`fragments/gallery.html :: grid`, riusata cosi' com'e')
+   con le sole immagini generate in quella conversazione — la galleria
+   globale in `/gallery` (punto 2 sopra) resta invariata, indipendente
+   dalle conversazioni.
 
 Ulteriori evoluzioni seguiranno, ma sempre pertinenti a questi tre punti:
 non aggiungere feature (pagine demo, integrazioni, pattern) che non
@@ -51,10 +60,14 @@ quell'HTML, non lo sostituisce.
 - **Componenti davvero complessi** (editor, diff viewer, grafici) → se e
   quando servono, un Web Component isolato montato su un singolo `<div>`,
   non un framework SPA per l'intera app.
-- **Theming** → CSS Custom Properties native, nessun preprocessore. Le
-  utility Tailwind (vedi sotto) non sostituiscono questo sistema: servono
-  solo per lo stile dei componenti Pines UI copiati in pagina, il resto
-  del sito resta su `theme.css`/`var(--color-xxx)`.
+- **Theming** → Tailwind (Play CDN) e' il sistema di stile dell'intero
+  sito, non solo dei componenti Pines UI: nessun `theme.css`, classi
+  utility inline nei template. Il tema chiaro/scuro/auto resta lo stesso
+  toggle Alpine su `data-theme` di sempre (localStorage +
+  `prefers-color-scheme`); a cambiare e' solo il meccanismo CSS che lo
+  consuma — `darkMode: ['selector', '[data-theme="dark"]']` in
+  `tailwind.config`, non `prefers-color-scheme` diretto. Vedi
+  "Convenzione: theming" sotto.
 
 Zero step di build frontend: niente npm/webpack/vite/esbuild. htmx,
 Alpine.js e Tailwind (Play CDN, vedi sotto) sono caricati da CDN in
@@ -76,15 +89,17 @@ nessun altro impatto.
   gestione di routing/stato che il server già fa. Se serve un widget
   isolato, montarlo come Web Component su un `<div>` mirato, non riscrivere
   la navigazione.
-- **Tailwind come sistema di stile del resto del sito** — resta scoped ai
-  componenti Pines UI copiati in pagina (vedi Stack sotto): non riscrivere
-  markup/CSS esistente con utility Tailwind solo perché e' disponibile,
-  `theme.css` con le custom properties resta la fonte di verità per tutto
-  il resto.
-- **Un build step Tailwind (CLI/PostCSS)** — il Play CDN (JIT nel
-  browser) basta per l'uso scoped ai componenti Pines; niente
-  `tailwind.config.js`/pipeline di build finché non serve qualcosa che il
-  Play CDN non copre.
+- **Un build step Tailwind (CLI/PostCSS)** — scelta deliberata e
+  invertita rispetto alla precedente ("Tailwind solo per Pines UI, resto
+  del sito su `theme.css`"): oggi Tailwind e' il sistema di stile
+  dell'intero sito (vedi Theming sopra e "Convenzione: theming" sotto),
+  ma resta interamente sul Play CDN (JIT nel browser) — nessun
+  `tailwind.config.js` su disco, nessun npm/PostCSS. La configurazione
+  (`darkMode`, `theme.extend.colors`/`fontFamily`) vive nello `<script>`
+  inline di `fragments/layout.html`, il layer di stili trasversali
+  (`@layer base`) in un `<style type="text/tailwindcss">` nello stesso
+  file — entrambi meccanismi nativi del Play CDN, non un secondo sistema
+  di build parallelo.
 
 ## Stack
 
@@ -95,8 +110,8 @@ nessun altro impatto.
 | Layout manager | thymeleaf-layout-dialect | `layout:decorate`/`layout:fragment` al posto di fragment parametrizzati scritti a mano: la BOM di Spring Boot ne gestisce la versione, nessuna dipendenza aggiuntiva da tracciare |
 | Navigazione parziale | htmx (via CDN) | Markup dichiarativo via attributi, niente build |
 | Micro-interattività | Alpine.js (via CDN) | Stato dichiarato inline, niente build |
-| Componenti UI pronti (scoped) | Pines UI (devdojo.com/pines) + Tailwind Play CDN | Componenti Alpine.js gia' scritti (dropdown, modali, tabs...) da copiare cosi' come sono; usano classi Tailwind, per questo Tailwind e' caricato via Play CDN (JIT nel browser, zero build) con `corePlugins.preflight: false` per non toccare lo stile di base del resto del sito |
-| Theming | CSS Custom Properties | Cambio tema = cambio attributo `data-theme`, zero ricalcolo server |
+| Componenti UI pronti | Pines UI (devdojo.com/pines) + Tailwind Play CDN | Componenti Alpine.js gia' scritti (dropdown, modali, tabs...) da copiare cosi' come sono; usano classi Tailwind, che oggi e' il sistema di stile di tutto il sito (non solo di questi componenti, vedi riga Theming) — `preflight` e' quindi attivo, i componenti Pines condividono la stessa base di stile del resto del sito, non piu' isolati da essa |
+| Theming | Tailwind (Play CDN), `theme.extend.colors`/`dark:` variant | Nessun CSS scritto a mano: design token nella config inline di `fragments/layout.html`, cambio tema = cambio attributo `data-theme` (letto da `darkMode` custom selector), zero ricalcolo server |
 | Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni (prompt/parametri/stato/file immagine); DB embedded su file locale, zero server esterno |
 | Migrazioni schema DB | Flyway (`spring-boot-starter-flyway`) | Lo schema e' versionato in SQL esplicito, non dedotto da Hibernate (`ddl-auto: validate`): ogni modifica al DB e' una migrazione tracciabile, riproducibile, mai un'alterazione implicita a runtime |
 | Client HTTP verso Replicate | `RestClient` (`spring-boot-starter-restclient`) | Sincrono, nessuna dipendenza WebFlux/reactor per questo client |
@@ -115,15 +130,17 @@ src/main/java/org/dual/replicate/
     HomeController.java         # pagina intera, esempio minimo
     GenerationController.java   # crea una generazione + polling htmx dello stato
     GalleryController.java      # galleria (load more) + dettaglio singola immagine
-    DeepChatController.java     # pagina che ospita il Web Component <deep-chat>
+    DeepChatController.java     # pagina <deep-chat> + lista conversazioni + galleria contestuale (tutte le route HTML sotto /deep-chat/*)
     DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
   domain/
     Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
     GenerationStatus.java
-    ChatMessage.java            # entity JPA: un turno persistito di /deep-chat (ruolo, testo, immagine opzionale)
+    ChatConversation.java       # entity JPA: una conversazione di /deep-chat (titolo, elencabile/rinominabile/eliminabile dalla lista conversazioni)
+    ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
     ChatMessageRole.java
   repository/
     GenerationRepository.java
+    ChatConversationRepository.java
     ChatMessageRepository.java
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
@@ -138,7 +155,8 @@ src/main/java/org/dual/replicate/
   service/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
-    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia
+    ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
+    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione
     WebSearchTool.java          # tool Spring AI: ricerca web via SearxngClient
     ImageGenerationTool.java    # tool Spring AI: genera un'immagine via GenerationService
     GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext)
@@ -151,26 +169,33 @@ src/main/resources/
     V1__create_initial_schema.sql   # schema Flyway, vedi sezione dedicata sotto
     V2__drop_chat_tables.sql         # rimossa la persistenza della vecchia chat di rifinitura prompt
     V3__create_chat_message.sql      # persistenza della cronologia di /deep-chat (vedi Scopo, punto 3)
+    V4__generation_multiple_images.sql # una Generation puo' avere piu' immagini (num_outputs > 1)
+    V5__chat_conversations.sql       # CHAT_CONVERSATION + CONVERSATION_ID su CHAT_MESSAGE (vedi Scopo, punto 3)
   templates/
     index.html                   # home
     generate.html                 # form nuova generazione
     generation-status.html       # pagina di stato/polling di una generazione
-    gallery.html                 # galleria (load more)
-    gallery-detail.html          # dettaglio di una generazione
-    deep-chat.html                # pagina che ospita <deep-chat> + combobox modello
+    gallery.html                 # galleria (griglia paginata)
+    gallery-detail.html          # dettaglio di una generazione, unico punto dove si puo' eliminare
+    deep-chat.html                # pagina che ospita <deep-chat> + rail sinistro non collassabile (lista conversazioni/impostazioni) + accordion collassabile (galleria contestuale)
     fragments/
-      layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect
+      layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect, config Tailwind + @layer base
       header.html                # header di navigazione + theme switch, incluso da layout.html
+      button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle), vedi "Convenzione: theming"
       generate-form.html         # fragment del form (riusato anche per mostrare errori)
+      generation-params.html     # combobox modello + parametri tipizzati, condiviso da generate-form.html e deep-chat.html
       generation.html            # fragment di stato di una generazione (polling)
-      gallery.html               # fragment card + load more della galleria
-  static/
-    css/theme.css                # tutti i design token e gli stili
+      gallery.html               # griglia + lightbox della galleria (content/grid), compone gallery-card e pagination; grid(...) riusata anche dalla galleria contestuale di /deep-chat
+      gallery-card.html          # card di una singola generazione, riusabile da futuri altri listati
+      pagination.html            # paginazione generica (non specifica della galleria), riusabile da futuri listati
+      accordion.html             # accordion Pines UI generico a N pannelli (labels/bodies accoppiate per indice): panels(...) collassabile (galleria contestuale di deep-chat.html), staticPanels(...) non collassabile, tutti i pannelli sempre visibili (rail sinistro di deep-chat.html: lista conversazioni + impostazioni)
+      conversation-list.html     # contenuto della lista conversazioni di /deep-chat (elenco, rinomina, cancellazione), sezione del rail sinistro non collassabile
 ```
 
 Le immagini generate e il DB H2 vivono in `./data/` (fuori da git, vedi
-`.gitignore`), non sotto `static/`: sono stato applicativo prodotto a
-runtime, non asset del progetto.
+`.gitignore`): sono stato applicativo prodotto a runtime, non asset del
+progetto. Nessuna directory `static/`: lo stile e' interamente Tailwind
+(vedi "Convenzione: theming"), niente CSS vendorizzato da servire.
 
 ## Pattern Thymeleaf: layout manager (thymeleaf-layout-dialect)
 
@@ -180,7 +205,7 @@ con `layout:fragment="content"`:
 
 ```html
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
     <title>Titolo pagina</title>
@@ -193,6 +218,10 @@ con `layout:fragment="content"`:
 </html>
 ```
 
+Niente `lang` letterale sul proprio `<html>`: e' risolto dinamicamente
+dal decoratore (vedi "Convenzione: internazionalizzazione" sopra),
+ripeterlo qui lo vince nel merge del dialect e disattiva il meccanismo.
+
 Comportamento di default del dialect, da tenere a mente:
 
 - il `<title>` della pagina **sostituisce** quello di `layout.html`
@@ -204,18 +233,18 @@ Comportamento di default del dialect, da tenere a mente:
 - un fragment della pagina **sostituisce l'elemento del decoratore tag
   incluso**, non solo il suo contenuto — per questo il fragment `content`
   nelle pagine e' un `<div>` come nel decoratore, non un `<main>`: il
-  `<main class="container">` unico che li contiene entrambi
-  (`content` e il fragment opzionale `breadcrumbs`, vuoto se la pagina non
-  lo definisce) vive solo in `layout.html`. Ripetere `<main>` o la classe
-  `container` nella pagina produrrebbe un `<main>` annidato (HTML non
-  valido) e il padding raddoppiato.
+  `<main>` unico che li contiene entrambi (`content` e il fragment
+  opzionale `breadcrumbs`, vuoto se la pagina non lo definisce) vive solo
+  in `layout.html`, con le utility Tailwind del contenitore fluido (vedi
+  "Convenzione: theming"). Ripetere `<main>` nella pagina produrrebbe un
+  `<main>` annidato (HTML non valido) e il padding raddoppiato.
 
 Per creare una nuova pagina: copiare questo scheletro, non serve toccare
 `layout.html`. Attenzione: il fragment `content` della pagina resta un
-semplice `<div>`, **senza** `class="container"` — quella classe vive solo
-sul `<main class="container">` di `layout.html` (vedi punto sopra):
-aggiungerla anche nella pagina non avrebbe alcun effetto sul markup
-finale (`<main>` non annidabile, quel `<div>` non lo sostituisce) ma
+semplice `<div>`, **senza** le classi del contenitore — quelle vivono
+solo sul `<main>` di `layout.html` (vedi punto sopra): ripeterle anche
+nella pagina non avrebbe alcun effetto sul markup finale (`<main>` non
+annidabile, quel `<div>` non lo sostituisce) ma
 confonderebbe chi legge il template sull'origine del margine laterale.
 
 ## Pattern controller: quando restituire fragment vs pagina intera
@@ -294,29 +323,96 @@ c'e' un prefisso `th:` diretto da applicare: serve `th:attr` con
 `@{...}` interpolato dentro una literal substitution Thymeleaf
 (`|...|`), vedi `deep-chat.html`.
 
+**Lato Java** (fuori da un template, quindi senza `@{...}`) lo stesso
+prefisso va rispettato con `request.getContextPath()`: essendo
+`server.forward-headers-strategy: framework` attivo, `ForwardedHeaderFilter`
+riscrive il context path della richiesta a runtime per includere
+`X-Forwarded-Prefix`, quindi `request.getContextPath() + "/gallery"`
+riproduce esattamente cio' che `@{/gallery}` emetterebbe in un template
+— non una stringa letterale `"/gallery"` scritta a mano, per lo stesso
+motivo di sopra. Esempio: `GalleryController#delete`, che costruisce
+l'header di risposta `HX-Redirect` cosi' (un `redirect:"..."` come
+nome di vista, invece, non ha bisogno di questo: Spring lo risolve gia'
+correttamente rispetto al context path da solo).
+
 ## Convenzione: theming
 
-Tutti i colori/spaziature/radius vivono come custom property in
-`static/css/theme.css`, dichiarati in `:root` e sovrascritti in
-`[data-theme="dark"]`. Nessuna regola CSS deve usare un colore hardcoded:
-sempre `var(--color-xxx)`.
+Nessun file CSS: tutto lo stile e' Tailwind (Play CDN, JIT nel browser),
+configurato interamente nello `<script>`/`<style type="text/tailwindcss">`
+inline in `fragments/layout.html`. Nessuna regola deve usare un colore
+hardcoded fuori da quella config: sempre i nomi in `theme.extend.colors`.
 
-Per aggiungere un tema (es. "high-contrast"):
+**Design token** — `tailwind.config.theme.extend.colors`, un blocco
+`{ DEFAULT, dark }` per ogni colore (es.
+`canvas: { DEFAULT: '#ffffff', dark: '#0d1117' }`), usato nel markup come
+coppia `bg-canvas dark:bg-canvas-dark`. Il suffisso `-dark` nel nome
+della *shade* e il prefisso `dark:` della *variante* sono due cose
+diverse che solo si assomigliano: il primo e' solo un colore in piu'
+nella palette, il secondo (attivato da `darkMode` sotto) decide quando
+usarlo. Nomi attuali: `canvas`/`surface`/`ink`/`ink-muted`/`line`/
+`accent`/`accent-contrast`/`danger`.
 
-1. Aggiungere un blocco `[data-theme="high-contrast"] { --color-bg: ...; }`
-   in `theme.css` con tutte le variabili del blocco `:root`.
-2. Aggiungere un bottone nello `theme-switch` in `fragments/layout.html`
-   (`@click="theme = 'high-contrast'"`).
+**Dark mode** — `darkMode: ['selector', '[data-theme="dark"]']`: le
+varianti `dark:` si attivano quando `<html>` porta `data-theme="dark"`,
+non da `prefers-color-scheme` direttamente. Il toggle light/dark/auto
+resta quello di sempre (script di boot + Alpine su `<body>` in
+`layout.html`, invariati) — set/legge lo stesso attributo `data-theme`
+via localStorage/`prefers-color-scheme`, semplicemente ora e' Tailwind a
+consumarlo invece di un `[data-theme="dark"] { --color-x: ... }` scritto
+a mano. Il boot dello script inline in `<head>` (prima degli script
+Tailwind) e' li' per evitare il FOUC al primo caricamento: legge
+`localStorage`, risolve `auto` in `light`/`dark`, e setta `data-theme`
+sull'`<html>` PRIMA che Tailwind compili le classi — non spostarlo piu'
+in basso nella pagina.
 
-Non serve toccare altro: ogni componente legge già le variabili, non i
-valori.
+**Stili trasversali** (`@layer base` in `fragments/layout.html`) — solo
+per elementi "nudi" usati identici e senza classi proprie in piu' punti
+(link, `<code>`, form controls senza wrapper dedicato, `[x-cloak]`
+richiesto da Alpine): meccanismo nativo Tailwind via
+`<style type="text/tailwindcss">`, non un secondo sistema di stile.
+Sicuro per costruzione: un selettore bare-tag li' ha specificita' bassa
+(0,0,1)/(0,0,2), qualunque classe inline nei template vince sempre a
+prescindere dall'ordine. Tutto il resto (bottoni-variante, card,
+pannelli, paginazione...) e' utility Tailwind inline nel template, mai
+una nuova regola `@layer`.
 
-Il boot dello script inline in `layout.html` (prima del `<link>` al CSS)
-è lì per evitare il FOUC (flash of unstyled content) al primo caricamento:
-legge `localStorage`, risolve `auto` in `light`/`dark` in base a
-`prefers-color-scheme`, e setta `data-theme` sull'`<html>` PRIMA che il
-CSS venga applicato. Alpine prende il controllo dello stato subito dopo,
-ma parte già dal valore corretto — non spostarlo più in basso nella pagina.
+**Bottoni** — non scrivere un `<button>` a mano: usare i fragment
+parametrici in `fragments/button.html` (`primary`/`danger`/
+`themeToggle`), che incapsulano le classi Tailwind di ogni
+variante in un solo posto. Chiamarli sempre con parametri nominati
+(`frag(nome=valore)`, mai posizionali: un fragment con parametri
+opzionali (es. `hxPost` su `danger`, `null` se l'htmx sta sul `<form>`
+contenitore invece che sul bottone) richiede comunque **tutti** i
+parametri dichiarati alla chiamata (anche quelli non usati, passati
+`null` esplicitamente) — a differenza del pattern controller-fragment di
+"Pattern controller: quando restituire fragment vs pagina intera" sopra,
+qui *non* bastano i soli parametri che servono.
+
+**`@click`/`:class`/altri binding Alpine con un valore dinamico per
+istanza** (es. `themeToggle`, che deve scrivere `theme = 'light'` /
+`'dark'` / `'auto'` a seconda del chiamante) non passano da `th:attr`:
+il suo parser di assegnazione non accetta nomi con `@`/`:`. Si passa
+invece il valore via un attributo `data-*` renderizzato da Thymeleaf
+(`th:data-theme-value="${value}"`), letto a runtime con
+`$el.dataset.themeValue` dentro l'espressione Alpine, che resta cosi'
+puro HTML statico mai toccato da Thymeleaf — stesso principio del ponte
+per `:title` sotto.
+
+**Un binding Alpine puro** (`:title`, `:placeholder`...) non passa mai
+da Thymeleaf server-side: `#{...}` su quell'attributo non avrebbe
+effetto. Si ponte con `data-*` attributi server-renderizzati, letti a
+runtime via `$el.dataset` — stesso meccanismo di `themeToggle` sopra,
+applicato a un binding di sola lettura invece che a un'assegnazione.
+
+**Limite del modello binario light/`dark:`**: a differenza del vecchio
+`[data-theme="xxx"]` (un blocco CSS per qualunque nome di tema), le
+varianti Tailwind gestiscono nativamente solo due stati per colore
+(default + `dark:`). Un ipotetico terzo tema (es. "high-contrast") non è
+un'estensione banale — richiederebbe ripensare la struttura dei colori
+in `theme.extend.colors` (es. un colore per stato invece di due), non
+solo aggiungere un blocco come prima. Non è un problema oggi (solo
+light/dark/auto esistono), ma va tenuto presente prima di promettere
+"aggiungere un tema" come un'operazione a costo fisso.
 
 ## Convenzione: migrazioni database (Flyway)
 
@@ -456,3 +552,7 @@ mvn clean package          # build del jar eseguibile
    d'errore)? → chiave in entrambi i bundle (`messages.properties`,
    `messages_en.properties`, vedi sezione i18n sopra), mai una stringa
    hardcoded in un template o nel costruttore di un'eccezione.
+7. Serve un `<button>`? → uno dei fragment in `fragments/button.html`
+   (vedi "Convenzione: theming"), mai scritto a mano nel template. Se
+   nessuna variante esistente calza, aggiungere un nuovo fragment li',
+   non un bottone inline isolato.
