@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title th:text="'Immagine #' + ${generation.id}">Immagine</title>
 </head>
 <body>
-<main class="container">
+<div layout:fragment="content">
     <p><a th:href="@{/gallery}">&larr; Torna alla galleria</a></p>
 
     <img th:src="@{'/images/' + ${generation.imageFilename}}"
@@ -28,6 +28,6 @@
         <dt>Generata il</dt>
         <dd th:text="${generation.completedAt}">timestamp</dd>
     </dl>
-</main>
+</div>
 </body>
 </html>

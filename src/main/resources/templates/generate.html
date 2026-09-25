@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title>Genera immagine</title>
 </head>
 <body>
-<main class="container">
+<div layout:fragment="content">
     <h1>Genera immagine</h1>
     <p>
         Scegli un modello Replicate (es. <code>black-forest-labs/flux-schnell</code>),
@@ -16,6 +16,6 @@
     <div id="generation-panel">
         <div th:replace="~{fragments/generate-form :: form}"></div>
     </div>
-</main>
+</div>
 </body>
 </html>

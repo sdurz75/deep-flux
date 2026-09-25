@@ -111,6 +111,16 @@ public class ReplicateModelCatalog {
      * implicitamente l'ultima versione (verificato dal vivo: 404 su
      * tutti i modelli personali account sdurz75, pur esistendo ed
      * essendo pubblici — vedi ReplicateModelSummary.latestVersionId).
+     *
+     * Nota su un vicolo cieco: si potrebbe pensare che pinnare la
+     * versione causi il rifiuto di aspect_ratio="custom" su
+     * black-forest-labs/flux-schnell/flux-dev — verificato dal vivo che
+     * NON e' cosi': quei due modelli rifiutano "custom" (solo un enum
+     * fisso di 11 ratio predefiniti) sia con la versione pinnata sia
+     * con lo shortcut senza versione, identico errore in entrambi i
+     * casi. E' semplicemente un modello che non supporta aspect_ratio
+     * custom, non una questione di versione — vedi il rischio accettato
+     * in proposito nel pannello impostazioni di /deep-chat.
      */
     public Optional<String> latestVersionOf(String id) {
         return find(id).map(ReplicateModelSummary::latestVersionId);

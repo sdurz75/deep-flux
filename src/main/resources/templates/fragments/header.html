@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Header di navigazione, incluso da fragments/layout.html. Usa la
+  variabile Alpine "theme" dichiarata con x-data sul <body> del layout:
+  th:replace inserisce questo markup come figlio diretto di quel <body>,
+  quindi lo scope Alpine (basato sulla struttura del DOM risultante, non
+  su quella dei template sorgente) resta invariato.
+-->
+<th:block th:fragment="header">
+    <header class="site-header">
+        <nav class="container">
+            <a th:href="@{/}" class="brand">deepl-flux</a>
+            <div class="nav-links">
+                <a th:href="@{/}">Home</a>
+                <a th:href="@{/generations/new}">Genera immagine</a>
+                <a th:href="@{/gallery}">Galleria</a>
+                <a th:href="@{/deep-chat}">Deep Chat</a>
+            </div>
+
+            <div class="theme-switch">
+                <button type="button" @click="theme = 'light'" :class="{ active: theme === 'light' }" title="Light">☀️</button>
+                <button type="button" @click="theme = 'dark'" :class="{ active: theme === 'dark' }" title="Dark">🌙</button>
+                <button type="button" @click="theme = 'auto'" :class="{ active: theme === 'auto' }" title="Auto">Auto</button>
+            </div>
+        </nav>
+    </header>
+</th:block>
+
+</body>
+</html>

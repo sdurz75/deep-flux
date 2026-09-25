@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <!--
-  Layout parametrizzato in Thymeleaf "vanilla": nessuna libreria di
-  layout esterna (niente thymeleaf-layout-dialect). Ogni pagina si
-  autosostituisce con th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}"
-  passando il proprio <title> e il proprio <main> come argomenti.
+  Template decoratore di thymeleaf-layout-dialect: ogni pagina si
+  applica questo layout con layout:decorate="~{fragments/layout}" sul
+  proprio <html> e marca il contenuto da inserire con
+  layout:fragment="content". Il <title> di ogni pagina sostituisce
+  automaticamente quello qui sotto (comportamento di default del
+  dialect), il resto di <head> viene fuso con quello della pagina.
 -->
 <html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:fragment="layout(title, content)">
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <th:block th:replace="${title}">
-        <title>App</title>
-    </th:block>
+    <title>App</title>
 
     <!--
       Boot sincrono del tema PRIMA del CSS: evita il flash bianco/nero
@@ -34,8 +34,26 @@
 
     <!-- Nessun bundler: htmx e Alpine arrivano da CDN, zero build step -->
     <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+    <!-- Plugin Alpine richiesto da x-trap (usato dalla lightbox di Pines UI in fragments/gallery.html): va caricato PRIMA del core Alpine sotto, entrambi defer. -->
+    <script src="https://unpkg.com/@alpinejs/focus@3.14.3/dist/cdn.min.js" defer></script>
     <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
+
+    <!--
+      Tailwind via Play CDN: compilatore JIT eseguito nel browser via
+      MutationObserver, nessuno step di build (niente npm/postcss). Solo
+      per lo stile dei componenti Pines UI (Alpine + Tailwind) copiati in
+      pagina: preflight disattivato per non toccare lo stile di base
+      (heading, form, bottoni...) gia' definito da theme.css su tutto il
+      resto del sito.
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: { preflight: false },
+        };
+    </script>
 </head>
+
 <body x-data="{ theme: localStorage.getItem('theme') || 'auto' }"
       x-init="$watch('theme', function (v) {
                 localStorage.setItem('theme', v);
@@ -45,25 +63,18 @@
                 document.documentElement.setAttribute('data-theme', resolved);
               })">
 
-<header class="site-header">
-    <nav class="container">
-        <a th:href="@{/}" class="brand">spring-htmx-starter</a>
-        <div class="nav-links">
-            <a th:href="@{/}">Home</a>
-            <a th:href="@{/generations/new}">Genera immagine</a>
-            <a th:href="@{/gallery}">Galleria</a>
-            <a th:href="@{/deep-chat}">Deep Chat</a>
-        </div>
-        <div class="theme-switch">
-            <button type="button" @click="theme = 'light'" :class="{ active: theme === 'light' }" title="Light">☀️</button>
-            <button type="button" @click="theme = 'dark'" :class="{ active: theme === 'dark' }" title="Dark">🌙</button>
-            <button type="button" @click="theme = 'auto'" :class="{ active: theme === 'auto' }" title="Auto">Auto</button>
-        </div>
-    </nav>
-</header>
+<header th:replace="~{fragments/header :: header}"></header>
 
-<main class="container" th:replace="${content}">
-    <!-- contenuto pagina -->
+<main class="container">
+
+    <div layout:fragment="breadcrumbs">
+        <!-- breadcrumbs -->
+    </div>
+
+    <div layout:fragment="content">
+        <!-- contenuto pagina -->
+    </div>
+
 </main>
 
 <footer class="site-footer container">

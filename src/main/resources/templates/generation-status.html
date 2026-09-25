@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title>Generazione in corso</title>
     <!--
@@ -13,11 +13,11 @@
     </noscript>
 </head>
 <body>
-<main class="container">
+<div layout:fragment="content">
     <h1>Generazione #<span th:text="${generation.id}">1</span></h1>
     <p><em th:text="${generation.prompt}">prompt</em></p>
 
     <div th:replace="~{fragments/generation :: status}"></div>
-</main>
+</div>
 </body>
 </html>

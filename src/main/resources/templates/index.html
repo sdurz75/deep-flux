@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title>Home</title>
 </head>
 <body>
-<main class="container">
-    <h1>spring-htmx-starter</h1>
+<div layout:fragment="content">
+    <h1>deep-flux</h1>
     <p>
         Genera immagini con l'aiuto di un assistente, ritrovale in galleria.
         Navigazione via HTML renderizzato dal server (Spring MVC +
@@ -29,11 +29,6 @@
             &mdash; tutte le immagini generate, con prompt e modello usato.
         </li>
     </ul>
-
-    <p>
-        Per i dettagli su struttura, convenzioni e come estendere il progetto,
-        vedi <code>CLAUDE.md</code> nella root del repository.
-    </p>
-</main>
+</div>
 </body>
 </html>

@@ -58,6 +58,14 @@ a {
     color: var(--color-accent);
 }
 
+/* Alpine.js: nasconde un elemento finche' Alpine non e' partito, evita
+   il flash del contenuto prima dell'inizializzazione (es. la lightbox
+   di fragments/gallery.html). Nessuna custom property coinvolta: e'
+   l'utility standard richiesta da x-cloak, non uno stile del tema. */
+[x-cloak] {
+    display: none !important;
+}
+
 /* ==========================================================================
    Layout
    ========================================================================== */
@@ -172,7 +180,7 @@ main {
 /* ==========================================================================
    Form controls
    ========================================================================== */
-button, input[type="search"], input[type="text"] {
+button, input[type="search"], input[type="text"], input[type="number"] {
     font-family: inherit;
     font-size: 1rem;
 }
@@ -192,6 +200,7 @@ button:hover {
 
 input[type="search"],
 input[type="text"],
+input[type="number"],
 select,
 textarea {
     width: 100%;
@@ -300,6 +309,112 @@ form button {
 }
 
 /* ==========================================================================
+   Layout a due colonne di /deep-chat: chat + pannello impostazioni
+   collassabile. Sotto i 860px si impila (il pannello torna a larghezza
+   piena sotto la chat invece che a fianco).
+   ========================================================================== */
+.deep-chat-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--spacing-unit);
+}
+
+.deep-chat-layout {
+    display: flex;
+    gap: calc(var(--spacing-unit) * 2);
+    align-items: flex-start;
+}
+
+/* <deep-chat> NON puo' prendere la sua larghezza da flex-grow (ne' da
+   grid-template-columns:1fr, stessa famiglia di algoritmo "flexible
+   length"): verificato isolando il componente in una pagina minima
+   fuori da quest'app, popolata di messaggi come in produzione — con
+   flex-grow/1fr il layout INTERNO dei messaggi (dentro la sua shadow
+   root) resta ancorato al default della libreria (~320px, dichiarato
+   nel suo `:host` interno), con spazio vuoto a destra dentro
+   l'elemento stesso; con un `width` esplicito (anche calc()) no. Quindi
+   qui sotto un width calcolato, non un flex-grow sul tag (vedi
+   deep-chat.html) — e va tenuto sincronizzato "a mano" con la
+   larghezza del pannello impostazioni (280px aperto, 56px collassato)
+   tramite :has(), visto che non puo' piu' seguirla automaticamente. */
+.deep-chat-layout deep-chat {
+    width: calc(100% - 280px - var(--spacing-unit) * 2);
+}
+
+.deep-chat-layout:has(.deep-chat-settings.collapsed) deep-chat {
+    width: calc(100% - 56px - var(--spacing-unit) * 2);
+}
+
+.deep-chat-settings {
+    flex: 0 0 280px;
+    width: 280px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg-secondary);
+    padding: calc(var(--spacing-unit) * 1.5);
+    position: relative;
+}
+
+.deep-chat-settings.collapsed {
+    flex: 0 0 56px;
+    width: 56px;
+    padding: calc(var(--spacing-unit) / 2);
+}
+
+.deep-chat-settings-toggle {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: .85rem;
+    line-height: 1;
+    position: absolute;
+    top: calc(var(--spacing-unit) * 1.5);
+    right: calc(var(--spacing-unit) * 1.5);
+}
+
+.deep-chat-settings.collapsed .deep-chat-settings-toggle {
+    position: static;
+}
+
+.deep-chat-settings-body {
+    margin-top: calc(var(--spacing-unit) * 4);
+}
+
+.deep-chat-settings-body .field:first-child .field-label {
+    margin-top: 0;
+}
+
+.field-row {
+    display: flex;
+    gap: var(--spacing-unit);
+}
+
+.field-row .field {
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 860px) {
+    .deep-chat-layout {
+        flex-direction: column;
+    }
+
+    .deep-chat-layout deep-chat,
+    .deep-chat-layout:has(.deep-chat-settings.collapsed) deep-chat {
+        width: 100%;
+    }
+
+    .deep-chat-settings,
+    .deep-chat-settings.collapsed {
+        width: 100%;
+        flex: 0 0 auto;
+    }
+}
+
+/* ==========================================================================
    Generazione: spinner di stato durante il polling
    ========================================================================== */
 .spinner {
@@ -347,17 +462,23 @@ form button {
     aspect-ratio: 1 / 1;
     object-fit: cover;
     display: block;
+    cursor: zoom-in;
 }
 
 .gallery-card-prompt {
+    display: -webkit-box;
     margin: var(--spacing-unit) calc(var(--spacing-unit) * 1.5) 0;
     font-size: .9rem;
     color: var(--color-text);
+    text-decoration: none;
     /* prompt lunghi troncati su due righe, il testo intero resta nel dettaglio */
-    display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+.gallery-card-prompt:hover {
+    color: var(--color-accent);
 }
 
 .gallery-card-model {

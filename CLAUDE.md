@@ -51,12 +51,16 @@ quell'HTML, non lo sostituisce.
 - **Componenti davvero complessi** (editor, diff viewer, grafici) → se e
   quando servono, un Web Component isolato montato su un singolo `<div>`,
   non un framework SPA per l'intera app.
-- **Theming** → CSS Custom Properties native, nessun preprocessore.
+- **Theming** → CSS Custom Properties native, nessun preprocessore. Le
+  utility Tailwind (vedi sotto) non sostituiscono questo sistema: servono
+  solo per lo stile dei componenti Pines UI copiati in pagina, il resto
+  del sito resta su `theme.css`/`var(--color-xxx)`.
 
-Zero step di build frontend: niente npm/webpack/vite/esbuild. htmx e
-Alpine.js sono caricati da CDN in `fragments/layout.html`. Se un giorno
-serve vendorizzarli offline, basta scaricare i due file JS in
-`static/js/` e cambiare i due `<script src="...">` — nessun altro impatto.
+Zero step di build frontend: niente npm/webpack/vite/esbuild. htmx,
+Alpine.js e Tailwind (Play CDN, vedi sotto) sono caricati da CDN in
+`fragments/layout.html`. Se un giorno serve vendorizzarli offline, basta
+scaricare i file JS in `static/js/` e cambiare i `<script src="...">` —
+nessun altro impatto.
 
 ### Cosa NON introdurre senza una ragione concreta
 
@@ -72,11 +76,15 @@ serve vendorizzarli offline, basta scaricare i due file JS in
   gestione di routing/stato che il server già fa. Se serve un widget
   isolato, montarlo come Web Component su un `<div>` mirato, non riscrivere
   la navigazione.
-- **thymeleaf-layout-dialect** o altre librerie di layout — il pattern
-  Thymeleaf "vanilla" con fragment parametrizzati (vedi sotto) copre il
-  100% dei casi qui e non aggiunge una dipendenza.
-- **Tailwind / preprocessori CSS** — richiedono comunque un passo di
-  build; le custom properties native bastano per questo scopo.
+- **Tailwind come sistema di stile del resto del sito** — resta scoped ai
+  componenti Pines UI copiati in pagina (vedi Stack sotto): non riscrivere
+  markup/CSS esistente con utility Tailwind solo perché e' disponibile,
+  `theme.css` con le custom properties resta la fonte di verità per tutto
+  il resto.
+- **Un build step Tailwind (CLI/PostCSS)** — il Play CDN (JIT nel
+  browser) basta per l'uso scoped ai componenti Pines; niente
+  `tailwind.config.js`/pipeline di build finché non serve qualcosa che il
+  Play CDN non copre.
 
 ## Stack
 
@@ -84,8 +92,10 @@ serve vendorizzarli offline, basta scaricare i due file JS in
 |---|---|---|
 | Backend | Spring Boot 4.x, Spring MVC | Coerente con lo stack Spring esistente, nessun context-switch |
 | Template engine | Thymeleaf | Fragment nativi, integrazione naturale con Spring MVC |
+| Layout manager | thymeleaf-layout-dialect | `layout:decorate`/`layout:fragment` al posto di fragment parametrizzati scritti a mano: la BOM di Spring Boot ne gestisce la versione, nessuna dipendenza aggiuntiva da tracciare |
 | Navigazione parziale | htmx (via CDN) | Markup dichiarativo via attributi, niente build |
 | Micro-interattività | Alpine.js (via CDN) | Stato dichiarato inline, niente build |
+| Componenti UI pronti (scoped) | Pines UI (devdojo.com/pines) + Tailwind Play CDN | Componenti Alpine.js gia' scritti (dropdown, modali, tabs...) da copiare cosi' come sono; usano classi Tailwind, per questo Tailwind e' caricato via Play CDN (JIT nel browser, zero build) con `corePlugins.preflight: false` per non toccare lo stile di base del resto del sito |
 | Theming | CSS Custom Properties | Cambio tema = cambio attributo `data-theme`, zero ricalcolo server |
 | Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni (prompt/parametri/stato/file immagine); DB embedded su file locale, zero server esterno |
 | Migrazioni schema DB | Flyway (`spring-boot-starter-flyway`) | Lo schema e' versionato in SQL esplicito, non dedotto da Hibernate (`ddl-auto: validate`): ogni modifica al DB e' una migrazione tracciabile, riproducibile, mai un'alterazione implicita a runtime |
@@ -149,7 +159,8 @@ src/main/resources/
     gallery-detail.html          # dettaglio di una generazione
     deep-chat.html                # pagina che ospita <deep-chat> + combobox modello
     fragments/
-      layout.html                # shell HTML condivisa (head, header, footer)
+      layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect
+      header.html                # header di navigazione + theme switch, incluso da layout.html
       generate-form.html         # fragment del form (riusato anche per mostrare errori)
       generation.html            # fragment di stato di una generazione (polling)
       gallery.html               # fragment card + load more della galleria
@@ -161,39 +172,51 @@ Le immagini generate e il DB H2 vivono in `./data/` (fuori da git, vedi
 `.gitignore`), non sotto `static/`: sono stato applicativo prodotto a
 runtime, non asset del progetto.
 
-## Pattern Thymeleaf: layout parametrizzato
+## Pattern Thymeleaf: layout manager (thymeleaf-layout-dialect)
 
-Nessuna libreria esterna. Ogni pagina si "sostituisce" con la chiamata al
-fragment `layout`, passando il proprio `<title>` e il proprio `<main>`
-come argomenti:
+`fragments/layout.html` e' un template decoratore: ogni pagina lo applica
+con `layout:decorate` sul proprio `<html>` e marca il blocco da inserire
+con `layout:fragment="content"`:
 
 ```html
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title>Titolo pagina</title>
 </head>
 <body>
-<main class="container">
+<div layout:fragment="content">
     <!-- contenuto -->
-</main>
+</div>
 </body>
 </html>
 ```
 
-`fragments/layout.html` riceve questi due blocchi e li inserisce al posto
-giusto (`<title th:replace="${title}">` nell'head, `<main th:replace="${content}">`
-nel body). Per creare una nuova pagina: copiare questo scheletro, non
-serve toccare `layout.html`.
+Comportamento di default del dialect, da tenere a mente:
 
-Attenzione: `th:replace` sostituisce l'intero elemento target, attributi
-inclusi — il `<main class="container">` di `layout.html` viene rimpiazzato
-di netto dal `<main>` della pagina, quindi la classe `container` **va
-scritta sul `<main>` di ogni pagina**, non basta metterla in `layout.html`
-(che infatti non la porta piu' su questo tag). Senza `class="container"`
-il contenuto si estende a tutta larghezza, senza il margine laterale
-standard usato dal resto dell'app.
+- il `<title>` della pagina **sostituisce** quello di `layout.html`
+  automaticamente — non serve marcarlo con `layout:fragment`;
+- il resto di `<head>` viene **fuso** (unione, non sostituzione): elementi
+  aggiuntivi in `<head>` nella pagina (es. un `<meta>`/`<noscript>` come in
+  `generation-status.html`) finiscono nell'head finale insieme a quelli di
+  `layout.html`, senza doverli dichiarare come fragment;
+- un fragment della pagina **sostituisce l'elemento del decoratore tag
+  incluso**, non solo il suo contenuto — per questo il fragment `content`
+  nelle pagine e' un `<div>` come nel decoratore, non un `<main>`: il
+  `<main class="container">` unico che li contiene entrambi
+  (`content` e il fragment opzionale `breadcrumbs`, vuoto se la pagina non
+  lo definisce) vive solo in `layout.html`. Ripetere `<main>` o la classe
+  `container` nella pagina produrrebbe un `<main>` annidato (HTML non
+  valido) e il padding raddoppiato.
+
+Per creare una nuova pagina: copiare questo scheletro, non serve toccare
+`layout.html`. Attenzione: il fragment `content` della pagina resta un
+semplice `<div>`, **senza** `class="container"` — quella classe vive solo
+sul `<main class="container">` di `layout.html` (vedi punto sopra):
+aggiungerla anche nella pagina non avrebbe alcun effetto sul markup
+finale (`<main>` non annidabile, quel `<div>` non lo sostituisce) ma
+confonderebbe chi legge il template sull'origine del margine laterale.
 
 ## Pattern controller: quando restituire fragment vs pagina intera
 
@@ -336,7 +359,7 @@ mvn clean package          # build del jar eseguibile
 ## Checklist per aggiungere una nuova pagina/feature
 
 1. Serve solo navigazione? → nuovo controller + nuovo template pagina
-   con il pattern layout parametrizzato sopra. Basta.
+   con il pattern layout manager sopra. Basta.
 2. Serve un aggiornamento parziale (ricerca live, paginazione, form senza
    reload)? → estrarre la porzione riusabile in `fragments/<nome>.html`,
    far restituire al controller quel fragment quando `HX-Request` è

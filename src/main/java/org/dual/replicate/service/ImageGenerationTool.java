@@ -1,7 +1,10 @@
 package org.dual.replicate.service;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
+import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
@@ -23,6 +26,15 @@ import org.springframework.stereotype.Component;
 public class ImageGenerationTool {
 
     /**
+     * Chiave ToolContext sotto cui DeepChatService mette i parametri di
+     * generazione impostati nel pannello UI (aspect_ratio, width,
+     * height, ...): caller -> tool, mai visti dal modello LLM (a
+     * differenza del modello scelto, sono impostazioni deterministiche,
+     * non vogliamo che l'LLM le riscriva componendo la chiamata al tool).
+     */
+    public static final String PARAMETERS_CONTEXT_KEY = "generationParameters";
+
+    /**
      * Tetto per non bloccare troppo a lungo la richiesta HTTP di
      * /api/deep-chat: piu' breve del timeout di 5 minuti usato da
      * GenerationService per marcare una generazione FAILED (quello resta
@@ -33,10 +45,14 @@ public class ImageGenerationTool {
 
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
+    private final ObjectMapper objectMapper;
 
-    public ImageGenerationTool(GenerationService generationService, ReplicateModelCatalog modelCatalog) {
+    public ImageGenerationTool(GenerationService generationService,
+                                ReplicateModelCatalog modelCatalog,
+                                ObjectMapper objectMapper) {
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
+        this.objectMapper = objectMapper;
     }
 
     @Tool(description = "Generate an image from a text prompt using Replicate; the image is stored and "
@@ -55,7 +71,8 @@ public class ImageGenerationTool {
         // che ReplicateClient usi lo shortcut "ultima versione": non tutti
         // i modelli lo supportano, vedi ReplicateModelCatalog.latestVersionOf.
         String version = modelCatalog.latestVersionOf(model).orElse(null);
-        Generation generation = generationService.create(model, version, prompt, null);
+        String parametersJson = buildParametersJson(toolContext);
+        Generation generation = generationService.create(model, version, prompt, parametersJson);
         generation = generationService.waitUntilTerminal(generation.getId(), WAIT_TIMEOUT);
 
         if (generation.getStatus() == GenerationStatus.SUCCEEDED) {
@@ -70,5 +87,20 @@ public class ImageGenerationTool {
         }
         return "La generazione e' ancora in corso, ci sta mettendo piu' del previsto. "
                 + "Stato consultabile su /generations/" + generation.getId() + ".";
+    }
+
+    /**
+     * Unisce i parametri impostati nel pannello UI (se presenti nel
+     * ToolContext) con disable_safety_checker, sempre true e non
+     * esposto in UI: nessun modo per l'utente di disattivarlo.
+     */
+    private String buildParametersJson(ToolContext toolContext) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        Object fromContext = toolContext.getContext().get(PARAMETERS_CONTEXT_KEY);
+        if (fromContext instanceof Map<?, ?> map) {
+            map.forEach((key, value) -> params.put(String.valueOf(key), value));
+        }
+        params.put("disable_safety_checker", true);
+        return objectMapper.writeValueAsString(params);
     }
 }

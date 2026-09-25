@@ -13,6 +13,8 @@ import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.repository.GenerationRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -23,6 +25,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class GenerationService {
+
+    private static final Logger log = LoggerFactory.getLogger(GenerationService.class);
 
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
@@ -72,6 +76,8 @@ public class GenerationService {
         input.put("prompt", prompt);
 
         PredictionResponse prediction = replicateClient.createPrediction(model, version, input);
+        log.info("Generazione avviata su Replicate: model={}, version={}, externalId={}, status={}",
+                model, version, prediction.id(), prediction.status());
 
         Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson);
         generation.setStatus(mapStatus(prediction.status()));
@@ -101,7 +107,7 @@ public class GenerationService {
             generation.setStatus(GenerationStatus.FAILED);
             generation.setErrorMessage("Errore nel contattare Replicate: " + e.getMessage());
             generation.setCompletedAt(Instant.now());
-            return repository.save(generation);
+            return saveAndLogIfTerminal(generation);
         }
 
         if (prediction.succeeded()) {
@@ -127,7 +133,29 @@ public class GenerationService {
             generation.setStatus(mapStatus(prediction.status()));
         }
 
-        return repository.save(generation);
+        return saveAndLogIfTerminal(generation);
+    }
+
+    /**
+     * Salva e, solo se questa chiamata ha portato la generazione a uno
+     * stato terminale (non ad ogni poll: refresh() ritorna subito se lo
+     * e' gia', quindi qui si passa esattamente nel momento della
+     * transizione), traccia l'esito del colloquio con Replicate a INFO
+     * (successo) o WARN (fallimento, con l'errore restituito dall'API).
+     */
+    private Generation saveAndLogIfTerminal(Generation generation) {
+        Generation saved = repository.save(generation);
+        if (!saved.isTerminal()) {
+            return saved;
+        }
+        if (saved.getStatus() == GenerationStatus.FAILED) {
+            log.warn("Generazione fallita: id={}, model={}, externalId={}, error={}",
+                    saved.getId(), saved.getModel(), saved.getExternalId(), saved.getErrorMessage());
+        } else {
+            log.info("Generazione completata: id={}, model={}, externalId={}, file={}",
+                    saved.getId(), saved.getModel(), saved.getExternalId(), saved.getImageFilename());
+        }
+        return saved;
     }
 
     /**
@@ -187,7 +215,7 @@ public class GenerationService {
     public void delete(Long id) {
         Generation generation = get(id);
         imageStorageService.delete(generation.getImageFilename());
-        repository.delete(generation);
+        repository.delete(id);
     }
 
     private Map<String, Object> parseParameters(String parametersJson) {

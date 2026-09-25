@@ -59,6 +59,14 @@
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
         <dependency>
+            <!-- Layout manager per i template Thymeleaf (layout:decorate /
+                 layout:fragment), al posto del pattern "vanilla" con
+                 th:replace parametrizzato. Versione gestita dalla BOM
+                 spring-boot-dependencies, non serve fissarla qui. -->
+            <groupId>nz.net.ultraq.thymeleaf</groupId>
+            <artifactId>thymeleaf-layout-dialect</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
@@ -67,6 +75,8 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
+
+
         <dependency>
             <!-- In Boot 4 l'autoconfigurazione di Flyway e' nel modulo
                  spring-boot-flyway, non piu' bundled: serve lo starter
@@ -90,6 +100,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>

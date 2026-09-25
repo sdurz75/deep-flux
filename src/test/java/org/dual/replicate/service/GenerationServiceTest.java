@@ -97,6 +97,6 @@ class GenerationServiceTest {
         service.delete(1L);
 
         verify(imageStorageService).delete("1.png");
-        verify(repository).delete(generation);
+        verify(repository).delete(1L);
     }
 }

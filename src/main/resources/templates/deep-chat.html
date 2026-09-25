@@ -1,24 +1,25 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title>Deep Chat</title>
 </head>
 <body>
-<main class="container">
+<div layout:fragment="content">
     <h1>Deep Chat</h1>
     <p>
         Genera immagini con l'aiuto dell'assistente: descrivi cosa vuoi,
         l'assistente puo' cercare sul web per informarsi e generare
-        l'immagine su Replicate col modello scelto qui sotto (o un altro,
-        se lo chiedi esplicitamente in chat). Le immagini generate finiscono
-        anche in <a th:href="@{/gallery}">Galleria</a>. La conversazione e'
+        l'immagine su Replicate col modello e i parametri scelti nel
+        pannello a destra (o con un modello diverso, se lo chiedi
+        esplicitamente in chat). Le immagini generate finiscono anche in
+        <a th:href="@{/gallery}">Galleria</a>. La conversazione e'
         persistita lato server e riprende da dove l'avevi lasciata ad ogni
         apertura di questa pagina.
     </p>
 
     <!--
-      Setup sincrono PRIMA del combobox Alpine sotto (stesso principio
+      Setup sincrono PRIMA del pannello Alpine sotto (stesso principio
       del boot del tema in fragments/layout.html: uno script classico,
       non deferred/module, eseguito durante il parsing, garantito prima
       che Alpine (script deferred in head) scansioni il DOM e valuti
@@ -26,12 +27,12 @@
       viene eseguito, il che avviene PRIMA degli script "type=module"
       piu' sotto (il bundle di deep-chat e' un modulo esterno da
       scaricare, quindi anche uno script module inline in coda a lui
-      parte piu' tardi) — verificato dal vivo: window.setDeepChatModel
-      definito in uno script module veniva chiamato da x-init prima di
-      esistere. Qui sotto niente di tutto questo: solo dati e una
-      funzione che scrive su window, zero dipendenze dall'elemento
-      <deep-chat> (quello lo aspetta lo script module in fondo alla
-      pagina, via customElements.whenDefined).
+      parte piu' tardi) — verificato dal vivo: una funzione definita in
+      uno script module veniva chiamata da x-init prima di esistere. Qui
+      sotto niente di tutto questo: solo dati e una funzione che scrive
+      su window, zero dipendenze dall'elemento <deep-chat> (quello lo
+      aspetta lo script module in fondo alla pagina, via
+      customElements.whenDefined).
       th:inline="javascript" su una stringa (non su un oggetto) sfrutta
       l'escaping JS-safe di Thymeleaf per il caso "inlinea questa
       String" invece di doversi affidare a come Thymeleaf serializzerebbe
@@ -43,73 +44,10 @@
         window.deepChatPersonalModels = JSON.parse(/*[[${personalModelsJson}]]*/ '[]');
         window.deepChatCatalogModels = JSON.parse(/*[[${catalogModelsJson}]]*/ '[]');
         window.deepChatHistory = JSON.parse(/*[[${chatHistoryJson}]]*/ '[]');
-        window.setDeepChatModel = function (modelId) {
-            window.deepChatSelectedModel = modelId;
+        window.setDeepChatSettings = function (settings) {
+            window.deepChatSettings = settings;
         };
     </script>
-
-    <!--
-      Combobox filtrabile invece di un <select>: col catalogo curato piu'
-      i modelli personali (vedi ReplicateModelCatalog) sono troppe voci
-      per scorrere a occhio. x-data e' JS puro valutato da Alpine, non
-      un contesto Thymeleaf: i dati arrivano dalle variabili globali
-      impostate nello script sopra.
-    -->
-    <div class="field model-picker"
-         x-data="{
-            query: '',
-            open: false,
-            selected: '',
-            personal: window.deepChatPersonalModels || [],
-            catalog: window.deepChatCatalogModels || [],
-            idOf(m) { return m.owner + '/' + m.name; },
-            matches(m) {
-                const q = this.query.trim().toLowerCase();
-                return !q || this.idOf(m).toLowerCase().includes(q);
-            },
-            get filteredPersonal() { return this.personal.filter(m => this.matches(m)); },
-            get filteredCatalog() { return this.catalog.filter(m => this.matches(m)); },
-            pick(m) {
-                this.selected = this.idOf(m);
-                this.query = this.selected;
-                this.open = false;
-                window.setDeepChatModel(this.selected);
-            },
-            init() {
-                const first = this.personal[0] || this.catalog[0];
-                if (first) { this.pick(first); }
-            }
-         }"
-         x-init="init()"
-         @click.outside="open = false; query = selected">
-        <label class="field-label" for="image-model-input">Modello per la generazione immagini</label>
-        <input type="text" id="image-model-input" autocomplete="off"
-               x-model="query"
-               @focus="open = true"
-               @input="open = true"
-               @keydown.escape="open = false; query = selected"
-               placeholder="Cerca un modello…">
-        <ul class="model-options" x-show="open && (filteredPersonal.length || filteredCatalog.length)">
-            <template x-if="filteredPersonal.length">
-                <li class="model-options-group">I tuoi modelli</li>
-            </template>
-            <template x-for="m in filteredPersonal" :key="idOf(m)">
-                <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
-            </template>
-            <template x-if="filteredCatalog.length">
-                <li class="model-options-group">Modelli disponibili</li>
-            </template>
-            <template x-for="m in filteredCatalog" :key="idOf(m)">
-                <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
-            </template>
-        </ul>
-        <p x-show="open && !filteredPersonal.length && !filteredCatalog.length" class="form-error">
-            Nessun modello corrisponde alla ricerca.
-        </p>
-        <p x-show="!personal.length && !catalog.length" class="form-error">
-            Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
-        </p>
-    </div>
 
     <!--
       Reset della conversazione: cancella la cronologia persistita
@@ -130,25 +68,188 @@
     </div>
 
     <!--
-      Componente complesso montato isolato su un singolo elemento (vedi
-      CLAUDE.md, "Componenti davvero complessi"): nessun impatto sul
-      resto delle pagine, solo questa carica lo script.
-      requestBodyLimits e' statico: HTML puro, niente th:*. connect
-      invece deve passare da @{...}: e' un URL assoluto dal root del
-      dominio che il browser di deep-chat usa cosi' com'e', quindi se
-      scritto come stringa letterale ignora del tutto sotto quale path
-      l'app e' montata da un reverse proxy (es. /deep) — vedi
-      server.forward-headers-strategy in application.yml.
-      width/height 100%/generosa in vh: deve occupare tutto lo spazio
-      centrale della pagina, non un riquadro piccolo. display:block e'
-      necessario perche' il componente di default e' display:table-cell
-      (stile interno di deep-chat), che rende width:100% inefficace.
+      Layout a due colonne: <deep-chat> a sinistra (occupa lo spazio
+      restante), pannello impostazioni a destra (larghezza fissa,
+      collassabile). Sotto una certa larghezza torna a impilarsi (vedi
+      .deep-chat-layout in theme.css).
     -->
-    <deep-chat
-            th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
-            requestBodyLimits='{"maxMessages": 0}'
-            style="display: block; border-radius: var(--radius); border: 1px solid var(--color-border); width: 100%; height: 75vh; min-height: 420px;">
-    </deep-chat>
+    <div class="deep-chat-layout">
+        <!--
+          Componente complesso montato isolato su un singolo elemento
+          (vedi CLAUDE.md, "Componenti davvero complessi"): nessun
+          impatto sul resto delle pagine, solo questa carica lo script.
+          requestBodyLimits e' statico: HTML puro, niente th:*. connect
+          invece deve passare da @{...}: e' un URL assoluto dal root del
+          dominio che il browser di deep-chat usa cosi' com'e', quindi
+          se scritto come stringa letterale ignora del tutto sotto quale
+          path l'app e' montata da un reverse proxy (es. /deep) — vedi
+          server.forward-headers-strategy in application.yml. height
+          generosa in vh: deve occupare tutto lo spazio verticale
+          disponibile, non un riquadro piccolo. display:block e'
+          necessario perche' il componente di default e'
+          display:table-cell (stile interno di deep-chat), che rende
+          width:100% inefficace. La LARGHEZZA pero' non si imposta qui:
+          niente flex-grow sul tag. Verificato dal vivo (screenshot +
+          repro isolato fuori da quest'app, popolato di messaggi come in
+          produzione): con un flex-grow/flex-basis qualunque su questo
+          tag, il componente prende comunque la larghezza corretta come
+          BOX esterno (bordo visibile a larghezza piena), ma il layout
+          DEI MESSAGGI dentro la sua shadow root resta ancorato al
+          default della libreria (~320px, dal suo `:host` interno) con
+          spazio vuoto a destra — stesso risultato con
+          grid-template-columns:1fr al posto del flex-grow, quindi non è
+          un problema di flexbox in sé ma di qualunque sizing "flessibile
+          risolto in un secondo passo". Un width esplicito invece
+          funziona: vedi ".deep-chat-layout deep-chat" in theme.css
+          (calc() sincronizzato via :has() con lo stato aperto/
+          collassato del pannello, dato che qui non può più seguirlo
+          automaticamente come faceva flex-grow).
+        -->
+        <deep-chat
+                th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
+                requestBodyLimits='{"maxMessages": 0}'
+                style="display: block; border-radius: var(--radius); border: 1px solid var(--color-border); min-width: 0; height: 75vh; min-height: 420px;">
+        </deep-chat>
+
+        <!--
+          Pannello impostazioni: un solo x-data per tutto (combobox
+          modello + parametri di generazione + stato collassato), cosi'
+          publish() puo' leggere in un colpo tutti i valori correnti e
+          mandarli a window.setDeepChatSettings. I campi numerici usano
+          x-model.number (non x-model) per ottenere numeri JS veri, non
+          stringhe, nel body JSON verso /api/deep-chat.
+        -->
+        <aside class="deep-chat-settings" :class="{ collapsed: collapsed }"
+               x-data="{
+                  collapsed: false,
+                  query: '',
+                  open: false,
+                  selected: '',
+                  personal: window.deepChatPersonalModels || [],
+                  catalog: window.deepChatCatalogModels || [],
+                  width: 848,
+                  height: 1280,
+                  outputFormat: 'jpg',
+                  numInferenceSteps: 28,
+                  guidanceScale: 3,
+                  seed: '',
+                  loraScale: 1,
+                  idOf(m) { return m.owner + '/' + m.name; },
+                  matches(m) {
+                      const q = this.query.trim().toLowerCase();
+                      return !q || this.idOf(m).toLowerCase().includes(q);
+                  },
+                  get filteredPersonal() { return this.personal.filter(m => this.matches(m)); },
+                  get filteredCatalog() { return this.catalog.filter(m => this.matches(m)); },
+                  pick(m) {
+                      this.selected = this.idOf(m);
+                      this.query = this.selected;
+                      this.open = false;
+                      this.publish();
+                  },
+                  publish() {
+                      window.setDeepChatSettings({
+                          model: this.selected,
+                          aspect_ratio: 'custom',
+                          width: this.width,
+                          height: this.height,
+                          output_format: this.outputFormat,
+                          num_inference_steps: this.numInferenceSteps,
+                          guidance_scale: this.guidanceScale,
+                          seed: this.seed,
+                          lora_scale: this.loraScale,
+                      });
+                  },
+                  init() {
+                      const first = this.personal[0] || this.catalog[0];
+                      if (first) { this.pick(first); } else { this.publish(); }
+                  }
+               }"
+               x-init="init()">
+            <button type="button" class="deep-chat-settings-toggle"
+                    @click="collapsed = !collapsed"
+                    :title="collapsed ? 'Mostra impostazioni' : 'Nascondi impostazioni'"
+                    x-text="collapsed ? '⚙' : '✕'"></button>
+
+            <div class="deep-chat-settings-body" x-show="!collapsed">
+                <div class="field model-picker" @click.outside="open = false; query = selected">
+                    <label class="field-label" for="image-model-input">Modello</label>
+                    <input type="text" id="image-model-input" autocomplete="off"
+                           x-model="query"
+                           @focus="open = true"
+                           @input="open = true"
+                           @keydown.escape="open = false; query = selected"
+                           placeholder="Cerca un modello…">
+                    <ul class="model-options" x-show="open && (filteredPersonal.length || filteredCatalog.length)">
+                        <template x-if="filteredPersonal.length">
+                            <li class="model-options-group">I tuoi modelli</li>
+                        </template>
+                        <template x-for="m in filteredPersonal" :key="idOf(m)">
+                            <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
+                        </template>
+                        <template x-if="filteredCatalog.length">
+                            <li class="model-options-group">Modelli disponibili</li>
+                        </template>
+                        <template x-for="m in filteredCatalog" :key="idOf(m)">
+                            <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
+                        </template>
+                    </ul>
+                    <p x-show="open && !filteredPersonal.length && !filteredCatalog.length" class="form-error">
+                        Nessun modello corrisponde alla ricerca.
+                    </p>
+                    <p x-show="!personal.length && !catalog.length" class="form-error">
+                        Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
+                    </p>
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label class="field-label" for="param-width">Larghezza</label>
+                        <input type="number" id="param-width" min="256" max="1440" step="16"
+                               x-model.number="width" @input="publish()">
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="param-height">Altezza</label>
+                        <input type="number" id="param-height" min="256" max="1440" step="16"
+                               x-model.number="height" @input="publish()">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="field-label" for="param-output-format">Formato</label>
+                    <select id="param-output-format" x-model="outputFormat" @change="publish()">
+                        <option value="jpg">jpg</option>
+                        <option value="webp">webp</option>
+                        <option value="png">png</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label class="field-label" for="param-steps">Passi di inferenza</label>
+                    <input type="number" id="param-steps" min="1" max="50"
+                           x-model.number="numInferenceSteps" @input="publish()">
+                </div>
+
+                <div class="field">
+                    <label class="field-label" for="param-guidance">Guidance scale</label>
+                    <input type="number" id="param-guidance" min="0" max="10" step="0.1"
+                           x-model.number="guidanceScale" @input="publish()">
+                </div>
+
+                <div class="field">
+                    <label class="field-label" for="param-seed">Seed</label>
+                    <input type="number" id="param-seed" placeholder="casuale"
+                           x-model.number="seed" @input="publish()">
+                </div>
+
+                <div class="field">
+                    <label class="field-label" for="param-lora-scale">Intensita' LoRA</label>
+                    <input type="number" id="param-lora-scale" min="-1" max="3" step="0.1"
+                           x-model.number="loraScale" @input="publish()">
+                </div>
+            </div>
+        </aside>
+    </div>
 
     <!-- deepChat.bundle.js e' un modulo ES (termina con "export{...}"): un
          <script> classico lo scarta con "Unexpected token 'export'" senza
@@ -156,28 +257,47 @@
     <script type="module" src="https://unpkg.com/deep-chat@2.5.1/dist/deepChat.bundle.js"></script>
 
     <!--
-      Inoltra il modello scelto nel combobox al backend, vedi
-      DeepChatApiController. Usa requestInterceptor (chiamato da deep-chat
-      ad ogni invio, letto dal bundle stesso, verificato leggendo il
-      bundle) e non additionalBodyProps: quest'ultimo viene unito al body
-      "grezzo" una volta sola quando l'handler interno viene costruito, e
-      non si aggiorna piu' se il modello selezionato cambia dopo il primo
-      turno. requestInterceptor invece legge window.deepChatSelectedModel
-      fresco ad ogni invio (impostato dal combobox sopra, non da questo
-      script: vedi il commento su Alpine/timing piu' in alto).
+      Ripristina la cronologia persistita (window.deepChatHistory, vedi
+      sopra) e inoltra le impostazioni del pannello (modello + parametri)
+      al backend, vedi DeepChatApiController.
+
+      initialMessages e' una PROPRIETA' JS (un array), non un attributo
+      HTML: verificato dal vivo che deep-chat non fa JSON.parse di un
+      attributo initialMessages scritto come stringa (a differenza di
+      connect, che invece e' un oggetto semplice e funziona anche come
+      attributo) — assegnarla come attributo non genera errori ma i
+      messaggi non compaiono. L'assegnazione va fatta PRIMA che l'utente
+      possa scrivere (siamo dentro whenDefined, che risolve non appena
+      l'elemento e' definito/upgradato: sempre prima di qualunque
+      interazione umana con la pagina appena caricata).
+
+      requestInterceptor (chiamato da deep-chat ad ogni invio, letto dal
+      bundle stesso, verificato leggendo il bundle) e non
+      additionalBodyProps: quest'ultimo viene unito al body "grezzo" una
+      volta sola quando l'handler interno viene costruito, e non si
+      aggiorna piu' se le impostazioni cambiano dopo il primo turno.
+      requestInterceptor invece legge window.deepChatSettings fresco ad
+      ogni invio (impostato dal pannello sopra, non da questo script:
+      vedi il commento su Alpine/timing piu' in alto). I campi vuoti/non
+      impostati (stringa vuota, null, undefined) non vengono inclusi nel
+      body: cosi' un modello che non supporta un parametro non lo
+      riceve, invece di fallire su un valore imposto ma inutile per lui.
     -->
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
             const deepChat = document.querySelector('deep-chat');
             deepChat.initialMessages = window.deepChatHistory || [];
             deepChat.requestInterceptor = (details) => {
-                if (window.deepChatSelectedModel) {
-                    details.body.model = window.deepChatSelectedModel;
+                const settings = window.deepChatSettings || {};
+                for (const [key, value] of Object.entries(settings)) {
+                    if (value !== null && value !== undefined && value !== '') {
+                        details.body[key] = value;
+                    }
                 }
                 return details;
             };
         });
     </script>
-</main>
+</div>
 </body>
 </html>

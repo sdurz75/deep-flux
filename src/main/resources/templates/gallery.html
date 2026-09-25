@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::main})}">
+<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
 <head>
     <title>Galleria</title>
 </head>
 <body>
-<main class="container">
+<div layout:fragment="content">
     <h1>Galleria</h1>
     <p th:if="${#lists.isEmpty(generations)}">
         Nessuna immagine ancora. <a th:href="@{/generations/new}">Generane una</a>.
@@ -14,6 +14,6 @@
     <div id="gallery-content">
         <div th:replace="~{fragments/gallery :: content(${generations}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
     </div>
-</main>
+</div>
 </body>
 </html>
