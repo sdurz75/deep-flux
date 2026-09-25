@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
     <title>Deep Chat</title>
@@ -8,14 +8,14 @@
 <div layout:fragment="content">
     <h1>Deep Chat</h1>
     <p>
-        Genera immagini con l'aiuto dell'assistente: descrivi cosa vuoi,
+        <span th:text="#{deepChat.intro.prefix}">Genera immagini con l'aiuto dell'assistente: descrivi cosa vuoi,
         l'assistente puo' cercare sul web per informarsi e generare
         l'immagine su Replicate col modello e i parametri scelti nel
         pannello a destra (o con un modello diverso, se lo chiedi
-        esplicitamente in chat). Le immagini generate finiscono anche in
-        <a th:href="@{/gallery}">Galleria</a>. La conversazione e'
+        esplicitamente in chat). Le immagini generate finiscono anche in</span>
+        <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a><span th:text="#{deepChat.intro.suffix}">. La conversazione e'
         persistita lato server e riprende da dove l'avevi lasciata ad ogni
-        apertura di questa pagina.
+        apertura di questa pagina.</span>
     </p>
 
     <!--
@@ -62,8 +62,8 @@
         <button type="button" class="button-danger"
                 th:hx-post="@{/api/deep-chat/reset}"
                 hx-swap="none"
-                hx-confirm="Cancellare la conversazione? L'azione non si puo' annullare.">
-            Nuova conversazione
+                th:hx-confirm="#{deepChat.confirm.reset}">
+            <span th:text="#{deepChat.button.newConversation}">Nuova conversazione</span>
         </button>
     </div>
 
@@ -166,57 +166,67 @@
                   }
                }"
                x-init="init()">
+            <!--
+              :title e' un binding Alpine, mai processato da Thymeleaf
+              server-side: #{...} sull'attributo non avrebbe effetto.
+              Le due etichette arrivano invece via data-* renderizzati
+              dal server, lette a runtime con $el.dataset (pattern
+              riusabile per qualunque altra stringa client-only, vedi
+              CLAUDE.md).
+            -->
             <button type="button" class="deep-chat-settings-toggle"
+                    th:data-label-show="#{deepChat.settings.show}"
+                    th:data-label-hide="#{deepChat.settings.hide}"
                     @click="collapsed = !collapsed"
-                    :title="collapsed ? 'Mostra impostazioni' : 'Nascondi impostazioni'"
+                    :title="collapsed ? $el.dataset.labelShow : $el.dataset.labelHide"
                     x-text="collapsed ? '⚙' : '✕'"></button>
 
             <div class="deep-chat-settings-body" x-show="!collapsed">
                 <div class="field model-picker" @click.outside="open = false; query = selected">
-                    <label class="field-label" for="image-model-input">Modello</label>
+                    <label class="field-label" for="image-model-input" th:text="#{deepChat.label.model}">Modello</label>
                     <input type="text" id="image-model-input" autocomplete="off"
                            x-model="query"
                            @focus="open = true"
                            @input="open = true"
                            @keydown.escape="open = false; query = selected"
-                           placeholder="Cerca un modello…">
+                           th:placeholder="#{deepChat.placeholder.searchModel}" placeholder="Cerca un modello…">
                     <ul class="model-options" x-show="open && (filteredPersonal.length || filteredCatalog.length)">
                         <template x-if="filteredPersonal.length">
-                            <li class="model-options-group">I tuoi modelli</li>
+                            <li class="model-options-group" th:text="#{deepChat.group.personalModels}">I tuoi modelli</li>
                         </template>
                         <template x-for="m in filteredPersonal" :key="idOf(m)">
                             <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
                         </template>
                         <template x-if="filteredCatalog.length">
-                            <li class="model-options-group">Modelli disponibili</li>
+                            <li class="model-options-group" th:text="#{deepChat.group.catalogModels}">Modelli disponibili</li>
                         </template>
                         <template x-for="m in filteredCatalog" :key="idOf(m)">
                             <li class="model-option" @click="pick(m)" :title="m.description || ''" x-text="idOf(m)"></li>
                         </template>
                     </ul>
-                    <p x-show="open && !filteredPersonal.length && !filteredCatalog.length" class="form-error">
+                    <p x-show="open && !filteredPersonal.length && !filteredCatalog.length" class="form-error" th:text="#{deepChat.error.noMatch}">
                         Nessun modello corrisponde alla ricerca.
                     </p>
-                    <p x-show="!personal.length && !catalog.length" class="form-error">
+                    <p x-show="!personal.length && !catalog.length" class="form-error" th:text="#{deepChat.error.noModels}">
                         Nessun modello Replicate disponibile: verifica REPLICATE_API_TOKEN e riavvia l'app.
                     </p>
                 </div>
 
                 <div class="field-row">
                     <div class="field">
-                        <label class="field-label" for="param-width">Larghezza</label>
+                        <label class="field-label" for="param-width" th:text="#{deepChat.label.width}">Larghezza</label>
                         <input type="number" id="param-width" min="256" max="1440" step="16"
                                x-model.number="width" @input="publish()">
                     </div>
                     <div class="field">
-                        <label class="field-label" for="param-height">Altezza</label>
+                        <label class="field-label" for="param-height" th:text="#{deepChat.label.height}">Altezza</label>
                         <input type="number" id="param-height" min="256" max="1440" step="16"
                                x-model.number="height" @input="publish()">
                     </div>
                 </div>
 
                 <div class="field">
-                    <label class="field-label" for="param-output-format">Formato</label>
+                    <label class="field-label" for="param-output-format" th:text="#{deepChat.label.format}">Formato</label>
                     <select id="param-output-format" x-model="outputFormat" @change="publish()">
                         <option value="jpg">jpg</option>
                         <option value="webp">webp</option>
@@ -225,25 +235,25 @@
                 </div>
 
                 <div class="field">
-                    <label class="field-label" for="param-steps">Passi di inferenza</label>
+                    <label class="field-label" for="param-steps" th:text="#{deepChat.label.steps}">Passi di inferenza</label>
                     <input type="number" id="param-steps" min="1" max="50"
                            x-model.number="numInferenceSteps" @input="publish()">
                 </div>
 
                 <div class="field">
-                    <label class="field-label" for="param-guidance">Guidance scale</label>
+                    <label class="field-label" for="param-guidance" th:text="#{deepChat.label.guidance}">Guidance scale</label>
                     <input type="number" id="param-guidance" min="0" max="10" step="0.1"
                            x-model.number="guidanceScale" @input="publish()">
                 </div>
 
                 <div class="field">
-                    <label class="field-label" for="param-seed">Seed</label>
-                    <input type="number" id="param-seed" placeholder="casuale"
+                    <label class="field-label" for="param-seed" th:text="#{deepChat.label.seed}">Seed</label>
+                    <input type="number" id="param-seed" th:placeholder="#{deepChat.placeholder.seed}" placeholder="casuale"
                            x-model.number="seed" @input="publish()">
                 </div>
 
                 <div class="field">
-                    <label class="field-label" for="param-lora-scale">Intensita' LoRA</label>
+                    <label class="field-label" for="param-lora-scale" th:text="#{deepChat.label.loraScale}">Intensita' LoRA</label>
                     <input type="number" id="param-lora-scale" min="-1" max="3" step="0.1"
                            x-model.number="loraScale" @input="publish()">
                 </div>

@@ -9,6 +9,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
 import org.dual.replicate.replicate.ReplicateException;
@@ -49,15 +50,18 @@ public class GenerationService {
     private final ReplicateClient replicateClient;
     private final ImageStorageService imageStorageService;
     private final ObjectMapper objectMapper;
+    private final Messages messages;
 
     public GenerationService(GenerationRepository repository,
                               ReplicateClient replicateClient,
                               ImageStorageService imageStorageService,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              Messages messages) {
         this.repository = repository;
         this.replicateClient = replicateClient;
         this.imageStorageService = imageStorageService;
         this.objectMapper = objectMapper;
+        this.messages = messages;
     }
 
     /**
@@ -105,7 +109,7 @@ public class GenerationService {
             prediction = getPredictionWithRetry(generation.getExternalId());
         } catch (Exception e) {
             generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage("Errore nel contattare Replicate: " + e.getMessage());
+            generation.setErrorMessage(messages.get("generation.error.contactFailed", e.getMessage()));
             generation.setCompletedAt(Instant.now());
             return saveAndLogIfTerminal(generation);
         }
@@ -114,7 +118,7 @@ public class GenerationService {
             String outputUrl = prediction.firstOutputUrl();
             if (outputUrl == null) {
                 generation.setStatus(GenerationStatus.FAILED);
-                generation.setErrorMessage("Prediction completata ma senza output utilizzabile.");
+                generation.setErrorMessage(messages.get("generation.error.noOutput"));
             } else {
                 String filename = imageStorageService.downloadAndStore(generation.getId(), outputUrl);
                 generation.setImageFilename(filename);
@@ -123,11 +127,11 @@ public class GenerationService {
             generation.setCompletedAt(Instant.now());
         } else if (prediction.failed()) {
             generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage(prediction.error() != null ? prediction.error() : "Generazione fallita su Replicate.");
+            generation.setErrorMessage(prediction.error() != null ? prediction.error() : messages.get("generation.error.failedGeneric"));
             generation.setCompletedAt(Instant.now());
         } else if (Duration.between(generation.getCreatedAt(), Instant.now()).compareTo(TIMEOUT) > 0) {
             generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage("Timeout: nessuna risposta da Replicate dopo " + TIMEOUT.toMinutes() + " minuti.");
+            generation.setErrorMessage(messages.get("generation.error.timeout", TIMEOUT.toMinutes()));
             generation.setCompletedAt(Instant.now());
         } else {
             generation.setStatus(mapStatus(prediction.status()));
@@ -208,7 +212,7 @@ public class GenerationService {
 
     public Generation get(Long id) {
         return repository.findById(id)
-                .orElseThrow(() -> new ReplicateException("Generazione non trovata: " + id));
+                .orElseThrow(() -> new ReplicateException(messages.get("generation.error.notFound", id)));
     }
 
     /** Elimina una generazione e, se presente, il file immagine associato. Usata dalla galleria. */
@@ -227,7 +231,7 @@ public class GenerationService {
             Map<String, Object> parsed = objectMapper.readValue(parametersJson, Map.class);
             return parsed == null ? new LinkedHashMap<>() : new LinkedHashMap<>(parsed);
         } catch (JacksonException e) {
-            throw new ReplicateException("I parametri devono essere un oggetto JSON valido: " + e.getOriginalMessage());
+            throw new ReplicateException(messages.get("generation.error.invalidParameters", e.getOriginalMessage()));
         }
     }
 

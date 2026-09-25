@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.repository.GenerationRepository;
 import org.dual.replicate.service.GenerationService;
 import org.springframework.data.domain.Page;
@@ -34,10 +35,12 @@ public class GalleryController {
 
     private final GenerationRepository repository;
     private final GenerationService generationService;
+    private final Messages messages;
 
-    public GalleryController(GenerationRepository repository, GenerationService generationService) {
+    public GalleryController(GenerationRepository repository, GenerationService generationService, Messages messages) {
         this.repository = repository;
         this.generationService = generationService;
+        this.messages = messages;
     }
 
     @GetMapping
@@ -100,7 +103,7 @@ public class GalleryController {
     @GetMapping("/{id}")
     public String detail(@PathVariable Long id, Model model) {
         Generation generation = repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Generazione non trovata"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("gallery.error.notFound")));
         model.addAttribute("generation", generation);
         return "gallery-detail";
     }

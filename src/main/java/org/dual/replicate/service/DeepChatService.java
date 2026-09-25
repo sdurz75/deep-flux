@@ -9,6 +9,7 @@ import java.util.Map;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,13 +44,20 @@ public class DeepChatService {
 
     private final ChatClient chatClient;
     private final ChatMessageRepository chatMessageRepository;
+    // Nome "i18n", non "messages": la classe usa gia' "messages" come
+    // nome locale per List<Message> (i turni della conversazione, vedi
+    // reply()/buildMessages()), collisione con Messages se chiamato
+    // uguale.
+    private final Messages i18n;
 
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
                             ImageGenerationTool imageGenerationTool,
                             ChatMessageRepository chatMessageRepository,
+                            Messages i18n,
                             @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.chatMessageRepository = chatMessageRepository;
+        this.i18n = i18n;
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
                         You are a helpful, friendly assistant. You can search the public web
@@ -122,8 +130,7 @@ public class DeepChatService {
         Duration elapsed = Duration.between(start, Instant.now());
         logChatResponse(chatResponse, elapsed);
         if (chatResponse.getResult() == null) {
-            throw new IllegalStateException("Il modello LLM remoto non ha restituito alcun risultato "
-                    + "(risposta filtrata o vuota)");
+            throw new IllegalStateException(i18n.get("deepchat.error.llmEmptyResult"));
         }
         String text = chatResponse.getResult().getOutput().getText();
 

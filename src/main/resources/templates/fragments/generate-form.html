@@ -14,23 +14,23 @@
 
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
               th:action="@{/generations}" method="post">
-            <label for="model">Modello (owner/nome)</label>
+            <label for="model" th:text="#{generateForm.label.model}">Modello (owner/nome)</label>
             <input type="text" id="model" name="model" th:value="${model}"
                    placeholder="black-forest-labs/flux-schnell" required>
 
-            <label for="version">Version (opzionale, hash pinnato)</label>
+            <label for="version" th:text="#{generateForm.label.version}">Version (opzionale, hash pinnato)</label>
             <input type="text" id="version" name="version" th:value="${version}"
-                   placeholder="lascia vuoto per usare l'ultima versione pubblicata">
+                   th:placeholder="#{generateForm.placeholder.version}" placeholder="lascia vuoto per usare l'ultima versione pubblicata">
 
-            <label for="prompt">Prompt</label>
+            <label for="prompt" th:text="#{generateForm.label.prompt}">Prompt</label>
             <textarea id="prompt" name="prompt" rows="3" required th:text="${prompt}"></textarea>
 
-            <label for="parameters">Parametri extra (opzionale, JSON)</label>
+            <label for="parameters" th:text="#{generateForm.label.parameters}">Parametri extra (opzionale, JSON)</label>
             <textarea id="parameters" name="parameters" rows="4"
                       placeholder='{"aspect_ratio": "1:1", "num_outputs": 1}'
                       th:text="${parameters}"></textarea>
 
-            <button type="submit">Genera</button>
+            <button type="submit" th:text="#{generateForm.button.submit}">Genera</button>
         </form>
     </div>
 </th:block>

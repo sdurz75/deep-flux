@@ -3,6 +3,7 @@ package org.dual.replicate.replicate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.dual.replicate.i18n.Messages;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,12 +22,15 @@ public class ReplicateClient {
 
     private final RestClient restClient;
     private final String apiToken;
+    private final Messages messages;
 
     public ReplicateClient(RestClient.Builder restClientBuilder,
                             @Value("${replicate.api-base-url}") String apiBaseUrl,
-                            @Value("${replicate.api-token}") String apiToken) {
+                            @Value("${replicate.api-token}") String apiToken,
+                            Messages messages) {
         this.restClient = restClientBuilder.baseUrl(apiBaseUrl).build();
         this.apiToken = apiToken;
+        this.messages = messages;
     }
 
     /**
@@ -45,7 +49,7 @@ public class ReplicateClient {
         } else {
             String[] ownerAndName = model.split("/", 2);
             if (ownerAndName.length != 2) {
-                throw new ReplicateException("Il modello deve essere nella forma \"owner/nome\" (es. black-forest-labs/flux-schnell)");
+                throw new ReplicateException(messages.get("replicate.error.invalidModelFormat"));
             }
             path = "/models/%s/%s/predictions".formatted(ownerAndName[0], ownerAndName[1]);
         }
@@ -115,10 +119,10 @@ public class ReplicateClient {
     private ReplicateException toReplicateException(RestClientException e) {
         if (e instanceof RestClientResponseException responseException) {
             String body = responseException.getResponseBodyAsString();
-            return new ReplicateException("Replicate ha risposto con errore (%s): %s"
-                    .formatted(responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e);
+            return new ReplicateException(messages.get("replicate.error.httpError",
+                    responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e);
         }
-        return new ReplicateException("Impossibile contattare Replicate: " + e.getMessage(), e);
+        return new ReplicateException(messages.get("replicate.error.connectionFailed", e.getMessage()), e);
     }
 
     private void authHeaders(HttpHeaders headers) {
@@ -127,7 +131,7 @@ public class ReplicateClient {
 
     private void requireToken() {
         if (apiToken == null || apiToken.isBlank()) {
-            throw new ReplicateException("REPLICATE_API_TOKEN non impostato: esporta la variabile d'ambiente prima di avviare l'app.");
+            throw new ReplicateException(messages.get("replicate.error.tokenMissing"));
         }
     }
 }

@@ -1,16 +1,14 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
-    <title>Genera immagine</title>
+    <title th:text="#{generate.title}">Genera immagine</title>
 </head>
 <body>
 <div layout:fragment="content">
-    <h1>Genera immagine</h1>
+    <h1 th:text="#{generate.title}">Genera immagine</h1>
     <p>
-        Scegli un modello Replicate (es. <code>black-forest-labs/flux-schnell</code>),
-        scrivi un prompt e, se vuoi, aggiungi parametri extra come JSON
-        (es. <code>aspect_ratio</code>, <code>num_outputs</code>, <code>seed</code>...).
+        <span th:text="#{generate.intro.part1}">Scegli un modello Replicate (es.</span> <code>black-forest-labs/flux-schnell</code><span th:text="#{generate.intro.part2}">), scrivi un prompt e, se vuoi, aggiungi parametri extra come JSON (es.</span> <code>aspect_ratio</code>, <code>num_outputs</code>, <code>seed</code><span th:text="#{generate.intro.part3}">...).</span>
     </p>
 
     <div id="generation-panel">

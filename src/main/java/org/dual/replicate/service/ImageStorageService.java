@@ -6,6 +6,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.dual.replicate.i18n.Messages;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -21,9 +22,11 @@ public class ImageStorageService {
 
     private final RestClient restClient = RestClient.create();
     private final Path imagesDir;
+    private final Messages messages;
 
-    public ImageStorageService(@Value("${storage.images-dir}") String imagesDir) {
+    public ImageStorageService(@Value("${storage.images-dir}") String imagesDir, Messages messages) {
         this.imagesDir = Path.of(imagesDir);
+        this.messages = messages;
     }
 
     /** Scarica {@code sourceUrl} e salva il risultato come {@code "<generationId>.<ext>"}. Ritorna il filename. */
@@ -31,7 +34,7 @@ public class ImageStorageService {
         try {
             Files.createDirectories(imagesDir);
         } catch (IOException e) {
-            throw new UncheckedIOException("Impossibile creare la directory immagini " + imagesDir, e);
+            throw new UncheckedIOException(messages.get("imagestorage.error.createDir", imagesDir), e);
         }
 
         byte[] bytes = restClient.get()
@@ -45,7 +48,7 @@ public class ImageStorageService {
         try {
             Files.write(target, bytes);
         } catch (IOException e) {
-            throw new UncheckedIOException("Impossibile salvare l'immagine " + target, e);
+            throw new UncheckedIOException(messages.get("imagestorage.error.saveImage", target), e);
         }
         return filename;
     }
@@ -58,7 +61,7 @@ public class ImageStorageService {
         try {
             Files.deleteIfExists(imagesDir.resolve(filename));
         } catch (IOException e) {
-            throw new UncheckedIOException("Impossibile eliminare l'immagine " + filename, e);
+            throw new UncheckedIOException(messages.get("imagestorage.error.deleteImage", filename), e);
         }
     }
 

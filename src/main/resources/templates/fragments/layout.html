@@ -7,7 +7,20 @@
   automaticamente quello qui sotto (comportamento di default del
   dialect), il resto di <head> viene fuso con quello della pagina.
 -->
-<html lang="it" xmlns:th="http://www.thymeleaf.org"
+<!--
+  lang risolto dal bundle (html.lang in messages.properties/
+  messages_en.properties), non da #{#locale.language}: su una locale
+  browser non mappata (es. "de") il contenuto servito ricade comunque
+  sul bundle italiano di default, quindi lang deve seguire il bundle
+  effettivamente usato, non la locale richiesta - altrimenti
+  mentirebbe sulla lingua reale del testo. Le pagine (index.html,
+  generate.html, ecc.) NON devono avere un lang="it" letterale sul
+  proprio <html>: essendo un attributo letterale su entrambi i lati,
+  vincerebbe sempre quello della pagina nel merge di
+  thymeleaf-layout-dialect (vedi sezione layout manager sopra),
+  vanificando questo th:lang dinamico.
+-->
+<html th:lang="#{html.lang}" xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
 <head>
     <meta charset="UTF-8">

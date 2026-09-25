@@ -32,6 +32,12 @@ spring:
     # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
     cache: false
   web:
+    # Fallback quando Accept-Language manca o non e' parsabile:
+    # altrimenti LocaleContextHolder.getLocale() userebbe
+    # Locale.getDefault(), dipendente dall'ambiente di esecuzione. Il
+    # resolver resta AcceptHeaderLocaleResolver (default Boot, non
+    # sovrascritto): legge Accept-Language a ogni richiesta.
+    locale: it
     resources:
       cache:
         cachecontrol:
@@ -51,6 +57,19 @@ spring:
     open-in-view: false
   flyway:
     locations: classpath:db/migration
+  # i18n nativo Spring/Thymeleaf (vedi CLAUDE.md, sezione dedicata):
+  # messages.properties (italiano, bundle di default/fallback) +
+  # messages_en.properties. Nessun LocaleResolver/WebMvcConfigurer da
+  # scrivere: AcceptHeaderLocaleResolver e' gia' il default di Spring
+  # Boot MVC (vedi spring.web.locale sopra), legge Accept-Language a
+  # ogni richiesta (incluse le richieste htmx e il polling di
+  # /generations/{id}).
+  messages:
+    basename: messages
+    encoding: UTF-8
+    # Una locale non mappata (es. "de") ricade sul bundle di base
+    # (italiano), non sul default della JVM che ospita il processo.
+    fallback-to-system-locale: false
   # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone
   # un'API OpenAI-compatibile (https://openrouter.ai/docs): basta puntare lo
   # starter Spring AI per OpenAI sul suo base-url, nessun client custom.

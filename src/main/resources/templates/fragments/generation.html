@@ -15,14 +15,14 @@
          hx-trigger="every 2s"
          hx-swap="outerHTML">
         <span class="spinner" aria-hidden="true"></span>
-        In corso&hellip; (<span th:text="${generation.status}">PENDING</span>)
+        <span th:text="#{generation.status.inProgress(${generation.status})}">In corso&hellip; (PENDING)</span>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">
         <img th:src="@{'/images/' + ${generation.imageFilename}}"
              th:alt="${generation.prompt}"
              class="generated-image">
-        <p><a th:href="@{'/gallery/' + ${generation.id}}">Vedi il dettaglio in galleria</a></p>
+        <p><a th:href="@{'/gallery/' + ${generation.id}}" th:text="#{generation.link.viewDetail}">Vedi il dettaglio in galleria</a></p>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'FAILED'}">

@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
-    <title>Galleria</title>
+    <title th:text="#{gallery.title}">Galleria</title>
 </head>
 <body>
 <div layout:fragment="content">
-    <h1>Galleria</h1>
+    <h1 th:text="#{gallery.title}">Galleria</h1>
     <p th:if="${#lists.isEmpty(generations)}">
-        Nessuna immagine ancora. <a th:href="@{/generations/new}">Generane una</a>.
+        <span th:text="#{gallery.empty.prefix}">Nessuna immagine ancora.</span> <a th:href="@{/generations/new}" th:text="#{gallery.empty.link}">Generane una</a>.
     </p>
 
     <div id="gallery-content">

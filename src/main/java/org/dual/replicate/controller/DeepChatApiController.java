@@ -7,6 +7,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.service.DeepChatService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,9 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeepChatApiController {
 
     private final DeepChatService deepChatService;
+    private final Messages messages;
 
-    public DeepChatApiController(DeepChatService deepChatService) {
+    public DeepChatApiController(DeepChatService deepChatService, Messages messages) {
         this.deepChatService = deepChatService;
+        this.messages = messages;
     }
 
     @PostMapping
@@ -47,7 +50,7 @@ public class DeepChatApiController {
             List<FileRef> files = toFiles(reply.image());
             return new Reply(reply.text(), null, files);
         } catch (Exception e) {
-            return new Reply(null, "Errore nel contattare l'assistente: " + e.getMessage(), null);
+            return new Reply(null, messages.get("deepchat.error.contactAssistant", e.getMessage()), null);
         }
     }
 

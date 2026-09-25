@@ -344,6 +344,85 @@ In sviluppo, se serve ripartire da zero (schema o dati inconsistenti),
 si puo' cancellare l'intera `./data/db/` (e' stato locale, non versionato,
 vedi sopra): Flyway ricrea tutto dalle migrazioni al prossimo avvio.
 
+## Convenzione: internazionalizzazione (i18n)
+
+Tutto il testo utente-visibile (template e messaggi d'errore Java) passa
+dal meccanismo nativo di Spring/Thymeleaf (`MessageSource` + `#{...}`),
+non da stringhe hardcoded: la lingua cambia **automaticamente** in base
+all'header `Accept-Language` del browser, nessuno switcher manuale,
+nessuna persistenza in cookie/sessione. Il `LocaleResolver` e'
+`AcceptHeaderLocaleResolver`, gia' il default di Spring Boot MVC — nessun
+bean `LocaleResolver`/`WebMvcConfigurer` da scrivere, basta
+`spring.web.locale`/`spring.messages.*` in `application.yml`.
+
+Due bundle in `src/main/resources/`: `messages.properties` (italiano,
+default/fallback — usato anche per qualunque locale browser non mappata,
+es. "de") e `messages_en.properties` (inglese). Per aggiungere una
+lingua: nuovo `messages_<locale>.properties` con le stesse chiavi (un
+test, `TemplateRenderingTests.messageBundlesHaveMatchingKeys`, verifica
+che i bundle abbiano lo stesso keyset — aggiornarlo per confrontare
+anche il nuovo file). Convenzione chiavi: punto-separate,
+`<pagina-o-componente>.<categoria>.<elemento>` (es. `header.nav.home`,
+`galleryDetail.title`, `replicate.error.tokenMissing`) — il namespace e'
+solo convenzionale, il bundle resta un unico file piatto sia per le
+stringhe di template sia per i messaggi d'errore Java.
+
+**Regola apostrofi (non ovvia, causa bug silenziosi)**: Spring passa un
+messaggio per `java.text.MessageFormat` **solo** quando la chiamata ha
+argomenti non nulli. `#{key}`/`Messages.get(code)` senza parametri →
+niente `MessageFormat` → apostrofi letterali restano non-escaped
+(`l'app`, `puo'`); `#{key(${arg})}`/`Messages.get(code, args...)` con
+parametri → **sempre** `MessageFormat` → un apostrofo letterale va
+raddoppiato (`''`) o scompare silenziosamente. Stessa attenzione per un
+argomento numerico (id, durata): passa per `NumberFormat` e inserisce
+separatori di migliaia locale-dependent — usare il sotto-pattern
+`{0,number,#}`, non un bare `{0}`.
+
+Lato Java, `org.dual.replicate.i18n.Messages` (wrapper su
+`MessageSourceAccessor`, che risolve implicitamente sulla locale della
+richiesta corrente via `LocaleContextHolder`) va iniettato ovunque un
+messaggio d'errore possa arrivare all'utente — non solo nei controller:
+oggi in `ReplicateClient`, `SearxngClient`, `GenerationService`,
+`ImageStorageService`, `GalleryController`, `DeepChatApiController`,
+`DeepChatService`. La risoluzione avviene sempre al call site, prima di
+costruire l'eccezione (`throw new ReplicateException(messages.get(...))`),
+mai nel costruttore dell'eccezione. Attenzione ai nomi: se la classe usa
+gia' `messages` come variabile locale per qualcos'altro (es.
+`DeepChatService`, dove `messages` e' la lista di turni della
+conversazione), chiamare il campo iniettato diversamente (li' e'
+`i18n`) per evitare lo shadowing.
+
+Un binding Alpine (`:title`, `:placeholder`, ecc.) non passa mai da
+Thymeleaf server-side: `#{...}` su quell'attributo non avrebbe alcun
+effetto. Si ponte con `data-*` attributi renderizzati dal server, letti
+a runtime via `$el.dataset` (vedi il toggle del pannello impostazioni in
+`deep-chat.html`) — pattern riusabile per qualunque altra stringa
+client-only, non il pattern `th:inline="javascript"` gia' in uso altrove
+in quel file per i payload JSON.
+
+`<html lang="...">` e' risolto dal bundle stesso
+(`html.lang=it`/`en` nelle properties, `th:lang="#{html.lang}"` sul
+decoratore `fragments/layout.html`), **non** da `#{#locale.language}`:
+su una locale non mappata il contenuto servito ricade comunque
+sull'italiano, quindi `lang` deve seguire il bundle effettivamente
+usato, non la locale richiesta, altrimenti mentirebbe sulla lingua reale
+del testo. Le pagine (`index.html`, `generate.html`, ecc.) non devono
+avere un `lang` letterale sul proprio `<html>`: per il comportamento di
+merge di thymeleaf-layout-dialect (vedi sezione layout manager sopra),
+un attributo letterale presente su entrambi i lati vince da quello della
+pagina, vanificando il `th:lang` dinamico del decoratore.
+
+Limite noto e accettato: `Generation.errorMessage` (persistito su DB
+quando una generazione fallisce) viene risolto nella locale della
+richiesta che ha generato l'errore e salvato gia' tradotto — se la
+lingua del browser cambia dopo, il testo persistito resta congelato
+nella lingua di scrittura (nessuna migrazione per salvare chiave+
+parametri invece del testo risolto). Allo stesso modo il catch-all di
+`DeepChatApiController` non puo' tradurre messaggi di eccezioni
+arbitrarie di framework terzi (Spring AI, errori di rete): solo il
+prefisso `"Errore nel contattare l'assistente: "` e' tradotto, il resto
+resta quello che la libreria ha restituito.
+
 ## Comandi utili
 
 Nessun Maven Wrapper incluso: serve Maven installato sulla macchina
@@ -373,3 +452,7 @@ mvn clean package          # build del jar eseguibile
 5. La feature tocca un'entity JPA (nuovo campo, nuova tabella, nuova
    relazione)? → nuova migrazione Flyway in `db/migration/` (vedi
    sezione dedicata sopra), mai affidarsi a `ddl-auto` per crearla.
+6. Introduce testo letterale utente-visibile (label, messaggio
+   d'errore)? → chiave in entrambi i bundle (`messages.properties`,
+   `messages_en.properties`, vedi sezione i18n sopra), mai una stringa
+   hardcoded in un template o nel costruttore di un'eccezione.

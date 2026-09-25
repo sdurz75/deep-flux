@@ -14,16 +14,16 @@
         <nav class="container">
             <a th:href="@{/}" class="brand">deepl-flux</a>
             <div class="nav-links">
-                <a th:href="@{/}">Home</a>
-                <a th:href="@{/generations/new}">Genera immagine</a>
-                <a th:href="@{/gallery}">Galleria</a>
-                <a th:href="@{/deep-chat}">Deep Chat</a>
+                <a th:href="@{/}" th:text="#{header.nav.home}">Home</a>
+                <a th:href="@{/generations/new}" th:text="#{header.nav.generate}">Genera immagine</a>
+                <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a>
+                <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}">Deep Chat</a>
             </div>
 
             <div class="theme-switch">
-                <button type="button" @click="theme = 'light'" :class="{ active: theme === 'light' }" title="Light">☀️</button>
-                <button type="button" @click="theme = 'dark'" :class="{ active: theme === 'dark' }" title="Dark">🌙</button>
-                <button type="button" @click="theme = 'auto'" :class="{ active: theme === 'auto' }" title="Auto">Auto</button>
+                <button type="button" @click="theme = 'light'" :class="{ active: theme === 'light' }" th:title="#{header.theme.light}">☀️</button>
+                <button type="button" @click="theme = 'dark'" :class="{ active: theme === 'dark' }" th:title="#{header.theme.dark}">🌙</button>
+                <button type="button" @click="theme = 'auto'" :class="{ active: theme === 'auto' }" th:title="#{header.theme.auto}" th:text="#{header.theme.auto}">Auto</button>
             </div>
         </nav>
     </header>

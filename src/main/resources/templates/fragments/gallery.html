@@ -78,8 +78,8 @@
             <form class="gallery-card-delete" th:action="@{'/gallery/' + ${g.id} + '/delete'}" method="post"
                   th:hx-post="@{'/gallery/' + ${g.id} + '/delete'}"
                   hx-target="closest .gallery-card" hx-swap="outerHTML"
-                  hx-confirm="Eliminare questa immagine?">
-                <button type="submit" class="button-danger">Elimina</button>
+                  th:hx-confirm="#{gallery.confirm.delete}">
+                <button type="submit" class="button-danger" th:text="#{gallery.button.delete}">Elimina</button>
             </form>
         </div>
 
@@ -121,11 +121,11 @@
         </div>
     </div>
 
-    <nav th:if="${totalPages > 1}" class="gallery-pagination" aria-label="Paginazione galleria">
+    <nav th:if="${totalPages > 1}" class="gallery-pagination" th:aria-label="#{gallery.pagination.ariaLabel}">
         <a th:if="${hasPrevious}" th:href="@{/gallery(page=${currentPage - 1})}"
            th:hx-get="@{/gallery(page=${currentPage - 1})}"
-           hx-target="#gallery-content" hx-swap="innerHTML">&laquo; Precedente</a>
-        <span th:unless="${hasPrevious}" class="gallery-pagination-disabled">&laquo; Precedente</span>
+           hx-target="#gallery-content" hx-swap="innerHTML" th:text="#{gallery.pagination.previous}">&laquo; Precedente</a>
+        <span th:unless="${hasPrevious}" class="gallery-pagination-disabled" th:text="#{gallery.pagination.previous}">&laquo; Precedente</span>
 
         <th:block th:each="p : ${pageNumbers}">
             <span th:if="${p == null}" class="gallery-pagination-ellipsis">&hellip;</span>
@@ -138,8 +138,8 @@
 
         <a th:if="${hasNext}" th:href="@{/gallery(page=${currentPage + 1})}"
            th:hx-get="@{/gallery(page=${currentPage + 1})}"
-           hx-target="#gallery-content" hx-swap="innerHTML">Successiva &raquo;</a>
-        <span th:unless="${hasNext}" class="gallery-pagination-disabled">Successiva &raquo;</span>
+           hx-target="#gallery-content" hx-swap="innerHTML" th:text="#{gallery.pagination.next}">Successiva &raquo;</a>
+        <span th:unless="${hasNext}" class="gallery-pagination-disabled" th:text="#{gallery.pagination.next}">Successiva &raquo;</span>
     </nav>
 </th:block>
 

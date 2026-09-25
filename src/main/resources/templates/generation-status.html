@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="it" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
-    <title>Generazione in corso</title>
+    <title th:text="#{generationStatus.title}">Generazione in corso</title>
     <!--
       Fallback per navigazione senza JS: dentro <noscript> non compete
       mai col polling htmx del fragment (hx-trigger="every 2s"), che
@@ -14,7 +14,7 @@
 </head>
 <body>
 <div layout:fragment="content">
-    <h1>Generazione #<span th:text="${generation.id}">1</span></h1>
+    <h1 th:text="#{generationStatus.heading(${generation.id})}">Generazione #1</h1>
     <p><em th:text="${generation.prompt}">prompt</em></p>
 
     <div th:replace="~{fragments/generation :: status}"></div>

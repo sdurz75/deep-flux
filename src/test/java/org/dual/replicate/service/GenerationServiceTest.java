@@ -6,6 +6,7 @@ import java.util.Optional;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
 import org.dual.replicate.repository.GenerationRepository;
@@ -33,11 +34,14 @@ class GenerationServiceTest {
     @Mock
     private ImageStorageService imageStorageService;
 
+    @Mock
+    private Messages messages;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void createSavesGenerationWithPredictionIdAndMergedInput() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
 
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new PredictionResponse("pred-1", "starting", null, null, null));
@@ -56,7 +60,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDownloadsImageWhenPredictionSucceeded() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         when(repository.findById(1L)).thenReturn(Optional.of(generation));
@@ -74,7 +78,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDoesNotCallReplicateWhenAlreadyTerminal() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -88,7 +92,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteRemovesImageFileAndRepositoryRow() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setImageFilename("1.png");
