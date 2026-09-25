@@ -15,6 +15,7 @@ import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
 import org.dual.replicate.replicate.ReplicateException;
+import org.dual.replicate.replicate.TooManyPredictionsException;
 import org.dual.replicate.repository.GenerationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,9 @@ public class GenerationService {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
+
+    /** Soglia oltre la quale create() rifiuta una nuova generazione, vedi TooManyPredictionsException. */
+    private static final int MAX_IN_PROGRESS_PREDICTIONS = 4;
 
     /**
      * L'API di Replicate risponde occasionalmente con 503 transitori su
@@ -77,6 +81,11 @@ public class GenerationService {
         // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
         version = blankToNull(version);
         parametersJson = blankToNull(parametersJson);
+
+        int inProgress = replicateClient.countInProgressPredictions(MAX_IN_PROGRESS_PREDICTIONS);
+        if (inProgress >= MAX_IN_PROGRESS_PREDICTIONS) {
+            throw new TooManyPredictionsException(messages.get("generation.error.tooManyInProgress", inProgress));
+        }
 
         Map<String, Object> input = parseParameters(parametersJson);
         input.put("prompt", prompt);

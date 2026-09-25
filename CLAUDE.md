@@ -146,7 +146,9 @@ src/main/java/org/dual/replicate/
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
     PredictionResponse.java
+    PredictionListResponse.java # risposta di GET /predictions, usata solo per contare le prediction in corso
     ReplicateException.java
+    TooManyPredictionsException.java # rifiuto applicativo: troppe prediction gia' in corso (vedi GenerationService#create)
     CollectionResponse.java     # risposta di GET /collections/{slug}
     ReplicateModelSummary.java  # owner/name/description di un modello (collection o singolo)
     ReplicateModelCatalog.java  # precarica all'avvio i modelli per la dropdown di /deep-chat

@@ -7,6 +7,7 @@ import java.util.Map;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
@@ -72,7 +73,18 @@ public class ImageGenerationTool {
         // i modelli lo supportano, vedi ReplicateModelCatalog.latestVersionOf.
         String version = modelCatalog.latestVersionOf(model).orElse(null);
         String parametersJson = buildParametersJson(toolContext);
-        Generation generation = generationService.create(model, version, prompt, parametersJson);
+        Generation generation;
+        try {
+            generation = generationService.create(model, version, prompt, parametersJson);
+        } catch (ReplicateException e) {
+            // Es. troppe generazioni gia' in corso su Replicate: rifiuto
+            // applicativo, non un errore di rete. Restituirlo come testo
+            // invece di propagarlo fa si' che diventi la risposta del
+            // modello, persistita come ogni altro turno della
+            // conversazione (a differenza del catch-all di
+            // DeepChatApiController, che non persiste nulla).
+            return "Impossibile avviare la generazione: " + e.getMessage() + " Non ritentare automaticamente.";
+        }
         generation = generationService.waitUntilTerminal(generation.getId(), WAIT_TIMEOUT);
 
         if (generation.getStatus() == GenerationStatus.SUCCEEDED) {

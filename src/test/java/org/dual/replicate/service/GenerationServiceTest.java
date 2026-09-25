@@ -10,6 +10,7 @@ import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
+import org.dual.replicate.replicate.TooManyPredictionsException;
 import org.dual.replicate.repository.GenerationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,10 +19,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +62,35 @@ class GenerationServiceTest {
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
         assertThat(inputCaptor.getValue()).containsEntry("prompt", "a cat").containsEntry("seed", 42);
+    }
+
+    @Test
+    void createRejectsWhenTooManyPredictionsInProgress() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+
+        when(replicateClient.countInProgressPredictions(4)).thenReturn(4);
+        when(messages.get(eq("generation.error.tooManyInProgress"), any())).thenReturn("troppe generazioni in corso");
+
+        assertThatThrownBy(() -> service.create("owner/model", null, "a cat", null))
+                .isInstanceOf(TooManyPredictionsException.class)
+                .hasMessage("troppe generazioni in corso");
+
+        verify(replicateClient, never()).createPrediction(anyString(), any(), any());
+    }
+
+    @Test
+    void createProceedsWhenBelowInProgressThreshold() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages);
+
+        when(replicateClient.countInProgressPredictions(4)).thenReturn(3);
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-1", "starting", null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("owner/model", null, "a cat", null);
+
+        assertThat(result.getExternalId()).isEqualTo("pred-1");
+        verify(replicateClient).createPrediction(anyString(), any(), any());
     }
 
     @Test
