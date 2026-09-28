@@ -16,7 +16,7 @@
 
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
               th:action="@{/generations}" method="post">
-            <div th:replace="~{fragments/generation-params :: fields(personalModelsJson=${personalModelsJson}, catalogModelsJson=${catalogModelsJson}, model=${model}, width=${width}, height=${height}, outputFormat=${outputFormat}, numInferenceSteps=${numInferenceSteps}, guidanceScale=${guidanceScale}, seed=${seed}, loraScale=${loraScale}, fluxModel=${fluxModel}, numOutputs=${numOutputs})}"></div>
+            <div th:replace="~{fragments/generation-params :: fields}"></div>
 
             <label for="version" th:text="#{generateForm.label.version}">Version (opzionale, hash pinnato)</label>
             <input type="text" id="version" name="version" th:value="${version}"

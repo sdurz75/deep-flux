@@ -167,19 +167,20 @@ src/main/java/org/dual/replicate/
     ChatConversation.java       # entity JPA: una conversazione di /deep-chat (titolo, elencabile/rinominabile/eliminabile dalla lista conversazioni)
     ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
     ChatMessageRole.java
+    ReplicateModel.java         # entity JPA: un modello Replicate censito (owner/name/version/formType), vedi migrazione V6
+    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (un valore oggi, FLUX_LORA_FF3)
   repository/
     GenerationRepository.java
     ChatConversationRepository.java
     ChatMessageRepository.java
+    ReplicateModelRepository.java
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
     PredictionResponse.java
     PredictionListResponse.java # risposta di GET /predictions, usata solo per contare le prediction in corso
     ReplicateException.java
     TooManyPredictionsException.java # rifiuto applicativo: troppe prediction gia' in corso (vedi GenerationService#create)
-    CollectionResponse.java     # risposta di GET /collections/{slug}
-    ReplicateModelSummary.java  # owner/name/description di un modello (collection o singolo)
-    ReplicateModelCatalog.java  # precarica all'avvio i modelli per la dropdown di /deep-chat
+    ReplicateModelCatalog.java  # legge il catalogo modelli censiti (ReplicateModelRepository) per il combobox di /generations/new e /deep-chat
   search/
     SearxngClient.java          # wrapper RestClient su un'istanza SearXNG (Basic Auth)
     SearxngResponse.java, SearchResult.java, SearxngException.java
@@ -187,6 +188,9 @@ src/main/java/org/dual/replicate/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download; pubblica GenerationCompletedEvent a ogni transizione terminale
     GenerationCompletedEvent.java # evento di dominio: una Generation e' diventata terminale (successo o fallimento), qualunque sia il percorso che ce l'ha portata
     GenerationEventBroadcaster.java # sorgente Reactor (Sinks.Many/Flux) di GET /events, broadcast "gallery-update"/"chat-message"
+    GenerationParameterHandler.java # interfaccia: costruisce l'input Replicate per un GenerationFormType a partire dai campi sottomessi, un'implementazione per form-type
+    GenerationParameterHandlers.java # risolve il GenerationParameterHandler di un GenerationFormType (bean auto-raccolte), usato da GenerationController/DeepChatController/DeepChatApiController
+    FluxLoraFf3ParameterHandler.java # unico GenerationParameterHandler oggi: i 9 campi tipizzati (width/height/formato/steps/guidance/seed/lora scale/variante flux/num output)
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
@@ -205,6 +209,7 @@ src/main/resources/
     V3__create_chat_message.sql      # persistenza della cronologia di /deep-chat (vedi Scopo, punto 3)
     V4__generation_multiple_images.sql # una Generation puo' avere piu' immagini (num_outputs > 1)
     V5__chat_conversations.sql       # CHAT_CONVERSATION + CONVERSATION_ID su CHAT_MESSAGE (vedi Scopo, punto 3)
+    V6__create_replicate_model.sql   # tabella REPLICATE_MODEL (catalogo censito a mano) + seed di sdurz75/flux-lora-ff3
   templates/
     index.html                   # home
     generate.html                 # form nuova generazione
@@ -217,7 +222,8 @@ src/main/resources/
       header.html                # header di navigazione + theme switch, incluso da layout.html
       button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle), vedi "Convenzione: theming"
       generate-form.html         # fragment del form (riusato anche per mostrare errori)
-      generation-params.html     # combobox modello + parametri tipizzati, condiviso da generate-form.html e deep-chat.html
+      generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
+      generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
       generation.html            # fragment di stato di una generazione (polling)
       gallery.html               # griglia + lightbox della galleria (content/grid), compone gallery-card e pagination; grid(...) riusata anche dalla galleria contestuale di /deep-chat
       gallery-card.html          # card di una singola generazione, riusabile da futuri altri listati

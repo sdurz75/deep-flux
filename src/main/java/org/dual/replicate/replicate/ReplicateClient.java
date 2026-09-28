@@ -72,40 +72,6 @@ public class ReplicateClient {
         }
     }
 
-    /** GET /collections/{slug}: elenco curato di modelli per una categoria (es. "text-to-image"). */
-    public CollectionResponse getCollection(String slug) {
-        requireToken();
-        try {
-            return restClient.get()
-                    .uri("/collections/{slug}", slug)
-                    .headers(this::authHeaders)
-                    .retrieve()
-                    .body(CollectionResponse.class);
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
-    }
-
-    /**
-     * GET /models/{owner}/{name}: dettaglio di un singolo modello. Usato
-     * per risolvere i modelli personali configurati in
-     * replicate.personal-models (vedi ReplicateModelCatalog): Replicate
-     * non offre un endpoint per elencare i modelli di un owner, solo
-     * questo per uno gia' conosciuto per nome.
-     */
-    public ReplicateModelSummary getModel(String owner, String name) {
-        requireToken();
-        try {
-            return restClient.get()
-                    .uri("/models/{owner}/{name}", owner, name)
-                    .headers(this::authHeaders)
-                    .retrieve()
-                    .body(ReplicateModelSummary.class);
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
-    }
-
     /**
      * Conta le prediction "in esecuzione" (status starting/processing)
      * sull'intero account, fermandosi non appena il conteggio raggiunge

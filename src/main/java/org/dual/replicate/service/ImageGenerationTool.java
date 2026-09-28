@@ -64,8 +64,8 @@ public class ImageGenerationTool {
 
         // Passare esplicitamente la versione (se nota) invece di lasciare
         // che ReplicateClient usi lo shortcut "ultima versione": non tutti
-        // i modelli lo supportano, vedi ReplicateModelCatalog.latestVersionOf.
-        String version = modelCatalog.latestVersionOf(model).orElse(null);
+        // i modelli lo supportano, vedi ReplicateModelCatalog.versionOf.
+        String version = modelCatalog.versionOf(model).orElse(null);
         String parametersJson = buildParametersJson(toolContext);
         Generation generation;
         try {

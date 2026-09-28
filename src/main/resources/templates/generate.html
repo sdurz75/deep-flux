@@ -7,9 +7,7 @@
 <body>
 <div layout:fragment="content">
     <h1 th:text="#{generate.title}">Genera immagine</h1>
-    <p>
-        <span th:text="#{generate.intro.part1}">Cerca un modello Replicate tra i tuoi o nel catalogo, oppure scrivi un owner/nome non elencato (es.</span> <code>black-forest-labs/flux-schnell</code><span th:text="#{generate.intro.part2}">), scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</span>
-    </p>
+    <p th:text="#{generate.intro}">Scegli un modello censito, scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</p>
 
     <div id="generation-panel">
         <div th:replace="~{fragments/generate-form :: form}"></div>

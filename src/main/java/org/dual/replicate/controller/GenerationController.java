@@ -1,10 +1,18 @@
 package org.dual.replicate.controller;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.GenerationFormType;
+import org.dual.replicate.domain.ReplicateModel;
+import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
-import org.dual.replicate.service.GenerationParameters;
+import org.dual.replicate.service.GenerationParameterHandler;
+import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -28,23 +37,27 @@ public class GenerationController {
 
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
+    private final GenerationParameterHandlers parameterHandlers;
     private final ObjectMapper objectMapper;
+    private final Messages messages;
 
     public GenerationController(GenerationService generationService,
                                  ReplicateModelCatalog modelCatalog,
-                                 ObjectMapper objectMapper) {
+                                 GenerationParameterHandlers parameterHandlers,
+                                 ObjectMapper objectMapper,
+                                 Messages messages) {
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
+        this.parameterHandlers = parameterHandlers;
         this.objectMapper = objectMapper;
+        this.messages = messages;
     }
 
     @GetMapping("/new")
     public String form(@RequestParam(required = false) String prompt, Model model) {
         model.addAttribute("prompt", prompt);
-        populateGenerationParamsModel(model, "", GenerationParameters.DEFAULT_WIDTH, GenerationParameters.DEFAULT_HEIGHT,
-                GenerationParameters.DEFAULT_OUTPUT_FORMAT, GenerationParameters.DEFAULT_NUM_INFERENCE_STEPS,
-                GenerationParameters.DEFAULT_GUIDANCE_SCALE, null, GenerationParameters.DEFAULT_LORA_SCALE,
-                GenerationParameters.DEFAULT_FLUX_MODEL, GenerationParameters.DEFAULT_NUM_OUTPUTS);
+        String defaultModel = modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse("");
+        populateGenerationParamsModel(model, defaultModel, Map.of());
         return "generate";
     }
 
@@ -52,24 +65,19 @@ public class GenerationController {
     public String create(@RequestParam String model,
                           @RequestParam(required = false) String version,
                           @RequestParam String prompt,
-                          @RequestParam(required = false) Integer width,
-                          @RequestParam(required = false) Integer height,
-                          @RequestParam(value = "output_format", required = false) String outputFormat,
-                          @RequestParam(value = "num_inference_steps", required = false) Integer numInferenceSteps,
-                          @RequestParam(value = "guidance_scale", required = false) Double guidanceScale,
-                          @RequestParam(required = false) Long seed,
-                          @RequestParam(value = "lora_scale", required = false) Double loraScale,
-                          @RequestParam(value = "aspect_ratio", required = false) String aspectRatio,
-                          @RequestParam(value = "flux_model", required = false) String fluxModel,
-                          @RequestParam(value = "num_outputs", required = false) Integer numOutputs,
+                          @RequestParam Map<String, String> allParams,
                           @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           Model uiModel) {
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         try {
-            String parametersJson = objectMapper.writeValueAsString(GenerationParameters.toMap(
-                    aspectRatio, width, height, outputFormat, numInferenceSteps, guidanceScale, seed, loraScale,
-                    fluxModel, numOutputs));
-            Generation generation = generationService.create(model, version, prompt, parametersJson);
+            GenerationFormType formType = modelCatalog.formTypeOf(model)
+                    .orElseThrow(() -> new ReplicateException(messages.get("generateForm.error.unknownModel", model)));
+            String resolvedVersion = (version == null || version.isBlank())
+                    ? modelCatalog.versionOf(model).orElse(null)
+                    : version;
+            Map<String, Object> parameters = parameterHandlers.get(formType).toParameterMap(allParams);
+            String parametersJson = objectMapper.writeValueAsString(parameters);
+            Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson);
             if (isHtmxRequest) {
                 uiModel.addAttribute("generation", generation);
                 return "fragments/generation :: status";
@@ -79,35 +87,64 @@ public class GenerationController {
             uiModel.addAttribute("error", e.getMessage());
             uiModel.addAttribute("version", version);
             uiModel.addAttribute("prompt", prompt);
-            populateGenerationParamsModel(uiModel, model, width, height, outputFormat,
-                    numInferenceSteps, guidanceScale, seed, loraScale, fluxModel, numOutputs);
+            populateGenerationParamsModel(uiModel, model, allParams);
             return isHtmxRequest ? "fragments/generate-form :: form" : "generate";
         }
     }
 
     /**
-     * Attributi richiesti da fragments/generation-params.html (combobox
-     * modello + 9 campi tipizzati): usato sia dal primo caricamento di
-     * /generations/new sia dal path di errore di create(), altrimenti il
-     * fragment ri-renderizzato sul path di errore perderebbe le liste
-     * modelli (combobox vuoto) oltre ai valori inseriti dall'utente.
+     * Ri-renderizza solo i campi del form-type del modello selezionato
+     * (target #generation-params-fields, vedi fragments/generation-params.html),
+     * scatenata dalla &lt;select&gt; modello ad ogni cambio
+     * (hx-trigger="change"): cosi' un modello con una form diversa mostra
+     * subito i campi giusti. I valori gia' sottomessi (hx-include, vedi
+     * il fragment) sono preservati per i campi che il nuovo form-type
+     * condivide col precedente, altrimenti si usano i default di quel
+     * form-type. Solo fragment: nessuna variante a pagina intera, non
+     * avrebbe senso come URL a se stante (stesso principio di
+     * DeepChatController#gallery).
      */
-    private void populateGenerationParamsModel(Model model, String modelValue, Integer width, Integer height,
-                                                String outputFormat, Integer numInferenceSteps,
-                                                Double guidanceScale, Long seed, Double loraScale,
-                                                String fluxModel, Integer numOutputs) {
-        model.addAttribute("personalModelsJson", objectMapper.writeValueAsString(modelCatalog.personalModels()));
-        model.addAttribute("catalogModelsJson", objectMapper.writeValueAsString(modelCatalog.models()));
+    @GetMapping("/params")
+    public String params(@RequestParam String model, @RequestParam Map<String, String> allParams, Model uiModel) {
+        GenerationFormType formType = modelCatalog.formTypeOf(model)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("generateForm.error.unknownModel", model)));
+        GenerationParameterHandler handler = parameterHandlers.get(formType);
+        populateFormTypeFields(uiModel, handler, allParams);
+        return handler.fragmentName();
+    }
+
+    /**
+     * Attributi richiesti dal guscio fragments/generation-params.html
+     * (combobox modello + contenitore dei campi del form-type corrente):
+     * usato sia dal primo caricamento di /generations/new sia dal path
+     * di errore di create(), altrimenti il fragment ri-renderizzato sul
+     * path di errore perderebbe la lista modelli (select vuota) oltre ai
+     * valori inseriti dall'utente.
+     */
+    private void populateGenerationParamsModel(Model model, String modelValue, Map<String, String> allParams) {
+        model.addAttribute("models", modelCatalog.models());
         model.addAttribute("model", modelValue);
-        model.addAttribute("width", width);
-        model.addAttribute("height", height);
-        model.addAttribute("outputFormat", outputFormat);
-        model.addAttribute("numInferenceSteps", numInferenceSteps);
-        model.addAttribute("guidanceScale", guidanceScale);
-        model.addAttribute("seed", seed);
-        model.addAttribute("loraScale", loraScale);
-        model.addAttribute("fluxModel", fluxModel);
-        model.addAttribute("numOutputs", numOutputs);
+        GenerationParameterHandler handler = modelCatalog.formTypeOf(modelValue)
+                .map(parameterHandlers::get)
+                .orElseGet(() -> modelCatalog.defaultModel()
+                        .map(m -> parameterHandlers.get(m.getFormType()))
+                        .orElse(null));
+        model.addAttribute("formType", handler == null ? null : handler.formType().name());
+        if (handler != null) {
+            populateFormTypeFields(model, handler, allParams);
+        }
+    }
+
+    /** Valori dei campi del form-type: quelli sottomessi (se presenti) sopra i default di quel form-type. */
+    private void populateFormTypeFields(Model model, GenerationParameterHandler handler, Map<String, String> allParams) {
+        Map<String, Object> fields = new LinkedHashMap<>(handler.defaultFields());
+        handler.defaultFields().keySet().forEach(key -> {
+            String submitted = allParams.get(key);
+            if (submitted != null && !submitted.isBlank()) {
+                fields.put(key, submitted);
+            }
+        });
+        fields.forEach(model::addAttribute);
     }
 
     @GetMapping("/{id}")

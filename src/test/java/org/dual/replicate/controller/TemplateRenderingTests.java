@@ -61,6 +61,42 @@ class TemplateRenderingTests {
     }
 
     /**
+     * Nuova validazione introdotta col catalogo modelli in DB (vedi il
+     * piano di questa feature): GenerationController.create ora rifiuta
+     * un modello non censito PRIMA di chiamare Replicate, invece di
+     * accettare qualunque stringa come faceva la vecchia versione
+     * "testo libero" del combobox.
+     */
+    @Test
+    void createWithUnknownModelIsRejectedInline() throws Exception {
+        String body = mockMvc.perform(post("/generations")
+                        .header("HX-Request", "true")
+                        .param("model", "owner/does-not-exist")
+                        .param("prompt", "a cat"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("owner/does-not-exist");
+    }
+
+    /**
+     * Endpoint htmx-only scatenato dalla select modello ad ogni cambio
+     * (vedi fragments/generation-params.html): deve ritornare i campi
+     * del form-type di quel modello, non una pagina intera.
+     */
+    @Test
+    void paramsEndpointRendersFieldsForKnownModel() throws Exception {
+        mockMvc.perform(get("/generations/params").param("model", "sdurz75/flux-lora-ff3"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void paramsEndpointReturnsNotFoundForUnknownModel() throws Exception {
+        mockMvc.perform(get("/generations/params").param("model", "owner/does-not-exist"))
+                .andExpect(status().isNotFound());
+    }
+
+    /**
      * Nessuna pagina "senza conversazione": /deep-chat nudo risolve/crea
      * sempre quella di default e ci naviga (vedi DeepChatController).
      * @Transactional: senza, ogni esecuzione di questo test (e degli

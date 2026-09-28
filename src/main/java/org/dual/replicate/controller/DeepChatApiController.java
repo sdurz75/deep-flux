@@ -1,13 +1,14 @@
 package org.dual.replicate.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.service.DeepChatService;
-import org.dual.replicate.service.GenerationParameters;
+import org.dual.replicate.service.GenerationParameterHandlers;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,11 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
  * JSON, non fragment HTML: e' l'eccezione prevista da CLAUDE.md per un
  * "componente complesso" montato come Web Component isolato su un div.
  * Il contratto richiesta/risposta qui sotto ricalca il default di
- * deep-chat: {"messages":[...], "model": "...", "aspect_ratio": "...",
- * ...} in ingresso (questi campi extra arrivano via requestInterceptor,
- * vedi il template — il pannello impostazioni li invia gia' nel
- * vocabolario Replicate, snake_case, per evitare rinominazioni lungo
- * la catena), {"text": "...", "files":[{"src","name","type":"image"}]}
+ * deep-chat: {"messages":[...], "model": "...", "parameters": {...}} in
+ * ingresso ({@code parameters} arriva via requestInterceptor, vedi il
+ * template — il pannello impostazioni li invia gia' col nome dei campi
+ * del form-type corrente, risolti in "input" Replicate dallo stesso
+ * GenerationParameterHandler usato dal form diretto, vedi
+ * toGenerationParameters sotto), {"text": "...", "files":[{"src","name","type":"image"}]}
  * o {"error":"..."} in uscita — "files" con type "image" e' il formato
  * che deep-chat riconosce per mostrare un'immagine in chat, non solo
  * testo.
@@ -33,10 +35,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeepChatApiController {
 
     private final DeepChatService deepChatService;
+    private final ReplicateModelCatalog modelCatalog;
+    private final GenerationParameterHandlers parameterHandlers;
     private final Messages messages;
 
-    public DeepChatApiController(DeepChatService deepChatService, Messages messages) {
+    public DeepChatApiController(DeepChatService deepChatService,
+                                  ReplicateModelCatalog modelCatalog,
+                                  GenerationParameterHandlers parameterHandlers,
+                                  Messages messages) {
         this.deepChatService = deepChatService;
+        this.modelCatalog = modelCatalog;
+        this.parameterHandlers = parameterHandlers;
         this.messages = messages;
     }
 
@@ -56,32 +65,38 @@ public class DeepChatApiController {
     }
 
     /**
-     * Delega a GenerationParameters.toMap (condiviso con GenerationController,
-     * il form diretto): solo i campi effettivamente presenti finiscono
-     * nella mappa, cosi' un modello che non supporta uno di questi
-     * parametri non lo riceve proprio, invece di fallire su un valore
-     * imposto ma inutile per lui.
+     * Delega al GenerationParameterHandler del form-type del modello
+     * scelto (stesso condiviso con GenerationController, il form
+     * diretto): se il modello non e' censito nel catalogo (non dovrebbe
+     * succedere, la select lato client offre solo modelli censiti)
+     * nessun parametro extra viene inviato, il modello riceve solo il
+     * prompt. I valori arrivano dal client gia' come stringhe (vedi
+     * deep-chat.html), stesso formato di un submit HTML.
      */
     private Map<String, Object> toGenerationParameters(Request request) {
-        return GenerationParameters.toMap(request.aspectRatio(), request.width(), request.height(),
-                request.outputFormat(), request.numInferenceSteps(), request.guidanceScale(),
-                request.seed(), request.loraScale(), request.fluxModel(), request.numOutputs());
+        return modelCatalog.formTypeOf(request.model())
+                .map(parameterHandlers::get)
+                .map(handler -> handler.toParameterMap(toStringMap(request.parameters())))
+                .orElseGet(Map::of);
+    }
+
+    private static Map<String, String> toStringMap(Map<String, Object> parameters) {
+        Map<String, String> submitted = new LinkedHashMap<>();
+        if (parameters != null) {
+            parameters.forEach((key, value) -> {
+                if (value != null) {
+                    submitted.put(key, String.valueOf(value));
+                }
+            });
+        }
+        return submitted;
     }
 
     public record Request(
             Long conversationId,
             List<DeepChatService.Turn> messages,
             String model,
-            @JsonProperty("aspect_ratio") String aspectRatio,
-            Integer width,
-            Integer height,
-            @JsonProperty("output_format") String outputFormat,
-            @JsonProperty("num_inference_steps") Integer numInferenceSteps,
-            @JsonProperty("guidance_scale") Double guidanceScale,
-            Long seed,
-            @JsonProperty("lora_scale") Double loraScale,
-            @JsonProperty("flux_model") String fluxModel,
-            @JsonProperty("num_outputs") Integer numOutputs) {
+            Map<String, Object> parameters) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

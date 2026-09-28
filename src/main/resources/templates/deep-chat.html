@@ -37,9 +37,10 @@
       String" invece di doversi affidare a come Thymeleaf serializzerebbe
       un elenco di ChatMessage — chatHistoryJson arriva gia' come JSON
       dal controller (DeepChatController), qui solo JSON.parse. I
-      modelli (personalModelsJson/catalogModelsJson) non passano piu' da
-      qui: sono parametri di fragments/generation-params.html, letti li'
-      via il bridge data-* (vedi il commento sul fragment stesso).
+      modelli censiti (vedi ReplicateModelCatalog) non passano piu' da
+      qui: sono letti direttamente dal Model in
+      fragments/generation-params.html (una select nativa su una vera
+      entity JPA, niente piu' bridge JSON/data-*).
       deepChatConversationId identifica la conversazione corrente
       (attiva lato server, vedi DeepChatController): il
       requestInterceptor piu' in basso lo inietta in ogni richiesta a
@@ -119,7 +120,7 @@
                   davvero (vedi fragments/generate-form.html).
                 -->
                 <form id="generation-settings-form" onsubmit="return false;">
-                    <div th:replace="~{fragments/generation-params :: fields(personalModelsJson=${personalModelsJson}, catalogModelsJson=${catalogModelsJson}, model=${model}, width=${width}, height=${height}, outputFormat=${outputFormat}, numInferenceSteps=${numInferenceSteps}, guidanceScale=${guidanceScale}, seed=${seed}, loraScale=${loraScale}, fluxModel=${fluxModel}, numOutputs=${numOutputs})}"></div>
+                    <div th:replace="~{fragments/generation-params :: fields}"></div>
                 </form>
             </div>
             </th:block>
@@ -245,24 +246,30 @@
       window.setDeepChatSettings: un solo listener "input" delegato sul
       <form>, non un @input per campo. Funziona sia per la digitazione
       nei campi tipizzati (input nativi, nessun Alpine coinvolto) sia
-      per la scelta di un modello dal combobox (l'x-init del fragment
-      spara un evento "input" sintetico dopo pick()/al primo render,
-      vedi il fragment) — delegato qui perche' deve leggere TUTTI i
-      campi in un colpo a ogni cambiamento, non solo quello che ha
-      scatenato l'evento. Script classico (non module/deferred): gia'
-      eseguito durante il parsing, il <form> sopra (nel rail sinistro
-      non collassabile, vedi fragments/accordion.html :: staticPanels)
-      esiste gia' quando arriva qui, niente attesa di DOMContentLoaded.
+      per il cambio modello dalla select (evento nativo "input", nessun
+      dispatch sintetico necessario) sia per lo swap htmx dei campi del
+      form-type dopo un cambio modello (vedi l'hx-on:htmx:after-swap su
+      #generation-params-fields nel fragment, che dopo lo swap dispara lo
+      stesso evento "input" sintetico) — delegato qui perche' deve
+      leggere TUTTI i campi in un colpo a ogni cambiamento, non solo
+      quello che ha scatenato l'evento. Valori sempre stringa (FormData
+      li restituisce sempre cosi'): la conversione al vocabolario/tipi
+      Replicate e' interamente lato server
+      (GenerationParameterHandler.toParameterMap), niente lista di campi
+      numerici da mantenere qui per ogni nuovo form-type. Script classico
+      (non module/deferred): gia' eseguito durante il parsing, il <form>
+      sopra (nel rail sinistro non collassabile, vedi
+      fragments/accordion.html :: staticPanels) esiste gia' quando
+      arriva qui, niente attesa di DOMContentLoaded.
     -->
     <script>
         (function () {
-            var NUMERIC_FIELDS = ['width', 'height', 'num_inference_steps', 'guidance_scale', 'seed', 'lora_scale', 'num_outputs'];
             var form = document.getElementById('generation-settings-form');
             form.addEventListener('input', function () {
                 var data = new FormData(form);
                 var settings = {};
                 data.forEach(function (value, key) {
-                    settings[key] = (NUMERIC_FIELDS.indexOf(key) !== -1 && value !== '') ? Number(value) : value;
+                    settings[key] = value;
                 });
                 window.setDeepChatSettings(settings);
             });
@@ -296,14 +303,20 @@
       aggiorna piu' se le impostazioni cambiano dopo il primo turno.
       requestInterceptor invece legge window.deepChatSettings fresco ad
       ogni invio (impostato dal pannello sopra, non da questo script:
-      vedi il commento su Alpine/timing piu' in alto). I campi vuoti/non
-      impostati (stringa vuota, null, undefined) non vengono inclusi nel
-      body: cosi' un modello che non supporta un parametro non lo
-      riceve, invece di fallire su un valore imposto ma inutile per lui.
-      conversationId e' assegnato SEMPRE (non e' un parametro di
-      generazione opzionale come gli altri nel loop sopra: senza,
-      DeepChatApiController non saprebbe a quale conversazione
-      persistere il turno).
+      vedi il commento su Alpine/timing piu' in alto). "model" e' l'unico
+      campo del pannello che finisce a livello radice del body (vedi
+      DeepChatApiController.Request): tutti gli altri campi del form-type
+      corrente finiscono sotto "parameters", nidificati, cosi'
+      DeepChatApiController puo' delegare la loro interpretazione allo
+      stesso GenerationParameterHandler del form diretto senza dover
+      elencare i nomi dei campi nel Request record — un nuovo form-type
+      non richiede modifiche qui. I campi vuoti/non impostati (stringa
+      vuota, null, undefined) non vengono inclusi: cosi' un modello che
+      non supporta un parametro non lo riceve, invece di fallire su un
+      valore imposto ma inutile per lui. conversationId e' assegnato
+      SEMPRE (non e' un parametro di generazione opzionale come gli
+      altri: senza, DeepChatApiController non saprebbe a quale
+      conversazione persistere il turno).
     -->
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
@@ -311,11 +324,18 @@
             deepChat.initialMessages = window.deepChatHistory || [];
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
+                const parameters = {};
                 for (const [key, value] of Object.entries(settings)) {
-                    if (value !== null && value !== undefined && value !== '') {
-                        details.body[key] = value;
+                    if (value === null || value === undefined || value === '') {
+                        continue;
+                    }
+                    if (key === 'model') {
+                        details.body.model = value;
+                    } else {
+                        parameters[key] = value;
                     }
                 }
+                details.body.parameters = parameters;
                 details.body.conversationId = window.deepChatConversationId;
                 return details;
             };

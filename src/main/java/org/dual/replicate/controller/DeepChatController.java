@@ -1,19 +1,22 @@
 package org.dual.replicate.controller;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
+import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.service.ChatConversationService;
 import org.dual.replicate.service.DeepChatService;
-import org.dual.replicate.service.GenerationParameters;
+import org.dual.replicate.service.GenerationParameterHandler;
+import org.dual.replicate.service.GenerationParameterHandlers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -40,6 +43,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class DeepChatController {
 
     private final ReplicateModelCatalog modelCatalog;
+    private final GenerationParameterHandlers parameterHandlers;
     private final ChatConversationRepository chatConversationRepository;
     private final ChatConversationService chatConversationService;
     private final ChatMessageRepository chatMessageRepository;
@@ -47,12 +51,14 @@ public class DeepChatController {
     private final Messages messages;
 
     public DeepChatController(ReplicateModelCatalog modelCatalog,
+                               GenerationParameterHandlers parameterHandlers,
                                ChatConversationRepository chatConversationRepository,
                                ChatConversationService chatConversationService,
                                ChatMessageRepository chatMessageRepository,
                                ObjectMapper objectMapper,
                                Messages messages) {
         this.modelCatalog = modelCatalog;
+        this.parameterHandlers = parameterHandlers;
         this.chatConversationRepository = chatConversationRepository;
         this.chatConversationService = chatConversationService;
         this.chatMessageRepository = chatMessageRepository;
@@ -71,28 +77,26 @@ public class DeepChatController {
         chatConversationRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("deepchat.error.conversationNotFound")));
 
-        // Serializzate qui (non nel template) come stringhe JSON gia'
-        // pronte: il template le inlinea via Thymeleaf JS-inlining
-        // (th:inline="javascript"), che sa escapare una String Java per
-        // un contesto JS in modo sicuro senza dover capire come
-        // Thymeleaf serializzerebbe i record (owner()/name() non sono
-        // getter "getOwner()" in stile JavaBean).
-        model.addAttribute("personalModelsJson", objectMapper.writeValueAsString(modelCatalog.personalModels()));
-        model.addAttribute("catalogModelsJson", objectMapper.writeValueAsString(modelCatalog.models()));
+        // chatHistoryJson e' serializzata qui (non nel template) come
+        // stringa JSON gia' pronta: il template la inlinea via Thymeleaf
+        // JS-inlining (th:inline="javascript"), che sa escapare una
+        // String Java per un contesto JS in modo sicuro. I modelli
+        // (models sotto) sono invece una vera entity JPA con getter
+        // JavaBean: la select del combobox li legge con un semplice
+        // th:each, nessun bridge JSON/data-* necessario.
         model.addAttribute("chatHistoryJson", objectMapper.writeValueAsString(loadHistory(id)));
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", id);
         model.addAttribute("contextualGenerations", chatMessageRepository.findSucceededGenerationsByConversationId(id));
-        model.addAttribute("model", defaultModel());
-        model.addAttribute("width", GenerationParameters.DEFAULT_WIDTH);
-        model.addAttribute("height", GenerationParameters.DEFAULT_HEIGHT);
-        model.addAttribute("outputFormat", GenerationParameters.DEFAULT_OUTPUT_FORMAT);
-        model.addAttribute("numInferenceSteps", GenerationParameters.DEFAULT_NUM_INFERENCE_STEPS);
-        model.addAttribute("guidanceScale", GenerationParameters.DEFAULT_GUIDANCE_SCALE);
-        model.addAttribute("seed", null);
-        model.addAttribute("loraScale", GenerationParameters.DEFAULT_LORA_SCALE);
-        model.addAttribute("fluxModel", GenerationParameters.DEFAULT_FLUX_MODEL);
-        model.addAttribute("numOutputs", GenerationParameters.DEFAULT_NUM_OUTPUTS);
+
+        model.addAttribute("models", modelCatalog.models());
+        Optional<ReplicateModel> defaultModel = modelCatalog.defaultModel();
+        model.addAttribute("model", defaultModel.map(ReplicateModel::getIdentifier).orElse(""));
+        GenerationParameterHandler handler = defaultModel.map(m -> parameterHandlers.get(m.getFormType())).orElse(null);
+        model.addAttribute("formType", handler == null ? null : handler.formType().name());
+        if (handler != null) {
+            handler.defaultFields().forEach(model::addAttribute);
+        }
         return "deep-chat";
     }
 
@@ -169,17 +173,6 @@ public class DeepChatController {
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", activeConversationId);
         return "fragments/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
-    }
-
-    /** Primo modello personale, altrimenti primo di catalogo, altrimenti nessuno: sostituisce la vecchia scelta lato client in deep-chat.html. */
-    private String defaultModel() {
-        if (!modelCatalog.personalModels().isEmpty()) {
-            return modelCatalog.personalModels().get(0).id();
-        }
-        if (!modelCatalog.models().isEmpty()) {
-            return modelCatalog.models().get(0).id();
-        }
-        return "";
     }
 
     /**
