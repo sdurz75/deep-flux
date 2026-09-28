@@ -5,6 +5,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.event.ChatMessagePushEvent;
+import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
+import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
 
@@ -48,7 +51,7 @@ class GenerationEventBroadcasterTest {
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         broadcaster.onGenerationCompleted(new GenerationCompletedEvent(generation));
-        broadcaster.broadcastChatMessage(new GenerationEventBroadcaster.ChatMessagePush(1L, "Immagine pronta", null));
+        broadcaster.broadcastChatMessage(new ChatMessagePushEvent(1L, "Immagine pronta", null));
 
         assertThat(receivedEventNames).containsExactly("gallery-update");
 
@@ -62,7 +65,64 @@ class GenerationEventBroadcasterTest {
         GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
 
         assertThatCode(() -> broadcaster.broadcastChatMessage(
-                new GenerationEventBroadcaster.ChatMessagePush(1L, "nessuno ascolta", null)))
+                new ChatMessagePushEvent(1L, "nessuno ascolta", null)))
                 .doesNotThrowAnyException();
+    }
+
+    /**
+     * Una cancellazione (singola o in blocco, vedi GenerationService
+     * #delete/#deleteAll) deve riusare lo stesso evento SSE del
+     * completamento: "gallery-update" e' generico ("qualcosa e'
+     * cambiato, ricarica"), sia la galleria globale sia quella
+     * contestuale di /deep-chat lo ascoltano gia' per questo motivo.
+     */
+    @Test
+    void generationsDeletedEventEmetteGalleryUpdate() {
+        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
+        List<String> receivedEventNames = new CopyOnWriteArrayList<>();
+
+        broadcaster.subscribe().subscribe(new BaseSubscriber<>() {
+            @Override
+            protected void hookOnSubscribe(Subscription subscription) {
+                subscription.request(1);
+            }
+
+            @Override
+            protected void hookOnNext(org.springframework.http.codec.ServerSentEvent<Object> value) {
+                receivedEventNames.add(value.event());
+            }
+        });
+
+        broadcaster.onGenerationsDeleted(new GenerationsDeletedEvent(List.of(1L, 2L)));
+
+        assertThat(receivedEventNames).containsExactly("gallery-update");
+    }
+
+    /**
+     * Cancellazione per-immagine NON a cascata (GenerationService#deleteImage,
+     * la generazione resta): stesso evento SSE generico "gallery-update"
+     * dei casi sopra, non un evento/tipo diverso - chi ascolta ri-fa
+     * semplicemente fetch della propria vista.
+     */
+    @Test
+    void generationImageDeletedEventEmetteGalleryUpdate() {
+        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
+        List<String> receivedEventNames = new CopyOnWriteArrayList<>();
+
+        broadcaster.subscribe().subscribe(new BaseSubscriber<>() {
+            @Override
+            protected void hookOnSubscribe(Subscription subscription) {
+                subscription.request(1);
+            }
+
+            @Override
+            protected void hookOnNext(org.springframework.http.codec.ServerSentEvent<Object> value) {
+                receivedEventNames.add(value.event());
+            }
+        });
+
+        broadcaster.onGenerationImageDeleted(new GenerationImageDeletedEvent(1L));
+
+        assertThat(receivedEventNames).containsExactly("gallery-update");
     }
 }

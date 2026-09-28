@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Griglia con tutte le immagini di una Generation (num_outputs > 1, vedi
+  CLAUDE.md), con cancellazione per-immagine: unico chiamante oggi,
+  fragments/generation.html :: status (ramo SUCCEEDED), il dettaglio
+  stesso di /generations/{id} - vedi CLAUDE.md, non c'e' piu' una pagina
+  di dettaglio separata da cui questo fragment veniva incluso una
+  seconda volta in forma "bare".
+
+  conversationId/generationsPage (entrambi nullable, propagati dal
+  chiamante): finiscono come query param sul bottone elimina, cosi' il
+  redirect del caso a cascata (ultima immagine, vedi
+  GenerationController#deleteImage) segue la stessa provenienza del
+  link "indietro" della pagina di dettaglio, invece di tornare sempre
+  al default /gallery.
+
+  id="generation-images-grid" fisso: hx-target del bottone verso se
+  stesso (outerHTML) per il caso non a cascata, stesso pattern di
+  id="generation-status" nello status fragment.
+-->
+<div th:fragment="grid(generation, conversationId, generationsPage)" id="generation-images-grid" class="flex flex-wrap gap-4 my-4">
+    <div th:each="filename : ${generation.imageFilenames}" class="relative">
+        <img th:src="@{'/images/' + ${filename}}"
+             th:alt="${generation.prompt}"
+             class="max-w-full rounded-md border border-line dark:border-line-dark block">
+        <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.deleteImage},
+                    hxPost=null,
+                    hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                    hxConfirm=${generation.imageFilenames.size() == 1} ? #{gallery.confirm.deleteLastImage} : #{gallery.confirm.deleteImage},
+                    hxSwap='outerHTML', hxTarget='#generation-images-grid',
+                    extraClass='absolute top-1 right-1 px-1.5 py-0.5 text-[0.75rem]')}">Elimina</button>
+    </div>
+</div>
+
+</body>
+</html>

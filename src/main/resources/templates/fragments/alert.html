@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Box di errore/avviso: stesse classi ripetute identiche in tre punti
+  (generate-form.html, generation.html, generation-params.html) prima di
+  questo fragment. Il chiamante mantiene il proprio th:if sull'elemento
+  SOSTITUITO (th:block th:if attorno al th:replace), non sullo stesso tag
+  del th:replace: l'ordine di valutazione degli attributi Thymeleaf
+  processa prima l'inclusione fragment, poi th:if, quindi i due non vanno
+  combinati sullo stesso elemento.
+-->
+<p th:fragment="error(text)"
+   class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
+   th:text="${text}">Errore</p>
+
+</body>
+</html>

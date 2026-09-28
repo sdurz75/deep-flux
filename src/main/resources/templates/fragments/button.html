@@ -33,23 +33,52 @@
   conversazione): sovrascrive solo bg/testo rispetto al default
   "button" del layer base (bordo/radius/padding/cursor/hover restano
   ereditati, stessa relazione di theme.css tra "button" e
-  ".button-danger" di prima). hxPost/hxConfirm/hxSwap/hxTarget: null
-  quando l'htmx sta sul <form> che contiene il bottone, non sul bottone
-  stesso (pattern a livello di form, per degradare senza JavaScript -
-  vedi gallery-detail.html); non null quando invece l'htmx sta
-  direttamente sul bottone, senza <form> (vedi il delete per-riga di
-  fragments/conversation-list.html, che usa anche hxTarget per puntare
-  a #conversation-list-items invece che a se stesso).
+  ".button-danger" di prima). hxPost/hxDelete/hxConfirm/hxSwap/hxTarget
+  vanno sempre passati esplicitamente da ogni chiamante, anche `null`
+  per quelli che l'azione non usa (es. solo uno tra hxPost/hxDelete e'
+  valorizzato, l'altro null, a seconda del verbo dell'azione) - stesso
+  principio gia' vero per hxTarget quando l'htmx non ha bisogno di un
+  target diverso dal bottone stesso.
 -->
-<button th:fragment="danger(type, text, hxPost, hxConfirm, hxSwap, hxTarget, extraClass)"
+<button th:fragment="danger(type, text, hxPost, hxDelete, hxConfirm, hxSwap, hxTarget, extraClass)"
         th:type="${type} ?: 'button'"
         class="bg-danger dark:bg-danger-dark text-accent-contrast dark:text-accent-contrast-dark"
         th:classappend="${extraClass}"
         th:hx-post="${hxPost}"
+        th:hx-delete="${hxDelete}"
         th:hx-confirm="${hxConfirm}"
         th:hx-swap="${hxSwap}"
         th:hx-target="${hxTarget}"
         th:text="${text}">Bottone</button>
+
+<!--
+  Variante di "danger" per la cancellazione in blocco dalla griglia
+  (fragments/gallery.html :: grid, checkbox multiple): disabilitato
+  finche' non c'e' selezione. A differenza degli altri parametri del
+  bottone (testo/attributi htmx), `selectedIds` NON e' passato da
+  Thymeleaf: e' un binding Alpine puro (`:disabled`, non processabile
+  da th:attr per attributi con `:`, vedi CLAUDE.md "Convenzione:
+  theming") che assume SEMPRE lo stesso nome di variabile su un
+  antenato x-data (oggi definito in grid(...) sopra) - stesso principio
+  gia' in uso per `theme` in themeToggle sotto, qui pero' senza nemmeno
+  bisogno di un ponte data-*: non e' un valore per-istanza, e'
+  letteralmente la stessa espressione ovunque questo bottone compare.
+  hx-swap="none" fisso (non parametrizzato come in "danger"): per
+  questo bottone e' sempre vero, il refresh arriva dall'evento SSE
+  "gallery-update" (vedi GenerationEventBroadcaster/GenerationService
+  #deleteAll), mai da uno swap diretto della risposta.
+-->
+<button th:fragment="dangerSelectable(text, hxPost, hxConfirm, extraClass)"
+        type="button"
+        disabled
+        class="bg-danger dark:bg-danger-dark text-accent-contrast dark:text-accent-contrast-dark
+               disabled:opacity-40 disabled:cursor-not-allowed"
+        th:classappend="${extraClass}"
+        :disabled="selectedIds.length === 0"
+        th:hx-post="${hxPost}"
+        th:hx-confirm="${hxConfirm}"
+        hx-swap="none"
+        th:text="${text}">Elimina selezionate</button>
 
 <!--
   Bottone del theme-switch nell'header (☀️/🌙/Auto): value e' il
@@ -63,6 +92,32 @@
   stesso ponte data-*/$el.dataset documentato in CLAUDE.md,
   "Convenzione: theming".
 -->
+<!--
+  Bottone "reimposta ai default" del pannello impostazioni di /deep-chat
+  (fragments/generation-params.html, vedi deep-chat.html): tocca DUE
+  cose in un solo click, da cui il comportamento hardcoded invece di un
+  parametro in piu' (stesso principio di dangerSelectable/themeToggle
+  sopra - singolo chiamante, mai riusato altrove per ora). hx-params="none"
+  e' cio' che rende questo un vero reset e non un refresh: senza,
+  htmx includerebbe di default i valori GIA' presenti nel form
+  (essendo il bottone al suo interno), rimandando al server gli stessi
+  valori da azzerare invece dei suoi default puri (vedi
+  GenerationController#params/populateFormTypeFields). @click riporta
+  anche la <select> del modello (#image-model-input, id fisso) al
+  modello di default PRIMA che la richiesta parta - defaultModel arriva
+  via th:data-default-model/$el.dataset, stesso ponte di themeToggle
+  sotto: un binding Alpine puro non passa mai da th:attr (nomi con
+  "@"/":" non accettati dal suo parser di assegnazione, vedi CLAUDE.md).
+-->
+<button th:fragment="resetToDefaults(text, hxGet, defaultModel, extraClass)"
+        type="button"
+        th:classappend="${extraClass}"
+        th:hx-get="${hxGet}"
+        hx-target="#generation-params-fields" hx-swap="innerHTML" hx-params="none"
+        th:data-default-model="${defaultModel}"
+        @click="document.getElementById('image-model-input').value = $el.dataset.defaultModel"
+        th:text="${text}">Reimposta ai default</button>
+
 <button th:fragment="themeToggle(value, content, title)"
         type="button"
         th:data-theme-value="${value}"

@@ -24,14 +24,11 @@
                     max-sm:flex-wrap max-sm:gap-2">
             <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-sm:basis-full">deep-flux</a>
             <div class="flex gap-4 flex-1 max-sm:order-1 max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-2 max-sm:basis-full">
-                <a th:href="@{/}" th:text="#{header.nav.home}"
-                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Home</a>
-                <a th:href="@{/generations/new}" th:text="#{header.nav.generate}"
-                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Genera immagine</a>
-                <a th:href="@{/gallery}" th:text="#{header.nav.gallery}"
-                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Galleria</a>
-                <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}"
-                   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Deep Chat</a>
+                <a th:replace="~{fragments/header :: navLink(path='/', text=#{header.nav.home})}">Home</a>
+                <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
+                <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
+                <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
+                <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
             </div>
 
             <div class="flex gap-1 max-sm:order-2 max-sm:basis-full">
@@ -42,6 +39,19 @@
         </nav>
     </header>
 </th:block>
+
+<!--
+  Link di navigazione dell'header: le classi erano ripetute identiche
+  sui 4 <a> sopra. path va passato come stringa letterale grezza (es.
+  '/gallery'), MAI gia' avvolta in @{...} dal chiamante - e' questo
+  fragment che la avvolge in @{${path}}, una sola volta, stesso
+  contratto di basePath in fragments/pagination.html: farlo anche a
+  monte applicherebbe due volte il prefisso di un eventuale reverse
+  proxy (X-Forwarded-Prefix, vedi CLAUDE.md).
+-->
+<a th:fragment="navLink(path, text)"
+   th:href="@{${path}}" th:text="${text}"
+   class="no-underline text-[0.95rem] text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Link</a>
 
 </body>
 </html>

@@ -10,12 +10,11 @@
 -->
 <th:block th:fragment="form">
     <div>
-        <p th:if="${error}"
-           class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
-           th:text="${error}">Errore</p>
+        <th:block th:if="${error}">
+            <p th:replace="~{fragments/alert :: error(text=${error})}">Errore</p>
+        </th:block>
 
-        <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
-              th:action="@{/generations}" method="post">
+        <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML">
             <div th:replace="~{fragments/generation-params :: fields}"></div>
 
             <label for="version" th:text="#{generateForm.label.version}">Version (opzionale, hash pinnato)</label>

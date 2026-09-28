@@ -30,6 +30,13 @@ class ReplicateModelCatalogTest {
     }
 
     @Test
+    void secondSeededModelIsInCatalogWithItsFormTypeAndNoVersion() {
+        assertThat(catalog.contains("black-forest-labs/flux-2-klein-9b")).isTrue();
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-2-klein-9b")).contains(GenerationFormType.FLUX_2_KLEIN_9B);
+        assertThat(catalog.versionOf("black-forest-labs/flux-2-klein-9b")).isEmpty();
+    }
+
+    @Test
     void unknownModelIsNotInCatalog() {
         assertThat(catalog.contains("owner/does-not-exist")).isFalse();
         assertThat(catalog.formTypeOf("owner/does-not-exist")).isEmpty();

@@ -8,7 +8,9 @@ import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.domain.event.ChatMessagePushEvent;
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -60,7 +62,18 @@ public class DeepChatGenerationWatcher {
         // generazione (vedi DeepChatService.reply, dove viene catturata).
         LocaleContextHolder.setLocale(locale);
         try {
-            Generation generation = generationService.waitUntilTerminal(generationId, WATCH_TIMEOUT);
+            Generation generation;
+            try {
+                generation = generationService.waitUntilTerminal(generationId, WATCH_TIMEOUT);
+            } catch (ReplicateException e) {
+                // La generazione e' stata cancellata (da /generations, ora possibile anche
+                // mentre non e' ancora terminale, vedi CLAUDE.md) mentre questo watcher la
+                // stava ancora aspettando: nessun turno di chat da scrivere ne' evento da
+                // notificare per un id ormai inesistente, e non e' un errore reale da
+                // segnalare (l'utente l'ha cancellata di proposito) - stesso trattamento
+                // silenzioso della conversazione cancellata sotto.
+                return;
+            }
             ChatConversation conversation = chatConversationRepository.findById(conversationId).orElse(null);
             if (conversation == null) {
                 // Conversazione cancellata mentre la generazione era in corso.
@@ -80,7 +93,7 @@ public class DeepChatGenerationWatcher {
             chatConversationRepository.save(conversation);
             chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, generation));
 
-            broadcaster.broadcastChatMessage(new GenerationEventBroadcaster.ChatMessagePush(
+            broadcaster.broadcastChatMessage(new ChatMessagePushEvent(
                     conversationId, text, DeepChatService.toFiles(generation)));
         } finally {
             LocaleContextHolder.resetLocaleContext();

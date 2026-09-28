@@ -23,7 +23,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -68,12 +67,13 @@ public class DeepChatController {
 
     /** Nessuna pagina "senza conversazione": risolve sempre quella piu' di recente attiva (o ne crea una nuova al primo avvio) e ci naviga. */
     @GetMapping("/deep-chat")
-    public String defaultConversation() {
-        return "redirect:/deep-chat/" + chatConversationService.resolveDefault().getId();
+    public String defaultConversation(@RequestParam(required = false) Long seed) {
+        Long id = chatConversationService.resolveDefault().getId();
+        return "redirect:/deep-chat/" + id + (seed != null ? "?seed=" + seed : "");
     }
 
     @GetMapping("/deep-chat/{id}")
-    public String page(@PathVariable Long id, Model model) {
+    public String page(@PathVariable Long id, @RequestParam(required = false) Long seed, Model model) {
         chatConversationRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("deepchat.error.conversationNotFound")));
 
@@ -97,6 +97,12 @@ public class DeepChatController {
         if (handler != null) {
             handler.defaultFields().forEach(model::addAttribute);
         }
+        // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,
+        // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' in
+        // defaultFields(), va impostato a parte.
+        if (seed != null) {
+            model.addAttribute("seed", seed);
+        }
         return "deep-chat";
     }
 
@@ -112,20 +118,15 @@ public class DeepChatController {
     public String gallery(@PathVariable Long id, Model model) {
         model.addAttribute("contextualGenerations", chatMessageRepository.findSucceededGenerationsByConversationId(id));
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
-        return "fragments/gallery :: gridOrEmpty(generations=${contextualGenerations}, emptyMessage=${contextualGalleryEmptyMessage})";
+        model.addAttribute("conversationId", id);
+        return "fragments/gallery :: gridOrEmpty(generations=${contextualGenerations}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";
     }
 
     @PostMapping("/deep-chat/new")
-    public String create(@RequestHeader(value = "HX-Request", required = false) String hxRequest,
-                          HttpServletRequest request,
-                          HttpServletResponse response) {
+    public String create(HttpServletRequest request, HttpServletResponse response) {
         ChatConversation conversation = chatConversationService.create();
-        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
-        if (isHtmxRequest) {
-            response.setHeader("HX-Redirect", request.getContextPath() + "/deep-chat/" + conversation.getId());
-            return null;
-        }
-        return "redirect:/deep-chat/" + conversation.getId();
+        response.setHeader("HX-Redirect", request.getContextPath() + "/deep-chat/" + conversation.getId());
+        return null;
     }
 
     /** Non tocca mai la chat visibile (non rinomina quella attualmente aperta in modo distruttivo): sempre solo la sidebar da aggiornare. */
@@ -133,13 +134,8 @@ public class DeepChatController {
     public String rename(@PathVariable Long id,
                           @RequestParam String title,
                           @RequestParam Long activeConversationId,
-                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           Model model) {
         chatConversationService.rename(id, title);
-        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
-        if (!isHtmxRequest) {
-            return "redirect:/deep-chat/" + activeConversationId;
-        }
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", activeConversationId);
         return "fragments/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
@@ -157,18 +153,13 @@ public class DeepChatController {
     @PostMapping("/deep-chat/{id}/delete")
     public String delete(@PathVariable Long id,
                           @RequestParam Long activeConversationId,
-                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           HttpServletRequest request,
                           HttpServletResponse response,
                           Model model) {
         chatConversationService.delete(id);
-        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         if (id.equals(activeConversationId)) {
-            if (isHtmxRequest) {
-                response.setHeader("HX-Redirect", request.getContextPath() + "/deep-chat");
-                return null;
-            }
-            return "redirect:/deep-chat";
+            response.setHeader("HX-Redirect", request.getContextPath() + "/deep-chat");
+            return null;
         }
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", activeConversationId);

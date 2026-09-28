@@ -22,23 +22,23 @@
     <input type="hidden" name="aspect_ratio" value="custom">
 
     <div>
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
+        <label for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
         <input type="number" id="param-num-outputs" name="num_outputs" min="1" max="8" th:value="${num_outputs}">
     </div>
 
     <div class="flex gap-2">
         <div class="flex-1 min-w-0">
-            <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-width" th:text="#{generationParams.label.width}">Larghezza</label>
+            <label for="param-width" th:text="#{generationParams.label.width}">Larghezza</label>
             <input type="number" id="param-width" name="width" min="256" max="1440" step="16" th:value="${width}">
         </div>
         <div class="flex-1 min-w-0">
-            <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-height" th:text="#{generationParams.label.height}">Altezza</label>
+            <label for="param-height" th:text="#{generationParams.label.height}">Altezza</label>
             <input type="number" id="param-height" name="height" min="256" max="1440" step="16" th:value="${height}">
         </div>
     </div>
 
     <div>
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
+        <label for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
         <select id="param-output-format" name="output_format">
             <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
             <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
@@ -58,7 +58,7 @@
     <div th:data-flux-model="${flux_model}"
          x-data="{ fluxModel: $el.dataset.fluxModel || 'dev' }"
          x-init="$nextTick(() => { $refs.stepsInput.readOnly = (fluxModel === 'schnell') })">
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-flux-model" th:text="#{generationParams.label.fluxModel}">Variante Flux</label>
+        <label for="param-flux-model" th:text="#{generationParams.label.fluxModel}">Variante Flux</label>
         <select id="param-flux-model" name="flux_model" x-model="fluxModel"
                 @change="$refs.stepsInput.value = (fluxModel === 'schnell' ? 4 : 28);
                          $refs.stepsInput.readOnly = (fluxModel === 'schnell');
@@ -67,23 +67,23 @@
             <option value="schnell">schnell</option>
         </select>
 
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
+        <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
         <input type="number" id="param-steps" name="num_inference_steps" min="1" max="50" th:value="${num_inference_steps}"
                x-ref="stepsInput" class="read-only:opacity-60 read-only:cursor-not-allowed">
     </div>
 
     <div>
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
+        <label for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
         <input type="number" id="param-guidance" name="guidance_scale" min="0" max="10" step="0.1" th:value="${guidance_scale}">
     </div>
 
     <div>
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
+        <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
         <input type="number" id="param-seed" name="seed" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
     </div>
 
     <div>
-        <label class="block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="param-lora-scale" th:text="#{generationParams.label.loraScale}">Intensita' LoRA</label>
+        <label for="param-lora-scale" th:text="#{generationParams.label.loraScale}">Intensita' LoRA</label>
         <input type="number" id="param-lora-scale" name="lora_scale" min="-1" max="3" step="0.1" th:value="${lora_scale}">
     </div>
 </th:block>

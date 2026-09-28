@@ -51,6 +51,18 @@ public class Generation {
     @Lob
     private String parametersJson;
 
+    /**
+     * Seed effettivamente usato per questa generazione (vedi migrazione
+     * V8), non solo sepolto dentro {@link #parametersJson}: valorizzato
+     * subito in create() se l'utente lo ha specificato esplicitamente,
+     * altrimenti (Replicate ne genera uno casuale) un tentativo best-effort
+     * in refresh() prova a leggerlo dai log della prediction una volta
+     * completata (vedi GenerationService). Puo' restare null se l'utente
+     * non l'ha specificato e il modello non lo logga in un formato
+     * riconoscibile.
+     */
+    private Long seed;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private GenerationStatus status;
@@ -83,11 +95,16 @@ public class Generation {
     }
 
     public Generation(String externalId, String model, String version, String prompt, String parametersJson) {
+        this(externalId, model, version, prompt, parametersJson, null);
+    }
+
+    public Generation(String externalId, String model, String version, String prompt, String parametersJson, Long seed) {
         this.externalId = externalId;
         this.model = model;
         this.version = version;
         this.prompt = prompt;
         this.parametersJson = parametersJson;
+        this.seed = seed;
         this.status = GenerationStatus.PENDING;
         this.createdAt = Instant.now();
     }
@@ -118,6 +135,14 @@ public class Generation {
 
     public String getParametersJson() {
         return parametersJson;
+    }
+
+    public Long getSeed() {
+        return seed;
+    }
+
+    public void setSeed(Long seed) {
+        this.seed = seed;
     }
 
     public GenerationStatus getStatus() {

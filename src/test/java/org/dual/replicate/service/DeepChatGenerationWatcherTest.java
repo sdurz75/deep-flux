@@ -10,7 +10,9 @@ import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.domain.event.ChatMessagePushEvent;
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.junit.jupiter.api.Test;
@@ -73,8 +75,8 @@ class DeepChatGenerationWatcherTest {
         assertThat(saved.getContent()).isEqualTo("Immagine generata con successo.");
         assertThat(saved.getGeneration()).isSameAs(generation);
 
-        ArgumentCaptor<GenerationEventBroadcaster.ChatMessagePush> pushCaptor =
-                ArgumentCaptor.forClass(GenerationEventBroadcaster.ChatMessagePush.class);
+        ArgumentCaptor<ChatMessagePushEvent> pushCaptor =
+                ArgumentCaptor.forClass(ChatMessagePushEvent.class);
         verify(broadcaster).broadcastChatMessage(pushCaptor.capture());
         assertThat(pushCaptor.getValue().conversationId()).isEqualTo(7L);
         assertThat(pushCaptor.getValue().text()).isEqualTo("Immagine generata con successo.");
@@ -103,8 +105,8 @@ class DeepChatGenerationWatcherTest {
         verify(chatMessageRepository).save(messageCaptor.capture());
         assertThat(messageCaptor.getValue().getContent()).isEqualTo("Generazione fallita: Replicate ha risposto con errore");
 
-        ArgumentCaptor<GenerationEventBroadcaster.ChatMessagePush> pushCaptor =
-                ArgumentCaptor.forClass(GenerationEventBroadcaster.ChatMessagePush.class);
+        ArgumentCaptor<ChatMessagePushEvent> pushCaptor =
+                ArgumentCaptor.forClass(ChatMessagePushEvent.class);
         verify(broadcaster).broadcastChatMessage(pushCaptor.capture());
         assertThat(pushCaptor.getValue().files()).isNull();
     }
@@ -121,6 +123,31 @@ class DeepChatGenerationWatcherTest {
 
         watcher.watch(1L, 7L, Locale.ITALIAN);
 
+        verify(chatMessageRepository, never()).save(any());
+        verify(broadcaster, never()).broadcastChatMessage(any());
+    }
+
+    /**
+     * Regressione: da quando /generations puo' cancellare anche
+     * generazioni non terminali (vedi CLAUDE.md), una generazione avviata
+     * da /deep-chat puo' sparire mentre questo watcher la sta ancora
+     * aspettando (waitUntilTerminal -> refresh -> ReplicateException,
+     * vedi GenerationService#saveAndLogIfTerminal/#get). Deve fermarsi
+     * silenziosamente, senza scrivere un turno "fallita"/notificare SSE
+     * per un id ormai inesistente - stesso trattamento della conversazione
+     * cancellata sopra, non un errore da propagare.
+     */
+    @Test
+    void watchStopsSilentlyWhenGenerationWasDeletedMeanwhile() {
+        DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n);
+
+        when(generationService.waitUntilTerminal(eq(1L), any(Duration.class)))
+                .thenThrow(new ReplicateException("generazione non trovata"));
+
+        watcher.watch(1L, 7L, Locale.ITALIAN);
+
+        verify(chatConversationRepository, never()).findById(any());
         verify(chatMessageRepository, never()).save(any());
         verify(broadcaster, never()).broadcastChatMessage(any());
     }

@@ -7,11 +7,23 @@
   ripolla da solo (hx-trigger="every 2s"), chiamando sempre lo stesso
   GET /generations/{id} che fa avanzare lo stato lato server -
   coerente col pattern "stessa URL, due risposte" usato altrove.
+
+  A stato terminale questo E' anche il dettaglio della generazione
+  (niente pagina separata, vedi CLAUDE.md): prompt/modello/seed/
+  parametri, immagini cancellabili singolarmente (con cascade
+  sull'ultima, vedi fragments/generation-images.html) e bottone elimina
+  l'intera generazione. conversationId/generationsPage (entrambi
+  nullable, valorizzati da GenerationController#status nel Model)
+  decidono sia il link "indietro" nella pagina intera (vedi
+  generation-status.html) sia la provenienza da propagare al bottone
+  elimina/alle immagini, cosi' la cancellazione da qui torna al punto
+  giusto (deep-chat/listato /generations/galleria globale) invece di
+  assumere sempre quest'ultima.
 -->
 <th:block th:fragment="status">
     <div id="generation-status"
          th:if="${generation.status.name() == 'PENDING' or generation.status.name() == 'PROCESSING'}"
-         th:hx-get="@{'/generations/' + ${generation.id}}"
+         th:hx-get="@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})}"
          hx-trigger="every 2s"
          hx-swap="outerHTML">
         <span class="inline-block size-[1em] border-2 border-line dark:border-line-dark border-t-accent dark:border-t-accent-dark
@@ -20,19 +32,71 @@
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">
-        <!-- Una generazione puo' avere piu' di un'immagine (num_outputs > 1, vedi CLAUDE.md): tutte mostrate qui, non solo la prima. -->
-        <div class="flex flex-wrap gap-4 my-4">
-            <img th:each="filename : ${generation.imageFilenames}"
-                 th:src="@{'/images/' + ${filename}}"
-                 th:alt="${generation.prompt}"
-                 class="max-w-full rounded-md border border-line dark:border-line-dark block">
+        <div class="flex justify-end mb-2">
+            <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.delete}, hxPost=null,
+                        hxDelete=@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                        hxConfirm=#{gallery.confirm.delete}, hxSwap='none', hxTarget=null,
+                        extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
         </div>
-        <p><a th:href="@{'/gallery/' + ${generation.id}}" th:text="#{generation.link.viewDetail}">Vedi il dettaglio in galleria</a></p>
+
+        <div th:replace="~{fragments/generation-images :: grid(${generation}, ${conversationId}, ${generationsPage})}"></div>
+
+        <dl>
+            <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.prompt})}">Prompt</dt>
+            <dd class="ms-0 mt-1">
+                <span th:text="${generation.prompt}">prompt</span>
+                <a th:href="@{/generations/new(prompt=${generation.prompt})}" class="ms-2 text-[0.85rem]"
+                   th:text="#{generationDetail.action.pushPrompt}">Usa in una nuova generazione</a>
+            </dd>
+
+            <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>
+            <dd class="ms-0 mt-1" th:text="${generation.model}">modello</dd>
+
+            <!--
+              Seed sempre mostrato (a differenza di version/parametri sotto,
+              nascosti se assenti): l'utente deve poterlo vedere chiaramente
+              anche quando non e' disponibile (vedi Generation.seed/
+              GenerationService), non solo quando e' valorizzato - un
+              placeholder "casuale" e' piu' onesto di una riga che sparisce.
+            -->
+            <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.seed})}">Seed</dt>
+            <dd class="ms-0 mt-1">
+                <span class="font-mono" th:text="${generation.seed} ?: #{generationParams.placeholder.seed}">seed</span>
+                <th:block th:if="${generation.seed != null}">
+                    <a th:href="@{/generations/new(seed=${generation.seed})}" class="ms-2 text-[0.85rem]"
+                       th:text="#{generationDetail.action.pushSeedGenerations}">Usa in una nuova generazione</a>
+                    <a th:if="${conversationId != null}"
+                       th:href="@{/deep-chat/{id}(id=${conversationId}, seed=${generation.seed})}"
+                       class="ms-2 text-[0.85rem]" th:text="#{generationDetail.action.pushSeedDeepChat}">Usa in Deep Chat</a>
+                    <a th:if="${conversationId == null}" th:href="@{/deep-chat(seed=${generation.seed})}"
+                       class="ms-2 text-[0.85rem]" th:text="#{generationDetail.action.pushSeedDeepChat}">Usa in Deep Chat</a>
+                </th:block>
+            </dd>
+
+            <th:block th:if="${generation.version}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.version})}">Version</dt>
+                <dd class="ms-0 mt-1" th:text="${generation.version}">version</dd>
+            </th:block>
+
+            <th:block th:if="${generation.parametersJson}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.parameters})}">Parametri</dt>
+                <dd class="ms-0 mt-1"><pre th:text="${generation.parametersJson}"
+                    class="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md p-3 overflow-x-auto font-mono text-[0.85rem]">{}</pre></dd>
+            </th:block>
+
+            <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.completedAt})}">Generata il</dt>
+            <dd class="ms-0 mt-1" th:text="${generation.completedAt}">timestamp</dd>
+        </dl>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'FAILED'}">
-        <p class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
-           th:text="${generation.errorMessage}">Errore</p>
+        <p th:replace="~{fragments/alert :: error(text=${generation.errorMessage})}">Errore</p>
+        <div class="flex justify-end mt-2">
+            <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.delete}, hxPost=null,
+                        hxDelete=@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                        hxConfirm=#{gallery.confirm.delete}, hxSwap='none', hxTarget=null,
+                        extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
+        </div>
     </div>
 </th:block>
 

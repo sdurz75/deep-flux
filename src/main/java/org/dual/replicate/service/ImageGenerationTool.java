@@ -5,6 +5,7 @@ import java.util.Map;
 
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.springframework.ai.chat.model.ToolContext;
@@ -29,11 +30,20 @@ public class ImageGenerationTool {
     /**
      * Chiave ToolContext sotto cui DeepChatService mette i parametri di
      * generazione impostati nel pannello UI (aspect_ratio, width,
-     * height, ...): caller -> tool, mai visti dal modello LLM (a
-     * differenza del modello scelto, sono impostazioni deterministiche,
-     * non vogliamo che l'LLM le riscriva componendo la chiamata al tool).
+     * height, ...): caller -> tool, mai visti dal modello LLM, sono
+     * impostazioni deterministiche, non vogliamo che l'LLM le riscriva
+     * componendo la chiamata al tool.
      */
     public static final String PARAMETERS_CONTEXT_KEY = "generationParameters";
+
+    /**
+     * Chiave ToolContext sotto cui DeepChatService mette il modello
+     * Replicate scelto nel combobox lato UI: per ora (vedi CLAUDE.md,
+     * Scopo punto 1) il tool usa sempre e solo questo, non un parametro
+     * scelto dall'LLM — al modello non interessa quale sia, la scelta
+     * resta interamente lato UI, come per PARAMETERS_CONTEXT_KEY sopra.
+     */
+    public static final String MODEL_CONTEXT_KEY = "selectedModel";
 
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
@@ -51,15 +61,14 @@ public class ImageGenerationTool {
             + "returns immediately, before the image is ready: it will be stored and shown to the user "
             + "automatically once done (usually within a couple of minutes), in this conversation and in the "
             + "gallery. Tell the user it's being generated, don't claim it's already available. You don't need "
-            + "to include its URL in your reply. "
-            + "The 'model' parameter must be one of the available models (in \"owner/name\" form); if you "
-            + "are not sure of the exact id, try the one you were told is currently selected in the UI.")
+            + "to include its URL in your reply. Always uses the model currently selected in the UI - there is "
+            + "no way to pick a different one here.")
     public String generateImage(
             @ToolParam(description = "Detailed, self-contained prompt describing the desired image, in English") String prompt,
-            @ToolParam(description = "Replicate model to use, in \"owner/name\" form") String model,
             ToolContext toolContext) {
-        if (!modelCatalog.contains(model)) {
-            return "Modello \"%s\" non disponibile. Modelli disponibili: %s".formatted(model, modelCatalog.idsAsCsv());
+        String model = resolveModel(toolContext);
+        if (model == null) {
+            return "Nessun modello Replicate censito nel catalogo, impossibile avviare la generazione.";
         }
 
         // Passare esplicitamente la versione (se nota) invece di lasciare
@@ -86,6 +95,22 @@ public class ImageGenerationTool {
         }
         return "Generazione avviata con il modello " + model + ": l'immagine comparira' "
                 + "automaticamente in questa conversazione e in Galleria non appena pronta.";
+    }
+
+    /**
+     * Modello da usare: sempre quello passato da DeepChatService sotto
+     * MODEL_CONTEXT_KEY (il combobox lato UI, vedi il suo Javadoc
+     * sopra), col catalogo come unica rete di sicurezza — un id non piu'
+     * censito (rimosso nel frattempo) o un context mancante (non
+     * dovrebbe succedere, ma il ToolContext non e' tipizzato) ricadono
+     * sul modello di default, mai su un valore arbitrario scelto qui.
+     */
+    private String resolveModel(ToolContext toolContext) {
+        Object fromContext = toolContext.getContext().get(MODEL_CONTEXT_KEY);
+        if (fromContext instanceof String model && modelCatalog.contains(model)) {
+            return model;
+        }
+        return modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse(null);
     }
 
     /**

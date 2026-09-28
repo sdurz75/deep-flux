@@ -23,10 +23,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -70,7 +70,6 @@ class TemplateRenderingTests {
     @Test
     void createWithUnknownModelIsRejectedInline() throws Exception {
         String body = mockMvc.perform(post("/generations")
-                        .header("HX-Request", "true")
                         .param("model", "owner/does-not-exist")
                         .param("prompt", "a cat"))
                 .andExpect(status().isOk())
@@ -94,6 +93,25 @@ class TemplateRenderingTests {
     void paramsEndpointReturnsNotFoundForUnknownModel() throws Exception {
         mockMvc.perform(get("/generations/params").param("model", "owner/does-not-exist"))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * Stesso endpoint di sopra, ma per il secondo form-type
+     * (FLUX_2_KLEIN_9B, vedi migrazione V7/Flux2Klein9bParameterHandler):
+     * verifica che il fragment dedicato renderizzi davvero (non solo che
+     * compaia nella select, vedi generationFormRenders) coi campi giusti
+     * e il default "go_fast" NON checked (Flux2Klein9bParameterHandler.DEFAULT_GO_FAST
+     * e' deliberatamente false, diverso dal default Replicate).
+     */
+    @Test
+    void paramsEndpointRendersFieldsForFlux2Klein9b() throws Exception {
+        String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-2-klein-9b"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"aspect_ratio\"", "name=\"megapixels\"", "name=\"output_quality\"", "name=\"go_fast\"");
+        assertThat(body).containsPattern("<option value=\"1:1\"[^>]*selected");
+        assertThat(body).doesNotContainPattern("name=\"go_fast\"[^>]*checked");
     }
 
     /**
@@ -151,6 +169,8 @@ class TemplateRenderingTests {
 
         assertThat(body).contains("/images/dc-1.png");
         assertThat(body).doesNotContain("Nessuna immagine ancora in questa conversazione");
+        // Il link di dettaglio della card contestuale porta il conversationId (vedi fragments/gallery-card.html), per il link "indietro" del dettaglio (fragments/generation.html :: status, ora su /generations/{id} - vedi CLAUDE.md).
+        assertThat(body).contains("/generations/" + generation.getId() + "?conversationId=" + conversation.getId());
 
         ChatConversation otherConversation = chatConversationRepository.save(new ChatConversation());
         String otherBody = mockMvc.perform(get("/deep-chat/" + otherConversation.getId()))
@@ -171,8 +191,31 @@ class TemplateRenderingTests {
         mockMvc.perform(get("/gallery").header("HX-Request", "true")).andExpect(status().isOk());
     }
 
+    /**
+     * Una pagina puo' smettere di esistere fra un refresh e l'altro
+     * (cancellazione in blocco dell'ultima pagina, vedi
+     * GalleryController#deleteSelected): il refresh SSE (fragments/gallery.html,
+     * hx-get="@{/gallery(page=...)}") ri-richiede esattamente la pagina
+     * gia' servita, che potrebbe non esistere piu' - GalleryController#list
+     * deve ripiegare sull'ultima pagina rimasta, non mostrare "nessuna
+     * immagine" mentre pagine precedenti hanno ancora contenuto.
+     */
     @Test
-    void galleryDetailAndStatusRenderForSucceededGeneration() throws Exception {
+    void requestingAPageBeyondTheLastOneFallsBackInsteadOfShowingEmpty() throws Exception {
+        Generation generation = new Generation("pred-page-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("page-1.png"));
+        repository.save(generation);
+
+        String body = mockMvc.perform(get("/gallery").param("page", "999").header("HX-Request", "true"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("Nessuna immagine ancora");
+    }
+
+    @Test
+    void generationDetailRendersForSucceededGeneration() throws Exception {
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", "{\"seed\":1}");
         generation.setStatus(GenerationStatus.SUCCEEDED);
         generation.setImageFilenames(List.of("1.png"));
@@ -180,40 +223,315 @@ class TemplateRenderingTests {
 
         mockMvc.perform(get("/gallery")).andExpect(status().isOk());
         mockMvc.perform(get("/gallery").header("HX-Request", "true")).andExpect(status().isOk());
-        mockMvc.perform(get("/gallery/" + generation.getId())).andExpect(status().isOk());
-        // Terminale: refresh() ritorna subito, nessuna chiamata a Replicate.
+        // Terminale: refresh() ritorna subito, nessuna chiamata a Replicate. Stessa GET del
+        // polling, ma a stato terminale e' anche il dettaglio (prompt/parametri/immagini),
+        // niente pagina di dettaglio separata - vedi CLAUDE.md.
         mockMvc.perform(get("/generations/" + generation.getId())).andExpect(status().isOk());
     }
 
     /**
-     * L'eliminazione vive ora solo nella pagina di dettaglio (vedi
-     * gallery-detail.html/fragments/gallery-card.html): dopo la
-     * cancellazione la pagina corrente non esiste piu', quindi entrambi
-     * i rami del controller devono portare il browser a /gallery,
-     * l'htmx via l'header HX-Redirect (non uno swap di contenuto), il
-     * non-htmx via un vero redirect HTTP.
+     * Il seed deve essere sempre chiaramente visibile nel dettaglio (vedi
+     * Generation.seed/GenerationService#create), non solo sepolto nel
+     * blob "Parametri": una riga dedicata, con un placeholder esplicito
+     * quando non e' noto (mai una riga che sparisce, a differenza di
+     * version/parametri).
      */
     @Test
-    void deleteViaHtmxSetsHxRedirectHeader() throws Exception {
+    void generationDetailShowsSeedRowExplicitlyAndPlaceholderWhenUnknown() throws Exception {
+        Generation withSeed = new Generation("pred-seed-1", "owner/model", null, "a cat", "{\"seed\":777}", 777L);
+        withSeed.setStatus(GenerationStatus.SUCCEEDED);
+        withSeed.setImageFilenames(List.of("seed-1.png"));
+        withSeed = repository.save(withSeed);
+
+        String bodyWithSeed = mockMvc.perform(get("/generations/" + withSeed.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(bodyWithSeed).contains(">777<");
+
+        Generation withoutSeed = new Generation("pred-seed-2", "owner/model", null, "a dog", null);
+        withoutSeed.setStatus(GenerationStatus.SUCCEEDED);
+        withoutSeed.setImageFilenames(List.of("seed-2.png"));
+        withoutSeed = repository.save(withoutSeed);
+
+        String bodyWithoutSeed = mockMvc.perform(get("/generations/" + withoutSeed.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(bodyWithoutSeed).contains("casuale");
+    }
+
+    /**
+     * Push di seed/prompt dal dettaglio (vedi fragments/generation.html
+     * :: status, ramo SUCCEEDED): il prompt punta sempre solo a
+     * /generations/new, il seed sia a /generations/new sia a /deep-chat -
+     * verso la STESSA conversazione quando conversationId e' presente
+     * (arrivati dalla galleria contestuale), altrimenti verso /deep-chat
+     * nudo (ultima conversazione attiva, risolta dal redirect di
+     * DeepChatController#defaultConversation). Nessun link di push del
+     * seed quando il seed e' ignoto (nulla da riusare).
+     */
+    @Test
+    void generationDetailPushLinksTargetGenerationsAndDeepChat() throws Exception {
+        Generation withSeed = new Generation("pred-push-1", "owner/model", null, "a cat", "{\"seed\":777}", 777L);
+        withSeed.setStatus(GenerationStatus.SUCCEEDED);
+        withSeed.setImageFilenames(List.of("push-1.png"));
+        withSeed = repository.save(withSeed);
+
+        String fromGallery = mockMvc.perform(get("/generations/" + withSeed.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(fromGallery).contains("/generations/new?prompt=");
+        assertThat(fromGallery).contains("/generations/new?seed=777");
+        assertThat(fromGallery).contains("href=\"/deep-chat?seed=777\"");
+
+        String fromConversation = mockMvc.perform(get("/generations/" + withSeed.getId()).param("conversationId", "7"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(fromConversation).contains("href=\"/deep-chat/7?seed=777\"");
+
+        Generation withoutSeed = new Generation("pred-push-2", "owner/model", null, "a dog", null);
+        withoutSeed.setStatus(GenerationStatus.SUCCEEDED);
+        withoutSeed.setImageFilenames(List.of("push-2.png"));
+        withoutSeed = repository.save(withoutSeed);
+
+        String withoutSeedBody = mockMvc.perform(get("/generations/" + withoutSeed.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(withoutSeedBody).contains("/generations/new?prompt=");
+        assertThat(withoutSeedBody).doesNotContain("/generations/new?seed=").doesNotContain("/deep-chat?seed=");
+    }
+
+    /** Push del seed dal dettaglio (vedi sopra): /generations/new lo pre-compila nel campo del form-type corrente. */
+    @Test
+    void generationFormPrefillsSeedFromQueryParam() throws Exception {
+        String body = mockMvc.perform(get("/generations/new").param("seed", "777"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
+    }
+
+    /** Push del seed dal dettaglio verso /deep-chat nudo (nessuna conversazione di contesto): il redirect deve propagarlo. */
+    @Test
+    @Transactional
+    void deepChatRedirectPreservesSeedQueryParam() throws Exception {
+        String location = mockMvc.perform(get("/deep-chat").param("seed", "777"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+
+        assertThat(location).endsWith("?seed=777");
+    }
+
+    /** Push del seed dal dettaglio verso una conversazione specifica: il pannello impostazioni lo pre-compila. */
+    @Test
+    @Transactional
+    void deepChatConversationPagePrefillsSeedFromQueryParam() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+
+        String body = mockMvc.perform(get("/deep-chat/" + conversation.getId()).param("seed", "777"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
+    }
+
+    /**
+     * Il link "indietro" del dettaglio dipende da dove si arriva (vedi
+     * GenerationController#status): dalla galleria globale o da una
+     * generazione appena creata (nessun param) torna a /gallery, dal
+     * listato /generations (generationsPage) torna a quella pagina,
+     * dalla galleria contestuale di una conversazione /deep-chat
+     * (conversationId sulla query string, propagato da
+     * fragments/gallery-card.html) torna a quella conversazione.
+     */
+    @Test
+    void generationDetailBackLinkDependsOnOrigin() throws Exception {
+        Generation generation = new Generation("pred-2", "owner/model", null, "a dog", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("2.png"));
+        generation = repository.save(generation);
+
+        String fromGallery = mockMvc.perform(get("/generations/" + generation.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(fromGallery).contains("href=\"/gallery\"").doesNotContain("/deep-chat/");
+
+        String fromDeepChat = mockMvc.perform(get("/generations/" + generation.getId()).param("conversationId", "7"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(fromDeepChat).contains("href=\"/deep-chat/7\"");
+
+        String fromGenerationsList = mockMvc.perform(get("/generations/" + generation.getId()).param("generationsPage", "2"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(fromGenerationsList).contains("href=\"/generations?page=2\"");
+    }
+
+    /**
+     * Cancellazione SINGOLA dalla pagina di dettaglio (vedi
+     * fragments/generation.html :: status, ramo SUCCEEDED/FAILED): dopo
+     * la cancellazione la pagina corrente non esiste piu', quindi il
+     * controller porta il browser a /gallery (default, nessuna
+     * provenienza specifica) via l'header HX-Redirect (non uno swap di
+     * contenuto) — diverso dalla cancellazione in blocco dalla griglia
+     * (deleteSelectedRemovesEveryGeneration sotto), dove la pagina
+     * corrente resta valida.
+     */
+    @Test
+    void deleteSetsHxRedirectHeader() throws Exception {
         Generation generation = new Generation("pred-3", "owner/model", null, "a bird", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
         generation.setImageFilenames(List.of("3.png"));
         generation = repository.save(generation);
 
-        mockMvc.perform(post("/gallery/" + generation.getId() + "/delete").header("HX-Request", "true"))
+        mockMvc.perform(delete("/generations/" + generation.getId()))
                 .andExpect(header().string("HX-Redirect", "/gallery"));
     }
 
+    /**
+     * Regressione: una Generation nata da /deep-chat resta referenziata da
+     * un CHAT_MESSAGE (FK_CHAT_MESSAGE_GENERATION) finche' la conversazione
+     * non viene a sua volta cancellata - prima della migrazione V9 quella
+     * FK non aveva un ON DELETE, quindi cancellarla da qui falliva con una
+     * violazione del vincolo DOPO che il file immagine era gia' stato
+     * rimosso da storage (ImageStorageService#delete, chiamato prima della
+     * riga DB in GenerationService#delete): risultato, un'immagine sparita
+     * dal disco ma ancora elencata in galleria con tutti i suoi dettagli.
+     * Niente @Transactional qui (a differenza di altri test in questa
+     * classe, ma come i suoi vicini deleteSetsHxRedirectHeader/
+     * deleteSelectedRemovesEveryGeneration sopra): la DELETE deve essere
+     * davvero committata perche' scatti l'ON DELETE SET NULL della
+     * migrazione V9 - dentro un'unica transazione di test, ancora aperta
+     * al momento della query sotto, l'istruzione DELETE resterebbe solo
+     * "in coda" nel persistence context di Hibernate, senza innescare il
+     * trigger del database.
+     */
     @Test
-    void deleteWithoutHtmxRedirectsToGallery() throws Exception {
-        Generation generation = new Generation("pred-4", "owner/model", null, "a fish", null);
+    void deleteRemovesGenerationReferencedByAChatMessage() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+
+        Generation generation = new Generation("pred-chat-del-1", "owner/model", null, "a fox", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
-        generation.setImageFilenames(List.of("4.png"));
+        generation.setImageFilenames(List.of("chat-del-1.png"));
         generation = repository.save(generation);
 
-        mockMvc.perform(post("/gallery/" + generation.getId() + "/delete"))
+        ChatMessage message = chatMessageRepository.save(
+                new ChatMessage(conversation, ChatMessageRole.AI, "ecco la volpe", generation));
+
+        mockMvc.perform(delete("/generations/" + generation.getId()))
+                .andExpect(header().string("HX-Redirect", "/gallery"));
+
+        assertThat(repository.findById(generation.getId())).isEmpty();
+        assertThat(chatMessageRepository.findById(message.getId()))
+                .isPresent()
+                .get()
+                .extracting(ChatMessage::getGeneration)
+                .isNull();
+    }
+
+    /**
+     * Regressione: una tab che sta ancora pollando GET /generations/{id}
+     * ogni 2s (vedi fragments/generation.html) non deve incappare in un
+     * 500 quando la generazione sparisce nel frattempo (cancellata da
+     * un'altra tab/dal listato - vedi GenerationController#status).
+     * Simula la race cancellando direttamente la riga via repository
+     * (niente chiamata a /generations/{id} DELETE, che scaricherebbe
+     * anche il file immagine: qui basta che la riga non esista piu' al
+     * momento del refresh) invece di aspettare una vera race
+     * concorrente. Copre entrambi i rami di status(): richiesta htmx
+     * (header HX-Redirect) e navigazione diretta del browser (redirect
+     * HTTP), con lo stesso identico target "indietro" a parita' di
+     * conversationId/generationsPage (vedi backPath/backTarget).
+     */
+    @Test
+    void statusRedirectsInsteadOfErroringWhenGenerationWasDeletedConcurrently() throws Exception {
+        Generation htmxGeneration = new Generation("pred-race-htmx", "owner/model", null, "a wolf", null);
+        htmxGeneration.setStatus(GenerationStatus.PROCESSING);
+        htmxGeneration = repository.save(htmxGeneration);
+        repository.deleteById(htmxGeneration.getId());
+
+        mockMvc.perform(get("/generations/" + htmxGeneration.getId())
+                        .param("generationsPage", "3")
+                        .header("HX-Request", "true"))
+                .andExpect(header().string("HX-Redirect", "/generations?page=3"));
+
+        Generation browserGeneration = new Generation("pred-race-browser", "owner/model", null, "a wolf", null);
+        browserGeneration.setStatus(GenerationStatus.PROCESSING);
+        browserGeneration = repository.save(browserGeneration);
+        repository.deleteById(browserGeneration.getId());
+
+        mockMvc.perform(get("/generations/" + browserGeneration.getId()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/gallery"));
+                .andExpect(header().string("Location", "/gallery"));
+    }
+
+    /**
+     * Griglia (globale o contestuale, stesso fragment fragments/gallery.html
+     * :: grid): checkbox di selezione + bottone "Elimina selezionate"
+     * disabilitato di default (nessuna selezione al primo caricamento,
+     * vedi fragments/button.html :: dangerSelectable) devono comparire
+     * nel markup renderizzato.
+     */
+    @Test
+    void galleryGridRendersSelectionCheckboxAndDisabledDeleteButton() throws Exception {
+        Generation generation = new Generation("pred-sel-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("sel-1.png"));
+        generation = repository.save(generation);
+
+        String body = mockMvc.perform(get("/gallery"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"ids\"", "x-model=\"selectedIds\"", ":disabled=\"selectedIds.length === 0\"",
+                "hx-post=\"/gallery/delete-selected\"");
+        // Attributo "disabled" LETTERALE (non solo il binding Alpine ":disabled"): senza, il bottone sarebbe
+        // cliccabile per un istante al primo paint, prima che Alpine inizializzi - vedi fragments/button.html.
+        assertThat(body).containsPattern("<button[^>]*\\bdisabled\\b[^>]*hx-post=\"/gallery/delete-selected\"[^>]*>");
+    }
+
+    /**
+     * L'endpoint di cancellazione in blocco cancella davvero righe e file
+     * (vedi GenerationService#deleteAll), a differenza del bottone lato
+     * client (disabilitato quando la selezione e' vuota, mai testabile
+     * qui: MockMvc non esegue JS/Alpine).
+     */
+    @Test
+    void deleteSelectedRemovesEveryGeneration() throws Exception {
+        Generation first = new Generation("pred-bulk-1", "owner/model", null, "a cat", null);
+        first.setStatus(GenerationStatus.SUCCEEDED);
+        first.setImageFilenames(List.of("bulk-1.png"));
+        first = repository.save(first);
+
+        Generation second = new Generation("pred-bulk-2", "owner/model", null, "a dog", null);
+        second.setStatus(GenerationStatus.SUCCEEDED);
+        second.setImageFilenames(List.of("bulk-2.png"));
+        second = repository.save(second);
+
+        mockMvc.perform(post("/gallery/delete-selected")
+                        .param("ids", first.getId().toString(), second.getId().toString()))
+                .andExpect(status().isOk());
+
+        assertThat(repository.findById(first.getId())).isEmpty();
+        assertThat(repository.findById(second.getId())).isEmpty();
+    }
+
+    /**
+     * La galleria contestuale di /deep-chat ascolta anche l'evento SSE
+     * generico "gallery-update" (non solo "new-message"): una
+     * cancellazione dalla griglia globale (o da un'altra conversazione)
+     * deve riflettersi anche qui, vedi GenerationService#delete/#deleteAll
+     * e GenerationEventBroadcaster#onGenerationsDeleted.
+     */
+    @Test
+    @Transactional
+    void deepChatContextualGalleryListensToGalleryUpdateEvent() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+
+        String body = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("hx-trigger=\"new-message from:#deep-chat-el, gallery-update from:body\"");
     }
 
     @Test
@@ -224,6 +542,130 @@ class TemplateRenderingTests {
         generation = repository.save(generation);
 
         mockMvc.perform(get("/generations/" + generation.getId())).andExpect(status().isOk());
+    }
+
+    /**
+     * Listato /generations: a differenza di /gallery, qualunque stato
+     * (qui una PENDING, mai esposta dalla galleria) deve comparire.
+     * Copre sia pagina intera sia fragment (HX-Request), stesso motivo
+     * di ogni altro test "renders" in questa classe.
+     */
+    @Test
+    void generationsListRendersFullPageAndFragmentForAnyStatus() throws Exception {
+        Generation pending = new Generation("pred-list-1", "owner/model", null, "a cat", null);
+        repository.save(pending);
+
+        mockMvc.perform(get("/generations")).andExpect(status().isOk());
+        String fragmentBody = mockMvc.perform(get("/generations").header("HX-Request", "true"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(fragmentBody).contains("a cat");
+    }
+
+    /**
+     * Stesso aggiustamento "pagina svuotata da una cancellazione" gia'
+     * verificato per /gallery (requestingAPageBeyondTheLastOneFallsBackInsteadOfShowingEmpty):
+     * GenerationController#list deve ripiegare sull'ultima pagina
+     * rimasta, non mostrare "nessuna generazione" mentre pagine
+     * precedenti hanno ancora contenuto.
+     */
+    @Test
+    void generationsListFallsBackWhenPageBeyondLast() throws Exception {
+        repository.save(new Generation("pred-list-2", "owner/model", null, "a cat", null));
+
+        String body = mockMvc.perform(get("/generations").param("page", "999").header("HX-Request", "true"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("Nessuna generazione ancora");
+    }
+
+    /**
+     * Cancellazione della sola selezione (checkbox multiple, vedi
+     * fragments/generations.html :: list): stesso principio di
+     * deleteSelectedRemovesEveryGeneration per /gallery, ma qui una
+     * terza generazione NON selezionata deve sopravvivere.
+     */
+    @Test
+    void generationsDeleteSelectedRemovesOnlySelected() throws Exception {
+        Generation first = repository.save(new Generation("pred-gsel-1", "owner/model", null, "a cat", null));
+        Generation second = repository.save(new Generation("pred-gsel-2", "owner/model", null, "a dog", null));
+        Generation untouched = repository.save(new Generation("pred-gsel-3", "owner/model", null, "a fox", null));
+
+        mockMvc.perform(post("/generations/delete-selected")
+                        .param("ids", first.getId().toString(), second.getId().toString()))
+                .andExpect(status().isOk());
+
+        assertThat(repository.findById(first.getId())).isEmpty();
+        assertThat(repository.findById(second.getId())).isEmpty();
+        assertThat(repository.findById(untouched.getId())).isPresent();
+    }
+
+    /**
+     * Cancellazione di riga singola dal listato (bottone "Elimina" di
+     * fragments/generation-row.html): a differenza di delete-selected,
+     * ignora qualunque id passato come parametro form-wide - qui non ne
+     * passiamo nessuno, la sola presenza dell'id nel path deve bastare.
+     */
+    @Test
+    void generationsDeleteOneRemovesSingleRow() throws Exception {
+        Generation generation = repository.save(new Generation("pred-gone-1", "owner/model", null, "a cat", null));
+
+        mockMvc.perform(post("/generations/" + generation.getId() + "/delete"))
+                .andExpect(status().isOk());
+
+        assertThat(repository.findById(generation.getId())).isEmpty();
+    }
+
+    // NOTA: nessun test MockMvc per POST /generations/delete-all in questa classe.
+    // Questa classe gira contro il vero DB/storage di sviluppo (nessun datasource
+    // separato per i test, vedi javadoc in cima al file) - un test che chiama
+    // repository.findAll() su OGNI riga esistente e le cancella tutte sarebbe
+    // distruttivo per qualunque dato reale presente in locale, a differenza di
+    // ogni altro test qui che tocca solo le righe che crea da solo. La logica di
+    // deleteEverything() e' gia' coperta senza questo rischio da
+    // GenerationServiceTest#deleteEverything* (repository mockato, nessun disco/DB reale).
+
+    /**
+     * Cancellazione per-immagine, caso NON a cascata (restano altre
+     * immagini): niente HX-Redirect, la risposta e' il fragment della
+     * griglia aggiornata (vedi GenerationController#deleteImage).
+     */
+    @Test
+    void deleteImageOfMultiImageGenerationReRendersGridWithoutRedirect() throws Exception {
+        Generation generation = new Generation("pred-img-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("img-1-0.png", "img-1-1.png"));
+        generation = repository.save(generation);
+
+        String body = mockMvc.perform(delete("/generations/" + generation.getId() + "/images/img-1-0.png"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("HX-Redirect"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("img-1-0.png").contains("img-1-1.png");
+        assertThat(repository.findById(generation.getId()))
+                .isPresent().get()
+                .extracting(Generation::getImageFilenames).isEqualTo(List.of("img-1-1.png"));
+    }
+
+    /**
+     * Cancellazione per-immagine, caso A CASCATA (era l'ultima
+     * immagine): l'intera generazione sparisce, stesso HX-Redirect di
+     * una cancellazione whole-generation (vedi deleteSetsHxRedirectHeader).
+     */
+    @Test
+    void deleteImageOfLastImageCascadesAndRedirects() throws Exception {
+        Generation generation = new Generation("pred-img-2", "owner/model", null, "a dog", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("img-2-0.png"));
+        generation = repository.save(generation);
+
+        mockMvc.perform(delete("/generations/" + generation.getId() + "/images/img-2-0.png"))
+                .andExpect(header().string("HX-Redirect", "/gallery"));
+
+        assertThat(repository.findById(generation.getId())).isEmpty();
     }
 
     /**

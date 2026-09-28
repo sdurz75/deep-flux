@@ -12,5 +12,6 @@ package org.dual.replicate.domain;
  * GenerationParameterHandler — nessun altro file da toccare.
  */
 public enum GenerationFormType {
-    FLUX_LORA_FF3
+    FLUX_LORA_FF3,
+    FLUX_2_KLEIN_9B
 }

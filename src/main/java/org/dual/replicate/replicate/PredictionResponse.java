@@ -17,7 +17,8 @@ public record PredictionResponse(
         String status,
         Object output,
         String error,
-        Map<String, Object> input
+        Map<String, Object> input,
+        String logs
 ) {
 
     /**

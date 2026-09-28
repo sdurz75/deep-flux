@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
@@ -30,6 +31,21 @@
   annidati di Alpine (x-data annidato ESTENDE quello del genitore, non
   lo sostituisce).
 
+  storageKey (opzionale, stringa o null/omesso): quando presente, quale
+  pannello e' aperto sopravvive a un refresh/nuova navigazione
+  (localStorage, stesso meccanismo del toggle tema in
+  fragments/layout.html - una preferenza di sola UI, non stato
+  applicativo, quindi coerente con CLAUDE.md non passare dal server).
+  Letto/scritto via th:data-storage-key/$el.dataset (un binding Alpine
+  puro sul valore iniziale non passerebbe da th:attr, stesso ponte gia'
+  documentato per fluxModel/themeValue altrove) dentro un init() dello
+  stesso x-data, non un x-init separato: deve girare PRIMA che @click
+  sotto possa scrivere activeAccordion, altrimenti il $watch
+  registrato da init() perderebbe il primo cambiamento. Un chiamante
+  che non passa storageKey (o lo passa null) si comporta esattamente
+  come prima: primo pannello aperto di default, nessuna persistenza,
+  nessun accesso a localStorage.
+
   Due scostamenti deliberati dallo snippet originale Pines (stesso
   stile di documentazione delle deviazioni gia' usato in
   fragments/gallery.html), entrambi generici e non legati a un
@@ -49,8 +65,22 @@
      il combobox modello di fragments/generation-params.html) che
      verrebbe tagliato da un overflow-hidden su un antenato.
 -->
-<div th:fragment="panels(labels, bodies)"
-     x-data="{ activeAccordion: 0 }"
+<div th:fragment="panels(labels, bodies, storageKey)"
+     th:data-storage-key="${storageKey}"
+     x-data="{
+        activeAccordion: 0,
+        init() {
+            var key = this.$el.dataset.storageKey;
+            if (!key) { return; }
+            try {
+                var stored = localStorage.getItem(key);
+                if (stored !== null) { this.activeAccordion = JSON.parse(stored); }
+            } catch (e) { /* localStorage non disponibile, resta il default */ }
+            this.$watch('activeAccordion', function (value) {
+                try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignora */ }
+            });
+        }
+     }"
      class="border border-line dark:border-line-dark rounded-md divide-y divide-line dark:divide-line-dark mt-6">
 
     <div th:each="label, iter : ${labels}"

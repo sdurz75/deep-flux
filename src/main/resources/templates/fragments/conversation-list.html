@@ -73,7 +73,7 @@
               th:hx-confirm="#{deepChat.sidebar.confirm.delete}"
               hx-target="#conversation-list-items" hx-swap="outerHTML"
               x-show="!editing" class="shrink-0">
-            <button th:replace="~{fragments/button :: danger(type='submit', text='✕', hxPost=null, hxConfirm=null, hxSwap=null, hxTarget=null, extraClass='px-2 py-1 text-[0.85rem] leading-none')}">✕</button>
+            <button th:replace="~{fragments/button :: danger(type='submit', text='✕', hxPost=null, hxDelete=null, hxConfirm=null, hxSwap=null, hxTarget=null, extraClass='px-2 py-1 text-[0.85rem] leading-none')}">✕</button>
         </form>
     </li>
 </ul>

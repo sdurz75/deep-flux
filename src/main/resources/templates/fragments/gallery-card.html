@@ -15,20 +15,23 @@
 
   ATTENZIONE - riuso solo parziale: il click di zoom
   (@click="imageGalleryOpen") assume un antenato Alpine con quel metodo
-  e con x-ref="gallery" - oggi sempre vero perche' l'unico chiamante e'
-  fragments/gallery.html :: grid, che fornisce quello stato. Una
-  ipotetica lista futura senza lightbox dovrebbe copiare/adattare
-  questo fragment omettendo @click, non riusarlo cosi' com'e'.
+  e con x-ref="gallery", e la checkbox di selezione sotto assume un
+  antenato Alpine con l'array reattivo "selectedIds" - oggi sempre vero
+  perche' l'unico chiamante e' fragments/gallery.html :: grid, che
+  fornisce entrambi. Una ipotetica lista futura senza lightbox/selezione
+  multipla dovrebbe copiare/adattare questo fragment omettendo
+  @click/x-model, non riusarlo cosi' com'e'.
 
   .gallery-card resta l'hook letterale letto da imageGalleryImages() in
   fragments/gallery.html (querySelectorAll('.gallery-card img')) - deve
   restare su QUESTO elemento radice anche se ora vive in un file
   diverso da quello del lightbox.
 
-  Niente prompt qui (solo nel dettaglio, vedi gallery-detail.html) e
-  niente bottone elimina (spostato anche quello nel dettaglio): la card
-  mostra solo l'immagine (zoom al click) e il modello, con una piccola
-  icona overlay al hover per raggiungere il dettaglio.
+  Niente prompt qui (solo nel dettaglio, vedi fragments/generation.html
+  :: status) e niente bottone elimina (spostato anche quello nel
+  dettaglio): la card mostra solo l'immagine (zoom al click) e il
+  modello, con una piccola icona overlay al hover per raggiungere il
+  dettaglio.
 
   Una generazione puo' avere piu' di un'immagine (num_outputs > 1): la
   card ne resta comunque a UNA sola (imageFilenames[0]), con un badge
@@ -37,10 +40,19 @@
   singola thumbnail a aspect-ratio fisso, non per una sotto-griglia),
   ma anche perche' un'altra <img> qui corromperebbe l'indice della
   lightbox (vedi il commento sull'overlay SVG sotto). Tutte le immagini
-  restano comunque raggiungibili dal dettaglio (gallery-detail.html),
-  che le mostra tutte.
+  restano comunque raggiungibili dal dettaglio (/generations/{id}, vedi
+  CLAUDE.md), che le mostra tutte.
+
+  conversationId (nullable): quando la card viene dalla galleria
+  contestuale di /deep-chat (vedi fragments/gallery.html :: grid),
+  finisce come query param sul link di dettaglio, cosi'
+  fragments/generation.html :: status sa mostrare "torna alla
+  conversazione" invece di "torna alla galleria" (vedi
+  GenerationController#status). Null dalla galleria globale: un
+  parametro di link expression Thymeleaf con valore null viene omesso
+  dalla query string, non serve un ramo condizionale qui.
 -->
-<div th:fragment="card(generation)"
+<div th:fragment="card(generation, conversationId)"
      class="gallery-card border border-line dark:border-line-dark rounded-lg overflow-hidden
             bg-surface dark:bg-surface-dark shadow-sm hover:shadow-md transition-shadow duration-200">
 
@@ -51,15 +63,43 @@
       click sull'immagine resta riservato allo zoom).
     -->
     <div class="relative group">
+        <!--
+          onerror: se il file immagine e' mancante su disco, il browser
+          disegnerebbe di suo l'icona di broken-image + il testo alt
+          dentro il riquadro thumbnail, in alto a sinistra - sovrapposto
+          alla checkbox di selezione sotto. visibility (non display):
+          l'<img> mantiene lo spazio occupato (stesso aspect-ratio),
+          niente collasso del layout della card.
+        -->
         <img th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
              th:alt="${generation.prompt}"
              class="w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-cover block cursor-zoom-in"
              @click="imageGalleryOpen"
+             onerror="this.style.visibility='hidden'"
              loading="lazy">
 
         <span th:if="${generation.imageFilenames.size() > 1}"
               th:text="'+' + (${generation.imageFilenames.size()} - 1)"
               class="absolute bottom-2 left-2 text-xs font-semibold text-white bg-black/60 rounded-full px-2 py-0.5 pointer-events-none"></span>
+
+        <!--
+          Checkbox di selezione multipla (cancellazione in blocco, vedi
+          fragments/gallery.html :: grid/fragments/button.html ::
+          dangerSelectable): SEMPRE visibile, non solo all'hover come
+          l'icona di dettaglio sotto - e' un controllo primario, deve
+          restare leggibile anche su touch. name="ids" e' il campo che
+          il <form> di grid(...) invia a POST /gallery/delete-selected
+          (vedi GalleryController#deleteSelected); x-model="selectedIds"
+          e' il binding Alpine gemello per lo stato del bottone/contatore,
+          stesso <input>, nessun conflitto: sono solo due letture dello
+          stesso stato nativo checked/unchecked. Nessun @click.stop
+          necessario: sibling di <img>, non discendente, stesso principio
+          gia' documentato sotto per l'overlay "vedi dettaglio".
+        -->
+        <input type="checkbox" name="ids" th:value="${generation.id}" x-model="selectedIds"
+               th:aria-label="#{gallery.card.select}"
+               class="absolute top-2 left-2 z-10 w-5 h-5 rounded accent-accent dark:accent-accent-dark
+                      bg-canvas/80 dark:bg-canvas-dark/80 cursor-pointer">
 
         <!--
           Overlay di navigazione al dettaglio: <a> reale (niente JS),
@@ -77,7 +117,7 @@
           grid-cols-[...] gia' in uso altrove in questo repo - niente
           pointer-coarse:, quello e' solo v4).
         -->
-        <a th:href="@{'/gallery/' + ${generation.id}}"
+        <a th:href="@{'/generations/' + ${generation.id}(conversationId=${conversationId})}"
            th:aria-label="#{gallery.card.viewDetail}"
            class="absolute top-2 right-2 flex items-center justify-center w-8 h-8 rounded-full
                   bg-black/50 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100

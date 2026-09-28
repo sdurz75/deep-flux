@@ -1,5 +1,8 @@
 package org.dual.replicate.repository;
 
+import java.time.Instant;
+import java.util.Collection;
+
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.springframework.data.domain.Page;
@@ -11,14 +14,19 @@ public interface GenerationRepository extends JpaRepository<Generation, Long> {
     /** Usata dalla galleria: solo le generazioni completate, piu' recenti prima. */
     Page<Generation> findByStatusOrderByCreatedAtDesc(GenerationStatus status, Pageable pageable);
 
+    /** Usata dal listato /generations: tutte le generazioni, qualunque stato, piu' recenti prima. */
+    Page<Generation> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
     /**
-     * Overload di {@code delete(Generation)} che accetta l'id: solo un
-     * alias di {@link #deleteById(Object)} con un nome simmetrico a
-     * {@code delete(Generation)}. Usata da {@code GenerationService.delete},
-     * che ha gia' caricato l'entity per cancellare il file immagine e
-     * qui elimina la riga senza doverla ripassare per intero.
+     * Generazioni non terminali di UN modello, create dopo {@code after}:
+     * usata dal cap di concorrenza per-modello di GenerationService#create.
+     * {@code after} esclude le righe piu' vecchie del timeout di
+     * GenerationService (TIMEOUT): una riga cosi' vecchia diventera' FAILED
+     * al prossimo refresh() ma nel frattempo non deve occupare uno slot,
+     * altrimenti una generazione mai piu' pollata (tab chiusa, server
+     * riavviato durante l'attesa) blocca quel modello a tempo indeterminato
+     * — a differenza del vecchio conteggio via API Replicate, che si
+     * autocorreggeva perche' Replicate stessa segna la prediction conclusa.
      */
-    default void delete(Long id) {
-        deleteById(id);
-    }
+    long countByModelAndStatusInAndCreatedAtAfter(String model, Collection<GenerationStatus> statuses, Instant after);
 }

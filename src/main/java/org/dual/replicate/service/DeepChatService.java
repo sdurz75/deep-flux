@@ -3,6 +3,7 @@ package org.dual.replicate.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -82,8 +83,10 @@ public class DeepChatService {
                         You are a helpful, friendly assistant. You can search the public web
                         with the searchWeb tool whenever a question needs current information
                         or facts you may not know. You can also generate images with the
-                        generateImage tool; use the model you are told is currently selected
-                        in the UI unless the user explicitly names a different one in the chat.
+                        generateImage tool: it always uses the model currently selected in the
+                        UI (you are told which one in a system note), there is no way to pick a
+                        different one for it - if the user asks for a different model, tell them
+                        to change the selection in the UI first.
 
                         Never call generateImage right after the user's first mention of
                         wanting an image. First discuss and refine what they want - subject,
@@ -122,16 +125,20 @@ public class DeepChatService {
      *
      * {@code selectedModel} e' il modello Replicate scelto nel combobox
      * lato UI (vedi templates/deep-chat.html), inviato dal client su ogni
-     * turno tramite requestInterceptor: viene passato al modello come
-     * nota di contesto, non imposto a livello di tool, cosi' l'utente
-     * puo' comunque chiederne un altro esplicitamente in chat.
+     * turno tramite requestInterceptor: passato sia come nota di
+     * contesto al modello LLM (buildMessages sotto, utile ad es. per
+     * capire se e' uno dei LoRA personali dell'utente, vedi
+     * imagePromptingGuide) sia al tool via ToolContext
+     * (ImageGenerationTool.MODEL_CONTEXT_KEY) — per ora (vedi CLAUDE.md,
+     * Scopo punto 1) e' sempre e solo questo il modello usato da
+     * generateImage, non un parametro che l'LLM sceglie componendo la
+     * chiamata al tool, stessa ragione di generationParameters sotto.
      *
      * {@code generationParameters} sono invece i valori del pannello
      * impostazioni (aspect_ratio, width, height, ...), gia' nel
      * vocabolario Replicate: passati al tool via ToolContext, NON al
      * modello LLM — sono impostazioni deterministiche scelte dall'utente
-     * nella UI, non vogliamo che l'LLM le componga o le interpreti (a
-     * differenza del modello, che l'LLM sceglie come argomento del tool).
+     * nella UI, non vogliamo che l'LLM le componga o le interpreti.
      */
     public Reply reply(Long conversationId, List<Turn> history, String selectedModel, Map<String, Object> generationParameters) {
         ChatConversation conversation = chatConversationRepository.findById(conversationId)
@@ -148,13 +155,16 @@ public class DeepChatService {
         Locale locale = LocaleContextHolder.getLocale();
         Instant start = Instant.now();
         try {
+            Map<String, Object> toolContext = new HashMap<>();
+            toolContext.put(GenerationResultHolder.CONTEXT_KEY, resultHolder);
+            toolContext.put(ImageGenerationTool.PARAMETERS_CONTEXT_KEY, generationParameters);
+            toolContext.put(ImageGenerationTool.MODEL_CONTEXT_KEY, selectedModel);
+
             ChatResponse chatResponse;
             try {
                 chatResponse = chatClient.prompt()
                         .messages(messages)
-                        .toolContext(Map.of(
-                                GenerationResultHolder.CONTEXT_KEY, resultHolder,
-                                ImageGenerationTool.PARAMETERS_CONTEXT_KEY, generationParameters))
+                        .toolContext(toolContext)
                         .call()
                         .chatResponse();
             } catch (RuntimeException e) {

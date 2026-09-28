@@ -1,0 +1,14 @@
+-- Seed come colonna dedicata, non piu' solo sepolto dentro PARAMETERS_JSON
+-- (vedi GenerationService#create/#refresh): l'utente deve poterlo vedere
+-- chiaramente nel dettaglio di una generazione (gallery-detail.html), non
+-- solo estrarlo a mano dal blob JSON.
+--
+-- Nessun backfill dai dati esistenti: PARAMETERS_JSON contiene "seed"
+-- solo per le generazioni dove l'utente lo aveva specificato esplicitamente
+-- (per quelle random, il seed non era mai stato catturato prima di questa
+-- migrazione), ed estrarlo da un CLOB JSON libero in SQL H2 non e'
+-- affidabile quanto farlo in Java (dove gia' avviene per le nuove righe).
+-- Le generazioni gia' terminali restano con SEED NULL per sempre (refresh()
+-- non le rielabora piu' una volta terminali, vedi GenerationService), solo
+-- quelle nuove/non ancora terminali lo popolano.
+ALTER TABLE "GENERATION" ADD COLUMN "SEED" BIGINT;

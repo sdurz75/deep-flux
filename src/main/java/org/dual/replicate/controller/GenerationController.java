@@ -1,52 +1,69 @@
 package org.dual.replicate.controller;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
+import org.dual.replicate.repository.GenerationRepository;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Creazione di una generazione e polling del suo stato. Il polling segue
- * il pattern "stessa URL, due risposte": GET /generations/{id} fa
- * avanzare lo stato e risponde con il solo fragment quando chiamato da
- * htmx (hx-trigger="every 2s"), con la pagina intera altrimenti — che
- * include un meta-refresh come fallback per la navigazione senza JS.
+ * Creazione di una generazione, listato paginato (qualunque stato) e
+ * dettaglio/cancellazione. Il dettaglio vive sulla stessa
+ * GET /generations/{id} del polling di stato ("stessa URL, due risposte":
+ * fragment se chiamato da htmx via hx-trigger="every 2s" mentre non
+ * terminale, pagina intera altrimenti) - a stato terminale quello stesso
+ * fragment (fragments/generation.html :: status) mostra anche prompt/
+ * parametri/immagini cancellabili, niente pagina di dettaglio separata
+ * (vedi CLAUDE.md).
  */
 @Controller
 @RequestMapping("/generations")
 public class GenerationController {
 
+    private static final int PAGE_SIZE = 12;
+
     private final GenerationService generationService;
+    private final GenerationRepository generationRepository;
     private final ReplicateModelCatalog modelCatalog;
     private final GenerationParameterHandlers parameterHandlers;
     private final ObjectMapper objectMapper;
     private final Messages messages;
 
     public GenerationController(GenerationService generationService,
+                                 GenerationRepository generationRepository,
                                  ReplicateModelCatalog modelCatalog,
                                  GenerationParameterHandlers parameterHandlers,
                                  ObjectMapper objectMapper,
                                  Messages messages) {
         this.generationService = generationService;
+        this.generationRepository = generationRepository;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
         this.objectMapper = objectMapper;
@@ -54,10 +71,19 @@ public class GenerationController {
     }
 
     @GetMapping("/new")
-    public String form(@RequestParam(required = false) String prompt, Model model) {
+    public String form(@RequestParam(required = false) String prompt,
+                        @RequestParam(required = false) Long seed,
+                        Model model) {
         model.addAttribute("prompt", prompt);
         String defaultModel = modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse("");
         populateGenerationParamsModel(model, defaultModel, Map.of());
+        // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,
+        // ramo SUCCEEDED): non passa per populateFormTypeFields/defaultFields (seed ne e'
+        // intenzionalmente escluso, vedi FluxLoraFf3ParameterHandler/Flux2Klein9bParameterHandler),
+        // va impostato qui esplicitamente.
+        if (seed != null) {
+            model.addAttribute("seed", seed);
+        }
         return "generate";
     }
 
@@ -66,9 +92,7 @@ public class GenerationController {
                           @RequestParam(required = false) String version,
                           @RequestParam String prompt,
                           @RequestParam Map<String, String> allParams,
-                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           Model uiModel) {
-        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         try {
             GenerationFormType formType = modelCatalog.formTypeOf(model)
                     .orElseThrow(() -> new ReplicateException(messages.get("generateForm.error.unknownModel", model)));
@@ -78,17 +102,19 @@ public class GenerationController {
             Map<String, Object> parameters = parameterHandlers.get(formType).toParameterMap(allParams);
             String parametersJson = objectMapper.writeValueAsString(parameters);
             Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson);
-            if (isHtmxRequest) {
-                uiModel.addAttribute("generation", generation);
-                return "fragments/generation :: status";
-            }
-            return "redirect:/generations/" + generation.getId();
+            uiModel.addAttribute("generation", generation);
+            // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
+            // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
+            // valorizza comunque per coerenza col Model di status() sotto, stesso fragment condiviso.
+            uiModel.addAttribute("conversationId", null);
+            uiModel.addAttribute("generationsPage", null);
+            return "fragments/generation :: status";
         } catch (ReplicateException e) {
             uiModel.addAttribute("error", e.getMessage());
             uiModel.addAttribute("version", version);
             uiModel.addAttribute("prompt", prompt);
             populateGenerationParamsModel(uiModel, model, allParams);
-            return isHtmxRequest ? "fragments/generate-form :: form" : "generate";
+            return "fragments/generate-form :: form";
         }
     }
 
@@ -147,14 +173,219 @@ public class GenerationController {
         fields.forEach(model::addAttribute);
     }
 
-    @GetMapping("/{id}")
-    public String status(@PathVariable Long id,
-                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
-                          Model model) {
-        Generation generation = generationService.refresh(id);
-        model.addAttribute("generation", generation);
+    /**
+     * Listato paginato di TUTTE le generazioni, qualunque stato (a
+     * differenza di /gallery, che resta filtrato a sole SUCCEEDED) -
+     * stesso pattern "same URL, two responses"/self-heal pagina vuota di
+     * GalleryController#list.
+     */
+    @GetMapping
+    public String list(@RequestParam(defaultValue = "1") int page,
+                        @RequestHeader(value = "HX-Request", required = false) String hxRequest,
+                        Model model) {
+        int pageIndex = Math.max(0, page - 1);
+        Page<Generation> result = generationRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(pageIndex, PAGE_SIZE));
+
+        if (result.isEmpty() && result.getTotalPages() > 0 && pageIndex >= result.getTotalPages()) {
+            pageIndex = result.getTotalPages() - 1;
+            result = generationRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(pageIndex, PAGE_SIZE));
+        }
+        int currentPage = pageIndex + 1;
+
+        model.addAttribute("generations", result.getContent());
+        model.addAttribute("currentPage", currentPage);
+        model.addAttribute("totalPages", result.getTotalPages());
+        model.addAttribute("hasPrevious", result.hasPrevious());
+        model.addAttribute("hasNext", result.hasNext());
+        model.addAttribute("pageNumbers", paginationWindow(currentPage, result.getTotalPages()));
 
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
+        return isHtmxRequest
+                ? "fragments/generations :: content(generations=${generations}, currentPage=${currentPage}, "
+                        + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
+                : "generations-list";
+    }
+
+    /** Vedi Javadoc di GalleryController#paginationWindow: stessa identica finestra (prima/ultima pagina + un intorno della corrente, null come ellissi). */
+    private static List<Integer> paginationWindow(int currentPage, int totalPages) {
+        if (totalPages <= 1) {
+            return List.of();
+        }
+
+        List<Integer> pages = new ArrayList<>();
+        pages.add(1);
+
+        int windowStart = Math.max(2, currentPage - 1);
+        int windowEnd = Math.min(totalPages - 1, currentPage + 1);
+
+        if (windowStart > 2) {
+            pages.add(null);
+        }
+        for (int p = windowStart; p <= windowEnd; p++) {
+            pages.add(p);
+        }
+        if (windowEnd < totalPages - 1) {
+            pages.add(null);
+        }
+        pages.add(totalPages);
+
+        return pages;
+    }
+
+    /**
+     * Cancellazione in blocco dal listato (checkbox multiple, vedi
+     * fragments/generations.html :: list): stesso pattern di
+     * GalleryController#deleteSelected, nessun redirect, il refresh
+     * arriva dall'evento SSE pubblicato da GenerationService#deleteAll.
+     */
+    @PostMapping("/delete-selected")
+    @ResponseBody
+    public void deleteSelected(@RequestParam(required = false) List<Long> ids) {
+        if (ids != null && !ids.isEmpty()) {
+            generationService.deleteAll(ids);
+        }
+    }
+
+    /**
+     * Cancellazione di riga singola dal listato: a differenza di
+     * deleteSelected sopra, ignora deliberatamente le checkbox
+     * eventualmente spuntate nel form circostente (elimina SOLO l'id nel
+     * path). La pagina lista resta valida dopo la cancellazione, nessun
+     * redirect - stesso motivo di deleteSelected.
+     */
+    @PostMapping("/{id}/delete")
+    @ResponseBody
+    public void deleteOne(@PathVariable Long id) {
+        generationService.delete(id);
+    }
+
+    /**
+     * Azione nucleare ("Elimina tutto", modal con conferma testuale in
+     * generations-list.html): elimina OGNI generazione esistente, non
+     * solo la selezione/pagina corrente.
+     */
+    @PostMapping("/delete-all")
+    @ResponseBody
+    public void deleteAll() {
+        generationService.deleteEverything();
+    }
+
+    /**
+     * conversationId/generationsPage (entrambi opzionali): decidono il
+     * link "indietro" e il target del redirect dopo una cancellazione da
+     * questa pagina (vedi delete/deleteImage sotto) - conversationId
+     * quando si arriva dalla galleria contestuale di una conversazione
+     * /deep-chat (vedi fragments/gallery-card.html), generationsPage
+     * quando si arriva dal listato /generations, nessuno dei due dalla
+     * galleria globale (default a /gallery).
+     */
+    @GetMapping("/{id}")
+    public String status(@PathVariable Long id,
+                          @RequestParam(required = false) Long conversationId,
+                          @RequestParam(required = false) Integer generationsPage,
+                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
+                          HttpServletRequest request, HttpServletResponse response,
+                          Model model) {
+        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
+        Generation generation;
+        try {
+            generation = generationService.refresh(id);
+        } catch (ReplicateException e) {
+            // La generazione e' stata cancellata (da /generations, dal proprio dettaglio o per
+            // ultima-immagine-a-cascata, vedi delete/deleteImage sotto) mentre QUESTA tab la
+            // stava ancora pollando ogni 2s (possibile solo da quando anche generazioni non
+            // terminali sono cancellabili, vedi CLAUDE.md - refresh()/get() la trovano "non
+            // trovata"): stesso target "indietro" di una cancellazione riuscita, non un errore
+            // generico che il polling ripeterebbe identico ogni 2s all'infinito (htmx non si
+            // ferma da solo su una risposta d'errore). Ma ReplicateException la lancia anche
+            // ImageStorageService/ReplicateClient per errori VERI (download fallito, disco
+            // pieno...): se la riga esiste ancora non e' questo il caso, si ripropaga e basta,
+            // altrimenti un errore di storage sparirebbe silenziosamente in un redirect.
+            if (generationRepository.existsById(id)) {
+                throw e;
+            }
+            if (isHtmxRequest) {
+                response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
+                return null;
+            }
+            return "redirect:" + backPath(conversationId, generationsPage);
+        }
+        model.addAttribute("generation", generation);
+        model.addAttribute("conversationId", conversationId);
+        model.addAttribute("generationsPage", generationsPage);
+
         return isHtmxRequest ? "fragments/generation :: status" : "generation-status";
+    }
+
+    /**
+     * Cancellazione dal dettaglio (bottone in fragments/generation.html
+     * :: status, ramo SUCCEEDED/FAILED): a differenza di deleteOne sopra,
+     * la pagina corrente smette di esistere dopo la cancellazione, serve
+     * un redirect (HX-Redirect, non HX-Refresh: la pagina corrente non
+     * c'e' piu', va lasciata del tutto). "Indietro" segue la stessa
+     * provenienza del link mostrato in pagina (vedi backTarget sotto).
+     */
+    @DeleteMapping("/{id}")
+    public String delete(@PathVariable Long id,
+                          @RequestParam(required = false) Long conversationId,
+                          @RequestParam(required = false) Integer generationsPage,
+                          HttpServletRequest request, HttpServletResponse response) {
+        generationService.delete(id);
+        response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
+        return null;
+    }
+
+    /**
+     * Cancellazione per-immagine dal dettaglio: due esiti possibili
+     * (vedi GenerationService#deleteImage). Se cascaded, l'intera
+     * generazione e' sparita, stesso redirect di delete(...) sopra. Se no,
+     * il dettaglio resta valido: si ri-renderizza solo la griglia
+     * immagini aggiornata (hx-target/hx-swap sul bottone stesso, vedi
+     * fragments/generation-images.html), niente redirect.
+     */
+    @DeleteMapping("/{id}/images/{filename}")
+    public String deleteImage(@PathVariable Long id, @PathVariable String filename,
+                               @RequestParam(required = false) Long conversationId,
+                               @RequestParam(required = false) Integer generationsPage,
+                               HttpServletRequest request, HttpServletResponse response, Model model) {
+        boolean cascaded = generationService.deleteImage(id, filename);
+        if (cascaded) {
+            response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
+            return null;
+        }
+        Generation generation = generationService.get(id);
+        model.addAttribute("generation", generation);
+        model.addAttribute("conversationId", conversationId);
+        model.addAttribute("generationsPage", generationsPage);
+        return "fragments/generation-images :: grid(generation=${generation}, conversationId=${conversationId}, generationsPage=${generationsPage})";
+    }
+
+    /**
+     * Percorso "indietro" dopo la cancellazione di una generazione (o
+     * della sua ultima immagine, o la scomparsa per race mentre la si
+     * pollava, vedi status(...) sopra) dal proprio dettaglio:
+     * conversationId (deep-chat) prevale su generationsPage (listato
+     * /generations), che a sua volta prevale sul default /gallery -
+     * stesso ordine di priorita' in cui questi parametri arrivano dalla
+     * pagina di dettaglio, mai entrambi valorizzati insieme in pratica
+     * (dipende da dove si e' arrivati). SENZA prefisso di contextPath:
+     * usato sia come header HX-Redirect (via backTarget sotto, che il
+     * prefisso lo aggiunge) sia come nome di vista "redirect:..." (che
+     * il prefisso lo aggiunge gia' da solo, vedi CLAUDE.md - prependerlo
+     * qui lo duplicherebbe in quel secondo caso).
+     */
+    private String backPath(Long conversationId, Integer generationsPage) {
+        if (conversationId != null) {
+            return "/deep-chat/" + conversationId;
+        }
+        if (generationsPage != null) {
+            return "/generations?page=" + generationsPage;
+        }
+        return "/gallery";
+    }
+
+    /** Come backPath(...) sopra, ma per l'header di risposta HX-Redirect: li' il prefisso di un eventuale reverse proxy va aggiunto a mano, vedi CLAUDE.md. */
+    private String backTarget(Long conversationId, Integer generationsPage, HttpServletRequest request) {
+        return request.getContextPath() + backPath(conversationId, generationsPage);
     }
 }

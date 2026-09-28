@@ -1,6 +1,5 @@
 package org.dual.replicate.replicate;
 
-import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -20,9 +19,6 @@ import org.springframework.web.client.RestClientResponseException;
  */
 @Component
 public class ReplicateClient {
-
-    /** Tetto sul numero di pagine seguite da countInProgressPredictions. */
-    private static final int LIST_PAGE_CAP = 5;
 
     private final RestClient restClient;
     private final String apiToken;
@@ -67,66 +63,6 @@ public class ReplicateClient {
                     .body(body)
                     .retrieve()
                     .body(PredictionResponse.class);
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
-    }
-
-    /**
-     * Conta le prediction "in esecuzione" (status starting/processing)
-     * sull'intero account, fermandosi non appena il conteggio raggiunge
-     * {@code stopAt} (usata da GenerationService per rifiutare una nuova
-     * generazione oltre soglia, non serve il conteggio esatto oltre
-     * quella). GET /v1/predictions non supporta un filtro per stato: va
-     * paginato (100 risultati a pagina, i piu' recenti prima) e filtrato
-     * qui. LIST_PAGE_CAP limita quante pagine si seguono, per non
-     * paginare indefinitamente su un account con molto storico concluso.
-     */
-    public int countInProgressPredictions(int stopAt) {
-        requireToken();
-        int inProgress = 0;
-        PredictionListResponse page = getFirstPredictionsPage();
-        for (int pageCount = 1; ; pageCount++) {
-            for (PredictionResponse prediction : page.results()) {
-                if ("starting".equals(prediction.status()) || "processing".equals(prediction.status())) {
-                    inProgress++;
-                    if (inProgress >= stopAt) {
-                        return inProgress;
-                    }
-                }
-            }
-            if (page.next() == null || pageCount >= LIST_PAGE_CAP) {
-                return inProgress;
-            }
-            page = getNextPredictionsPage(page.next());
-        }
-    }
-
-    private PredictionListResponse getFirstPredictionsPage() {
-        try {
-            return restClient.get()
-                    .uri("/predictions")
-                    .headers(this::authHeaders)
-                    .retrieve()
-                    .body(PredictionListResponse.class);
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
-    }
-
-    /**
-     * "next" e' gia' un URL assoluto e completamente codificato: passarlo
-     * come template stringa (la forma usata da tutti gli altri metodi) lo
-     * ri-codificherebbe (es. "&" diventerebbe "%26"), rompendo il cursore
-     * di paginazione. Va passato come URI gia' pronto.
-     */
-    private PredictionListResponse getNextPredictionsPage(String next) {
-        try {
-            return restClient.get()
-                    .uri(URI.create(next))
-                    .headers(this::authHeaders)
-                    .retrieve()
-                    .body(PredictionListResponse.class);
         } catch (RestClientException e) {
             throw toReplicateException(e);
         }

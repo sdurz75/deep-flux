@@ -11,8 +11,11 @@ L'applicazione serve a:
 1. **Generare immagini con l'ausilio di un chatbot** — `/deep-chat`:
    descrivi cosa vuoi, l'assistente puo' cercare sul web per informarsi
    (`WebSearchTool`, via SearXNG) e generare l'immagine su Replicate
-   (`ImageGenerationTool`) col modello scelto nel combobox o un altro se
-   richiesto esplicitamente in chat. `/generations/new` resta la via
+   (`ImageGenerationTool`) sempre col modello scelto nel combobox
+   (`ImageGenerationTool.MODEL_CONTEXT_KEY`, via `ToolContext`, non un
+   parametro che l'LLM sceglie componendo la chiamata al tool — per ora
+   la scelta del modello resta interamente lato UI). `/generations/new`
+   resta la via
    diretta (form, senza chatbot) per chi vuole specificare modello/
    parametri a mano. `ImageGenerationTool` avvia la generazione e torna
    subito, senza attenderne l'esito: il polling verso Replicate continua
@@ -21,12 +24,26 @@ L'applicazione serve a:
    pushato via SSE (`GET /events`, `GenerationEventBroadcaster`) a chi ha
    quella conversazione aperta — nessun polling client-side per la chat.
    `/generations/{id}` (form diretto) resta invece a polling client-side
-   htmx ogni 2s, invariato.
+   htmx ogni 2s mentre la generazione non e' terminale, invariato; a
+   stato terminale quella stessa pagina (`fragments/generation.html ::
+   status`) *e'* anche il dettaglio della generazione (prompt/modello/
+   seed/parametri, immagini cancellabili singolarmente, cancellazione
+   dell'intera generazione) — niente pagina di dettaglio separata.
 2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
    tramite un archivio** — ogni generazione (chatbot o form diretto)
-   diventa una riga `Generation`, consultabile in `/gallery`, che si
-   aggiorna da sola (SSE, vedi punto 1 sopra) quando una qualunque
-   generazione completa, indipendentemente da come e' stata avviata.
+   diventa una riga `Generation`. `/gallery` resta l'archivio delle sole
+   generazioni completate con successo (paginato, con cancellazione in
+   blocco dalla griglia), che si aggiorna da solo (SSE, vedi punto 1
+   sopra) quando una qualunque generazione completa; le sue card linkano
+   al dettaglio su `/generations/{id}` (punto 1 sopra), non hanno una
+   pagina di dettaglio propria. `/generations` (senza id) e' invece il
+   listato paginato di TUTTE le generazioni, qualunque stato — selezione
+   multipla (anche via shift-click), cancellazione della selezione o
+   dell'intero archivio in un colpo solo (con conferma testuale
+   rinforzata, vedi `generations-list.html`). La cancellazione di una
+   generazione elimina anche i suoi file immagine; cancellare l'ultima
+   immagine rimasta di una generazione elimina a cascata la generazione
+   stessa (`GenerationService#deleteImage`).
 3. **Mantenere una storia delle conversazioni e poterle riprendere in
    futuro** — `/deep-chat` supporta piu' conversazioni, ognuna una riga
    `ChatConversation` (migrazione V5) che raggruppa i propri turni
@@ -156,19 +173,19 @@ src/main/java/org/dual/replicate/
   Application.java              # entry point Spring Boot
   controller/
     HomeController.java         # pagina intera, esempio minimo
-    GenerationController.java   # crea una generazione + polling htmx dello stato
-    GalleryController.java      # galleria (load more) + dettaglio singola immagine
+    GenerationController.java   # crea una generazione, polling htmx dello stato + dettaglio a stato terminale, listato paginato /generations (qualunque stato), cancellazione (singola/selezione/per-immagine/intero archivio)
+    GalleryController.java      # galleria (load more): SOLO generazioni SUCCEEDED, cancellazione in blocco dalla griglia
     DeepChatController.java     # pagina <deep-chat> + lista conversazioni + galleria contestuale (tutte le route HTML sotto /deep-chat/*)
     DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
     EventStreamController.java  # GET /events (SSE): unico endpoint di push, vedi GenerationEventBroadcaster
   domain/
-    Generation.java             # entity JPA: prompt, modello, parametri, stato, file immagine
+    Generation.java             # entity JPA: prompt, modello, parametri, seed, stato, file immagine
     GenerationStatus.java
     ChatConversation.java       # entity JPA: una conversazione di /deep-chat (titolo, elencabile/rinominabile/eliminabile dalla lista conversazioni)
     ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
     ChatMessageRole.java
     ReplicateModel.java         # entity JPA: un modello Replicate censito (owner/name/version/formType), vedi migrazione V6
-    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (un valore oggi, FLUX_LORA_FF3)
+    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B)
   repository/
     GenerationRepository.java
     ChatConversationRepository.java
@@ -177,9 +194,8 @@ src/main/java/org/dual/replicate/
   replicate/
     ReplicateClient.java        # wrapper RestClient sulle API Replicate
     PredictionResponse.java
-    PredictionListResponse.java # risposta di GET /predictions, usata solo per contare le prediction in corso
     ReplicateException.java
-    TooManyPredictionsException.java # rifiuto applicativo: troppe prediction gia' in corso (vedi GenerationService#create)
+    TooManyPredictionsException.java # rifiuto applicativo: troppe prediction gia' in corso PER LO STESSO MODELLO (vedi GenerationService#create)
     ReplicateModelCatalog.java  # legge il catalogo modelli censiti (ReplicateModelRepository) per il combobox di /generations/new e /deep-chat
   search/
     SearxngClient.java          # wrapper RestClient su un'istanza SearXNG (Basic Auth)
@@ -187,10 +203,13 @@ src/main/java/org/dual/replicate/
   service/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download; pubblica GenerationCompletedEvent a ogni transizione terminale
     GenerationCompletedEvent.java # evento di dominio: una Generation e' diventata terminale (successo o fallimento), qualunque sia il percorso che ce l'ha portata
+    GenerationsDeletedEvent.java # evento di dominio: una o piu' Generation sono state eliminate (GenerationService#delete/#deleteAll/#deleteEverything), singola o in blocco
+    GenerationImageDeletedEvent.java # evento di dominio: una singola immagine e' stata rimossa da una Generation ANCORA esistente (GenerationService#deleteImage, caso non a cascata)
     GenerationEventBroadcaster.java # sorgente Reactor (Sinks.Many/Flux) di GET /events, broadcast "gallery-update"/"chat-message"
     GenerationParameterHandler.java # interfaccia: costruisce l'input Replicate per un GenerationFormType a partire dai campi sottomessi, un'implementazione per form-type
     GenerationParameterHandlers.java # risolve il GenerationParameterHandler di un GenerationFormType (bean auto-raccolte), usato da GenerationController/DeepChatController/DeepChatApiController
-    FluxLoraFf3ParameterHandler.java # unico GenerationParameterHandler oggi: i 9 campi tipizzati (width/height/formato/steps/guidance/seed/lora scale/variante flux/num output)
+    FluxLoraFf3ParameterHandler.java # GenerationParameterHandler di FLUX_LORA_FF3: i 9 campi tipizzati (width/height/formato/steps/guidance/seed/lora scale/variante flux/num output)
+    Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
@@ -210,27 +229,35 @@ src/main/resources/
     V4__generation_multiple_images.sql # una Generation puo' avere piu' immagini (num_outputs > 1)
     V5__chat_conversations.sql       # CHAT_CONVERSATION + CONVERSATION_ID su CHAT_MESSAGE (vedi Scopo, punto 3)
     V6__create_replicate_model.sql   # tabella REPLICATE_MODEL (catalogo censito a mano) + seed di sdurz75/flux-lora-ff3
+    V7__add_flux_2_klein_9b_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-2-klein-9b (VERSION NULL, shortcut "ultima versione")
+    V8__add_generation_seed.sql      # colonna GENERATION.SEED (Long, nullable): il seed usato diventa un campo di prima classe, non piu' solo dentro PARAMETERS_JSON
   templates/
     index.html                   # home
     generate.html                 # form nuova generazione
-    generation-status.html       # pagina di stato/polling di una generazione
-    gallery.html                 # galleria (griglia paginata)
-    gallery-detail.html          # dettaglio di una generazione, unico punto dove si puo' eliminare
+    generation-status.html       # pagina di stato/polling di una generazione + dettaglio a stato terminale (prompt/parametri/immagini/cancellazione, vedi fragments/generation.html :: status)
+    gallery.html                 # galleria (griglia paginata), SOLO generazioni SUCCEEDED
+    generations-list.html        # listato paginato /generations, qualunque stato: selezione multipla (shift-click incluso), cancellazione selezione/intero archivio (modal con conferma testuale)
     deep-chat.html                # pagina che ospita <deep-chat> + rail sinistro non collassabile (lista conversazioni/impostazioni) + accordion collassabile (galleria contestuale)
     fragments/
       layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect, config Tailwind + @layer base
       header.html                # header di navigazione + theme switch, incluso da layout.html
       button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle), vedi "Convenzione: theming"
+      alert.html                 # fragment error(text): box di errore/avviso, riusato da generate-form/generation/generation-params
       generate-form.html         # fragment del form (riusato anche per mostrare errori)
       generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
       generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
-      generation.html            # fragment di stato di una generazione (polling)
+      generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio
+      generation.html            # fragment status: polling di una generazione + dettaglio completo a stato terminale (prompt/modello/seed/parametri, immagini cancellabili, cancellazione generazione) - unica pagina di dettaglio, vedi CLAUDE.md
+      generation-images.html     # fragment grid(generation, conversationId, generationsPage): tutte le immagini di una Generation con cancellazione per-immagine (cascade sull'ultima), usato da fragments/generation.html
       gallery.html               # griglia + lightbox della galleria (content/grid), compone gallery-card e pagination; grid(...) riusata anche dalla galleria contestuale di /deep-chat
-      gallery-card.html          # card di una singola generazione, riusabile da futuri altri listati
-      pagination.html            # paginazione generica (non specifica della galleria), riusabile da futuri listati
+      gallery-card.html          # card di una singola generazione (link di dettaglio verso /generations/{id})
+      generations.html           # fragment content/list del listato /generations: paginazione + selezione multipla (seleziona tutte, shift-click), compone generation-row e pagination
+      generation-row.html        # riga di una generazione nel listato /generations (qualunque stato, non solo SUCCEEDED), checkbox di selezione + cancellazione singola
+      description-list.html      # fragment term(text): <dt> di una lista di definizioni, usato dal dettaglio generazione (fragments/generation.html :: status)
+      pagination.html            # paginazione generica (non specifica della galleria), riusata da /gallery e /generations
       accordion.html             # accordion Pines UI generico a N pannelli (labels/bodies accoppiate per indice): panels(...) collassabile (galleria contestuale di deep-chat.html), staticPanels(...) non collassabile, tutti i pannelli sempre visibili (rail sinistro di deep-chat.html: lista conversazioni + impostazioni)
       conversation-list.html     # contenuto della lista conversazioni di /deep-chat (elenco, rinomina, cancellazione), sezione del rail sinistro non collassabile
-      live-events.html           # connessione SSE a GET /events, ri-dispatchata come CustomEvent su document.body; incluso solo da gallery.html e deep-chat.html
+      live-events.html           # connessione SSE a GET /events, ri-dispatchata come CustomEvent su document.body; incluso solo da gallery.html, generations-list.html e deep-chat.html
 ```
 
 Le immagini generate e il DB H2 vivono in `./data/` (fuori da git, vedi
@@ -267,10 +294,10 @@ Comportamento di default del dialect, da tenere a mente:
 
 - il `<title>` della pagina **sostituisce** quello di `layout.html`
   automaticamente — non serve marcarlo con `layout:fragment`;
-- il resto di `<head>` viene **fuso** (unione, non sostituzione): elementi
-  aggiuntivi in `<head>` nella pagina (es. un `<meta>`/`<noscript>` come in
-  `generation-status.html`) finiscono nell'head finale insieme a quelli di
-  `layout.html`, senza doverli dichiarare come fragment;
+- il resto di `<head>` viene **fuso** (unione, non sostituzione): un
+  elemento aggiuntivo in `<head>` nella pagina finisce nell'head finale
+  insieme a quelli di `layout.html`, senza doverlo dichiarare come
+  fragment;
 - un fragment della pagina **sostituisce l'elemento del decoratore tag
   incluso**, non solo il suo contenuto — per questo il fragment `content`
   nelle pagine e' un `<div>` come nel decoratore, non un `<main>`: il
@@ -316,8 +343,9 @@ named`. Vedi `GalleryController` per l'uso corretto.
 
 Vantaggi di questo pattern rispetto ad avere due endpoint separati:
 
-- un solo URL, condivisibile/bookmarkabile, che funziona sia con
-  JavaScript disabilitato (fallback a navigazione piena) sia con htmx;
+- un solo URL, condivisibile/bookmarkabile, utilizzabile sia per la
+  navigazione diretta del browser (prima apertura, refresh, link
+  condiviso) sia per lo swap htmx;
 - nessuna duplicazione di markup: il fragment dei risultati è lo stesso
   sia che venga incorporato nella pagina intera sia che venga restituito
   da solo.
@@ -371,10 +399,10 @@ riscrive il context path della richiesta a runtime per includere
 `X-Forwarded-Prefix`, quindi `request.getContextPath() + "/gallery"`
 riproduce esattamente cio' che `@{/gallery}` emetterebbe in un template
 — non una stringa letterale `"/gallery"` scritta a mano, per lo stesso
-motivo di sopra. Esempio: `GalleryController#delete`, che costruisce
-l'header di risposta `HX-Redirect` cosi' (un `redirect:"..."` come
-nome di vista, invece, non ha bisogno di questo: Spring lo risolve gia'
-correttamente rispetto al context path da solo).
+motivo di sopra. Esempio: `GenerationController#delete`/`#deleteImage`,
+che costruiscono l'header di risposta `HX-Redirect` cosi' (un
+`redirect:"..."` come nome di vista, invece, non ha bisogno di questo:
+Spring lo risolve gia' correttamente rispetto al context path da solo).
 
 ## Convenzione: theming
 
@@ -520,7 +548,7 @@ Lato Java, `org.dual.replicate.i18n.Messages` (wrapper su
 richiesta corrente via `LocaleContextHolder`) va iniettato ovunque un
 messaggio d'errore possa arrivare all'utente — non solo nei controller:
 oggi in `ReplicateClient`, `SearxngClient`, `GenerationService`,
-`ImageStorageService`, `GalleryController`, `DeepChatApiController`,
+`ImageStorageService`, `GenerationController`, `DeepChatApiController`,
 `DeepChatService`. La risoluzione avviene sempre al call site, prima di
 costruire l'eccezione (`throw new ReplicateException(messages.get(...))`),
 mai nel costruttore dell'eccezione. Attenzione ai nomi: se la classe usa

@@ -2,7 +2,7 @@ package org.dual.replicate.replicate;
 
 /**
  * Rifiuto applicativo (non un errore di Replicate) quando ci sono gia'
- * troppe prediction in esecuzione sull'account: vedi
+ * troppe prediction in esecuzione per lo stesso modello: vedi
  * GenerationService#create. Sottoclasse di ReplicateException cosi' i
  * controller che gia' catturano quest'ultima (GenerationController) la
  * gestiscono senza modifiche.

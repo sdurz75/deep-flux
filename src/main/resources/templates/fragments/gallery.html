@@ -44,7 +44,10 @@
             <span th:text="#{gallery.empty.prefix}">Nessuna immagine ancora.</span>
             <a th:href="@{/generations/new}" th:text="#{gallery.empty.link}">Generane una</a>.
         </p>
-        <div th:replace="~{fragments/gallery :: grid(${generations})}"></div>
+        <!-- th:unless su un th:block separato, non th:if sullo stesso tag di th:replace: stesso principio gia' documentato altrove in questo file (th:each+th:replace), th:replace ha precedenza piu' alta e scatterebbe comunque. Altrimenti la toolbar di selezione (dentro grid(...)) comparirebbe anche a galleria vuota. -->
+        <th:block th:unless="${#lists.isEmpty(generations)}">
+            <div th:replace="~{fragments/gallery :: grid(${generations}, null)}"></div>
+        </th:block>
         <div th:replace="~{fragments/pagination :: nav('/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
     </div>
 </th:block>
@@ -60,12 +63,16 @@
   condizione, verificato dal vivo): serve il th:block che avvolge il
   th:replace condizionale, stesso principio gia' documentato sopra per
   th:each+th:replace in grid(...).
+
+  conversationId: propagato a grid(...)/card(...) sotto (vedi
+  fragments/gallery-card.html), sempre valorizzato qui - unico
+  chiamante di gridOrEmpty e' la galleria contestuale di /deep-chat.
 -->
-<th:block th:fragment="gridOrEmpty(generations, emptyMessage)">
+<th:block th:fragment="gridOrEmpty(generations, emptyMessage, conversationId)">
     <p th:if="${#lists.isEmpty(generations)}" th:text="${emptyMessage}"
        class="text-ink-muted dark:text-ink-muted-dark">Nessuna immagine.</p>
     <th:block th:unless="${#lists.isEmpty(generations)}">
-        <div th:replace="~{fragments/gallery :: grid(${generations})}"></div>
+        <div th:replace="~{fragments/gallery :: grid(${generations}, ${conversationId})}"></div>
     </th:block>
 </th:block>
 
@@ -78,8 +85,9 @@
      sotto), qui il wraparound di next/prev ricalcola ogni volta la
      lista live delle <img> (imageGalleryImages()), cosi' resta
      corretto anche dopo che una generazione viene eliminata (dal
-     dettaglio, non piu' da qui, vedi gallery-detail.html) e la card
-     sparisce dalla griglia al prossimo caricamento.
+     dettaglio, non piu' da qui - il dettaglio vive su /generations/{id},
+     vedi CLAUDE.md) e la card sparisce dalla griglia al prossimo
+     caricamento.
   2. Niente x-teleport="body" sul modal: il fragment viene sostituito
      per intero dalle risposte htmx di paginazione
      (hx-target="#gallery-content" hx-swap="innerHTML"); un nodo
@@ -100,11 +108,32 @@
   dell'iterazione: la replace scatterebbe una volta sola, non per ogni
   elemento) - serve il th:block th:each sotto che avvolge un div
   th:replace figlio.
+
+  conversationId (nullable): solo propagato a ogni card(...) sotto
+  (vedi fragments/gallery-card.html) per il link "torna a" del
+  dettaglio - null dalla galleria globale (content(...) sopra), l'id
+  della conversazione dalla galleria contestuale di /deep-chat
+  (gridOrEmpty(...) sopra).
+
+  Selezione multipla + cancellazione in blocco: la radice x-data e'
+  salita da un tempo su questo <form> (non-submitting, JS-required come
+  il resto dell'app, stesso pattern del form impostazioni non-submitting
+  di deep-chat.html) invece che sul div griglia sotto, perche' un
+  elemento htmx dentro un <form> include di default TUTTI i valori del
+  form piu' vicino - le checkbox di ogni card (name="ids", vedi
+  fragments/gallery-card.html) bastano da sole, nessun hx-include
+  esplicito sul bottone "Elimina selezionate". x-ref="gallery" resta sul
+  div griglia interno: $refs di Alpine scandisce l'intero sottoalbero
+  del componente, non solo i figli diretti, quindi restare piu' in
+  profondita' non rompe imageGalleryImages() sotto. selectedIds e'
+  l'array (di stringhe: x-model su una checkbox tiene i valori nativi
+  come stringa) letto da fragments/button.html :: dangerSelectable per
+  lo stato disabled, e da ogni checkbox delle card per il proprio stato
+  checked/unchecked.
 -->
-<th:block th:fragment="grid(generations)">
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
-         x-ref="gallery"
-         x-data="{
+<th:block th:fragment="grid(generations, conversationId)">
+    <form x-data="{
+            selectedIds: [],
             imageGalleryOpened: false,
             imageGalleryActiveUrl: null,
             imageGalleryImageIndex: null,
@@ -138,8 +167,19 @@
          @keyup.right.window="imageGalleryNext()"
          @keyup.left.window="imageGalleryPrev()">
 
+        <!-- Toolbar di selezione: conteggio (puro Alpine) + bottone "Elimina selezionate", disabilitato finche' selectedIds e' vuoto (vedi fragments/button.html :: dangerSelectable). -->
+        <div class="flex items-center justify-between gap-3 mb-3">
+            <span class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">
+                <span x-text="selectedIds.length"></span> <span th:text="#{gallery.selection.label}">selezionate</span>
+            </span>
+            <button th:replace="~{fragments/button :: dangerSelectable(text=#{gallery.button.deleteSelected}, hxPost=@{/gallery/delete-selected}, hxConfirm=#{gallery.confirm.deleteSelected}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina selezionate</button>
+        </div>
+
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
+             x-ref="gallery">
+
         <th:block th:each="g : ${generations}">
-            <div th:replace="~{fragments/gallery-card :: card(${g})}"></div>
+            <div th:replace="~{fragments/gallery-card :: card(${g}, ${conversationId})}"></div>
         </th:block>
 
         <!-- Lightbox fullscreen: apertura via imageGalleryOpen sul click di un'immagine (in fragments/gallery-card.html). -->
@@ -178,7 +218,8 @@
                 </div>
             </div>
         </div>
-    </div>
+        </div>
+    </form>
 </th:block>
 
 </body>

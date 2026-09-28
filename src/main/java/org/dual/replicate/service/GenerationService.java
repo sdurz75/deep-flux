@@ -6,7 +6,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
+import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
@@ -36,8 +40,8 @@ public class GenerationService {
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
 
-    /** Soglia oltre la quale create() rifiuta una nuova generazione, vedi TooManyPredictionsException. */
-    private static final int MAX_IN_PROGRESS_PREDICTIONS = 4;
+    /** Soglia PER MODELLO oltre la quale create() rifiuta una nuova generazione, vedi TooManyPredictionsException. */
+    private static final int MAX_IN_PROGRESS_PREDICTIONS_PER_MODEL = 4;
 
     /**
      * L'API di Replicate risponde occasionalmente con 503 transitori su
@@ -52,6 +56,16 @@ public class GenerationService {
      */
     private static final int GET_PREDICTION_RETRIES = 2;
     private static final Duration GET_PREDICTION_RETRY_BACKOFF = Duration.ofMillis(500);
+
+    /**
+     * Best-effort: molti modelli Cog (i Flux inclusi) stampano il seed
+     * effettivamente usato nei log quando l'utente non ne specifica uno
+     * ("Using seed: 12345" o simili) - convenzione comune, non garantita
+     * ne' documentata da Replicate, vedi refresh(). "seed" come parola
+     * intera, poi fino a 10 caratteri non numerici (label/punteggiatura),
+     * poi le cifre.
+     */
+    private static final Pattern SEED_LOG_PATTERN = Pattern.compile("(?i)\\bseed\\b\\D{0,10}(\\d+)");
 
     private final GenerationRepository repository;
     private final ReplicateClient replicateClient;
@@ -86,8 +100,9 @@ public class GenerationService {
         version = blankToNull(version);
         parametersJson = blankToNull(parametersJson);
 
-        int inProgress = replicateClient.countInProgressPredictions(MAX_IN_PROGRESS_PREDICTIONS);
-        if (inProgress >= MAX_IN_PROGRESS_PREDICTIONS) {
+        long inProgress = repository.countByModelAndStatusInAndCreatedAtAfter(
+                model, List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING), Instant.now().minus(TIMEOUT));
+        if (inProgress >= MAX_IN_PROGRESS_PREDICTIONS_PER_MODEL) {
             throw new TooManyPredictionsException(messages.get("generation.error.tooManyInProgress", inProgress));
         }
 
@@ -98,13 +113,27 @@ public class GenerationService {
         log.info("Generazione avviata su Replicate: model={}, version={}, externalId={}, status={}",
                 model, version, prediction.id(), prediction.status());
 
-        Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson);
+        Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
         generation.setStatus(mapStatus(prediction.status()));
         return repository.save(generation);
     }
 
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /** Seed esplicitamente sottomesso dall'utente (chiave "seed" dell'input Replicate), null se non specificato. */
+    private Long seedOf(Map<String, Object> input) {
+        return input.get("seed") instanceof Number number ? number.longValue() : null;
+    }
+
+    /** Vedi Javadoc di SEED_LOG_PATTERN: null se i log sono assenti o non contengono un pattern riconoscibile. */
+    private Long seedFromLogs(String logs) {
+        if (logs == null || logs.isBlank()) {
+            return null;
+        }
+        Matcher matcher = SEED_LOG_PATTERN.matcher(logs);
+        return matcher.find() ? Long.valueOf(matcher.group(1)) : null;
     }
 
     /**
@@ -141,6 +170,9 @@ public class GenerationService {
                 }
                 generation.setImageFilenames(filenames);
                 generation.setStatus(GenerationStatus.SUCCEEDED);
+                if (generation.getSeed() == null) {
+                    generation.setSeed(seedFromLogs(prediction.logs()));
+                }
             }
             generation.setCompletedAt(Instant.now());
         } else if (prediction.failed()) {
@@ -166,6 +198,22 @@ public class GenerationService {
      * (successo) o WARN (fallimento, con l'errore restituito dall'API).
      */
     private Generation saveAndLogIfTerminal(Generation generation) {
+        if (generation.isTerminal() && !repository.existsById(generation.getId())) {
+            // La riga e' stata cancellata (GenerationController#deleteOne/delete/deleteImage/
+            // deleteAll/deleteEverything) mentre questo refresh() era in volo su Replicate: da
+            // /generations (vedi CLAUDE.md) anche generazioni non terminali sono ora cancellabili,
+            // quindi questa corsa e' possibile (non lo era finche' solo generazioni SUCCEEDED,
+            // sempre gia' terminali, erano esposte alla cancellazione). Le immagini appena
+            // scaricate vanno comunque ripulite da disco, altrimenti resterebbero orfane - ma
+            // niente da salvare, e SOPRATTUTTO niente ritornato al chiamante: un oggetto
+            // "SUCCEEDED" con file gia' cancellati sarebbe un fantasma (GenerationController
+            // #status lo mostrerebbe come se esistesse ancora, DeepChatGenerationWatcher
+            // proverebbe a persisterlo come turno di chat verso un id ormai inesistente).
+            // Stessa eccezione/messaggio di get(id): per il chiamante e' indistinguibile da
+            // "non trovata", che e' esattamente cio' che e' diventata.
+            generation.getImageFilenames().forEach(imageStorageService::delete);
+            throw new ReplicateException(messages.get("generation.error.notFound", generation.getId()));
+        }
         Generation saved = repository.save(generation);
         if (!saved.isTerminal()) {
             return saved;
@@ -234,11 +282,87 @@ public class GenerationService {
                 .orElseThrow(() -> new ReplicateException(messages.get("generation.error.notFound", id)));
     }
 
-    /** Elimina una generazione e tutti i file immagine associati. Usata dalla galleria. */
+    /**
+     * Corpo comune di delete/deleteAll/deleteEverything: cancella i file
+     * immagine di ogni generazione, poi le righe (SEMPRE via entita'
+     * caricate, mai una query bulk come deleteAllInBatch - GENERATION_IMAGE
+     * non ha ON DELETE CASCADE, vedi V4__generation_multiple_images.sql, il
+     * cascade sulle sue righe funziona solo perche' Hibernate lo gestisce a
+     * livello di entity quando la Generation e' caricata), un solo
+     * GenerationsDeletedEvent per l'intero batch (mai uno per riga,
+     * altrimenti N cancellazioni ravvicinate scatenerebbero N refresh SSE
+     * quasi simultanei sulle altre tab).
+     */
+    private void deleteGenerations(List<Generation> generations) {
+        generations.forEach(generation -> generation.getImageFilenames().forEach(imageStorageService::delete));
+        List<Long> ids = generations.stream().map(Generation::getId).toList();
+        repository.deleteAllById(ids);
+        if (!ids.isEmpty()) {
+            eventPublisher.publishEvent(new GenerationsDeletedEvent(ids));
+        }
+    }
+
+    /**
+     * Elimina una generazione e tutti i file immagine associati. Usata dal
+     * dettaglio di una generazione (unico punto di cancellazione SINGOLA,
+     * vedi GenerationController#delete) e, internamente, da deleteImage
+     * quando l'immagine cancellata era l'ultima rimasta.
+     */
     public void delete(Long id) {
-        Generation generation = get(id);
-        generation.getImageFilenames().forEach(imageStorageService::delete);
-        repository.delete(id);
+        deleteGenerations(List.of(get(id)));
+    }
+
+    /**
+     * Cancellazione in blocco (selezione multipla via checkbox nella
+     * lista, vedi GenerationController#deleteSelected/GalleryController
+     * #deleteSelected). A differenza di delete(id), id sconosciuti vengono
+     * ignorati silenziosamente: non c'e' un singolo id "atteso" da
+     * validare in un'operazione di gruppo.
+     */
+    public void deleteAll(List<Long> ids) {
+        deleteGenerations(repository.findAllById(ids));
+    }
+
+    /**
+     * Azione nucleare (GenerationController#deleteAll, "Elimina tutto" in
+     * /generations): elimina OGNI generazione esistente, non solo una
+     * selezione. Riusa lo stesso deleteGenerations delle altre due varianti
+     * sopra, quindi passa comunque per entita' caricate (mai bulk).
+     */
+    public void deleteEverything() {
+        deleteGenerations(repository.findAll());
+    }
+
+    /**
+     * Elimina una singola immagine di una generazione ancora esistente. Se
+     * era l'ultima immagine rimasta, cancella a cascata l'intera
+     * generazione (riusa delete(id), stesso GenerationsDeletedEvent di
+     * sempre) - una Generation con imageFilenames vuota non ha senso in
+     * questa app (vedi CLAUDE.md, Scopo). Altrimenti rimuove solo il file
+     * e la sua voce dalla collezione, pubblicando GenerationImageDeletedEvent
+     * (la generazione resta, ma chi la sta guardando deve rifare fetch).
+     *
+     * @return true se la cancellazione e' stata a cascata (l'intera generazione e' sparita)
+     */
+    public boolean deleteImage(Long generationId, String filename) {
+        Generation generation = get(generationId);
+        // contains() e' anche la guardia anti path-traversal: filename deve
+        // essere uno dei nomi file GIA' registrati per QUESTA generazione,
+        // non un path arbitrario passato dal client.
+        if (!generation.getImageFilenames().contains(filename)) {
+            throw new ReplicateException(messages.get("gallery.error.imageNotFound"));
+        }
+        if (generation.getImageFilenames().size() == 1) {
+            delete(generationId);
+            return true;
+        }
+        imageStorageService.delete(filename);
+        List<String> remaining = new ArrayList<>(generation.getImageFilenames());
+        remaining.remove(filename);
+        generation.setImageFilenames(remaining);
+        repository.save(generation);
+        eventPublisher.publishEvent(new GenerationImageDeletedEvent(generationId));
+        return false;
     }
 
     private Map<String, Object> parseParameters(String parametersJson) {

@@ -1,7 +1,8 @@
 package org.dual.replicate.service;
 
-import java.util.List;
-
+import org.dual.replicate.domain.event.ChatMessagePushEvent;
+import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
+import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
@@ -68,7 +69,29 @@ public class GenerationEventBroadcaster {
         emit("gallery-update", "refresh");
     }
 
-    public void broadcastChatMessage(ChatMessagePush payload) {
+    /**
+     * Ascolta GenerationsDeletedEvent (pubblicato da GenerationService#delete/
+     * #deleteAll): stesso evento SSE del completamento, "gallery-update" non
+     * porta un payload informativo, e' solo "qualcosa e' cambiato, ricarica"
+     * — chi ascolta non ha bisogno di sapere quali id sono spariti, solo di
+     * ri-fare fetch della propria vista (galleria globale o contestuale).
+     */
+    @EventListener
+    public void onGenerationsDeleted(GenerationsDeletedEvent event) {
+        emit("gallery-update", "refresh");
+    }
+
+    /**
+     * Ascolta GenerationImageDeletedEvent (pubblicato da GenerationService#deleteImage,
+     * caso NON a cascata: l'immagine sparisce ma la generazione resta) - stesso evento SSE
+     * generico degli altri due sopra, chi ascolta ri-fa semplicemente fetch della propria vista.
+     */
+    @EventListener
+    public void onGenerationImageDeleted(GenerationImageDeletedEvent event) {
+        emit("gallery-update", "refresh");
+    }
+
+    public void broadcastChatMessage(ChatMessagePushEvent payload) {
         emit("chat-message", payload);
     }
 
@@ -78,9 +101,9 @@ public class GenerationEventBroadcaster {
      * stesso GenerationCompletedEvent) — {@code tryEmitNext} concorrente
      * su un {@code Sinks.Many} fallisce con FAIL_NON_SERIALIZED (Reactor
      * richiede emissioni serializzate), scartando l'evento; qui il volume
-     * e' basso (poche generazioni alla volta, MAX_IN_PROGRESS_PREDICTIONS
-     * in GenerationService), un lock esclusivo non e' un problema di
-     * performance.
+     * e' basso (poche generazioni alla volta per modello,
+     * MAX_IN_PROGRESS_PREDICTIONS_PER_MODEL in GenerationService), un
+     * lock esclusivo non e' un problema di performance.
      */
     private synchronized void emit(String eventName, Object data) {
         ServerSentEvent<Object> event = ServerSentEvent.builder(data).event(eventName).build();
@@ -100,7 +123,4 @@ public class GenerationEventBroadcaster {
         }
     }
 
-    /** Payload dell'evento "chat-message": vocabolario JSON di deep-chat, vedi DeepChatService.FileRef. */
-    public record ChatMessagePush(Long conversationId, String text, List<DeepChatService.FileRef> files) {
-    }
 }

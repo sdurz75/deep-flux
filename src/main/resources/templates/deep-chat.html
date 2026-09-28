@@ -77,7 +77,7 @@
     -->
     <div class="flex flex-col gap-4 items-start min-[861px]:flex-row">
         <div class="w-full min-[861px]:w-[280px] min-[861px]:flex-none">
-            <form th:action="@{/deep-chat/new}" th:hx-post="@{/deep-chat/new}" method="post" hx-swap="none" class="mb-3">
+            <form th:hx-post="@{/deep-chat/new}" hx-swap="none" class="mb-3">
                 <button th:replace="~{fragments/button :: primary(type='submit', text=#{deepChat.button.newConversation}, extraClass='w-full text-[0.85rem] py-1.5')}">Nuova conversazione</button>
             </form>
 
@@ -102,15 +102,23 @@
             <th:block th:with="conversationsLabel=#{deepChat.accordion.conversations},
                                 settingsLabel=#{deepChat.accordion.settings},
                                 conversationsBody=~{::#conversation-list-section},
-                                settingsBody=~{::#generation-settings-form},
+                                settingsBody=~{::#generation-settings-panel},
                                 leftLabels=${ {conversationsLabel, settingsLabel} },
                                 leftBodies=${ {conversationsBody, settingsBody} }">
-            <div th:replace="~{fragments/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies})}">
+            <div th:replace="~{fragments/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies}, storageKey='deepChat.accordion.leftRail')}">
                 <div id="conversation-list-section">
                     <div th:replace="~{fragments/conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
                 </div>
 
                 <!--
+                  generation-settings-panel raggruppa il <form> (mai
+                  sottomesso, vedi sotto) e il bottone di reset in un solo
+                  elemento: settingsBody sopra e' un parametro-fragment
+                  ~{::#id}, che porta con se' SOLO l'elemento con
+                  quell'id (non i suoi fratelli) - senza questo wrapper il
+                  bottone, fratello del <form>, resterebbe fuori dal
+                  pannello "Impostazioni" dell'accordion.
+
                   onsubmit="return false" perche' questo <form> non viene mai
                   sottomesso a nessun endpoint: serve solo a raggruppare i
                   campi del fragment cosi' che new FormData(form) (script piu'
@@ -119,9 +127,12 @@
                   generate.html dentro il SUO <form>, che invece si sottomette
                   davvero (vedi fragments/generate-form.html).
                 -->
-                <form id="generation-settings-form" onsubmit="return false;">
-                    <div th:replace="~{fragments/generation-params :: fields}"></div>
-                </form>
+                <div id="generation-settings-panel">
+                    <form id="generation-settings-form" onsubmit="return false;">
+                        <div th:replace="~{fragments/generation-params :: fields}"></div>
+                    </form>
+                    <button th:replace="~{fragments/button :: resetToDefaults(text=#{deepChat.button.resetSettings}, hxGet=@{/generations/params(model=${model})}, defaultModel=${model}, extraClass='w-full text-[0.85rem] py-1.5 mt-2')}">Reimposta ai default</button>
+                </div>
             </div>
             </th:block>
         </div>
@@ -217,7 +228,7 @@
                         galleryBody=~{::#contextual-gallery},
                         accordionLabels=${ {galleryLabel} },
                         accordionBodies=${ {galleryBody} }">
-    <div th:replace="~{fragments/accordion :: panels(labels=${accordionLabels}, bodies=${accordionBodies})}">
+    <div th:replace="~{fragments/accordion :: panels(labels=${accordionLabels}, bodies=${accordionBodies}, storageKey='deepChat.accordion.gallery')}">
 
         <!--
           Galleria contestuale: solo le immagini generate in QUESTA
@@ -230,12 +241,18 @@
           spara un evento "new-message" (non-bubbling) sull'elemento
           <deep-chat id="deep-chat-el"> sopra ad ogni turno, "from:" lo
           intercetta lo stesso (htmx ascolta l'evento sull'elemento
-          indicato, non richiede bubbling).
+          indicato, non richiede bubbling). Secondo trigger,
+          "gallery-update from:body": stesso evento SSE gia' ascoltato
+          dalla galleria globale (fragments/gallery.html :: content),
+          ora pubblicato anche da GenerationService#delete/#deleteAll
+          (vedi GenerationEventBroadcaster) - cosi' una cancellazione
+          dalla griglia globale (o da un'altra conversazione) si riflette
+          anche qui, e viceversa.
         -->
         <div id="contextual-gallery"
              th:hx-get="@{/deep-chat/{id}/gallery(id=${activeConversationId})}"
-             hx-trigger="new-message from:#deep-chat-el" hx-swap="innerHTML">
-            <div th:replace="~{fragments/gallery :: gridOrEmpty(${contextualGenerations}, #{deepChat.accordion.gallery.empty})}"></div>
+             hx-trigger="new-message from:#deep-chat-el, gallery-update from:body" hx-swap="innerHTML">
+            <div th:replace="~{fragments/gallery :: gridOrEmpty(${contextualGenerations}, #{deepChat.accordion.gallery.empty}, ${activeConversationId})}"></div>
         </div>
     </div>
     </th:block>
@@ -243,36 +260,143 @@
     <!--
       Sincronizza il fragment condiviso (fragments/generation-params.html,
       incluso sopra dentro #generation-settings-form) verso
-      window.setDeepChatSettings: un solo listener "input" delegato sul
-      <form>, non un @input per campo. Funziona sia per la digitazione
-      nei campi tipizzati (input nativi, nessun Alpine coinvolto) sia
-      per il cambio modello dalla select (evento nativo "input", nessun
-      dispatch sintetico necessario) sia per lo swap htmx dei campi del
-      form-type dopo un cambio modello (vedi l'hx-on:htmx:after-swap su
+      window.setDeepChatSettings E verso localStorage (SETTINGS_KEY):
+      un solo listener "input" delegato sul <form>, non un @input per
+      campo. Funziona sia per la digitazione nei campi tipizzati (input
+      nativi, nessun Alpine coinvolto) sia per il cambio modello dalla
+      select (evento nativo "input", nessun dispatch sintetico
+      necessario) sia per lo swap htmx dei campi del form-type dopo un
+      cambio modello (vedi l'hx-on:htmx:after-swap su
       #generation-params-fields nel fragment, che dopo lo swap dispara lo
-      stesso evento "input" sintetico) — delegato qui perche' deve
-      leggere TUTTI i campi in un colpo a ogni cambiamento, non solo
-      quello che ha scatenato l'evento. Valori sempre stringa (FormData
-      li restituisce sempre cosi'): la conversione al vocabolario/tipi
-      Replicate e' interamente lato server
-      (GenerationParameterHandler.toParameterMap), niente lista di campi
-      numerici da mantenere qui per ogni nuovo form-type. Script classico
-      (non module/deferred): gia' eseguito durante il parsing, il <form>
-      sopra (nel rail sinistro non collassabile, vedi
-      fragments/accordion.html :: staticPanels) esiste gia' quando
-      arriva qui, niente attesa di DOMContentLoaded.
+      stesso evento "input" sintetico, e il bottone "Reimposta ai
+      default" — fragments/button.html :: resetToDefaults — che passa
+      dallo stesso target) — delegato qui perche' deve leggere TUTTI i
+      campi in un colpo a ogni cambiamento, non solo quello che ha
+      scatenato l'evento. Valori sempre stringa (FormData li restituisce
+      sempre cosi'): la conversione al vocabolario/tipi Replicate e'
+      interamente lato server (GenerationParameterHandler.toParameterMap),
+      niente lista di campi numerici da mantenere qui per ogni nuovo
+      form-type. Script classico (non module/deferred): gia' eseguito
+      durante il parsing, il <form> sopra (nel rail sinistro non
+      collassabile) esiste gia' quando arriva qui, niente attesa di
+      DOMContentLoaded.
+
+      Il contenuto del form (modello + parametri) e' l'UNICO stato di
+      questa pagina persistito lato client invece che lato server (a
+      differenza di conversazioni/cronologia, sempre server-side, vedi
+      CLAUDE.md Scopo punto 3): una preferenza dell'ultima sessione di
+      chi usa il browser, non dati applicativi — stesso principio gia'
+      applicato al tema chiaro/scuro in fragments/layout.html e allo
+      stato aperto/chiuso degli accordion in fragments/accordion.html.
+      Senza, ogni GET /deep-chat/{id} (navigazione fra conversazioni
+      inclusa: la lista in fragments/conversation-list.html e' un
+      <a href> pieno, non uno swap htmx) fa ripartire il pannello dai
+      default del catalogo (vedi DeepChatController#page), perdendo
+      qualunque modello/parametro scelto in precedenza.
+
+      Il RESTORE (all'avvio, se c'e' qualcosa di persistito) e' l'unica
+      parte non banale: se il modello persistito e' diverso da quello di
+      default gia' renderizzato dal server, i campi ATTUALMENTE nel DOM
+      sono quelli del form-type del modello di DEFAULT, con nomi diversi
+      da quelli del modello persistito — vanno prima rifetchati.
+      fetch() diretto invece di un evento "change" sintetico sulla
+      <select> (che pure ha gia' hx-get/hx-trigger="change" dichiarativi,
+      vedi fragments/generation-params.html): questo script gira PRIMA
+      che lo script defer di htmx.org abbia processato la pagina (stesso
+      ordinamento script classici/defer del boot del tema in
+      fragments/layout.html — un defer gira sempre dopo ogni script
+      classico incontrato durante il parsing, mai prima), quindi un
+      evento sintetico qui non troverebbe ancora nessun listener htmx
+      attaccato e la richiesta non partirebbe mai. L'URL riusa l'hx-get
+      gia' risolto (subpath-aware, vedi CLAUDE.md "Convenzione: attributi
+      che portano un URL dell'app") della select invece di ricostruirlo
+      qui via stringa letterale. Il bottone di reset non ha questo
+      problema (un click reale arriva sempre a pagina gia' completamente
+      caricata): puo' restare htmx dichiarativo puro, vedi
+      fragments/button.html :: resetToDefaults.
+
+      applyStoredFields non dispatcha eventi "change" per campo (che
+      manderebbero in conflitto handler accoppiati come flux_model/
+      num_inference_steps in generation-params-flux-lora-ff3.html,
+      pensati per un'interazione utente reale campo per campo): imposta
+      solo i .value/.checked grezzi, un'incongruenza puramente
+      cosmetica isolata (l'attributo readonly dei passi quando
+      flux_model persistito e' "schnell" potrebbe non riflettersi finche'
+      non si tocca la select) a fronte di una riconciliazione Alpine
+      molto piu' complessa per un pannello di preferenze, non di dati.
     -->
     <script>
         (function () {
+            var SETTINGS_KEY = 'deepChat.generationSettings';
             var form = document.getElementById('generation-settings-form');
-            form.addEventListener('input', function () {
+            var select = document.getElementById('image-model-input');
+            var fieldsContainer = document.getElementById('generation-params-fields');
+
+            function readStoredSettings() {
+                try {
+                    var raw = localStorage.getItem(SETTINGS_KEY);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function hasModelOption(value) {
+                for (var i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value === value) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function applyStoredFields(stored) {
+                Object.keys(stored).forEach(function (name) {
+                    var field = form.elements.namedItem(name);
+                    if (!field || field.type === 'hidden' || field.readOnly) {
+                        return;
+                    }
+                    if (field.type === 'checkbox') {
+                        field.checked = stored[name] === 'true' || stored[name] === true;
+                    } else {
+                        field.value = stored[name];
+                    }
+                });
+            }
+
+            function sync() {
                 var data = new FormData(form);
                 var settings = {};
                 data.forEach(function (value, key) {
                     settings[key] = value;
                 });
                 window.setDeepChatSettings(settings);
-            });
+                try {
+                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+                } catch (e) {
+                    // localStorage non disponibile (privata/quota piena): la
+                    // sessione corrente resta comunque funzionante, solo non persiste.
+                }
+            }
+
+            var stored = readStoredSettings();
+            if (stored && stored.model && stored.model !== select.value && hasModelOption(stored.model)) {
+                select.value = stored.model;
+                fetch(select.getAttribute('hx-get') + '?model=' + encodeURIComponent(stored.model))
+                    .then(function (response) { return response.text(); })
+                    .then(function (html) {
+                        fieldsContainer.innerHTML = html;
+                        applyStoredFields(stored);
+                        sync();
+                    });
+            } else {
+                if (stored) {
+                    applyStoredFields(stored);
+                }
+                sync();
+            }
+
+            form.addEventListener('input', sync);
         })();
     </script>
 

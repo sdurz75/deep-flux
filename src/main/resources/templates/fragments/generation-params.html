@@ -35,7 +35,7 @@
 -->
 <th:block th:fragment="fields">
     <div class="relative">
-        <label class="block mt-0 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark" for="image-model-input" th:text="#{generationParams.label.model}">Modello</label>
+        <label class="mt-0" for="image-model-input" th:text="#{generationParams.label.model}">Modello</label>
         <select id="image-model-input" name="model" required
                 th:hx-get="@{/generations/params}"
                 hx-target="#generation-params-fields" hx-swap="innerHTML"
@@ -43,11 +43,11 @@
             <option th:each="m : ${models}" th:value="${m.identifier}" th:text="${m.identifier}"
                     th:title="${m.description}" th:selected="${m.identifier == model}"></option>
         </select>
-        <p th:if="${models.isEmpty()}"
-           class="text-danger dark:text-danger-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md px-3 py-2"
-           th:text="#{generationParams.error.noModels}">
-            Nessun modello Replicate censito nel catalogo.
-        </p>
+        <th:block th:if="${models.isEmpty()}">
+            <p th:replace="~{fragments/alert :: error(text=#{generationParams.error.noModels})}">
+                Nessun modello Replicate censito nel catalogo.
+            </p>
+        </th:block>
     </div>
 
     <div id="generation-params-fields" hx-on:htmx:after-swap="this.dispatchEvent(new Event('input', { bubbles: true }))">
@@ -64,6 +64,7 @@
         -->
         <th:block th:switch="${formType}">
             <div th:case="'FLUX_LORA_FF3'" th:replace="~{fragments/generation-params-flux-lora-ff3 :: fields}"></div>
+            <div th:case="'FLUX_2_KLEIN_9B'" th:replace="~{fragments/generation-params-flux-2-klein-9b :: fields}"></div>
         </th:block>
     </div>
 </th:block>
