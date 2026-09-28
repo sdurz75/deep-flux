@@ -1,39 +1,58 @@
 package org.dual.replicate.service;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 /**
- * Registro degli emitter SSE (uno per tab/browser connesso a
- * GET /events, vedi EventStreamController) e punto unico da cui
- * partono le notifiche push verso /gallery e /deep-chat. App non
- * multi-utente (vedi CLAUDE.md): broadcast a tutti gli emitter connessi,
- * nessuno scoping/autenticazione per conversazione — il filtro per
- * conversazione (evento "chat-message") avviene lato client, confrontando
- * conversationId con quella attualmente aperta.
+ * Sorgente delle notifiche push verso /gallery e /deep-chat, un evento
+ * SSE per tab/browser connesso a GET /events (vedi EventStreamController).
+ * Un {@link Sinks.Many}, non piu' un registro di {@code SseEmitter}: lo
+ * stesso tipo Reactor (Flux/Sinks) che gia' gira sotto il cofano per il
+ * client HTTP verso OpenRouter (vedi CLAUDE.md, eccezione WebFlux), qui
+ * usato per il broadcaster invece che riscritto a mano con liste ed
+ * emitter — il controller resta pero' un {@code @RestController} Spring
+ * MVC ordinario: {@code Flux} come tipo di ritorno e' supportato
+ * nativamente da spring-webmvc (ReactiveTypeHandler) dalla 5.0, nessun
+ * server reattivo secondario, nessuna dipendenza spring-webflux.
+ * {@code directBestEffort()}, non {@code onBackpressureBuffer()} sul
+ * sink condiviso: quest'ultimo avrebbe {@code autoCancel} true di
+ * default (il sink si chiuderebbe alla disconnessione dell'ultima tab,
+ * niente piu' eventi per le connessioni successive) e bufferizzerebbe
+ * gli eventi emessi mentre nessuno e' connesso, replicandoli a chi si
+ * connette dopo — un "chat-message" vecchio ricomparirebbe duplicato in
+ * una tab che l'ha gia' visto tramite la cronologia persistita. Il
+ * buffering per-sottoscrittore vive invece su {@link #subscribe()}
+ * sotto ({@code onBackpressureBuffer()} sul Flux della singola tab, non
+ * sul sink condiviso): ReactiveTypeHandler di Spring MVC richiede un
+ * elemento alla volta (`request(1)`, poi ne richiede un altro solo dopo
+ * aver spedito il precedente) — senza questo buffer, un secondo evento
+ * emesso mentre il primo e' ancora in volo (es. "gallery-update" e poi,
+ * pochi ms dopo, "chat-message" dallo stesso DeepChatGenerationWatcher)
+ * verrebbe silenziosamente scartato da {@code directBestEffort} per
+ * mancanza di richiesta, non solo per assenza di sottoscrittori.
+ * App non multi-utente (vedi CLAUDE.md): broadcast a tutti i
+ * sottoscrittori connessi, nessuno scoping/autenticazione per
+ * conversazione — il filtro per conversazione (evento "chat-message")
+ * avviene lato client, confrontando conversationId con quella
+ * attualmente aperta.
  */
 @Component
 public class GenerationEventBroadcaster {
 
     private static final Logger log = LoggerFactory.getLogger(GenerationEventBroadcaster.class);
 
-    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    private final Sinks.Many<ServerSentEvent<Object>> sink = Sinks.many().multicast().directBestEffort();
 
-    public SseEmitter subscribe() {
-        SseEmitter emitter = new SseEmitter(0L);
-        emitters.add(emitter);
-        Runnable cleanup = () -> emitters.remove(emitter);
-        emitter.onCompletion(cleanup);
-        emitter.onTimeout(cleanup);
-        emitter.onError(e -> cleanup.run());
-        return emitter;
+    public Flux<ServerSentEvent<Object>> subscribe() {
+        return sink.asFlux().onBackpressureBuffer();
     }
 
     /**
@@ -46,22 +65,38 @@ public class GenerationEventBroadcaster {
      */
     @EventListener
     public void onGenerationCompleted(GenerationCompletedEvent event) {
-        broadcast("gallery-update", "refresh");
+        emit("gallery-update", "refresh");
     }
 
     public void broadcastChatMessage(ChatMessagePush payload) {
-        broadcast("chat-message", payload);
+        emit("chat-message", payload);
     }
 
-    private void broadcast(String eventName, Object data) {
-        for (SseEmitter emitter : emitters) {
-            try {
-                emitter.send(SseEmitter.event().name(eventName).data(data));
-            } catch (IOException | IllegalStateException e) {
-                log.debug("Emitter SSE non piu' valido, rimosso dal registro: {}", e.getMessage());
-                emitter.complete();
-                emitters.remove(emitter);
-            }
+    /**
+     * synchronized: gli emit arrivano sia da thread @Async (DeepChatGenerationWatcher)
+     * sia da thread Tomcat (il polling di /generations/{id} passa dallo
+     * stesso GenerationCompletedEvent) — {@code tryEmitNext} concorrente
+     * su un {@code Sinks.Many} fallisce con FAIL_NON_SERIALIZED (Reactor
+     * richiede emissioni serializzate), scartando l'evento; qui il volume
+     * e' basso (poche generazioni alla volta, MAX_IN_PROGRESS_PREDICTIONS
+     * in GenerationService), un lock esclusivo non e' un problema di
+     * performance.
+     */
+    private synchronized void emit(String eventName, Object data) {
+        ServerSentEvent<Object> event = ServerSentEvent.builder(data).event(eventName).build();
+        Sinks.EmitResult result = sink.tryEmitNext(event);
+        if (result == Sinks.EmitResult.FAIL_ZERO_SUBSCRIBER) {
+            // Atteso: nessuna tab connessa in questo momento. Non e' un
+            // errore applicativo, il messaggio resta comunque persistito
+            // (vedi DeepChatGenerationWatcher/GenerationService), solo il
+            // push live va perso — coerente con la nota sul riconnect di
+            // EventSource in README.md.
+            log.debug("Evento SSE \"{}\" non consegnato: nessuna tab connessa.", eventName);
+        } else if (result.isFailure()) {
+            // Qualunque altro fallimento (es. FAIL_NON_SERIALIZED se lo
+            // synchronized sopra venisse mai rimosso) e' invece un evento
+            // perso non spiegato da "nessuno collegato": da tracciare.
+            log.warn("Evento SSE \"{}\" perso: {}", eventName, result);
         }
     }
 

@@ -89,12 +89,30 @@ nessun altro impatto.
 
 - **Spring WebFlux come modello di programmazione del server** — nessun
   beneficio reale per una webapp a navigazione prevalentemente
-  server-rendered; aggiunge solo complessità (Mono/Flux nei controller).
-  Restare su Spring MVC classico (`spring-boot-starter-webmvc`). Eccezione
-  isolata e deliberata: lo starter Spring AI (vedi Stack sotto) porta
-  Reactor/WebFlux in classpath per il *client* HTTP verso i provider LLM,
-  non per servire richieste — non è un'apertura generale a WebFlux nel
-  resto del progetto.
+  server-rendered; aggiunge solo complessità. Restare su Spring MVC
+  classico (`spring-boot-starter-webmvc`), un solo server (Tomcat) per
+  tutta l'app — niente `spring-boot-starter-webflux`, mai (Spring Boot
+  sceglie UN application-type per l'intera app dal classpath: aggiungere
+  quello starter accanto a webmvc non darebbe comunque una singola rotta
+  reattiva "mescolata" alle altre, servirebbe un secondo server embedded
+  su una porta separata, o la migrazione dell'intera app — nessuna delle
+  due è mai stata necessaria finora). Due eccezioni isolate e deliberate,
+  entrambe **tipi Reactor**, non il modello WebFlux:
+  1. lo starter Spring AI (vedi Stack sotto) porta Reactor/WebFlux in
+     classpath per il *client* HTTP verso i provider LLM, non per servire
+     richieste;
+  2. `EventStreamController` (`GET /events`, vedi Scopo punto 1/3) ritorna
+     un `Flux<ServerSentEvent<?>>` (sorgente in `GenerationEventBroadcaster`,
+     un `Sinks.Many`): supportato nativamente da `spring-webmvc` dalla 5.0
+     (`ReactiveTypeHandler`), gira sullo stesso Tomcat/`DispatcherServlet`
+     di ogni altro controller — non introduce ne' un secondo server ne'
+     `spring-boot-starter-webflux`, solo i tipi Reactor (gia' in classpath
+     per il punto 1) al posto di un registro di `SseEmitter` scritto a
+     mano.
+  Nessuna delle due è un'apertura generale a WebFlux nel resto del
+  progetto: un controller che ritorna un tipo reattivo per il gusto di
+  farlo (senza un bisogno concreto di streaming, come qui il push SSE)
+  resta fuori scope.
 - **React/Vue/Angular come framework applicativo** — duplicherebbe la
   gestione di routing/stato che il server già fa. Se serve un widget
   isolato, montarlo come Web Component su un `<div>` mirato, non riscrivere
@@ -168,7 +186,7 @@ src/main/java/org/dual/replicate/
   service/
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download; pubblica GenerationCompletedEvent a ogni transizione terminale
     GenerationCompletedEvent.java # evento di dominio: una Generation e' diventata terminale (successo o fallimento), qualunque sia il percorso che ce l'ha portata
-    GenerationEventBroadcaster.java # registro degli emitter SSE di GET /events, broadcast "gallery-update"/"chat-message"
+    GenerationEventBroadcaster.java # sorgente Reactor (Sinks.Many/Flux) di GET /events, broadcast "gallery-update"/"chat-message"
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
