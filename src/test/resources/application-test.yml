@@ -1,0 +1,21 @@
+# Override di solo il datasource per `mvn test` (profilo "test", attivato
+# per ogni esecuzione di Surefire da <systemPropertyVariables> in pom.xml,
+# non da un'annotazione da ricordarsi su ogni classe di test - un nuovo
+# test @SpringBootTest lo eredita gratis). Layer ADDITIVO su
+# src/main/resources/application.yml (application-<profilo>.yml non
+# sostituisce mai il file di base, si limita a sovrascriverne le chiavi
+# indicate qui): senza questo file i test scriverebbero nello stesso H2
+# su file usato dall'app in sviluppo (jdbc:h2:file:./data/db/app,
+# application.yml), lasciando righe di prova permanenti (Generation con
+# prompt "a cat"/"a dog", vedi TemplateRenderingTests) nel database reale
+# a ogni `mvn test`. In-memory ("mem", non "file"): sparisce da sola alla
+# fine della JVM di test, nessun file da ripulire a mano.
+# DB_CLOSE_DELAY=-1 tiene viva la board anche se il pool Hikari resta per
+# un istante senza connessioni attive tra un test e l'altro (senza,
+# H2 la distruggerebbe alla chiusura dell'ultima connessione, perdendo lo
+# schema Flyway a meta' suite).
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:

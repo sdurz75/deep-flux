@@ -132,6 +132,24 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+
+            <!--
+                Attiva il profilo Spring "test" (src/test/resources/application-test.yml,
+                override del solo datasource su H2 in-memory) per OGNI esecuzione di
+                Surefire, non solo per le classi di test che se lo ricordano con
+                un'annotazione: cosi' una futura classe @SpringBootTest eredita
+                l'isolamento gratis, invece di poter tornare a scrivere nel database
+                di sviluppo su file per una semplice dimenticanza.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <spring.profiles.active>test</spring.profiles.active>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 

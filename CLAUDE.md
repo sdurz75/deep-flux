@@ -612,6 +612,18 @@ mvn test                   # test
 mvn clean package          # build del jar eseguibile
 ```
 
+`mvn test` non tocca mai `./data/db/` (il DB H2 su file usato da
+`mvn spring-boot:run`): il profilo Spring "test" e' attivato per ogni
+esecuzione di Surefire (`<systemPropertyVariables>` in `pom.xml`, non
+un'annotazione da ricordarsi su ogni classe `@SpringBootTest`), che
+sovrascrive solo il datasource su H2 in-memory
+(`src/test/resources/application-test.yml`). Prima di questo, i
+`@SpringBootTest` (es. `TemplateRenderingTests`) scrivevano righe
+`Generation` di prova vere (prompt "a cat"/"a dog") nello stesso DB su
+file dell'ambiente di sviluppo a ogni run, quasi tutte senza
+`@Transactional` — un problema reale osservato dal vivo, non solo
+teorico.
+
 ## Checklist per aggiungere una nuova pagina/feature
 
 1. Serve solo navigazione? → nuovo controller + nuovo template pagina
