@@ -118,6 +118,49 @@
         @click="document.getElementById('image-model-input').value = $el.dataset.defaultModel"
         th:text="${text}">Reimposta ai default</button>
 
+<!--
+  Icona "AI enhance" sovrapposta alla textarea del prompt in
+  fragments/generate-form.html :: promptField (unico chiamante: hx-post/
+  hx-target/hx-swap sono percio' hardcoded qui, non parametrizzati -
+  stesso principio gia' visto in dangerSelectable/resetToDefaults sopra
+  per bottoni con un solo punto di chiamata). type="button" e' CRITICO:
+  questo bottone vive dentro il <form> di POST /generations (spesa reale
+  su Replicate a ogni submit) - senza, un click lo sottometterebbe invece
+  di limitarsi a riscrivere il prompt. hx-include="#prompt" manda solo il
+  testo della textarea, non gli altri campi del form. hx-disabled-elt
+  disabilita il bottone stesso durante la richiesta (stato "in corso"
+  gestito da htmx, nessun Alpine coinvolto): lo swap outerHTML della
+  risposta lo ripristina da solo. Nessuno standard di "opacita' a riposo"
+  per un'icona esiste altrove nel progetto (il pencil di
+  conversation-list.html usa un colore muted, non opacity): si estende
+  qui l'idioma piu' vicino gia' adottato, read-only:opacity-60
+  (fragments/generation-params-flux-lora-ff3.html), a piena opacita' su
+  hover/focus - hover:opacity-100 esplicito perche' altrimenti la regola
+  globale "button:hover{opacity:.9}" del layer base (fragments/layout.html)
+  vincerebbe per specificita' su una bare utility opacity-60. Lo stato
+  disabled riusa invece l'esatto standard gia' in uso altrove
+  (disabled:opacity-40 disabled:cursor-not-allowed, vedi dangerSelectable
+  sopra e generations-list.html).
+-->
+<button th:fragment="aiEnhance(title)"
+        type="button"
+        th:hx-post="@{/generations/enhance-prompt}"
+        hx-include="#prompt"
+        hx-target="#prompt-field"
+        hx-swap="outerHTML"
+        hx-disabled-elt="this"
+        class="absolute right-2 top-2 bg-transparent border-0 p-1 leading-none cursor-pointer
+               text-ink-muted dark:text-ink-muted-dark hover:text-accent dark:hover:text-accent-dark
+               opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity
+               disabled:opacity-40 disabled:cursor-not-allowed"
+        th:title="${title}"
+        th:aria-label="${title}">
+    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+    </svg>
+</button>
+
 <button th:fragment="themeToggle(value, content, title)"
         type="button"
         th:data-theme-value="${value}"

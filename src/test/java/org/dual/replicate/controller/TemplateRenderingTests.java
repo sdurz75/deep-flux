@@ -135,6 +135,24 @@ class TemplateRenderingTests {
     }
 
     /**
+     * Prompt vuoto/solo spazi: PromptEnhancementService non va chiamato
+     * (draft.isEmpty() nel controller lo evita) - l'unico path
+     * dell'endpoint di enhance sicuro da esercitare qui a contesto Spring
+     * completo, dato che una vera chiamata al PromptEnhancementService
+     * reale (bean con ChatClient) contatterebbe davvero OpenRouter. Il
+     * path "prompt valido riscritto"/"errore LLM" e' coperto invece da
+     * PromptEnhancementServiceTest, con un ChatClient mockato.
+     */
+    @Test
+    void enhancePromptEndpointSkipsLlmCallForBlankPrompt() throws Exception {
+        String body = mockMvc.perform(post("/generations/enhance-prompt").param("prompt", "   "))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("id=\"prompt-field\"", "name=\"prompt\"");
+    }
+
+    /**
      * Nessuna pagina "senza conversazione": /deep-chat nudo risolve/crea
      * sempre quella di default e ci naviga (vedi DeepChatController).
      * @Transactional: senza, ogni esecuzione di questo test (e degli

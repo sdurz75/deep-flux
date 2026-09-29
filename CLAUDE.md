@@ -75,7 +75,12 @@ servono direttamente a generare, archiviare o conversare sulle immagini.
 Se un domani serve dimostrare un pattern htmx/Alpine non ancora coperto
 dal codice reale, farlo aggiungendolo a una feature vera, non con una
 pagina demo isolata (le pagine demo starter — "Load more", "Search",
-chat di rifinitura prompt — sono state rimosse per questo).
+chat di rifinitura prompt — sono state rimosse per questo). L'icona
+"AI enhance" di `/generations/new` (vedi punto 1 sopra,
+`PromptEnhancementService`) non e' una riedizione di quella chat di
+rifinitura rimossa: non e' una pagina/conversazione a se stante ma
+un'azione puntuale sulla form reale di generazione, che riscrive il
+prompt gia' inserito senza aprire un'interfaccia propria.
 
 ## Filosofia
 
@@ -176,7 +181,7 @@ src/main/java/org/dual/replicate/
   Application.java              # entry point Spring Boot
   controller/
     HomeController.java         # pagina intera, esempio minimo
-    GenerationController.java   # crea una generazione, polling htmx dello stato + dettaglio a stato terminale, listato paginato /generations (qualunque stato), cancellazione (singola/selezione/per-immagine/intero archivio)
+    GenerationController.java   # crea una generazione, polling htmx dello stato + dettaglio a stato terminale, listato paginato /generations (qualunque stato), cancellazione (singola/selezione/per-immagine/intero archivio), riscrittura del prompt via AI ("AI enhance", POST /generations/enhance-prompt)
     GalleryController.java      # galleria (load more): SOLO generazioni SUCCEEDED, cancellazione in blocco dalla griglia
     DeepChatController.java     # pagina <deep-chat> + lista conversazioni + galleria contestuale (tutte le route HTML sotto /deep-chat/*)
     DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
@@ -215,6 +220,7 @@ src/main/java/org/dual/replicate/
     Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
     FluxKreaDevParameterHandler.java # GenerationParameterHandler di FLUX_KREA_DEV: aspect_ratio/megapixels(2 sole opzioni)/seed/go_fast/guidance/num_outputs/formato/qualita'/steps (schema reale del modello, vedi migrazione V10)
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
+    PromptEnhancementService.java # riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
     DeepChatGenerationWatcher.java # @Async: attende in background l'esito di una generazione avviata da /deep-chat, la persiste come nuovo turno e la notifica via SSE
@@ -246,9 +252,9 @@ src/main/resources/
     fragments/
       layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect, config Tailwind + @layer base
       header.html                # header di navigazione + theme switch, incluso da layout.html
-      button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle), vedi "Convenzione: theming"
+      button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle/aiEnhance), vedi "Convenzione: theming"
       alert.html                 # fragment error(text): box di errore/avviso, riusato da generate-form/generation/generation-params
-      generate-form.html         # fragment del form (riusato anche per mostrare errori)
+      generate-form.html         # fragment del form (riusato anche per mostrare errori); promptField(prompt, enhanceError) e' il blocco label+textarea+icona "AI enhance", risostituito per intero (outerHTML) da POST /generations/enhance-prompt
       generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
       generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
       generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio

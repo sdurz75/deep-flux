@@ -17,6 +17,7 @@ import org.dual.replicate.repository.GenerationRepository;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
+import org.dual.replicate.service.PromptEnhancementService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -55,19 +56,22 @@ public class GenerationController {
     private final GenerationParameterHandlers parameterHandlers;
     private final ObjectMapper objectMapper;
     private final Messages messages;
+    private final PromptEnhancementService promptEnhancementService;
 
     public GenerationController(GenerationService generationService,
                                  GenerationRepository generationRepository,
                                  ReplicateModelCatalog modelCatalog,
                                  GenerationParameterHandlers parameterHandlers,
                                  ObjectMapper objectMapper,
-                                 Messages messages) {
+                                 Messages messages,
+                                 PromptEnhancementService promptEnhancementService) {
         this.generationService = generationService;
         this.generationRepository = generationRepository;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
         this.objectMapper = objectMapper;
         this.messages = messages;
+        this.promptEnhancementService = promptEnhancementService;
     }
 
     @GetMapping("/new")
@@ -137,6 +141,37 @@ public class GenerationController {
         GenerationParameterHandler handler = parameterHandlers.get(formType);
         populateFormTypeFields(uiModel, handler, allParams);
         return handler.fragmentName();
+    }
+
+    /**
+     * Riscrive una bozza di prompt in un prompt Flux ben formato in
+     * inglese (icona "AI enhance", fragments/button.html :: aiEnhance,
+     * fragments/generate-form.html :: promptField): solo fragment, mai
+     * pagina intera (stesso principio di params() sopra), e SEMPRE 200
+     * anche in caso di errore, come DeepChatApiController - htmx non
+     * farebbe lo swap di una risposta 4xx/5xx di default, un errore
+     * lanciato sparirebbe silenziosamente invece di essere mostrato
+     * nell'alert del fragment. "enhanceError" e' un attributo di model
+     * separato da "error" usato da create()/form sopra: quello segnala
+     * l'esito di una vera POST /generations (spesa reale su Replicate),
+     * questo solo di una riscrittura testo via LLM - non vanno confusi.
+     */
+    @PostMapping("/enhance-prompt")
+    public String enhancePrompt(@RequestParam(required = false) String prompt, Model model) {
+        String draft = prompt == null ? "" : prompt.trim();
+        if (draft.isEmpty()) {
+            model.addAttribute("prompt", prompt);
+            model.addAttribute("enhanceError", null);
+        } else {
+            try {
+                model.addAttribute("prompt", promptEnhancementService.enhance(draft));
+                model.addAttribute("enhanceError", null);
+            } catch (Exception e) {
+                model.addAttribute("prompt", prompt);
+                model.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", e.getMessage()));
+            }
+        }
+        return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
     }
 
     /**
