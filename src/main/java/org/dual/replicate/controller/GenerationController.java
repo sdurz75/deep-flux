@@ -318,6 +318,7 @@ public class GenerationController {
     public String status(@PathVariable Long id,
                           @RequestParam(required = false) Long conversationId,
                           @RequestParam(required = false) Integer generationsPage,
+                          @RequestParam(required = false) Boolean cancelDisabled,
                           @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           HttpServletRequest request, HttpServletResponse response,
                           Model model) {
@@ -348,8 +349,59 @@ public class GenerationController {
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
         model.addAttribute("generationsPage", generationsPage);
+        model.addAttribute("cancelDisabled", cancelDisabled);
 
         return isHtmxRequest ? "fragments/generation :: status" : "generation-status";
+    }
+
+    /**
+     * Interrompe una generazione in corso (bottone del placeholder, vedi
+     * fragments/generation-placeholder.html). Due chiamanti: htmx
+     * (/generations/{id}, HX-Request presente) riceve il fragment di stato
+     * aggiornato - se l'interruzione non e' riuscita, o e' stata richiesta ma
+     * la prediction non e' ancora terminale, con cancelDisabled=true (il
+     * bottone si disabilita e il polling prosegue, propagando il flag
+     * nell'hx-get); il fetch JS del placeholder in /deep-chat (nessun
+     * HX-Request) riceve solo 204 (richiesta accolta) o 409 col messaggio.
+     */
+    @PostMapping("/{id}/cancel")
+    public String cancel(@PathVariable Long id,
+                          @RequestParam(required = false) Long conversationId,
+                          @RequestParam(required = false) Integer generationsPage,
+                          @RequestHeader(value = "HX-Request", required = false) String hxRequest,
+                          HttpServletResponse response, Model model) {
+        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
+        Generation generation = generationService.get(id);
+        boolean cancelFailed = false;
+        String errorText = null;
+        try {
+            generation = generationService.cancel(id);
+        } catch (ReplicateException e) {
+            cancelFailed = true;
+            errorText = e.getMessage();
+            // La generazione puo' essere diventata terminale nel frattempo (es. cancel rifiutato
+            // perche' gia' finita): rileggerla, il fragment mostra l'esito vero.
+            generation = generationRepository.findById(id).orElse(generation);
+        }
+        if (!isHtmxRequest) {
+            if (cancelFailed) {
+                response.setStatus(HttpServletResponse.SC_CONFLICT);
+                response.setContentType("text/plain;charset=UTF-8");
+                try {
+                    response.getWriter().write(errorText);
+                } catch (java.io.IOException ignored) {
+                    // il solo status 409 basta al client
+                }
+            } else {
+                response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            }
+            return null;
+        }
+        model.addAttribute("generation", generation);
+        model.addAttribute("conversationId", conversationId);
+        model.addAttribute("generationsPage", generationsPage);
+        model.addAttribute("cancelDisabled", true);
+        return "fragments/generation :: status";
     }
 
     /**

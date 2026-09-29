@@ -54,6 +54,15 @@ public class DeepChatGenerationWatcher {
         this.i18n = i18n;
     }
 
+    /**
+     * Sincrono (a differenza di watch, @Async): il legame con la conversazione
+     * deve esistere prima che la risposta HTTP del turno raggiunga il client,
+     * cosi' un reload subito dopo trova la generazione in corso.
+     */
+    public void attachToConversation(Long generationId, Long conversationId) {
+        generationService.attachToConversation(generationId, conversationId);
+    }
+
     @Async
     public void watch(Long generationId, Long conversationId, Locale locale) {
         // Un thread @Async non eredita LocaleContextHolder dalla
@@ -94,7 +103,7 @@ public class DeepChatGenerationWatcher {
             chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, generation));
 
             broadcaster.broadcastChatMessage(new ChatMessagePushEvent(
-                    conversationId, text, DeepChatService.toFiles(generation)));
+                    conversationId, generationId, text, DeepChatService.toFiles(generation)));
         } finally {
             LocaleContextHolder.resetLocaleContext();
         }

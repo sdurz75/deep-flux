@@ -85,6 +85,13 @@ public class Generation {
     @Lob
     private String errorMessage;
 
+    /**
+     * Conversazione di /deep-chat che ha avviato la generazione (null per il
+     * form diretto): serve a ripristinare il placeholder di una generazione
+     * ancora in corso quando la pagina viene ricaricata (vedi V11).
+     */
+    private Long conversationId;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -167,6 +174,14 @@ public class Generation {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public Long getConversationId() {
+        return conversationId;
+    }
+
+    public void setConversationId(Long conversationId) {
+        this.conversationId = conversationId;
     }
 
     public Instant getCreatedAt() {

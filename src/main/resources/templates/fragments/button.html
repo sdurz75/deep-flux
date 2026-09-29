@@ -161,6 +161,36 @@
     </svg>
 </button>
 
+<!--
+  Bottone "Interrompi" del placeholder di generazione
+  (fragments/generation-placeholder.html). Stili INLINE, non Tailwind:
+  lo stesso markup finisce anche dentro lo shadow DOM di <deep-chat>, che
+  non vede le classi della pagina. hx-post/hx-confirm servono alla pagina
+  htmx (hx-target/hx-swap sul div di polling #generation-status); in chat
+  li ignora, e' la classe gen-cancel + data-cancel/-confirm/-failed a
+  pilotarlo via JS (vedi deep-chat.html). `disabled` (Boolean, anche null)
+  = interruzione gia' richiesta o fallita: testo disabledText, non cliccabile.
+-->
+<button th:fragment="stop(text, disabledText, confirmText, failedText, url, disabled)"
+        type="button" class="gen-cancel"
+        th:hx-post="${url}" th:hx-confirm="${confirmText}"
+        hx-target="#generation-status" hx-swap="outerHTML"
+        th:data-cancel-url="${url}" th:data-confirm="${confirmText}"
+        th:data-failed-text="${failedText}"
+        th:data-disabled-text="${disabledText}"
+        th:disabled="${disabled}"
+        style="padding:4px 12px;border-radius:6px;border:1px solid rgba(220,38,38,0.8);background:transparent;
+               color:rgb(220,38,38);cursor:pointer;font-size:0.85rem"
+        th:text="${disabled} ? ${disabledText} : ${text}">Interrompi</button>
+
+<!-- Nascondi/mostra le immagini di un risultato in chat (shadow DOM di <deep-chat>: stili INLINE, click via htmlClassUtilities 'gen-toggle' in deep-chat.html). -->
+<button th:fragment="galleryToggle(text, hideText, showText)"
+        type="button" class="gen-toggle"
+        th:data-hide-text="${hideText}" th:data-show-text="${showText}"
+        style="padding:4px 12px;border-radius:6px;border:1px solid rgba(128,128,128,0.6);background:transparent;
+               color:inherit;cursor:pointer;font-size:0.85rem"
+        th:text="${text}">Nascondi</button>
+
 <button th:fragment="themeToggle(value, content, title)"
         type="button"
         th:data-theme-value="${value}"

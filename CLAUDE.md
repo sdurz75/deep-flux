@@ -23,6 +23,18 @@ L'applicazione serve a:
    arriva in un secondo momento come nuovo turno della conversazione,
    pushato via SSE (`GET /events`, `GenerationEventBroadcaster`) a chi ha
    quella conversazione aperta — nessun polling client-side per la chat.
+   Finche' una generazione e' in corso, sia in chat sia su `/generations/{id}`
+   compare un placeholder (`fragments/generation-placeholder.html`, immagine
+   dummy + bottone "Interrompi", stili INLINE perche' finisce anche nello
+   shadow DOM di `<deep-chat>`) che chiede conferma e interrompe la
+   prediction su Replicate (`POST /generations/{id}/cancel`,
+   `GenerationService#cancel`): esito `FAILED` "annullata"; se il cancel
+   fallisce il bottone si disabilita e si attende la fine naturale. In chat
+   i placeholder viaggiano nella risposta del turno (`generationIds`) e sono
+   ripristinati al reload via `Generation.conversationId` (migrazione V11). A generazione finita il
+   risultato rimpiazza il placeholder nello stesso messaggio `html` (`fragments/generation-result.html`,
+   stili inline) con un bottone Nascondi/Mostra immagine (`button :: galleryToggle`, handler `gen-toggle`
+   in `deep-chat.html`); anche la cronologia ricaricata usa lo stesso markup.
    `/generations/{id}` (form diretto) resta invece a polling client-side
    htmx ogni 2s mentre la generazione non e' terminale, invariato; a
    stato terminale quella stessa pagina (`fragments/generation.html ::
@@ -241,6 +253,7 @@ src/main/resources/
     V6__create_replicate_model.sql   # tabella REPLICATE_MODEL (catalogo censito a mano) + seed di sdurz75/flux-lora-ff3
     V7__add_flux_2_klein_9b_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-2-klein-9b (VERSION NULL, shortcut "ultima versione")
     V8__add_generation_seed.sql      # colonna GENERATION.SEED (Long, nullable): il seed usato diventa un campo di prima classe, non piu' solo dentro PARAMETERS_JSON
+    V11__generation_conversation.sql # colonna GENERATION.CONVERSATION_ID (nullable, FK ON DELETE SET NULL): conversazione che ha avviato la generazione, per ripristinare il placeholder al reload di /deep-chat
     V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
     index.html                   # home
@@ -260,6 +273,8 @@ src/main/resources/
       generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio
       generation-params-flux-krea-dev.html # campi del form-type FLUX_KREA_DEV (vedi GenerationFormType/FluxKreaDevParameterHandler), incluso dallo stesso guscio
       generation.html            # fragment status: polling di una generazione + dettaglio completo a stato terminale (prompt/modello/seed/parametri, immagini cancellabili, cancellazione generazione) - unica pagina di dettaglio, vedi CLAUDE.md
+      generation-placeholder.html # placeholder(generationId, conversationId, generationsPage, cancelDisabled): immagine dummy + "Interrompi", stili inline (usato anche in <deep-chat>, vedi deep-chat.html)
+      generation-result.html     # result: risultato di una generazione in /deep-chat (testo + toggle nascondi/mostra + immagini), template clonato dal client come il placeholder
       generation-images.html     # fragment grid(generation, conversationId, generationsPage): tutte le immagini di una Generation in una griglia con lightbox (zoom, next/prev) e cancellazione per-immagine (cascade sull'ultima), usato da fragments/generation.html
       gallery.html               # griglia + lightbox della galleria (content/grid), compone gallery-card e pagination; grid(...) riusata anche dalla galleria contestuale di /deep-chat
       gallery-card.html          # card di una singola generazione (link di dettaglio verso /generations/{id})

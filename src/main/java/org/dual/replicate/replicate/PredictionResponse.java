@@ -46,6 +46,10 @@ public record PredictionResponse(
         return "succeeded".equals(status);
     }
 
+    public boolean canceled() {
+        return "canceled".equals(status);
+    }
+
     public boolean failed() {
         return "failed".equals(status) || "canceled".equals(status);
     }

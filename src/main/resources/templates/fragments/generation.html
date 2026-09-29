@@ -23,12 +23,11 @@
 <th:block th:fragment="status">
     <div id="generation-status"
          th:if="${generation.status.name() == 'PENDING' or generation.status.name() == 'PROCESSING'}"
-         th:hx-get="@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})}"
+         th:hx-get="@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled})}"
          hx-trigger="every 2s"
          hx-swap="outerHTML">
-        <span class="inline-block size-[1em] border-2 border-line dark:border-line-dark border-t-accent dark:border-t-accent-dark
-                     rounded-full animate-[spin_0.7s_linear_infinite] align-[-0.15em] mr-2" aria-hidden="true"></span>
-        <span th:text="#{generation.status.inProgress(${generation.status})}">In corso&hellip; (PENDING)</span>
+        <div th:replace="~{fragments/generation-placeholder :: placeholder(generationId=${generation.id}, conversationId=${conversationId},
+                    generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled})}"></div>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">

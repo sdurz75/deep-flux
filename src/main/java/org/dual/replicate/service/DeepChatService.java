@@ -181,7 +181,7 @@ public class DeepChatService {
             String text = chatResponse.getResult().getOutput().getText();
 
             chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, null));
-            return new Reply(text);
+            return new Reply(text, resultHolder.getStartedGenerationIds());
         } finally {
             // Nel finally PIU' ESTERNO, dopo aver salvato il turno AI (non
             // solo sul percorso di successo: una generazione gia' avviata
@@ -191,8 +191,10 @@ public class DeepChatService {
             // (es. flux-schnell) puo' finire prima che l'LLM produca il
             // testo del turno, il messaggio "immagine pronta" non deve mai
             // precedere quello del turno che l'ha avviata.
-            resultHolder.getStartedGenerationIds()
-                    .forEach(id -> generationWatcher.watch(id, conversation.getId(), locale));
+            resultHolder.getStartedGenerationIds().forEach(id -> {
+                generationWatcher.attachToConversation(id, conversation.getId());
+                generationWatcher.watch(id, conversation.getId(), locale);
+            });
         }
     }
 
@@ -275,7 +277,7 @@ public class DeepChatService {
      * ImageGenerationTool/DeepChatGenerationWatcher) — arriva sempre in
      * un secondo momento via push SSE, mai nella risposta sincrona.
      */
-    public record Reply(String text) {
+    public record Reply(String text, List<Long> startedGenerationIds) {
     }
 
     /**

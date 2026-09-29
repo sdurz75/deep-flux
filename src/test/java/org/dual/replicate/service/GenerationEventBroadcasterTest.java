@@ -51,7 +51,7 @@ class GenerationEventBroadcasterTest {
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         broadcaster.onGenerationCompleted(new GenerationCompletedEvent(generation));
-        broadcaster.broadcastChatMessage(new ChatMessagePushEvent(1L, "Immagine pronta", null));
+        broadcaster.broadcastChatMessage(new ChatMessagePushEvent(1L, null, "Immagine pronta", null));
 
         assertThat(receivedEventNames).containsExactly("gallery-update");
 
@@ -65,7 +65,7 @@ class GenerationEventBroadcasterTest {
         GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
 
         assertThatCode(() -> broadcaster.broadcastChatMessage(
-                new ChatMessagePushEvent(1L, "nessuno ascolta", null)))
+                new ChatMessagePushEvent(1L, null, "nessuno ascolta", null)))
                 .doesNotThrowAnyException();
     }
 

@@ -48,6 +48,7 @@
       alla conversazione giusta.
     -->
     <script th:inline="javascript">
+        window.deepChatPendingGenerationIds = /*[[${pendingGenerationIds}]]*/ [];
         window.deepChatHistory = JSON.parse(/*[[${chatHistoryJson}]]*/ '[]');
         window.deepChatConversationId = /*[[${activeConversationId}]]*/ null;
         window.setDeepChatSettings = function (settings) {
@@ -358,6 +359,12 @@
                     }
                     if (field.type === 'checkbox') {
                         field.checked = stored[name] === 'true' || stored[name] === true;
+                    } else if (field.tagName === 'SELECT') {
+                        // Un valore che non e' fra le opzioni (residuo di un altro form-type)
+                        // lascerebbe la select senza selezione: si tiene il default.
+                        if (Array.prototype.some.call(field.options, function (o) { return o.value === stored[name]; })) {
+                            field.value = stored[name];
+                        }
                     } else {
                         field.value = stored[name];
                     }
@@ -396,7 +403,16 @@
                 sync();
             }
 
-            form.addEventListener('input', sync);
+            // Il cambio modello (evento nativo "input" della select) scatta PRIMA che htmx
+            // sostituisca i campi: a quel punto il DOM ha ancora quelli del form-type
+            // precedente (es. aspect_ratio=custom di FLUX_LORA_FF3), che finirebbero
+            // salvati insieme al nuovo modello. Si sincronizza solo dopo lo swap, quando
+            // hx-on:htmx:after-swap ridispatcha "input" sul contenitore dei campi.
+            form.addEventListener('input', function (event) {
+                if (event.target !== select) {
+                    sync();
+                }
+            });
         })();
     </script>
 
@@ -447,7 +463,22 @@
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
             const deepChat = document.getElementById('deep-chat-el');
-            deepChat.history = window.deepChatHistory || [];
+            const escapeHtml = (value) => String(value == null ? '' : value)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            // Risultato di una generazione (fragments/generation-result.html): messaggio "html"
+            // con testo, bottone nascondi/mostra e le immagini; rimpiazza il placeholder.
+            const resultTemplate = document.getElementById('generation-result-tpl').innerHTML;
+            const resultHtml = (generationId, text, files) => !files || !files.length
+                ? '<span style="white-space:pre-wrap">' + escapeHtml(text) + '</span>'
+                : resultTemplate
+                .replace(/__ID__/g, String(generationId == null ? '' : generationId))
+                .replace('__TEXT__', () => escapeHtml(text))
+                .replace('__IMAGES__', () => (files || []).map((f) =>
+                    '<img src="' + escapeHtml(f.src) + '" alt="' + escapeHtml(f.name)
+                    + '" style="max-width:100%;border-radius:8px;display:block">').join(''));
+            // Cronologia: i turni con immagini tornano come messaggi html (con controllo), non "files".
+            deepChat.history = (window.deepChatHistory || []).map((m) =>
+                m.files && m.files.length ? {role: m.role, html: resultHtml(null, m.text, m.files)} : m);
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
                 const parameters = {};
@@ -484,11 +515,95 @@
                 if (event.detail.conversationId !== window.deepChatConversationId) {
                     return;
                 }
-                deepChat.addMessage({role: 'ai', text: event.detail.text, files: event.detail.files || undefined});
+                const placeholderIndex = findPlaceholderIndex(event.detail.generationId);
+                const html = resultHtml(event.detail.generationId, event.detail.text, event.detail.files);
+                if (placeholderIndex >= 0) {
+                    // Il risultato prende il posto del placeholder, nello stesso messaggio.
+                    deepChat.updateMessage({role: 'ai', html: html}, placeholderIndex);
+                } else {
+                    deepChat.addMessage({role: 'ai', html: html});
+                }
                 deepChat.dispatchEvent(new CustomEvent('new-message'));
+            });
+
+            // Placeholder di generazione in corso (fragments/generation-placeholder.html):
+            // un messaggio "html" di deep-chat, dentro lo shadow DOM (niente htmx/Tailwind).
+            // Il bottone e' pilotato da htmlClassUtilities sulla classe gen-cancel.
+            const placeholderTemplate = document.getElementById('generation-placeholder-tpl').innerHTML;
+            const placeholderHtml = (id) => placeholderTemplate.replace(/__ID__/g, String(id));
+            const findPlaceholderIndex = (generationId) => {
+                if (generationId === null || generationId === undefined) {
+                    return -1;
+                }
+                const marker = 'data-generation-id="' + generationId + '"';
+                return deepChat.getMessages().findIndex((m) => m.html && m.html.includes(marker));
+            };
+
+            deepChat.htmlClassUtilities = {
+                'gen-toggle': {
+                    events: {
+                        click: (event) => {
+                            const button = event.target.closest('.gen-toggle');
+                            const images = button && button.closest('[data-generation-result]').querySelector('.gen-images');
+                            if (!images) {
+                                return;
+                            }
+                            const hidden = images.style.display !== 'none';
+                            images.style.display = hidden ? 'none' : 'flex';
+                            button.textContent = hidden ? button.dataset.showText : button.dataset.hideText;
+                        }
+                    }
+                },
+                'gen-cancel': {
+                    events: {
+                        click: (event) => {
+                            const button = event.target.closest('.gen-cancel');
+                            if (!button || button.disabled || !window.confirm(button.dataset.confirm)) {
+                                return;
+                            }
+                            button.disabled = true;
+                            fetch(button.dataset.cancelUrl, {method: 'POST'})
+                                .then((response) => {
+                                    if (!response.ok) {
+                                        throw new Error('cancel failed');
+                                    }
+                                    button.textContent = button.dataset.disabledText;
+                                })
+                                // Interruzione non riuscita: resta disabilitato, si attende la fine
+                                // della generazione (arrivera' comunque via SSE "chat-message").
+                                .catch(() => { button.textContent = button.dataset.failedText; });
+                        }
+                    }
+                }
+            };
+
+            // Risposta del turno: se ha avviato generazioni, i placeholder finiscono nella stessa bolla.
+            deepChat.responseInterceptor = (response) => {
+                if (response && response.generationIds && response.generationIds.length) {
+                    response.html = response.generationIds.map(placeholderHtml).join('');
+                }
+                return response;
+            };
+
+            // Generazioni ancora in corso al caricamento (reload): un placeholder ciascuna dopo la cronologia.
+            (window.deepChatPendingGenerationIds || []).forEach((id) => {
+                deepChat.addMessage({role: 'ai', html: placeholderHtml(id)});
             });
         });
     </script>
+
+    <!--
+      Markup del placeholder di generazione, scritto una sola volta
+      (fragments/generation-placeholder.html) e clonato dal client con
+      __ID__ -> id reale (vedi lo script module sopra).
+    -->
+    <template id="generation-placeholder-tpl">
+        <div th:replace="~{fragments/generation-placeholder :: placeholder(generationId='__ID__', conversationId=null, generationsPage=null, cancelDisabled=false)}"></div>
+    </template>
+
+    <template id="generation-result-tpl">
+        <div th:replace="~{fragments/generation-result :: result}"></div>
+    </template>
 
     <div th:replace="~{fragments/live-events :: connect}"></div>
 </div>

@@ -58,9 +58,10 @@ public class DeepChatApiController {
             // DeepChatGenerationWatcher/fragments/live-events.html).
             DeepChatService.Reply reply = deepChatService.reply(
                     request.conversationId(), request.messages(), request.model(), toGenerationParameters(request));
-            return new Reply(reply.text(), null, null);
+            return new Reply(reply.text(), null, null,
+                    reply.startedGenerationIds().isEmpty() ? null : reply.startedGenerationIds());
         } catch (Exception e) {
-            return new Reply(null, messages.get("deepchat.error.contactAssistant", e.getMessage()), null);
+            return new Reply(null, messages.get("deepchat.error.contactAssistant", e.getMessage()), null, null);
         }
     }
 
@@ -100,6 +101,6 @@ public class DeepChatApiController {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Reply(String text, String error, List<DeepChatService.FileRef> files) {
+    public record Reply(String text, String error, List<DeepChatService.FileRef> files, List<Long> generationIds) {
     }
 }

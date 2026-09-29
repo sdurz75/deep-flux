@@ -190,6 +190,10 @@ public class GenerationService {
                 }
             }
             generation.setCompletedAt(Instant.now());
+        } else if (prediction.canceled()) {
+            generation.setStatus(GenerationStatus.FAILED);
+            generation.setErrorMessage(messages.get("generation.error.canceled"));
+            generation.setCompletedAt(Instant.now());
         } else if (prediction.failed()) {
             generation.setStatus(GenerationStatus.FAILED);
             generation.setErrorMessage(prediction.error() != null ? prediction.error() : messages.get("generation.error.failedGeneric"));
@@ -203,6 +207,38 @@ public class GenerationService {
         }
 
         return saveAndLogIfTerminal(generation);
+    }
+
+    /**
+     * Interrompe una generazione in corso chiedendo a Replicate di
+     * cancellare la prediction, poi fa avanzare lo stato (se Replicate ha
+     * gia' risposto "canceled" la generazione diventa FAILED "annullata").
+     * Se l'interruzione non riesce (prediction gia' terminale, errore di
+     * rete...) la ReplicateException risale al chiamante e la generazione
+     * resta com'e': chi la sta guardando attende la fine naturale.
+     */
+    public Generation cancel(Long id) {
+        Generation generation = get(id);
+        if (generation.isTerminal()) {
+            return generation;
+        }
+        replicateClient.cancelPrediction(generation.getExternalId());
+        return refresh(id);
+    }
+
+    /** Associa una generazione avviata da /deep-chat alla sua conversazione (ripristino del placeholder al reload). */
+    public void attachToConversation(Long id, Long conversationId) {
+        repository.findById(id).ifPresent(generation -> {
+            generation.setConversationId(conversationId);
+            repository.save(generation);
+        });
+    }
+
+    /** Generazioni ancora in corso (non scadute) avviate dalla conversazione indicata. */
+    public List<Generation> inProgressForConversation(Long conversationId) {
+        return repository.findByConversationIdAndStatusInAndCreatedAtAfterOrderByIdAsc(
+                conversationId, List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING),
+                Instant.now().minus(TIMEOUT));
     }
 
     /**

@@ -34,6 +34,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class FluxKreaDevParameterHandler implements GenerationParameterHandler {
 
+    public static final java.util.Set<String> ASPECT_RATIOS = java.util.Set.of("1:1", "16:9", "9:16", "3:2", "2:3",
+            "4:3", "3:4", "5:4", "4:5", "21:9", "9:21", "match_input_image");
     public static final String DEFAULT_ASPECT_RATIO = "1:1";
     public static final String DEFAULT_MEGAPIXELS = "1";
     public static final boolean DEFAULT_GO_FAST = false;
@@ -49,7 +51,7 @@ public class FluxKreaDevParameterHandler implements GenerationParameterHandler {
     @Override
     public Map<String, Object> toParameterMap(Map<String, String> submittedFields) {
         Map<String, Object> params = new LinkedHashMap<>();
-        putIfPresent(params, "aspect_ratio", submittedFields.get("aspect_ratio"));
+        putIfPresent(params, "aspect_ratio", asOneOf(submittedFields.get("aspect_ratio"), ASPECT_RATIOS));
         putIfPresent(params, "megapixels", submittedFields.get("megapixels"));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
         params.put("go_fast", submittedFields.containsKey("go_fast"));

@@ -43,6 +43,17 @@ public interface GenerationParameterHandler {
         }
     }
 
+    /**
+     * {@code value} solo se e' uno dei valori ammessi, altrimenti
+     * {@code null} (la chiave viene omessa e vale il default di
+     * Replicate): un valore residuo di un altro form-type (es. il
+     * {@code aspect_ratio=custom} di FLUX_LORA_FF3) non deve arrivare a
+     * Replicate come 422.
+     */
+    default String asOneOf(String value, java.util.Set<String> allowed) {
+        return value != null && allowed.contains(value) ? value : null;
+    }
+
     default Integer asInteger(String value) {
         if (value == null || value.isBlank()) {
             return null;

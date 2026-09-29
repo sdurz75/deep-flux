@@ -2,6 +2,7 @@ package org.dual.replicate.repository;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
@@ -29,4 +30,7 @@ public interface GenerationRepository extends JpaRepository<Generation, Long> {
      * autocorreggeva perche' Replicate stessa segna la prediction conclusa.
      */
     long countByModelAndStatusInAndCreatedAtAfter(String model, Collection<GenerationStatus> statuses, Instant after);
+
+    /** Generazioni ancora in corso avviate da una conversazione di /deep-chat, per ripristinarne il placeholder al reload (stesso filtro "after" di sopra). */
+    List<Generation> findByConversationIdAndStatusInAndCreatedAtAfterOrderByIdAsc(Long conversationId, Collection<GenerationStatus> statuses, Instant after);
 }

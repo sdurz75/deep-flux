@@ -81,6 +81,25 @@ public class ReplicateClient {
         }
     }
 
+    /**
+     * Chiede a Replicate di interrompere una prediction in corso
+     * (POST /predictions/{id}/cancel). Se la prediction e' gia' terminale
+     * Replicate risponde con un errore HTTP, che qui diventa una
+     * ReplicateException come ogni altro.
+     */
+    public PredictionResponse cancelPrediction(String externalId) {
+        requireToken();
+        try {
+            return restClient.post()
+                    .uri("/predictions/{id}/cancel", externalId)
+                    .headers(this::authHeaders)
+                    .retrieve()
+                    .body(PredictionResponse.class);
+        } catch (RestClientException e) {
+            throw toReplicateException(e);
+        }
+    }
+
     /** Traduce un errore RestClient (HTTP non-2xx o connessione fallita) in un messaggio leggibile. */
     private ReplicateException toReplicateException(RestClientException e) {
         if (e instanceof RestClientResponseException responseException) {

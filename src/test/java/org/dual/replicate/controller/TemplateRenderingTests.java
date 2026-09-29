@@ -44,6 +44,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TemplateRenderingTests {
 
     @Autowired
+    private org.thymeleaf.spring6.SpringTemplateEngine templateEngine;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -566,6 +569,54 @@ class TemplateRenderingTests {
         mockMvc.perform(get("/generations/" + browserGeneration.getId()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string("Location", "/gallery"));
+    }
+
+    /**
+     * Ramo in corso di fragments/generation.html :: status: placeholder con bottone
+     * "Interrompi" (hx-post verso /generations/{id}/cancel); cancelDisabled=true lo
+     * disabilita e viene propagato nell'hx-get del polling. Renderizza il fragment
+     * direttamente col template engine (NON via GET /generations/{id}: refresh()
+     * chiamerebbe la vera API Replicate).
+     */
+    @Test
+    void inProgressStatusRendersPlaceholderWithCancelButton() {
+        Generation generation = new Generation("pred-ph-1", "owner/model", null, "a fox", null);
+        generation.setStatus(GenerationStatus.PROCESSING);
+        org.springframework.test.util.ReflectionTestUtils.setField(generation, "id", 42L);
+
+        String enabled = renderStatus(generation, false);
+        assertThat(enabled).contains("data-generation-placeholder", "hx-post=\"/generations/42/cancel", "hx-confirm=");
+        assertThat(enabled).doesNotContainPattern("<button[^>]*\\sdisabled[\\s=>]");
+
+        String disabled = renderStatus(generation, true);
+        assertThat(disabled).containsPattern("<button[^>]*\\sdisabled[\\s=>]").contains("cancelDisabled=true");
+    }
+
+    /**
+     * /deep-chat ospita il template del risultato (rimpiazza il placeholder): bottone
+     * nascondi/mostra con le due etichette i18n e contenitore delle immagini.
+     */
+    @Test
+    void deepChatPageEmbedsResultTemplateWithToggle() throws Exception {
+        String location = mockMvc.perform(get("/deep-chat"))
+                .andReturn().getResponse().getHeader("Location");
+        String body = mockMvc.perform(get(location)).andReturn().getResponse().getContentAsString();
+        assertThat(body).contains("generation-result-tpl", "data-generation-result", "gen-toggle",
+                "class=\"gen-images\"", "data-hide-text=", "data-show-text=");
+    }
+
+    private String renderStatus(Generation generation, boolean cancelDisabled) {
+        // WebContext (non Context): i link @{/...} lo richiedono per risolversi rispetto al context path.
+        var servletContext = new org.springframework.mock.web.MockServletContext();
+        var exchange = org.thymeleaf.web.servlet.JakartaServletWebApplication.buildApplication(servletContext)
+                .buildExchange(new org.springframework.mock.web.MockHttpServletRequest(servletContext),
+                        new org.springframework.mock.web.MockHttpServletResponse());
+        var context = new org.thymeleaf.context.WebContext(exchange, java.util.Locale.ITALIAN);
+        context.setVariable("generation", generation);
+        context.setVariable("conversationId", null);
+        context.setVariable("generationsPage", null);
+        context.setVariable("cancelDisabled", cancelDisabled ? Boolean.TRUE : null);
+        return templateEngine.process("fragments/generation", java.util.Set.of("status"), context);
     }
 
     /**

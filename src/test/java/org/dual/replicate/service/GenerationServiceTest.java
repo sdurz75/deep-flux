@@ -130,6 +130,47 @@ class GenerationServiceTest {
     }
 
     @Test
+    void cancelMarksGenerationFailedWhenReplicateReportsCanceled() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.PROCESSING);
+        ReflectionTestUtils.setField(generation, "id", 1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(generation));
+        when(repository.existsById(1L)).thenReturn(true);
+        when(messages.get("generation.error.canceled")).thenReturn("annullata");
+        when(replicateClient.cancelPrediction("pred-1"))
+                .thenReturn(new PredictionResponse("pred-1", "canceled", null, null, null, null));
+        when(replicateClient.getPrediction("pred-1"))
+                .thenReturn(new PredictionResponse("pred-1", "canceled", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.cancel(1L);
+
+        assertThat(result.getStatus()).isEqualTo(GenerationStatus.FAILED);
+        assertThat(result.getErrorMessage()).isEqualTo("annullata");
+        verify(replicateClient).cancelPrediction("pred-1");
+    }
+
+    @Test
+    void cancelLeavesGenerationUntouchedWhenReplicateRefuses() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.PROCESSING);
+        ReflectionTestUtils.setField(generation, "id", 1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(generation));
+        when(replicateClient.cancelPrediction("pred-1"))
+                .thenThrow(new org.dual.replicate.replicate.ReplicateException("409"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.cancel(1L))
+                .isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
+
+        assertThat(generation.getStatus()).isEqualTo(GenerationStatus.PROCESSING);
+        verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
     void refreshDownloadsImageWhenPredictionSucceeded() {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
 

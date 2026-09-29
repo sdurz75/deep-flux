@@ -16,6 +16,7 @@ import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.service.ChatConversationService;
 import org.dual.replicate.service.DeepChatService;
 import org.dual.replicate.service.GenerationParameterHandler;
+import org.dual.replicate.service.GenerationService;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -46,6 +47,7 @@ public class DeepChatController {
     private final ChatConversationRepository chatConversationRepository;
     private final ChatConversationService chatConversationService;
     private final ChatMessageRepository chatMessageRepository;
+    private final GenerationService generationService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
 
@@ -54,6 +56,7 @@ public class DeepChatController {
                                ChatConversationRepository chatConversationRepository,
                                ChatConversationService chatConversationService,
                                ChatMessageRepository chatMessageRepository,
+                               GenerationService generationService,
                                ObjectMapper objectMapper,
                                Messages messages) {
         this.modelCatalog = modelCatalog;
@@ -61,6 +64,7 @@ public class DeepChatController {
         this.chatConversationRepository = chatConversationRepository;
         this.chatConversationService = chatConversationService;
         this.chatMessageRepository = chatMessageRepository;
+        this.generationService = generationService;
         this.objectMapper = objectMapper;
         this.messages = messages;
     }
@@ -85,6 +89,9 @@ public class DeepChatController {
         // JavaBean: la select del combobox li legge con un semplice
         // th:each, nessun bridge JSON/data-* necessario.
         model.addAttribute("chatHistoryJson", objectMapper.writeValueAsString(loadHistory(id)));
+        // Placeholder da ripristinare: generazioni di QUESTA conversazione ancora in corso (vedi deep-chat.html).
+        model.addAttribute("pendingGenerationIds", generationService.inProgressForConversation(id).stream()
+                .map(org.dual.replicate.domain.Generation::getId).toList());
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", id);
         model.addAttribute("contextualGenerations", chatMessageRepository.findSucceededGenerationsByConversationId(id));
