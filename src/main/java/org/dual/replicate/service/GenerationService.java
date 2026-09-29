@@ -113,7 +113,7 @@ public class GenerationService {
      * quando assente: "sempre true" non e' un default, e' un vincolo.
      */
     public Generation create(String model, String version, String prompt, String parametersJson) {
-        return create(model, version, prompt, parametersJson, GenerationKind.IMAGE, null);
+        return create(model, version, prompt, parametersJson, GenerationKind.IMAGE, null, null);
     }
 
     /**
@@ -125,7 +125,7 @@ public class GenerationService {
      * default), quindi per i video non viene aggiunto.
      */
     public Generation create(String model, String version, String prompt, String parametersJson,
-                             GenerationKind kind, Long sourceGenerationId) {
+                             GenerationKind kind, Long sourceGenerationId, String sourceImage) {
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
         // a null, altrimenti "" viene persistita e i th:if dei template (per cui una
         // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
@@ -143,7 +143,7 @@ public class GenerationService {
         if (kind == GenerationKind.IMAGE) {
             input.put("disable_safety_checker", true);
         } else if (sourceGenerationId != null) {
-            input.put("image", sourceImageDataUri(sourceGenerationId));
+            input.put("image", sourceImageDataUri(sourceGenerationId, sourceImage));
         }
 
         PredictionResponse prediction = replicateClient.createPrediction(model, version, input);
@@ -164,14 +164,17 @@ public class GenerationService {
      * persistito e poi stampato nel dettaglio; la sorgente resta tracciata da
      * {@code sourceGenerationId}.
      */
-    private String sourceImageDataUri(Long sourceGenerationId) {
+    private String sourceImageDataUri(Long sourceGenerationId, String sourceImage) {
         Generation source = repository.findById(sourceGenerationId)
                 .orElseThrow(() -> new ReplicateException(messages.get("generation.error.sourceImageMissing")));
-        if (source.getImageFilenames().isEmpty()) {
+        // L'immagine esatta scelta dall'utente sul thumbnail; senza (null) la prima, per compatibilita'.
+        String filename = sourceImage != null ? sourceImage
+                : source.getImageFilenames().isEmpty() ? null : source.getImageFilenames().get(0);
+        if (filename == null || !source.getImageFilenames().contains(filename)) {
             throw new ReplicateException(messages.get("generation.error.sourceImageMissing"));
         }
         try {
-            return imageStorageService.readAsDataUri(source.getImageFilenames().get(0));
+            return imageStorageService.readAsDataUri(filename);
         } catch (java.io.UncheckedIOException e) {
             throw new ReplicateException(messages.get("generation.error.sourceImageMissing"));
         }

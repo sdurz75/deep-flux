@@ -80,15 +80,17 @@ public class GenerationController {
     public String form(@RequestParam(required = false) String prompt,
                         @RequestParam(required = false) Long seed,
                         @RequestParam(required = false) Long source,
+                        @RequestParam(required = false) String sourceImage,
                         Model model) {
         String defaultModel = modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse("");
         // "Anima" (vedi fragments/generation.html :: status): preseleziona il primo modello video e
         // porta con se' la generazione immagine sorgente (hidden sourceGenerationId nel form).
-        Generation sourceGeneration = source == null ? null : animatableSource(source);
+        Generation sourceGeneration = source == null ? null : animatableSource(source, sourceImage);
         if (sourceGeneration != null) {
             defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
                     .map(ReplicateModel::getIdentifier).orElse(defaultModel);
             model.addAttribute("sourceGeneration", sourceGeneration);
+            model.addAttribute("sourceImage", sourceImage);
             if (prompt == null) {
                 prompt = sourceGeneration.getPrompt();
             }
@@ -110,11 +112,13 @@ public class GenerationController {
                           @RequestParam(required = false) String version,
                           @RequestParam String prompt,
                           @RequestParam(required = false) Long sourceGenerationId,
+                          @RequestParam(required = false) String sourceImage,
                           @RequestParam Map<String, String> allParams,
                           Model uiModel) {
-        Generation sourceGeneration = sourceGenerationId == null ? null : animatableSource(sourceGenerationId);
+        Generation sourceGeneration = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
         if (sourceGeneration != null) {
             uiModel.addAttribute("sourceGeneration", sourceGeneration);
+            uiModel.addAttribute("sourceImage", sourceImage);
         }
         try {
             GenerationFormType formType = modelCatalog.formTypeOf(model)
@@ -133,7 +137,7 @@ public class GenerationController {
             }
             String parametersJson = objectMapper.writeValueAsString(parameters);
             Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
-                    formType.kind(), animate ? sourceGeneration.getId() : null);
+                    formType.kind(), animate ? sourceGeneration.getId() : null, animate ? sourceImage : null);
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
@@ -150,12 +154,15 @@ public class GenerationController {
         }
     }
 
-    /** La generazione immagine completata da animare, o null se non esiste/non e' animabile (parametro ignorato). */
-    private Generation animatableSource(Long id) {
+    /**
+     * La generazione immagine completata da animare, o null se non esiste/non e' animabile o se
+     * {@code image} non e' uno dei suoi file (parametro ignorato).
+     */
+    private Generation animatableSource(Long id, String image) {
         return generationRepository.findById(id)
                 .filter(g -> g.getKind() == GenerationKind.IMAGE
                         && g.getStatus() == GenerationStatus.SUCCEEDED
-                        && !g.getImageFilenames().isEmpty())
+                        && image != null && g.getImageFilenames().contains(image))
                 .orElse(null);
     }
 

@@ -96,6 +96,11 @@
             </span>
         </a>
 
+        <!-- "Anima": img2video sulla thumbnail mostrata (imageFilenames[0]), vedi fragments/button.html :: animateOverlay. Solo immagini. -->
+        <th:block th:unless="${generation.video}">
+            <a th:replace="~{fragments/button :: animateOverlay(url=@{/generations/new(source=${generation.id}, sourceImage=${generation.imageFilenames[0]})}, title=#{generationDetail.action.animate}, extraClass='bottom-2 right-2')}"></a>
+        </th:block>
+
         <span th:if="${generation.imageFilenames.size() > 1}"
               th:text="'+' + (${generation.imageFilenames.size()} - 1)"
               class="absolute bottom-2 left-2 text-xs font-semibold text-white bg-black/60 rounded-full px-2 py-0.5 pointer-events-none"></span>

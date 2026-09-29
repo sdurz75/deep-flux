@@ -53,9 +53,13 @@ L'applicazione serve a:
    quelli delle immagini; cambiano solo il rendering (`<video>` invece di
    `<img>` in galleria, listato, dettaglio, cronologia chat; niente lightbox per
    i video) e il timeout (`GenerationService`, 15 min invece di 5). Il punto
-   d'ingresso e' il link "Anima in un video" nel dettaglio di un'immagine
-   completata (`/generations/new?source={id}`): preseleziona p-video, porta la
-   sorgente come hidden `sourceGenerationId` e `GenerationController#create` la
+   d'ingresso e' l'icona overlay "Anima in un video" (`button.html ::
+   animateOverlay`) sul thumbnail di OGNI singola immagine — card di
+   `/gallery` e della galleria contestuale di chat, griglia del dettaglio
+   (`/generations/new?source={id}&sourceImage={filename}`: la sorgente e'
+   quel file preciso, non `imageFilenames[0]`; un filename non appartenente
+   alla generazione rende la sorgente ignorata): preseleziona p-video, porta la
+   sorgente come hidden `sourceGenerationId` + `sourceImage` e `GenerationController#create` la
    invia a Replicate come data-URI (`ImageStorageService#readAsDataUri`,
    `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`); senza sorgente
    p-video funziona da text-to-video. `/deep-chat` propone SOLO modelli immagine

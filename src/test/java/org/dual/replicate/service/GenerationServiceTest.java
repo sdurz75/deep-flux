@@ -115,7 +115,7 @@ class GenerationServiceTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Generation result = service.create("prunaai/p-video", null, "a cat walks", "{\"duration\": 5}",
-                GenerationKind.VIDEO, 7L);
+                GenerationKind.VIDEO, 7L, null);
 
         assertThat(result.getKind()).isEqualTo(GenerationKind.VIDEO);
         assertThat(result.getSourceGenerationId()).isEqualTo(7L);
@@ -160,13 +160,33 @@ class GenerationServiceTest {
                 .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Generation result = service.create("prunaai/p-video", null, "walks", "{\"duration\": 5}", GenerationKind.VIDEO, 7L);
+        Generation result = service.create("prunaai/p-video", null, "walks", "{\"duration\": 5}", GenerationKind.VIDEO, 7L, null);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
         assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,AAAA");
         assertThat(result.getParametersJson()).doesNotContain("image").doesNotContain("base64");
+    }
+
+    /** Con piu' immagini la sorgente e' quella scelta sul thumbnail, non la prima. */
+    @Test
+    void createForVideoUsesTheChosenSourceImage() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png", "7-1.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-1.png")).thenReturn("data:image/png;base64,BBBB");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L, "7-1.png");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,BBBB");
     }
 
     /** File sorgente illeggibile: errore mostrabile dal form (ReplicateException), non un 500, e nessuna prediction avviata. */
@@ -180,7 +200,7 @@ class GenerationServiceTest {
                 .thenThrow(new java.io.UncheckedIOException("missing", new java.io.IOException("nope")));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                        () -> service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L))
+                        () -> service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L, null))
                 .isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
         org.mockito.Mockito.verifyNoInteractions(replicateClient);
     }

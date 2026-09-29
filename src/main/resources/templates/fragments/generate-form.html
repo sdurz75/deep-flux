@@ -17,8 +17,9 @@
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML">
             <div th:if="${sourceGeneration}" class="mb-4">
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">
+                <input type="hidden" name="sourceImage" th:value="${sourceImage}">
                 <p th:text="#{generateForm.label.sourceImage(${sourceGeneration.id})}">Animazione della generazione</p>
-                <img th:src="@{'/images/' + ${sourceGeneration.imageFilenames[0]}}" alt="" class="mt-1 h-32 w-auto rounded-md">
+                <img th:src="@{'/images/' + ${sourceImage}}" alt="" class="mt-1 h-32 w-auto rounded-md">
             </div>
 
             <div th:replace="~{fragments/generation-params :: fields}"></div>

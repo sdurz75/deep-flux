@@ -169,10 +169,12 @@ class TemplateRenderingTests {
         image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("1-0.png")));
         image = repository.save(image);
 
-        String body = mockMvc.perform(get("/generations/new").param("source", String.valueOf(image.getId())))
+        String body = mockMvc.perform(get("/generations/new").param("source", String.valueOf(image.getId()))
+                        .param("sourceImage", "1-0.png"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(body).containsPattern("name=\"sourceGenerationId\"[^>]*value=\"" + image.getId() + "\"");
+        assertThat(body).containsPattern("name=\"sourceImage\"[^>]*value=\"1-0.png\"");
         assertThat(body).contains("name=\"duration\"");
         assertThat(body).containsPattern("<option value=\"prunaai/p-video\"[^>]*selected");
         assertThat(body).contains("/images/1-0.png");
@@ -187,13 +189,29 @@ class TemplateRenderingTests {
         assertThat(body).doesNotContain("sourceGenerationId");
     }
 
+    /** Una sourceImage che non appartiene alla generazione rende la sorgente non valida: ignorata. */
+    @Test
+    @Transactional
+    void newFormIgnoresSourceImageNotBelongingToTheGeneration() throws Exception {
+        Generation image = new Generation("pred-img2", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("1-0.png")));
+        image = repository.save(image);
+
+        String body = mockMvc.perform(get("/generations/new").param("source", String.valueOf(image.getId()))
+                        .param("sourceImage", "other.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("sourceGenerationId");
+    }
+
     /** Dettaglio: un'immagine completata offre "Anima"; un video ha <video controls> e il link alla sorgente, niente "Anima". */
     @Test
     @Transactional
     void detailOffersAnimateForImagesAndRendersVideoForVideos() throws Exception {
         Generation image = new Generation("pred-i", "owner/model", null, "a cat", null);
         image.setStatus(GenerationStatus.SUCCEEDED);
-        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("2-0.png")));
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("2-0.png", "2-1.png")));
         image = repository.save(image);
 
         Generation video = new Generation("pred-v", "prunaai/p-video", null, "a cat walks", null);
@@ -208,7 +226,9 @@ class TemplateRenderingTests {
         String videoBody = mockMvc.perform(get("/generations/" + video.getId()))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(imageBody).contains("/generations/new?source=" + image.getId()).doesNotContain("<video");
+        assertThat(imageBody).contains("/generations/new?source=" + image.getId() + "&amp;sourceImage=2-0.png")
+                .contains("/generations/new?source=" + image.getId() + "&amp;sourceImage=2-1.png")
+                .doesNotContain("<video");
         assertThat(videoBody).containsPattern("<video[^>]*src=\"[^\"]*/images/3-0.mp4\"[^>]*controls")
                 .doesNotContain("?source=")
                 .contains("/generations/" + image.getId());
