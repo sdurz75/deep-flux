@@ -154,17 +154,23 @@ nessun altro impatto.
   gestione di routing/stato che il server già fa. Se serve un widget
   isolato, montarlo come Web Component su un `<div>` mirato, non riscrivere
   la navigazione.
-- **Un build step Tailwind (CLI/PostCSS)** — scelta deliberata e
-  invertita rispetto alla precedente ("Tailwind solo per Pines UI, resto
-  del sito su `theme.css`"): oggi Tailwind e' il sistema di stile
-  dell'intero sito (vedi Theming sopra e "Convenzione: theming" sotto),
-  ma resta interamente sul Play CDN (JIT nel browser) — nessun
-  `tailwind.config.js` su disco, nessun npm/PostCSS. La configurazione
-  (`darkMode`, `theme.extend.colors`/`fontFamily`) vive nello `<script>`
-  inline di `fragments/layout.html`, il layer di stili trasversali
-  (`@layer base`) in un `<style type="text/tailwindcss">` nello stesso
-  file — entrambi meccanismi nativi del Play CDN, non un secondo sistema
-  di build parallelo.
+- **Un build step Tailwind obbligatorio (CLI/PostCSS/npm)** — il default
+  resta il Play CDN (JIT nel browser): `mvn spring-boot:run` e `mvn test`
+  non compilano nulla. Unica eccezione ammessa, opt-in: il profilo Maven
+  `tailwind` (`mvn -Ptailwind clean package`), che scarica via `curl` il
+  binario *standalone* di Tailwind 3.4 (niente Node/npm/PostCSS, cache in
+  `target/tailwind/`, solo macOS/Linux) e compila
+  `target/classes/static/css/tailwind.css` minificato, per produzione.
+  `config/TailwindAssets` rileva la presenza di quell'asset e
+  `fragments/layout.html` serve `<link>` al CSS compilato invece del Play
+  CDN (nessuna property da sincronizzare). La config vive in UN solo file,
+  `src/main/tailwind/tailwind.config.js` (CommonJS): la CLI lo legge da li',
+  il Play CDN lo carica come `/js/tailwind.config.js` (copiato a build via
+  `<resources>` del pom, con uno shim `module` in `layout.html`). Il blocco
+  `@layer base` e' invece duplicato tra `src/main/tailwind/input.css` e
+  `<style type="text/tailwindcss">` di `layout.html`: tenerli allineati.
+  Le classi devono restare stringhe letterali nei template (la CLI le
+  scansiona staticamente, il CDN no): niente classi composte da concatenazione.
 
 ## Stack
 
@@ -241,6 +247,11 @@ src/main/java/org/dual/replicate/
     GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext): gli id delle generazioni avviate nel turno, non piu' un risultato gia' pronto
   config/
     StorageConfig.java          # espone storage.images-dir come /images/**
+    TailwindAssets.java         # true se static/css/tailwind.css (profilo Maven "tailwind") e' nel classpath: layout.html sceglie CSS compilato vs Play CDN
+
+src/main/tailwind/
+  tailwind.config.js            # config Tailwind UNICA (CLI + Play CDN), vedi "Cosa NON introdurre"
+  input.css                     # input della CLI: direttive + @layer base (duplicato in layout.html)
 
 src/main/resources/
   application.yml
@@ -289,8 +300,9 @@ src/main/resources/
 
 Le immagini generate e il DB H2 vivono in `./data/` (fuori da git, vedi
 `.gitignore`): sono stato applicativo prodotto a runtime, non asset del
-progetto. Nessuna directory `static/`: lo stile e' interamente Tailwind
-(vedi "Convenzione: theming"), niente CSS vendorizzato da servire.
+progetto. Nessun CSS scritto a mano in `static/`: lo stile e' interamente Tailwind
+(vedi "Convenzione: theming"); `static/css/tailwind.css` esiste solo se generato
+dal profilo Maven `tailwind` (in `target/`, mai committato).
 
 ## Pattern Thymeleaf: layout manager (thymeleaf-layout-dialect)
 
@@ -624,7 +636,8 @@ Nessun Maven Wrapper incluso: serve Maven installato sulla macchina
 ```bash
 mvn spring-boot:run        # avvio in sviluppo (Thymeleaf cache=false, reload live)
 mvn test                   # test
-mvn clean package          # build del jar eseguibile
+mvn clean package          # build del jar eseguibile (Tailwind via Play CDN)
+mvn -Ptailwind clean package # come sopra + CSS Tailwind compilato/minificato (richiede rete per il binario)
 ```
 
 `mvn test` non tocca mai `./data/db/` (il DB H2 su file usato da
