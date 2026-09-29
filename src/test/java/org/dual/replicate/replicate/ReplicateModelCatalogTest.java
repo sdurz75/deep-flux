@@ -75,4 +75,19 @@ class ReplicateModelCatalogTest {
     void idsAsCsvListsAllActiveModels() {
         assertThat(catalog.idsAsCsv()).contains("sdurz75/flux-lora-ff3");
     }
+
+    @Test
+    void editModelIsSeparatedFromImageAndVideoModels() {
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-kontext-dev")).contains(GenerationFormType.FLUX_KONTEXT_DEV);
+        assertThat(catalog.versionOf("black-forest-labs/flux-kontext-dev")).isEmpty();
+        assertThat(catalog.containsEdit("black-forest-labs/flux-kontext-dev")).isTrue();
+        assertThat(catalog.containsEdit("black-forest-labs/flux-krea-dev")).isFalse();
+        assertThat(catalog.editModels()).extracting(ReplicateModel::getIdentifier)
+                .containsExactly("black-forest-labs/flux-kontext-dev");
+        // Ne' i modelli immagine (chat, /generations/new) ne' il default lo includono.
+        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
+                .doesNotContain("black-forest-labs/flux-kontext-dev");
+        assertThat(catalog.contains("black-forest-labs/flux-kontext-dev", GenerationKind.IMAGE)).isFalse();
+        assertThat(catalog.defaultModel().orElseThrow().getIdentifier()).isNotEqualTo("black-forest-labs/flux-kontext-dev");
+    }
 }

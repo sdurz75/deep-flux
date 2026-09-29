@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campo "immagine sorgente" condiviso dai form-type che prendono un'immagine
+  (P_VIDEO: opzionale, FLUX_KONTEXT_DEV: obbligatoria) - un solo posto per il
+  markup e il controllo di dimensione lato client. Va nel multipart della POST
+  /generations (form con hx-encoding=multipart). Assente se la sorgente e' una
+  generazione esistente ("Anima"/"Modifica": sourceGeneration nel Model).
+  Parametri nominati (vedi CLAUDE.md, pattern controller/fragment).
+-->
+<div th:fragment="field(label, required)" th:unless="${sourceGeneration}" x-data="{ preview: null }">
+    <label for="param-source-upload" th:text="${label}">Immagine di partenza (opzionale)</label>
+    <!--/* Controllo dimensione anche lato client (setCustomValidity blocca il submit del form htmx): il limite e il messaggio arrivano dal server via data-*, il controllo vero resta ImageStorageService#storeUpload. */-->
+    <input type="file" id="param-source-upload" name="sourceUpload" accept="image/png,image/jpeg,image/webp"
+           th:required="${required}"
+           th:data-max-bytes="${maxUploadBytes}"
+           th:data-too-large="#{imagestorage.error.uploadTooLarge(${maxUploadBytes / (1024 * 1024)})}"
+           @change="const f = $el.files[0];
+                    $el.setCustomValidity(f && f.size > Number($el.dataset.maxBytes) ? $el.dataset.tooLarge : '');
+                    $el.reportValidity();
+                    preview = f ? URL.createObjectURL(f) : null">
+    <img x-show="preview" x-cloak :src="preview" alt="" class="mt-2 h-32 w-auto rounded-md">
+</div>
+
+</body>
+</html>

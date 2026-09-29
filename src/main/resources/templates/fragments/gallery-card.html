@@ -99,7 +99,11 @@
         <!-- "Anima": img2video sulla thumbnail mostrata (imageFilenames[0]), vedi fragments/button.html :: animateOverlay. Solo immagini. -->
         <th:block th:unless="${generation.video}">
             <a th:replace="~{fragments/button :: animateOverlay(url=@{/generations/new(source=${generation.id}, sourceImage=${generation.imageFilenames[0]})}, title=#{generationDetail.action.animate}, extraClass='bottom-2 right-2')}"></a>
+            <a th:replace="~{fragments/button :: editOverlay(url=@{/generations/new(source=${generation.id}, sourceImage=${generation.imageFilenames[0]}, kind='edit')}, title=#{generationDetail.action.edit}, extraClass='bottom-12 right-2')}"></a>
         </th:block>
+
+        <!-- "Scarica": il file mostrato dalla card (imageFilenames[0]), immagine o video, vedi fragments/button.html :: downloadOverlay. Sotto l'icona di dettaglio. -->
+        <a th:replace="~{fragments/button :: downloadOverlay(url=@{'/images/' + ${generation.imageFilenames[0]}}, filename=${generation.imageFilenames[0]}, title=#{gallery.card.download}, extraClass='top-12 right-2')}"></a>
 
         <span th:if="${generation.imageFilenames.size() > 1}"
               th:text="'+' + (${generation.imageFilenames.size()} - 1)"

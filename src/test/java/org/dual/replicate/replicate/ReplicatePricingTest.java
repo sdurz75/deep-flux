@@ -50,4 +50,9 @@ class ReplicatePricingTest {
         assertThat(ReplicatePricing.estimate("black-forest-labs/flux-krea-dev", null)).isEmpty();
         assertThat(ReplicatePricing.estimate(null, Map.of("image_output_count", 1))).isEmpty();
     }
+
+    @Test
+    void kontextDevIsChargedPerOutputImage() {
+        assertThat(cost("black-forest-labs/flux-kontext-dev", Map.of("image_output_count", 2))).isEqualByComparingTo("0.05");
+    }
 }

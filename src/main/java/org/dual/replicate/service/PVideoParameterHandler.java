@@ -18,9 +18,8 @@ import org.springframework.stereotype.Component;
  *
  * {@code draft} e {@code prompt_upsampling} sono checkbox: una checkbox
  * HTML deselezionata non sottomette la propria chiave, quindi vanno lette
- * con {@code containsKey} (vedi Flux2Klein9bParameterHandler). A differenza
- * di go_fast, {@link #DEFAULT_PROMPT_UPSAMPLING} e' {@code true} come il
- * default Replicate.
+ * con {@code containsKey} (vedi Flux2Klein9bParameterHandler). {@link #DEFAULT_PROMPT_UPSAMPLING} e' {@code false}
+ * (scelta dell'utente, diverso dal default Replicate).
  */
 @Component
 public class PVideoParameterHandler implements GenerationParameterHandler {
@@ -36,7 +35,7 @@ public class PVideoParameterHandler implements GenerationParameterHandler {
     public static final String DEFAULT_RESOLUTION = "720p";
     public static final int DEFAULT_FPS = 24;
     public static final boolean DEFAULT_DRAFT = false;
-    public static final boolean DEFAULT_PROMPT_UPSAMPLING = true;
+    public static final boolean DEFAULT_PROMPT_UPSAMPLING = false;
 
     @Override
     public GenerationFormType formType() {

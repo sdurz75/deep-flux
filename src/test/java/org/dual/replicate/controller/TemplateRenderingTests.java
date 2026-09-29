@@ -142,7 +142,7 @@ class TemplateRenderingTests {
         assertThat(body).contains("name=\"duration\"", "name=\"resolution\"", "name=\"fps\"",
                 "name=\"draft\"", "name=\"prompt_upsampling\"");
         assertThat(body).containsPattern("<option value=\"720p\"[^>]*selected");
-        assertThat(body).containsPattern("name=\"prompt_upsampling\"[^>]*checked");
+        assertThat(body).doesNotContainPattern("name=\"prompt_upsampling\"[^>]*checked");
         assertThat(body).doesNotContainPattern("name=\"draft\"[^>]*checked");
     }
 
@@ -403,6 +403,8 @@ class TemplateRenderingTests {
 
         assertThat(body).contains("/images/dc-1.png");
         assertThat(body).doesNotContain("Nessuna immagine ancora in questa conversazione");
+        // Overlay "Scarica" sul thumbnail (fragments/button.html :: downloadOverlay).
+        assertThat(body).contains("download=\"dc-1.png\"");
         // Il link di dettaglio della card contestuale porta il conversationId (vedi fragments/gallery-card.html), per il link "indietro" del dettaglio (fragments/generation.html :: status, ora su /generations/{id} - vedi CLAUDE.md).
         assertThat(body).contains("/generations/" + generation.getId() + "?conversationId=" + conversation.getId());
 
@@ -1036,5 +1038,61 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(body).contains("name=\"sourceUpload\"");
+    }
+
+    /** Modifica: pagina dedicata, solo il modello di modifica, upload obbligatorio; le altre pagine non lo elencano. */
+    @Test
+    @Transactional
+    void editPageListsOnlyTheEditModelWithARequiredUpload() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String images = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(edit).contains("black-forest-labs/flux-kontext-dev").doesNotContain("black-forest-labs/flux-krea-dev")
+                .doesNotContain("prunaai/p-video");
+        // Il tag contiene un '>' dentro @change (f.size > ...): si cerca fino al '<' successivo, non al '>'.
+        assertThat(edit).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        assertThat(edit).contains("name=\"aspect_ratio\"").contains("match_input_image");
+        assertThat(images).doesNotContain("black-forest-labs/flux-kontext-dev");
+        assertThat(chat).doesNotContain("black-forest-labs/flux-kontext-dev");
+        // Link nell'header su ogni pagina.
+        assertThat(images).contains("/generations/new?kind=edit");
+    }
+
+    /** "Modifica" da una generazione: preseleziona il modello di modifica (non p-video), porta la sorgente, niente upload. */
+    @Test
+    @Transactional
+    void editFormWithSourceCarriesTheSourceAndPreselectsTheEditModel() throws Exception {
+        Generation image = new Generation("pred-edit-src", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("1-0.png")));
+        image = repository.save(image);
+
+        String body = mockMvc.perform(get("/generations/new").param("kind", "edit")
+                        .param("source", String.valueOf(image.getId())).param("sourceImage", "1-0.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("name=\"sourceUpload\"");
+        assertThat(body).containsPattern("name=\"sourceGenerationId\"[^>]*value=\"" + image.getId() + "\"");
+        assertThat(body).containsPattern("<option value=\"black-forest-labs/flux-kontext-dev\"[^>]*selected");
+        assertThat(body).doesNotContain("prunaai/p-video");
+    }
+
+    /** Ogni thumbnail immagine offre "Modifica" verso la pagina di modifica. */
+    @Test
+    @Transactional
+    void galleryCardOffersEditForImages() throws Exception {
+        Generation image = new Generation("pred-edit-card", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("2-0.png")));
+        image = repository.save(image);
+
+        String body = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("kind=edit").contains("source=" + image.getId());
     }
 }

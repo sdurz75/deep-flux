@@ -44,16 +44,19 @@ public class PromptEnhancementService {
 
     private final ChatClient chatClient;
     private final String videoGuide;
+    private final String editGuide;
     private final String visionModel;
     private final String visionFallbackModel;
 
     public PromptEnhancementService(ChatClient.Builder chatClientBuilder,
                                      @Value("${generateForm.prompt-enhancement-guide}") String promptEnhancementGuide,
                                      @Value("${generateForm.video-prompt-enhancement-guide}") String videoGuide,
+                                     @Value("${generateForm.edit-prompt-enhancement-guide}") String editGuide,
                                      @Value("${enhancer.vision-model}") String visionModel,
                                      @Value("${enhancer.vision-fallback-model}") String visionFallbackModel) {
         this.chatClient = chatClientBuilder.defaultSystem(promptEnhancementGuide).build();
         this.videoGuide = videoGuide;
+        this.editGuide = editGuide;
         this.visionModel = visionModel;
         this.visionFallbackModel = visionFallbackModel;
     }
@@ -61,6 +64,16 @@ public class PromptEnhancementService {
     public String enhance(String draftPrompt) {
         String result = chatClient.prompt().user(draftPrompt).call().content();
         return result == null ? "" : result.trim();
+    }
+
+    /**
+     * Prompt per un'istruzione di modifica (flux-kontext-dev): {@code draft} e' cio' che l'utente
+     * vuole cambiare, con {@code image} il modello di visione la guarda per nominare gli elementi
+     * reali; senza, riscrive solo la bozza col modello di testo. Rifiuti gestiti come in
+     * {@link #enhanceVideo}.
+     */
+    public String enhanceEdit(String draft, SourceImage image) {
+        return rewriteWithVision(editGuide, draft, image);
     }
 
     /**
@@ -73,14 +86,18 @@ public class PromptEnhancementService {
     public String enhanceVideo(String draft, SourceImage image) {
         String text = (draft == null || draft.isBlank())
                 ? "Propose an animation prompt for this image." : draft;
+        return rewriteWithVision(videoGuide, text, image);
+    }
+
+    private String rewriteWithVision(String guide, String text, SourceImage image) {
         if (image == null) {
-            String result = chatClient.prompt().system(videoGuide).user(text).call().content();
+            String result = chatClient.prompt().system(guide).user(text).call().content();
             return result == null ? "" : result.trim();
         }
         SourceImage sized = downscale(image);
-        String result = askVision(visionModel, text, sized);
+        String result = askVision(guide, visionModel, text, sized);
         if (isRefusal(result) && !visionFallbackModel.isBlank() && !visionFallbackModel.equals(visionModel)) {
-            result = askVision(visionFallbackModel, text, sized);
+            result = askVision(guide, visionFallbackModel, text, sized);
         }
         if (isRefusal(result)) {
             throw new PromptEnhancementRefusedException(result == null ? "" : result.trim());
@@ -88,9 +105,9 @@ public class PromptEnhancementService {
         return result.trim();
     }
 
-    private String askVision(String model, String text, SourceImage image) {
+    private String askVision(String guide, String model, String text, SourceImage image) {
         return chatClient.prompt()
-                .system(videoGuide)
+                .system(guide)
                 .options(OpenAiChatOptions.builder().model(model))
                 .user(u -> u.text(text).media(MimeType.valueOf(image.mimeType()), new ByteArrayResource(image.bytes())))
                 .call().content();

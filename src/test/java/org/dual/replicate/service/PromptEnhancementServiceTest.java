@@ -28,7 +28,7 @@ class PromptEnhancementServiceTest {
                 .prompt().user(anyString()).call().content())
                 .thenReturn("  a majestic orange cat sitting on a windowsill, soft morning light  ");
 
-        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "vision", "fallback");
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "modifica", "vision", "fallback");
 
         assertThat(service.enhance("gatto arancione")).isEqualTo("a majestic orange cat sitting on a windowsill, soft morning light");
     }
@@ -40,7 +40,7 @@ class PromptEnhancementServiceTest {
                 .prompt().user(anyString()).call().content())
                 .thenReturn(null);
 
-        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "vision", "fallback");
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "modifica", "vision", "fallback");
 
         assertThat(service.enhance("gatto arancione")).isEmpty();
     }
@@ -61,8 +61,20 @@ class PromptEnhancementServiceTest {
                 .prompt().system(anyString()).user(anyString()).call().content())
                 .thenReturn(" slow pan across the room ");
 
-        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "vision", "fallback");
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "modifica", "vision", "fallback");
 
         assertThat(service.enhanceVideo("stanza", null)).isEqualTo("slow pan across the room");
+    }
+
+    @Test
+    void enhanceEditWithoutImageUsesTheTextModelWithTheEditGuide() {
+        ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.defaultSystem(anyString()).build()
+                .prompt().system("modifica").user(anyString()).call().content())
+                .thenReturn(" Change the jacket to red, keep the face unchanged ");
+
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "modifica", "vision", "fallback");
+
+        assertThat(service.enhanceEdit("giacca rossa", null)).isEqualTo("Change the jacket to red, keep the face unchanged");
     }
 }

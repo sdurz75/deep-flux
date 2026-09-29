@@ -32,20 +32,34 @@ public class ReplicateModelCatalog {
         return repository.findByActiveTrueOrderBySortOrderAsc();
     }
 
-    /** Solo i modelli attivi del tipo di media dato: /deep-chat propone i soli modelli immagine. */
+    /**
+     * Solo i modelli attivi del tipo di media dato, ESCLUSI quelli di modifica
+     * (vedi {@link #editModels()}): /deep-chat e /generations/new propongono i
+     * soli modelli text-to-image, che non richiedono un'immagine sorgente.
+     */
     public List<ReplicateModel> models(GenerationKind kind) {
-        return models().stream().filter(m -> m.getFormType().kind() == kind).toList();
+        return models().stream().filter(m -> m.getFormType().kind() == kind && !m.getFormType().isEdit()).toList();
+    }
+
+    /** Modelli attivi di modifica immagine (sorgente obbligatoria), pagina /generations/new?kind=edit. */
+    public List<ReplicateModel> editModels() {
+        return models().stream().filter(m -> m.getFormType().isEdit()).toList();
+    }
+
+    /** True se {@code id} e' un modello di modifica censito attivo. */
+    public boolean containsEdit(String id) {
+        return formTypeOf(id).map(GenerationFormType::isEdit).orElse(false);
     }
 
     /** Primo modello attivo del catalogo, se ce n'e' uno: preselezionato in /generations/new e /deep-chat. */
     public Optional<ReplicateModel> defaultModel() {
-        List<ReplicateModel> models = models();
+        List<ReplicateModel> models = models(GenerationKind.IMAGE);
         return models.isEmpty() ? Optional.empty() : Optional.of(models.get(0));
     }
 
     /** True se {@code id} e' un modello censito attivo che produce media del tipo dato. */
     public boolean contains(String id, GenerationKind kind) {
-        return formTypeOf(id).map(t -> t.kind() == kind).orElse(false);
+        return formTypeOf(id).map(t -> t.kind() == kind && !t.isEdit()).orElse(false);
     }
 
     public boolean contains(String id) {

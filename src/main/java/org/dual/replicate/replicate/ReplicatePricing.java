@@ -17,7 +17,7 @@ import java.util.Optional;
  * ha bisogno di una dipendenza in piu'. Il risultato e' vuoto (mai un
  * numero inventato) per un modello sconosciuto o se manca una metrica.
  * Provenienza dei prezzi (2026-09-29): p-video dal README del modello;
- * krea-dev e klein-9b forniti dall'utente, trattati come "per immagine"
+ * kontext-dev ($0.025 per output image) dalla pagina del modello; krea-dev e klein-9b forniti dall'utente, trattati come "per immagine"
  * (per klein potrebbe essere a megapixel: identico a 1 MP, l'output di
  * default); flux-lora-ff3 (fine-tune community su hardware H100) a tempo
  * di calcolo, tariffa da replicate.com/pricing.
@@ -26,6 +26,7 @@ public final class ReplicatePricing {
 
     static final BigDecimal KREA_DEV_PER_IMAGE = new BigDecimal("0.06");
     static final BigDecimal KLEIN_9B_PER_IMAGE = new BigDecimal("0.02");
+    static final BigDecimal KONTEXT_DEV_PER_IMAGE = new BigDecimal("0.025");
     static final BigDecimal H100_PER_SECOND = new BigDecimal("0.001525");
 
     private static final BigDecimal P_VIDEO_DRAFT_720P = new BigDecimal("0.005");
@@ -45,6 +46,8 @@ public final class ReplicatePricing {
                     number(metrics, "image_output_count").map(n -> n.multiply(KREA_DEV_PER_IMAGE));
             case "black-forest-labs/flux-2-klein-9b" ->
                     number(metrics, "image_output_count").map(n -> n.multiply(KLEIN_9B_PER_IMAGE));
+            case "black-forest-labs/flux-kontext-dev" ->
+                    number(metrics, "image_output_count").map(n -> n.multiply(KONTEXT_DEV_PER_IMAGE));
             case "sdurz75/flux-lora-ff3" ->
                     number(metrics, "predict_time").map(n -> n.multiply(H100_PER_SECOND));
             case "prunaai/p-video" -> pVideo(metrics);

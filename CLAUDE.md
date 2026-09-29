@@ -71,6 +71,21 @@ L'applicazione serve a:
    video. `disable_safety_checker` e' forzato solo per le immagini (p-video non
    lo dichiara). Fuori scope per ora: audio-to-video,
    video in chat.
+   **Modifica immagine (flux-kontext-dev)** — stessa pipeline, terzo tipo di pagina: e' un
+   modello *edit* (`GenerationFormType#isEdit`, `FLUX_KONTEXT_DEV`, migrazione V15) che prende
+   un'immagine + un'istruzione e produce un'IMMAGINE (`GenerationKind.IMAGE`: rendering, archivio,
+   watcher, SSE, timeout invariati). Ha la sua pagina (`/generations/new?kind=edit`, link "Modifica
+   immagine" dell'header) e NON compare ne' nel combobox delle immagini ne' in `/deep-chat`
+   (`ReplicateModelCatalog#models(kind)` esclude gli edit, `#editModels()` li elenca). L'immagine
+   sorgente e' OBBLIGATORIA e viaggia sotto `GenerationFormType#sourceImageParam()` (`input_image`;
+   p-video usa `image`): o l'upload stand-alone (`sourceUpload`, stesso fragment condiviso
+   `generation-params-source-upload.html`) o l'icona overlay "Modifica immagine"
+   (`button.html :: editOverlay`) sul thumbnail di ogni immagine
+   (`/generations/new?kind=edit&source={id}&sourceImage={filename}`); senza sorgente
+   `GenerationService#create` fallisce prima di chiamare Replicate. L'"AI enhance" usa
+   `PromptEnhancementService#enhanceEdit` (visione sull'immagine sorgente, guida
+   `generateForm.edit-prompt-enhancement-guide`; serve una bozza). Un'immagine modificata e' una
+   normale immagine: ri-modificabile o animabile.
    **Costo** — il dettaglio riporta il costo *stimato* della generazione
    (l'API Replicate non lo espone, solo `metrics`): `ReplicatePricing` (funzione
    statica, una regola per modello censito) lo calcola al completamento da
@@ -245,7 +260,7 @@ src/main/java/org/dual/replicate/
     ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
     ChatMessageRole.java
     ReplicateModel.java         # entity JPA: un modello Replicate censito (owner/name/version/formType), vedi migrazione V6
-    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO); kind() = GenerationKind del media prodotto
+    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO, FLUX_KONTEXT_DEV); kind() = GenerationKind del media prodotto, sourceImageParam()/isEdit() per i modelli con immagine sorgente
     GenerationKind.java         # enum IMAGE/VIDEO: tipo di media di una Generation (migrazione V12)
   repository/
     GenerationRepository.java
@@ -273,6 +288,7 @@ src/main/java/org/dual/replicate/
     Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
     FluxKreaDevParameterHandler.java # GenerationParameterHandler di FLUX_KREA_DEV: aspect_ratio/megapixels(2 sole opzioni)/seed/go_fast/guidance/num_outputs/formato/qualita'/steps (schema reale del modello, vedi migrazione V10)
     PVideoParameterHandler.java # GenerationParameterHandler di P_VIDEO: duration/aspect_ratio/resolution/fps/draft/prompt_upsampling/seed (schema reale di prunaai/p-video, vedi migrazione V12); `image` lo aggiunge GenerationController (Anima)
+    FluxKontextDevParameterHandler.java # GenerationParameterHandler di FLUX_KONTEXT_DEV: aspect_ratio (default match_input_image)/steps/guidance/seed/go_fast/formato/qualita' (schema reale, vedi migrazione V15); `input_image` lo aggiunge GenerationService
     ReplicatePricing.java (in replicate/) # stima del costo USD di una prediction completata da metrics, una regola per modello (vedi Scopo)
     ImageStorageService.java    # scrive (in streaming) i file immagine/video su storage.images-dir; readAsDataUri() per l'input img2video
     PromptEnhancementService.java # (anche enhanceVideo: per i video guarda l'immagine sorgente con un modello di visione OpenRouter non moderato, `enhancer.vision-model`/`vision-fallback-model`, guida in prompts.properties `generateForm.video-prompt-enhancement-guide`; un rifiuto del modello e' intercettato e non sovrascrive la textarea) riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
@@ -305,6 +321,7 @@ src/main/resources/
     V12__video_generation.sql        # GENERATION.KIND (IMAGE/VIDEO) + SOURCE_GENERATION_ID (FK ON DELETE SET NULL), estende l'ENUM FORM_TYPE + seed di prunaai/p-video (VERSION NULL, SORT_ORDER 3)
     V13__generation_cost.sql         # colonna GENERATION.COST_USD (DECIMAL, nullable): costo stimato al completamento, vedi ReplicatePricing
     V14__generation_source_upload.sql # colonna GENERATION.SOURCE_UPLOAD_FILENAME (nullable): immagine caricata dall'utente come sorgente di un img2video stand-alone
+    V15__add_flux_kontext_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-kontext-dev (VERSION NULL, SORT_ORDER 4): modello di modifica immagine
     V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
     index.html                   # home
@@ -316,13 +333,15 @@ src/main/resources/
     fragments/
       layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect, config Tailwind + @layer base
       header.html                # header di navigazione + theme switch, incluso da layout.html
-      button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle/aiEnhance), vedi "Convenzione: theming"
+      button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle/aiEnhance) e delle icone overlay dei thumbnail (animateOverlay, downloadOverlay: <a download> verso /images/**, su ogni thumbnail di gallery-card e generation-images, video inclusi), vedi "Convenzione: theming"
       alert.html                 # fragment error(text): box di errore/avviso, riusato da generate-form/generation/generation-params
       generate-form.html         # fragment del form (riusato anche per mostrare errori); promptField(prompt, enhanceError) e' il blocco label+textarea+icona "AI enhance", risostituito per intero (outerHTML) da POST /generations/enhance-prompt
       generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
       generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
       generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio
       generation-params-p-video.html # campi del form-type P_VIDEO (vedi PVideoParameterHandler), incluso dallo stesso guscio
+      generation-params-flux-kontext-dev.html # campi del form-type FLUX_KONTEXT_DEV (modifica immagine), incluso dallo stesso guscio
+      generation-params-source-upload.html # field(label, required): input file dell'immagine sorgente, condiviso da P_VIDEO (opzionale) e FLUX_KONTEXT_DEV (obbligatorio)
       generation-params-flux-krea-dev.html # campi del form-type FLUX_KREA_DEV (vedi GenerationFormType/FluxKreaDevParameterHandler), incluso dallo stesso guscio
       generation.html            # fragment status: polling di una generazione + dettaglio completo a stato terminale (prompt/modello/seed/parametri, immagini cancellabili, cancellazione generazione) - unica pagina di dettaglio, vedi CLAUDE.md
       generation-placeholder.html # placeholder(generationId, conversationId, generationsPage, cancelDisabled): immagine dummy + "Interrompi", stili inline (usato anche in <deep-chat>, vedi deep-chat.html)

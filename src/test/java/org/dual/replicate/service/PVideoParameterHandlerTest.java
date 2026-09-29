@@ -56,7 +56,7 @@ class PVideoParameterHandlerTest {
                 .containsEntry("resolution", "720p")
                 .containsEntry("fps", 24)
                 .containsEntry("draft", false)
-                .containsEntry("prompt_upsampling", true)
+                .containsEntry("prompt_upsampling", false)
                 .doesNotContainKey("seed");
     }
 }

@@ -108,15 +108,26 @@ public class GenerationController {
             defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
                     .map(ReplicateModel::getIdentifier).orElse(defaultModel);
         }
-        // "Anima" (vedi fragments/generation.html :: status): preseleziona il primo modello video e
-        // porta con se' la generazione immagine sorgente (hidden sourceGenerationId nel form).
+        // Modifica immagine (link dell'header, o "Modifica" su un thumbnail): pagina dedicata ai modelli
+        // di modifica, separata da immagini e video.
+        boolean edit = "edit".equalsIgnoreCase(kind);
+        if (edit) {
+            defaultModel = modelCatalog.editModels().stream().findFirst()
+                    .map(ReplicateModel::getIdentifier).orElse(defaultModel);
+        }
+        // "Anima"/"Modifica" (vedi fragments/generation.html :: status): preseleziona il primo modello
+        // video (o di modifica se kind=edit) e porta con se' la generazione immagine sorgente (hidden
+        // sourceGenerationId nel form).
         Generation sourceGeneration = source == null ? null : animatableSource(source, sourceImage);
         if (sourceGeneration != null) {
-            defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
-                    .map(ReplicateModel::getIdentifier).orElse(defaultModel);
+            if (!edit) {
+                defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
+                        .map(ReplicateModel::getIdentifier).orElse(defaultModel);
+            }
             model.addAttribute("sourceGeneration", sourceGeneration);
             model.addAttribute("sourceImage", sourceImage);
-            if (prompt == null) {
+            // Per una modifica il prompt della sorgente non ha senso (e' la descrizione, non l'istruzione).
+            if (prompt == null && !edit) {
                 prompt = sourceGeneration.getPrompt();
             }
         }
@@ -153,16 +164,18 @@ public class GenerationController {
                     ? modelCatalog.versionOf(model).orElse(null)
                     : version;
             Map<String, Object> parameters = parameterHandlers.get(formType).toParameterMap(allParams);
-            // img2video: solo se il modello scelto produce video (per un modello immagine la sorgente
-            // e' ignorata). L'immagine la aggiunge GenerationService#create all'input Replicate (come
+            // img2video / modifica: solo se il modello scelto prende una sorgente (per un text-to-image
+            // la sorgente e' ignorata). L'immagine la aggiunge GenerationService#create all'input Replicate (come
             // data-URI, fuori da parametersJson); con un'immagine in input p-video ignora aspect_ratio,
             // quindi non lo si invia.
-            boolean animate = sourceGeneration != null && formType.kind() == GenerationKind.VIDEO;
-            // Immagine caricata dall'utente: ha la precedenza sulla sorgente "Anima", solo per i video
-            // (per un modello immagine e' ignorata, come la sorgente). Salvata per ultima, subito prima
+            boolean animate = sourceGeneration != null && formType.takesSourceImage();
+            // Immagine caricata dall'utente: ha la precedenza sulla sorgente "Anima"/"Modifica", solo per
+            // i modelli con sorgente (per un text-to-image e' ignorata, come la sorgente). Salvata per ultima, subito prima
             // di create: il file lo elimina GenerationService#create se la creazione fallisce.
-            boolean upload = formType.kind() == GenerationKind.VIDEO && sourceUpload != null && !sourceUpload.isEmpty();
-            if (animate || upload) {
+            boolean upload = formType.takesSourceImage() && sourceUpload != null && !sourceUpload.isEmpty();
+            // Solo p-video ignora aspect_ratio con un'immagine in input: kontext-dev lo onora
+            // (default match_input_image).
+            if ((animate || upload) && formType.kind() == GenerationKind.VIDEO) {
                 parameters.remove("aspect_ratio");
             }
             String parametersJson = objectMapper.writeValueAsString(parameters);
@@ -170,7 +183,8 @@ public class GenerationController {
             boolean fromGeneration = animate && !upload;
             Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
                     formType.kind(), fromGeneration ? sourceGeneration.getId() : null,
-                    fromGeneration ? sourceImage : null, uploadFilename);
+                    fromGeneration ? sourceImage : null, uploadFilename,
+                    formType.takesSourceImage() ? formType.sourceImageParam() : "image", formType.isEdit());
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
@@ -252,9 +266,13 @@ public class GenerationController {
         // Flusso video: l'enhancer guarda l'immagine sorgente (upload > "Anima", stessa precedenza
         // di create) e propone il movimento; con l'immagine anche la bozza vuota e' ammessa.
         boolean video = model != null && modelCatalog.contains(model, GenerationKind.VIDEO);
+        // Modifica: l'enhancer guarda la stessa sorgente ma serve una bozza (cosa cambiare).
+        boolean edit = model != null && modelCatalog.containsEdit(model);
         try {
-            PromptEnhancementService.SourceImage image = video ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
-            if (draft.isEmpty() && image == null) {
+            PromptEnhancementService.SourceImage image = (video || edit) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
+            if (edit) {
+                uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceEdit(draft, image));
+            } else if (draft.isEmpty() && image == null) {
                 uiModel.addAttribute("prompt", prompt);
             } else {
                 uiModel.addAttribute("prompt", video ? promptEnhancementService.enhanceVideo(draft, image)
@@ -281,16 +299,20 @@ public class GenerationController {
      * valori inseriti dall'utente.
      */
     private void populateGenerationParamsModel(Model model, String modelValue, Map<String, String> allParams) {
-        // Immagini e video non si mescolano nel select: il tipo di media lo decide il modello corrente
-        // (video -> solo modelli video, altrimenti solo immagine). Si passa da un'altra pagina
-        // (header "Genera video" / "Genera immagine"), non dal select.
-        GenerationKind kind = modelCatalog.formTypeOf(modelValue).map(GenerationFormType::kind).orElse(GenerationKind.IMAGE);
-        model.addAttribute("models", modelCatalog.models(kind));
+        // Immagini, video e modifiche non si mescolano nel select: il tipo di pagina lo decide il
+        // modello corrente (video -> solo video, modifica -> solo modifica, altrimenti solo
+        // text-to-image). Si passa da un'altra pagina (header), non dal select.
+        GenerationFormType current = modelCatalog.formTypeOf(modelValue).orElse(null);
+        boolean edit = current != null && current.isEdit();
+        GenerationKind kind = current == null ? GenerationKind.IMAGE : current.kind();
+        List<ReplicateModel> pageModels = edit ? modelCatalog.editModels() : modelCatalog.models(kind);
+        model.addAttribute("models", pageModels);
         model.addAttribute("videoPage", kind == GenerationKind.VIDEO);
+        model.addAttribute("editPage", edit);
         model.addAttribute("model", modelValue);
         GenerationParameterHandler handler = modelCatalog.formTypeOf(modelValue)
                 .map(parameterHandlers::get)
-                .orElseGet(() -> modelCatalog.models(kind).stream().findFirst()
+                .orElseGet(() -> pageModels.stream().findFirst()
                         .map(m -> parameterHandlers.get(m.getFormType()))
                         .orElse(null));
         model.addAttribute("formType", handler == null ? null : handler.formType().name());

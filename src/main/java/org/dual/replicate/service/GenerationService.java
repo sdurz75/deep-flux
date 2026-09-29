@@ -41,6 +41,9 @@ public class GenerationService {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
 
+    /** Chiave dell'immagine sorgente quando il chiamante non ne specifica una (p-video, il primo modello con sorgente). */
+    private static final String DEFAULT_SOURCE_IMAGE_PARAM = "image";
+
     /** Un video impiega piu' di un'immagine (fino a 20 s di clip): stessa logica di TIMEOUT, soglia piu' larga. */
     private static final Duration VIDEO_TIMEOUT = Duration.ofMinutes(15);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
@@ -139,8 +142,23 @@ public class GenerationService {
     public Generation create(String model, String version, String prompt, String parametersJson,
                              GenerationKind kind, Long sourceGenerationId, String sourceImage,
                              String sourceUploadFilename) {
+        return create(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage,
+                sourceUploadFilename, DEFAULT_SOURCE_IMAGE_PARAM, false);
+    }
+
+    /**
+     * Come sopra, con in piu' la chiave Replicate dell'immagine sorgente
+     * ({@link org.dual.replicate.domain.GenerationFormType#sourceImageParam()}:
+     * "image" per p-video, "input_image" per kontext-dev) e
+     * {@code sourceRequired}: per i modelli di modifica una sorgente assente
+     * e' un errore (nessuna prediction, nessun costo), non un text-to-image.
+     */
+    public Generation create(String model, String version, String prompt, String parametersJson,
+                             GenerationKind kind, Long sourceGenerationId, String sourceImage,
+                             String sourceUploadFilename, String sourceImageParam, boolean sourceRequired) {
         try {
-            return doCreate(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage, sourceUploadFilename);
+            return doCreate(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage,
+                    sourceUploadFilename, sourceImageParam, sourceRequired);
         } catch (RuntimeException e) {
             imageStorageService.delete(sourceUploadFilename);
             throw e;
@@ -149,7 +167,7 @@ public class GenerationService {
 
     private Generation doCreate(String model, String version, String prompt, String parametersJson,
                                 GenerationKind kind, Long sourceGenerationId, String sourceImage,
-                                String sourceUploadFilename) {
+                                String sourceUploadFilename, String sourceImageParam, boolean sourceRequired) {
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
         // a null, altrimenti "" viene persistita e i th:if dei template (per cui una
         // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
@@ -166,11 +184,17 @@ public class GenerationService {
         input.put("prompt", prompt);
         if (kind == GenerationKind.IMAGE) {
             input.put("disable_safety_checker", true);
-        } else if (sourceUploadFilename != null) {
-            input.put("image", imageStorageService.readAsDataUri(sourceUploadFilename));
+        }
+        // Sorgente: un'immagine caricata ha la precedenza su quella di una generazione. I modelli
+        // text-to-image la ignorano (il controller non la passa), i video la usano se presente, i
+        // modelli di modifica la pretendono.
+        if (sourceUploadFilename != null) {
+            input.put(sourceImageParam, imageStorageService.readAsDataUri(sourceUploadFilename));
             sourceGenerationId = null;
         } else if (sourceGenerationId != null) {
-            input.put("image", sourceImageDataUri(sourceGenerationId, sourceImage));
+            input.put(sourceImageParam, sourceImageDataUri(sourceGenerationId, sourceImage));
+        } else if (sourceRequired) {
+            throw new ReplicateException(messages.get("generation.error.sourceImageRequired"));
         }
 
         PredictionResponse prediction = replicateClient.createPrediction(model, version, input);

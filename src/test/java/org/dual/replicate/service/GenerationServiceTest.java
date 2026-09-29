@@ -618,4 +618,40 @@ class GenerationServiceTest {
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any(GenerationCompletedEvent.class));
     }
+
+    /** Un modello di modifica manda la sorgente sotto input_image (non image) e mantiene disable_safety_checker. */
+    @Test
+    void createForEditModelSendsSourceAsInputImage() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-e", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("black-forest-labs/flux-kontext-dev", null, "make it red", null,
+                GenerationKind.IMAGE, 7L, "7-0.png", null, "input_image", true);
+
+        assertThat(result.getKind()).isEqualTo(GenerationKind.IMAGE);
+        assertThat(result.getSourceGenerationId()).isEqualTo(7L);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("input_image", "data:image/png;base64,AAAA")
+                .containsEntry("disable_safety_checker", true).doesNotContainKey("image");
+    }
+
+    /** Senza sorgente un modello di modifica non parte: nessuna prediction (nessun costo). */
+    @Test
+    void createForEditModelWithoutSourceFailsBeforeCallingReplicate() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create("black-forest-labs/flux-kontext-dev", null,
+                        "make it red", null, GenerationKind.IMAGE, null, null, null, "input_image", true))
+                .isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
+        org.mockito.Mockito.verifyNoInteractions(replicateClient);
+    }
 }

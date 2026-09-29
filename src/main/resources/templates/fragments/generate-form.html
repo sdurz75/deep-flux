@@ -18,7 +18,7 @@
             <div th:if="${sourceGeneration}" class="mb-4">
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">
                 <input type="hidden" name="sourceImage" th:value="${sourceImage}">
-                <p th:text="#{generateForm.label.sourceImage(${sourceGeneration.id})}">Animazione della generazione</p>
+                <p th:text="${editPage} ? #{generateForm.label.editSource(${sourceGeneration.id})} : #{generateForm.label.sourceImage(${sourceGeneration.id})}">Animazione della generazione</p>
                 <img th:src="@{'/images/' + ${sourceImage}}" alt="" class="mt-1 h-32 w-auto rounded-md">
             </div>
 

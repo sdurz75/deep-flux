@@ -13,19 +13,8 @@
 -->
 <th:block th:fragment="fields">
 
-    <!--/* Immagine di partenza caricata dall'utente (opzionale): va nel multipart della POST /generations. Assente se il video parte da una generazione ("Anima": sourceGeneration nel Model), solo partendo da zero. */-->
-    <div th:unless="${sourceGeneration}" x-data="{ preview: null }">
-        <label for="param-source-upload" th:text="#{generationParams.label.sourceUpload}">Immagine di partenza (opzionale)</label>
-        <!--/* Controllo dimensione anche lato client (setCustomValidity blocca il submit del form htmx): il limite e il messaggio arrivano dal server via data-*, il controllo vero resta ImageStorageService#storeUpload. */-->
-        <input type="file" id="param-source-upload" name="sourceUpload" accept="image/png,image/jpeg,image/webp"
-               th:data-max-bytes="${maxUploadBytes}"
-               th:data-too-large="#{imagestorage.error.uploadTooLarge(${maxUploadBytes / (1024 * 1024)})}"
-               @change="const f = $el.files[0];
-                        $el.setCustomValidity(f && f.size > Number($el.dataset.maxBytes) ? $el.dataset.tooLarge : '');
-                        $el.reportValidity();
-                        preview = f ? URL.createObjectURL(f) : null">
-        <img x-show="preview" x-cloak :src="preview" alt="" class="mt-2 h-32 w-auto rounded-md">
-    </div>
+    <!--/* Immagine di partenza caricata dall'utente (opzionale): vedi fragments/generation-params-source-upload.html. */-->
+    <div th:replace="~{fragments/generation-params-source-upload :: field(label=#{generationParams.label.sourceUpload}, required=false)}"></div>
 
     <div>
         <label for="param-duration" th:text="#{generationParams.label.duration}">Durata (secondi)</label>
