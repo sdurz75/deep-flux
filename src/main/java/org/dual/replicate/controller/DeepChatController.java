@@ -8,6 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
@@ -96,7 +97,8 @@ public class DeepChatController {
         model.addAttribute("activeConversationId", id);
         model.addAttribute("contextualGenerations", chatMessageRepository.findSucceededGenerationsByConversationId(id));
 
-        model.addAttribute("models", modelCatalog.models());
+        // Solo modelli immagine: il tool di chat genera immagini (i video passano da /generations/new).
+        model.addAttribute("models", modelCatalog.models(GenerationKind.IMAGE));
         Optional<ReplicateModel> defaultModel = modelCatalog.defaultModel();
         model.addAttribute("model", defaultModel.map(ReplicateModel::getIdentifier).orElse(""));
         GenerationParameterHandler handler = defaultModel.map(m -> parameterHandlers.get(m.getFormType())).orElse(null);

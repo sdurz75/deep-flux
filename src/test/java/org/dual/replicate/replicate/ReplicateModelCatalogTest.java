@@ -1,6 +1,8 @@
 package org.dual.replicate.replicate;
 
 import org.dual.replicate.domain.GenerationFormType;
+import org.dual.replicate.domain.GenerationKind;
+import org.dual.replicate.domain.ReplicateModel;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +43,19 @@ class ReplicateModelCatalogTest {
         assertThat(catalog.contains("black-forest-labs/flux-krea-dev")).isTrue();
         assertThat(catalog.formTypeOf("black-forest-labs/flux-krea-dev")).contains(GenerationFormType.FLUX_KREA_DEV);
         assertThat(catalog.versionOf("black-forest-labs/flux-krea-dev")).isEmpty();
+    }
+
+    @Test
+    void videoModelIsInCatalogButNotTheDefaultNorAnImageModel() {
+        assertThat(catalog.formTypeOf("prunaai/p-video")).contains(GenerationFormType.P_VIDEO);
+        assertThat(catalog.versionOf("prunaai/p-video")).isEmpty();
+        assertThat(catalog.defaultModel().orElseThrow().getIdentifier()).isNotEqualTo("prunaai/p-video");
+        assertThat(catalog.contains("prunaai/p-video", GenerationKind.VIDEO)).isTrue();
+        assertThat(catalog.contains("prunaai/p-video", GenerationKind.IMAGE)).isFalse();
+        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
+                .doesNotContain("prunaai/p-video");
+        assertThat(catalog.models(GenerationKind.VIDEO)).extracting(ReplicateModel::getIdentifier)
+                .containsExactly("prunaai/p-video");
     }
 
     @Test

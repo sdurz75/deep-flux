@@ -86,6 +86,22 @@ public class Generation {
     private String errorMessage;
 
     /**
+     * Tipo di media prodotto (vedi V12): IMAGE per tutte le righe
+     * preesistenti, VIDEO per i modelli video. I file restano comunque in
+     * {@link #imageFilenames} (un mp4 e' un output singolo).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GenerationKind kind = GenerationKind.IMAGE;
+
+    /**
+     * Generazione da cui questa e' stata derivata (img2video: l'immagine
+     * animata), null altrimenti. Non e' una relazione JPA: la FK e' ON
+     * DELETE SET NULL (vedi V12) e basta l'id per linkare il dettaglio.
+     */
+    private Long sourceGenerationId;
+
+    /**
      * Conversazione di /deep-chat che ha avviato la generazione (null per il
      * form diretto): serve a ripristinare il placeholder di una generazione
      * ancora in corso quando la pagina viene ricaricata (vedi V11).
@@ -174,6 +190,26 @@ public class Generation {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public GenerationKind getKind() {
+        return kind;
+    }
+
+    public void setKind(GenerationKind kind) {
+        this.kind = kind;
+    }
+
+    public boolean isVideo() {
+        return kind == GenerationKind.VIDEO;
+    }
+
+    public Long getSourceGenerationId() {
+        return sourceGenerationId;
+    }
+
+    public void setSourceGenerationId(Long sourceGenerationId) {
+        this.sourceGenerationId = sourceGenerationId;
     }
 
     public Long getConversationId() {

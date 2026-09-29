@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.dual.replicate.domain.GenerationFormType;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.repository.ReplicateModelRepository;
 import org.springframework.stereotype.Component;
@@ -31,10 +32,20 @@ public class ReplicateModelCatalog {
         return repository.findByActiveTrueOrderBySortOrderAsc();
     }
 
+    /** Solo i modelli attivi del tipo di media dato: /deep-chat propone i soli modelli immagine. */
+    public List<ReplicateModel> models(GenerationKind kind) {
+        return models().stream().filter(m -> m.getFormType().kind() == kind).toList();
+    }
+
     /** Primo modello attivo del catalogo, se ce n'e' uno: preselezionato in /generations/new e /deep-chat. */
     public Optional<ReplicateModel> defaultModel() {
         List<ReplicateModel> models = models();
         return models.isEmpty() ? Optional.empty() : Optional.of(models.get(0));
+    }
+
+    /** True se {@code id} e' un modello censito attivo che produce media del tipo dato. */
+    public boolean contains(String id, GenerationKind kind) {
+        return formTypeOf(id).map(t -> t.kind() == kind).orElse(false);
     }
 
     public boolean contains(String id) {

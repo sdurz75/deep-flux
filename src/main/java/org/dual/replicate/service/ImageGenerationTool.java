@@ -5,6 +5,7 @@ import java.util.Map;
 
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
@@ -107,7 +108,7 @@ public class ImageGenerationTool {
      */
     private String resolveModel(ToolContext toolContext) {
         Object fromContext = toolContext.getContext().get(MODEL_CONTEXT_KEY);
-        if (fromContext instanceof String model && modelCatalog.contains(model)) {
+        if (fromContext instanceof String model && modelCatalog.contains(model, GenerationKind.IMAGE)) {
             return model;
         }
         return modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse(null);
