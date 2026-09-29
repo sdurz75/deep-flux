@@ -65,6 +65,7 @@
         <th:block th:switch="${formType}">
             <div th:case="'FLUX_LORA_FF3'" th:replace="~{fragments/generation-params-flux-lora-ff3 :: fields}"></div>
             <div th:case="'FLUX_2_KLEIN_9B'" th:replace="~{fragments/generation-params-flux-2-klein-9b :: fields}"></div>
+            <div th:case="'FLUX_KREA_DEV'" th:replace="~{fragments/generation-params-flux-krea-dev :: fields}"></div>
         </th:block>
     </div>
 </th:block>

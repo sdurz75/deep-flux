@@ -20,18 +20,115 @@
   id="generation-images-grid" fisso: hx-target del bottone verso se
   stesso (outerHTML) per il caso non a cascata, stesso pattern di
   id="generation-status" nello status fragment.
+
+  Lightbox: stesso meccanismo Alpine di fragments/gallery.html :: grid
+  (Pines UI "Image Gallery"), con x-data proprio invece di ereditarlo da
+  un antenato - qui l'unico chiamante e' il dettaglio di UNA generazione,
+  un'istanza sola per pagina, quindi next/prev/escape restano metodi
+  chiamati direttamente (nessun bisogno del $dispatch/@image-gallery-*.window
+  che gallery.html usa solo perche' e' lo snippet Pines originale, non per
+  uno scope reattivo diverso: li' i bottoni prev/next sono comunque dentro
+  lo stesso <form> x-data). .generation-image (non .gallery-card, quello
+  e' l'hook della galleria globale) e' la classe letta da
+  imageGalleryImages() qui sotto: se domani serve un terzo posto con lo
+  stesso lightbox, va introdotta un'astrazione condivisa invece di
+  duplicare ancora - non prima.
+
+  Griglia thumbnail (grid-cols auto-fill + aspect-ratio fisso, stessa
+  classe di fragments/gallery-card.html), non flex-wrap a dimensione
+  naturale: con num_outputs > 1 le immagini generate sono gia' alla
+  risoluzione del modello (es. 1024px), quattro <img> a piena taglia
+  impilerebbero la pagina invece di mostrarle come galleria - lo zoom
+  reale resta nel lightbox. object-contain (non object-cover come in
+  gallery-card.html) perche' questa E' la pagina di dettaglio (vedi
+  CLAUDE.md, "unica pagina di dettaglio"): a differenza di una card
+  d'archivio, qui l'immagine non deve mai essere tagliata, solo
+  contenuta nella cella a aspect-ratio fisso (bg-surface riempie lo
+  spazio residuo per formati non quadrati, es. i 16:9/21:9/9:21 di
+  FluxKreaDevParameterHandler).
 -->
-<div th:fragment="grid(generation, conversationId, generationsPage)" id="generation-images-grid" class="flex flex-wrap gap-4 my-4">
+<div th:fragment="grid(generation, conversationId, generationsPage)" id="generation-images-grid"
+     class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 my-4"
+     x-data="{
+        imageGalleryOpened: false,
+        imageGalleryActiveUrl: null,
+        imageGalleryImageIndex: null,
+        imageGalleryImages() {
+            return Array.from($el.querySelectorAll('.generation-image'));
+        },
+        imageGalleryOpen(event) {
+            this.imageGalleryImageIndex = this.imageGalleryImages().indexOf(event.target);
+            this.imageGalleryActiveUrl = event.target.src;
+            this.imageGalleryOpened = true;
+        },
+        imageGalleryClose() {
+            this.imageGalleryOpened = false;
+            setTimeout(() => this.imageGalleryActiveUrl = null, 300);
+        },
+        imageGalleryNext() {
+            const images = this.imageGalleryImages();
+            if (images.length === 0) { this.imageGalleryClose(); return; }
+            this.imageGalleryImageIndex = (this.imageGalleryImageIndex + 1) % images.length;
+            this.imageGalleryActiveUrl = images[this.imageGalleryImageIndex].src;
+        },
+        imageGalleryPrev() {
+            const images = this.imageGalleryImages();
+            if (images.length === 0) { this.imageGalleryClose(); return; }
+            this.imageGalleryImageIndex = (this.imageGalleryImageIndex - 1 + images.length) % images.length;
+            this.imageGalleryActiveUrl = images[this.imageGalleryImageIndex].src;
+        }
+     }"
+     @keyup.right.window="imageGalleryNext()"
+     @keyup.left.window="imageGalleryPrev()">
     <div th:each="filename : ${generation.imageFilenames}" class="relative">
         <img th:src="@{'/images/' + ${filename}}"
              th:alt="${generation.prompt}"
-             class="max-w-full rounded-md border border-line dark:border-line-dark block">
+             class="generation-image w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-contain
+                    bg-surface dark:bg-surface-dark rounded-md border border-line dark:border-line-dark block cursor-zoom-in"
+             @click="imageGalleryOpen">
         <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.deleteImage},
                     hxPost=null,
                     hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},
                     hxConfirm=${generation.imageFilenames.size() == 1} ? #{gallery.confirm.deleteLastImage} : #{gallery.confirm.deleteImage},
                     hxSwap='outerHTML', hxTarget='#generation-images-grid',
                     extraClass='absolute top-1 right-1 px-1.5 py-0.5 text-[0.75rem]')}">Elimina</button>
+    </div>
+
+    <!-- Lightbox fullscreen, stesso markup di fragments/gallery.html :: grid. -->
+    <div x-show="imageGalleryOpened"
+         x-transition:enter="transition ease-in-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:leave="transition ease-in-in duration-300"
+         x-transition:leave-end="opacity-0"
+         @click="imageGalleryClose"
+         @keydown.window.escape="imageGalleryClose"
+         x-trap.inert.noscroll="imageGalleryOpened"
+         class="fixed inset-0 z-[99] flex items-center justify-center bg-scrim/50 select-none cursor-zoom-out"
+         x-cloak>
+        <div class="flex relative justify-center items-center w-11/12 xl:w-4/5 h-[91.6667%]">
+            <div @click="$event.stopPropagation(); imageGalleryPrev()"
+                 class="flex absolute left-0 justify-center items-center w-14 h-14 text-scrim-contrast rounded-full translate-x-10 cursor-pointer xl:-translate-x-24 2xl:-translate-x-32 bg-scrim-contrast/10 hover:bg-scrim-contrast/20">
+                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+            </div>
+
+            <img x-show="imageGalleryOpened"
+                 x-transition:enter="transition ease-in-out duration-300"
+                 x-transition:enter-start="opacity-0 transform scale-50"
+                 x-transition:leave="transition ease-in-in duration-300"
+                 x-transition:leave-end="opacity-0 transform scale-50"
+                 class="object-contain object-center w-full h-full select-none cursor-zoom-out"
+                 :src="imageGalleryActiveUrl"
+                 alt="">
+
+            <div @click="$event.stopPropagation(); imageGalleryNext()"
+                 class="flex absolute right-0 justify-center items-center w-14 h-14 text-scrim-contrast rounded-full -translate-x-10 cursor-pointer xl:translate-x-24 2xl:translate-x-32 bg-scrim-contrast/10 hover:bg-scrim-contrast/20">
+                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+            </div>
+        </div>
     </div>
 </div>
 

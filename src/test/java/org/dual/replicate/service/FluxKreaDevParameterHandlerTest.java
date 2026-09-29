@@ -7,13 +7,13 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class Flux2Klein9bParameterHandlerTest {
+class FluxKreaDevParameterHandlerTest {
 
-    private final Flux2Klein9bParameterHandler handler = new Flux2Klein9bParameterHandler();
+    private final FluxKreaDevParameterHandler handler = new FluxKreaDevParameterHandler();
 
     @Test
-    void formTypeIsFlux2Klein9b() {
-        assertThat(handler.formType()).isEqualTo(GenerationFormType.FLUX_2_KLEIN_9B);
+    void formTypeIsFluxKreaDev() {
+        assertThat(handler.formType()).isEqualTo(GenerationFormType.FLUX_KREA_DEV);
     }
 
     @Test
@@ -29,6 +29,12 @@ class Flux2Klein9bParameterHandlerTest {
     }
 
     @Test
+    void guidanceIsParsedAsDouble() {
+        assertThat(handler.toParameterMap(Map.of("guidance", "2.5"))).containsEntry("guidance", 2.5);
+        assertThat(handler.toParameterMap(Map.of())).doesNotContainKey("guidance");
+    }
+
+    @Test
     void defaultFieldsMatchAppDefaults() {
         Map<String, Object> defaults = handler.defaultFields();
         assertThat(defaults)
@@ -36,8 +42,11 @@ class Flux2Klein9bParameterHandlerTest {
                 .containsEntry("megapixels", "1")
                 // go_fast=false e' una scelta deliberata dell'app, diversa dal default Replicate (true).
                 .containsEntry("go_fast", false)
+                .containsEntry("num_outputs", 1)
                 .containsEntry("output_format", "jpg")
+                .containsEntry("num_inference_steps", 28)
                 .doesNotContainKey("seed")
+                .doesNotContainKey("guidance")
                 .doesNotContainKey("output_quality");
     }
 }

@@ -84,6 +84,14 @@
                         accent:            { DEFAULT: '#0969da', dark: '#58a6ff' },
                         'accent-contrast': { DEFAULT: '#ffffff', dark: '#0d1117' },
                         danger:            { DEFAULT: '#cf222e', dark: '#f85149' },
+                        // scrim/scrim-contrast: overlay del lightbox immagini
+                        // (fragments/gallery.html, fragments/generation-images.html).
+                        // DEFAULT e dark identici di proposito: e' un backdrop a
+                        // schermo intero sempre nero, non deve seguire il tema del
+                        // sito - qui solo per rispettare la regola "sempre nomi da
+                        // theme.extend.colors, mai un colore hardcoded nel markup".
+                        scrim:             { DEFAULT: '#000000', dark: '#000000' },
+                        'scrim-contrast':  { DEFAULT: '#ffffff', dark: '#ffffff' },
                     },
                     fontFamily: {
                         sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],

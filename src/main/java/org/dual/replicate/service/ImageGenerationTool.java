@@ -114,9 +114,18 @@ public class ImageGenerationTool {
     }
 
     /**
-     * Unisce i parametri impostati nel pannello UI (se presenti nel
-     * ToolContext) con disable_safety_checker, sempre true e non
-     * esposto in UI: nessun modo per l'utente di disattivarlo.
+     * Serializza i parametri impostati nel pannello UI (se presenti nel
+     * ToolContext). disable_safety_checker NON va forzato qui: lo fa
+     * GenerationService#create per ogni chiamante, form diretto incluso -
+     * duplicarlo qui varrebbe solo per questo tool, lasciando scoperto
+     * l'altro percorso.
+     *
+     * {@code null}, non "{}", quando non c'e' nessun parametro: una
+     * mappa vuota serializzata resterebbe comunque una stringa non
+     * bianca, che GenerationService#create (blankToNull) non scarterebbe
+     * - finirebbe persistita e mostrata nel dettaglio generazione
+     * (fragments/generation.html :: status, th:if su parametersJson) come
+     * un vuoto "Parametri: {}" invece di essere omessa del tutto.
      */
     private String buildParametersJson(ToolContext toolContext) {
         Map<String, Object> params = new LinkedHashMap<>();
@@ -124,7 +133,6 @@ public class ImageGenerationTool {
         if (fromContext instanceof Map<?, ?> map) {
             map.forEach((key, value) -> params.put(String.valueOf(key), value));
         }
-        params.put("disable_safety_checker", true);
-        return objectMapper.writeValueAsString(params);
+        return params.isEmpty() ? null : objectMapper.writeValueAsString(params);
     }
 }

@@ -13,5 +13,6 @@ package org.dual.replicate.domain;
  */
 public enum GenerationFormType {
     FLUX_LORA_FF3,
-    FLUX_2_KLEIN_9B
+    FLUX_2_KLEIN_9B,
+    FLUX_KREA_DEV
 }

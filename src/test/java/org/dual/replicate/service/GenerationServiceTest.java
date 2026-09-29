@@ -69,7 +69,35 @@ class GenerationServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
-        assertThat(inputCaptor.getValue()).containsEntry("prompt", "a cat").containsEntry("seed", 42);
+        assertThat(inputCaptor.getValue())
+                .containsEntry("prompt", "a cat")
+                .containsEntry("seed", 42)
+                .containsEntry("disable_safety_checker", true);
+    }
+
+    /**
+     * disable_safety_checker deve restare true per QUALUNQUE modello,
+     * indipendentemente da cosa arriva in parametersJson: non e' un
+     * default (assente -> true), e' un vincolo (presente e diverso ->
+     * comunque true). Nessuno dei due form-type lo espone come campo
+     * (vedi Flux2Klein9bParameterHandler/FluxLoraFf3ParameterHandler),
+     * quindi un valore "false" qui potrebbe arrivare solo da un chiamante
+     * che bypassa l'UI - create() non deve fidarsene.
+     */
+    @Test
+    void createForcesDisableSafetyCheckerEvenIfExplicitlyFalseInParameters() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-2", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create("owner/model", null, "a cat", "{\"disable_safety_checker\": false}");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("disable_safety_checker", true);
     }
 
     @Test

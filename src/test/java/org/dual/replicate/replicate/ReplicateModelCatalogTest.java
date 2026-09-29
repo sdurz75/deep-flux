@@ -37,6 +37,13 @@ class ReplicateModelCatalogTest {
     }
 
     @Test
+    void thirdSeededModelIsInCatalogWithItsFormTypeAndNoVersion() {
+        assertThat(catalog.contains("black-forest-labs/flux-krea-dev")).isTrue();
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-krea-dev")).contains(GenerationFormType.FLUX_KREA_DEV);
+        assertThat(catalog.versionOf("black-forest-labs/flux-krea-dev")).isEmpty();
+    }
+
+    @Test
     void unknownModelIsNotInCatalog() {
         assertThat(catalog.contains("owner/does-not-exist")).isFalse();
         assertThat(catalog.formTypeOf("owner/does-not-exist")).isEmpty();

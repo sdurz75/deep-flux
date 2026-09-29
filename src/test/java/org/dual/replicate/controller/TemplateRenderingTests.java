@@ -115,6 +115,26 @@ class TemplateRenderingTests {
     }
 
     /**
+     * Stesso endpoint di sopra, ma per il terzo form-type (FLUX_KREA_DEV,
+     * vedi migrazione V10/FluxKreaDevParameterHandler): a differenza del
+     * form di FLUX_2_KLEIN_9B sopra, questo espone anche guidance/
+     * num_outputs/num_inference_steps (il modello reale li accetta, klein-9b
+     * no) e un megapixels a sole 2 opzioni (0.25/1, non 5).
+     */
+    @Test
+    void paramsEndpointRendersFieldsForFluxKreaDev() throws Exception {
+        String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-krea-dev"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"aspect_ratio\"", "name=\"megapixels\"", "name=\"output_quality\"",
+                "name=\"go_fast\"", "name=\"guidance\"", "name=\"num_outputs\"", "name=\"num_inference_steps\"");
+        assertThat(body).containsPattern("<option value=\"1:1\"[^>]*selected");
+        assertThat(body).doesNotContainPattern("name=\"go_fast\"[^>]*checked");
+        assertThat(body).doesNotContain("value=\"0.5\"", "value=\"2\"", "value=\"4\"");
+    }
+
+    /**
      * Nessuna pagina "senza conversazione": /deep-chat nudo risolve/crea
      * sempre quella di default e ci naviga (vedi DeepChatController).
      * @Transactional: senza, ogni esecuzione di questo test (e degli
@@ -227,6 +247,33 @@ class TemplateRenderingTests {
         // polling, ma a stato terminale e' anche il dettaglio (prompt/parametri/immagini),
         // niente pagina di dettaglio separata - vedi CLAUDE.md.
         mockMvc.perform(get("/generations/" + generation.getId())).andExpect(status().isOk());
+    }
+
+    /**
+     * Una Generation con num_outputs > 1 deve mostrare TUTTE le immagini nel
+     * dettaglio (galleria con lightbox, vedi fragments/generation-images.html),
+     * ciascuna con il proprio bottone di cancellazione - non solo la prima.
+     * @Transactional: stesso motivo di bareDeepChatRedirectsToAConversation
+     * sopra, questa riga (con le sue 3 immagini) non deve restare nel DB di
+     * sviluppo condiviso dopo `mvn test`.
+     */
+    @Test
+    @Transactional
+    void generationDetailRendersEveryImageOfAMultiOutputGeneration() throws Exception {
+        Generation generation = new Generation("pred-multi-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(List.of("multi-1.png", "multi-2.png", "multi-3.png"));
+        generation = repository.save(generation);
+
+        String body = mockMvc.perform(get("/generations/" + generation.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        for (String filename : List.of("multi-1.png", "multi-2.png", "multi-3.png")) {
+            assertThat(body).contains("src=\"/images/" + filename + "\"");
+            assertThat(body).contains("/generations/" + generation.getId() + "/images/" + filename);
+        }
+        assertThat(body).contains("generation-image");
     }
 
     /**

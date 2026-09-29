@@ -28,4 +28,51 @@ public interface GenerationParameterHandler {
 
     /** Selettore del fragment Thymeleaf (fragments/generation-params-*.html) che renderizza i campi di questo form-type. */
     String fragmentName();
+
+    /**
+     * Helper di parsing/assemblaggio condivisi da ogni implementazione di
+     * {@link #toParameterMap}: prima duplicati identici in ciascun
+     * handler, ora qui una volta sola. {@code null}/vuoto/non parsabile
+     * diventano sempre {@code null} (mai un'eccezione): un campo non
+     * valido semplicemente non finisce nella mappa, vedi
+     * {@link #putIfPresent}.
+     */
+    default void putIfPresent(Map<String, Object> params, String key, Object value) {
+        if (value != null) {
+            params.put(key, value);
+        }
+    }
+
+    default Integer asInteger(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    default Long asLong(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    default Double asDouble(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 }

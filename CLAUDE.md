@@ -27,8 +27,11 @@ L'applicazione serve a:
    htmx ogni 2s mentre la generazione non e' terminale, invariato; a
    stato terminale quella stessa pagina (`fragments/generation.html ::
    status`) *e'* anche il dettaglio della generazione (prompt/modello/
-   seed/parametri, immagini cancellabili singolarmente, cancellazione
-   dell'intera generazione) — niente pagina di dettaglio separata.
+   seed/parametri, tutte le immagini — anche piu' di una, se
+   `num_outputs > 1` — in una griglia con lightbox (zoom, next/prev),
+   cancellabili singolarmente, vedi `fragments/generation-images.html`,
+   cancellazione dell'intera generazione) — niente pagina di dettaglio
+   separata.
 2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
    tramite un archivio** — ogni generazione (chatbot o form diretto)
    diventa una riga `Generation`. `/gallery` resta l'archivio delle sole
@@ -185,7 +188,7 @@ src/main/java/org/dual/replicate/
     ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
     ChatMessageRole.java
     ReplicateModel.java         # entity JPA: un modello Replicate censito (owner/name/version/formType), vedi migrazione V6
-    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B)
+    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV)
   repository/
     GenerationRepository.java
     ChatConversationRepository.java
@@ -210,6 +213,7 @@ src/main/java/org/dual/replicate/
     GenerationParameterHandlers.java # risolve il GenerationParameterHandler di un GenerationFormType (bean auto-raccolte), usato da GenerationController/DeepChatController/DeepChatApiController
     FluxLoraFf3ParameterHandler.java # GenerationParameterHandler di FLUX_LORA_FF3: i 9 campi tipizzati (width/height/formato/steps/guidance/seed/lora scale/variante flux/num output)
     Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
+    FluxKreaDevParameterHandler.java # GenerationParameterHandler di FLUX_KREA_DEV: aspect_ratio/megapixels(2 sole opzioni)/seed/go_fast/guidance/num_outputs/formato/qualita'/steps (schema reale del modello, vedi migrazione V10)
     ImageStorageService.java    # scrive i file immagine su storage.images-dir
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
@@ -231,6 +235,7 @@ src/main/resources/
     V6__create_replicate_model.sql   # tabella REPLICATE_MODEL (catalogo censito a mano) + seed di sdurz75/flux-lora-ff3
     V7__add_flux_2_klein_9b_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-2-klein-9b (VERSION NULL, shortcut "ultima versione")
     V8__add_generation_seed.sql      # colonna GENERATION.SEED (Long, nullable): il seed usato diventa un campo di prima classe, non piu' solo dentro PARAMETERS_JSON
+    V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
     index.html                   # home
     generate.html                 # form nuova generazione
@@ -247,8 +252,9 @@ src/main/resources/
       generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
       generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
       generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio
+      generation-params-flux-krea-dev.html # campi del form-type FLUX_KREA_DEV (vedi GenerationFormType/FluxKreaDevParameterHandler), incluso dallo stesso guscio
       generation.html            # fragment status: polling di una generazione + dettaglio completo a stato terminale (prompt/modello/seed/parametri, immagini cancellabili, cancellazione generazione) - unica pagina di dettaglio, vedi CLAUDE.md
-      generation-images.html     # fragment grid(generation, conversationId, generationsPage): tutte le immagini di una Generation con cancellazione per-immagine (cascade sull'ultima), usato da fragments/generation.html
+      generation-images.html     # fragment grid(generation, conversationId, generationsPage): tutte le immagini di una Generation in una griglia con lightbox (zoom, next/prev) e cancellazione per-immagine (cascade sull'ultima), usato da fragments/generation.html
       gallery.html               # griglia + lightbox della galleria (content/grid), compone gallery-card e pagination; grid(...) riusata anche dalla galleria contestuale di /deep-chat
       gallery-card.html          # card di una singola generazione (link di dettaglio verso /generations/{id})
       generations.html           # fragment content/list del listato /generations: paginazione + selezione multipla (seleziona tutte, shift-click), compone generation-row e pagination

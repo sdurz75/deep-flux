@@ -13,8 +13,9 @@ import org.springframework.stereotype.Component;
  * (nessun width/height/steps/guidance/lora_scale/num_outputs) — niente
  * di condiviso con {@link FluxLoraFf3ParameterHandler} a parte lo
  * scheletro dell'interfaccia. {@code images} (input per image-to-image)
- * e {@code disable_safety_checker} non sono esposti in UI, come per
- * l'altro form-type.
+ * non e' esposto in UI. {@code disable_safety_checker} nemmeno: non e'
+ * un campo di questo handler, e' forzato a true incondizionatamente da
+ * {@link GenerationService#create}, per ogni modello.
  *
  * {@code go_fast} e' l'unico campo booleano/checkbox del progetto: una
  * checkbox HTML non sottomette affatto la propria chiave quando e'
@@ -31,7 +32,6 @@ public class Flux2Klein9bParameterHandler implements GenerationParameterHandler 
     public static final String DEFAULT_MEGAPIXELS = "1";
     public static final boolean DEFAULT_GO_FAST = false;
     public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
-    public static final int DEFAULT_OUTPUT_QUALITY = 95;
 
     @Override
     public GenerationFormType formType() {
@@ -57,42 +57,16 @@ public class Flux2Klein9bParameterHandler implements GenerationParameterHandler 
         defaults.put("megapixels", DEFAULT_MEGAPIXELS);
         defaults.put("go_fast", DEFAULT_GO_FAST);
         defaults.put("output_format", DEFAULT_OUTPUT_FORMAT);
-        defaults.put("output_quality", DEFAULT_OUTPUT_QUALITY);
-        // "seed" intenzionalmente assente: il default e' vuoto/casuale
-        // (placeholder "casuale" nel fragment), non un valore censito.
+        // "seed" e "output_quality" intenzionalmente assenti: il default
+        // e' quello di Replicate stesso (applicato quando la chiave manca
+        // del tutto dall'input, vedi toParameterMap/putIfPresent sopra),
+        // non un valore che l'app forza in UI - stesso principio gia'
+        // adottato per seed (placeholder "casuale" nel fragment).
         return defaults;
     }
 
     @Override
     public String fragmentName() {
         return "fragments/generation-params-flux-2-klein-9b :: fields";
-    }
-
-    private static void putIfPresent(Map<String, Object> params, String key, Object value) {
-        if (value != null) {
-            params.put(key, value);
-        }
-    }
-
-    private static Integer asInteger(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Long asLong(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }

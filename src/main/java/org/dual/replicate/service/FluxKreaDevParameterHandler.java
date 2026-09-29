@@ -1,0 +1,86 @@
+package org.dual.replicate.service;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.dual.replicate.domain.GenerationFormType;
+import org.springframework.stereotype.Component;
+
+/**
+ * Handler del form-type {@link GenerationFormType#FLUX_KREA_DEV}: i
+ * campi di input di black-forest-labs/flux-krea-dev (schema letto da
+ * Replicate) — piu' vicino a {@link Flux2Klein9bParameterHandler} che a
+ * {@link FluxLoraFf3ParameterHandler} (aspect_ratio/megapixels invece di
+ * width/height custom, niente lora_scale/variante dev-schnell), ma con
+ * 3 campi in piu' che klein-9b non accetta (guidance, num_outputs,
+ * num_inference_steps) e un megapixels a sole due opzioni (0.25/1,
+ * contro le 5 di klein-9b) — condividere il form-type di klein-9b
+ * esporrebbe controlli senza effetto su quel modello, da cui un terzo
+ * form-type dedicato invece di generalizzare quello esistente (vedi il
+ * piano di questa feature). {@code image} (input per image-to-image) e
+ * {@code disable_safety_checker} non sono esposti in UI: il primo per
+ * la stessa ragione degli altri due form-type (nessuna UI di upload in
+ * questo progetto), il secondo perche' forzato a true incondizionatamente
+ * da {@link GenerationService#create}, per ogni modello.
+ *
+ * {@code go_fast} e' l'unico altro campo booleano/checkbox del progetto
+ * insieme a quello di klein-9b: una checkbox HTML non sottomette affatto
+ * la propria chiave quando e' deselezionata, quindi va letta con
+ * {@code containsKey}, non {@code get(...)}. {@link #DEFAULT_GO_FAST} e'
+ * deliberatamente {@code false}, non il default Replicate ({@code true}):
+ * stessa scelta esplicita di klein-9b, determinismo con un seed esplicito
+ * non allineato al default del modello.
+ */
+@Component
+public class FluxKreaDevParameterHandler implements GenerationParameterHandler {
+
+    public static final String DEFAULT_ASPECT_RATIO = "1:1";
+    public static final String DEFAULT_MEGAPIXELS = "1";
+    public static final boolean DEFAULT_GO_FAST = false;
+    public static final int DEFAULT_NUM_OUTPUTS = 1;
+    public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
+    public static final int DEFAULT_NUM_INFERENCE_STEPS = 28;
+
+    @Override
+    public GenerationFormType formType() {
+        return GenerationFormType.FLUX_KREA_DEV;
+    }
+
+    @Override
+    public Map<String, Object> toParameterMap(Map<String, String> submittedFields) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        putIfPresent(params, "aspect_ratio", submittedFields.get("aspect_ratio"));
+        putIfPresent(params, "megapixels", submittedFields.get("megapixels"));
+        putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
+        params.put("go_fast", submittedFields.containsKey("go_fast"));
+        putIfPresent(params, "guidance", asDouble(submittedFields.get("guidance")));
+        putIfPresent(params, "num_outputs", asInteger(submittedFields.get("num_outputs")));
+        putIfPresent(params, "output_format", submittedFields.get("output_format"));
+        putIfPresent(params, "output_quality", asInteger(submittedFields.get("output_quality")));
+        putIfPresent(params, "num_inference_steps", asInteger(submittedFields.get("num_inference_steps")));
+        return params;
+    }
+
+    @Override
+    public Map<String, Object> defaultFields() {
+        Map<String, Object> defaults = new LinkedHashMap<>();
+        defaults.put("aspect_ratio", DEFAULT_ASPECT_RATIO);
+        defaults.put("megapixels", DEFAULT_MEGAPIXELS);
+        defaults.put("go_fast", DEFAULT_GO_FAST);
+        defaults.put("num_outputs", DEFAULT_NUM_OUTPUTS);
+        defaults.put("output_format", DEFAULT_OUTPUT_FORMAT);
+        defaults.put("num_inference_steps", DEFAULT_NUM_INFERENCE_STEPS);
+        // "seed", "guidance" e "output_quality" intenzionalmente assenti:
+        // il default e' quello di Replicate stesso (applicato quando la
+        // chiave manca del tutto dall'input, vedi
+        // toParameterMap/putIfPresent sopra), non un valore che l'app
+        // forza in UI - stesso principio gia' adottato per seed
+        // (placeholder "casuale" nel fragment).
+        return defaults;
+    }
+
+    @Override
+    public String fragmentName() {
+        return "fragments/generation-params-flux-krea-dev :: fields";
+    }
+}

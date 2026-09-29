@@ -410,15 +410,17 @@
       sopra) e inoltra le impostazioni del pannello (modello + parametri)
       e la conversazione corrente al backend, vedi DeepChatApiController.
 
-      initialMessages e' una PROPRIETA' JS (un array), non un attributo
+      history e' una PROPRIETA' JS (un array), non un attributo
       HTML: verificato dal vivo che deep-chat non fa JSON.parse di un
-      attributo initialMessages scritto come stringa (a differenza di
+      attributo history scritto come stringa (a differenza di
       connect, che invece e' un oggetto semplice e funziona anche come
       attributo) — assegnarla come attributo non genera errori ma i
       messaggi non compaiono. L'assegnazione va fatta PRIMA che l'utente
       possa scrivere (siamo dentro whenDefined, che risolve non appena
       l'elemento e' definito/upgradato: sempre prima di qualunque
-      interazione umana con la pagina appena caricata).
+      interazione umana con la pagina appena caricata). (initialMessages,
+      usata qui in precedenza, e' deprecata da deep-chat 2.0.0 in favore
+      di history — stessa semantica, stesso timing.)
 
       requestInterceptor (chiamato da deep-chat ad ogni invio, letto dal
       bundle stesso, verificato leggendo il bundle) e non
@@ -445,7 +447,7 @@
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
             const deepChat = document.getElementById('deep-chat-el');
-            deepChat.initialMessages = window.deepChatHistory || [];
+            deepChat.history = window.deepChatHistory || [];
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
                 const parameters = {};

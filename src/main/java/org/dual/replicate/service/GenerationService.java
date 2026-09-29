@@ -92,6 +92,20 @@ public class GenerationService {
      * Avvia una nuova generazione. {@code parametersJson}, se presente,
      * deve essere un oggetto JSON valido: i suoi campi vengono uniti al
      * prompt per formare l'input della prediction.
+     *
+     * {@code disable_safety_checker} e' sempre forzato a true qui,
+     * qualunque sia il modello o il chiamante (form diretto via
+     * GenerationController, tool via ImageGenerationTool): nessuno dei
+     * form-type censiti lo espone come campo (vedi
+     * generation-params-flux-lora-ff3.html/generation-params-flux-2-klein-9b.html/
+     * generation-params-flux-krea-dev.html),
+     * quindi l'unico punto in cui puo' essere garantito per OGNI modello
+     * censito, presente e futuro, e' qui - non in ciascun
+     * GenerationParameterHandler (duplicherebbe la regola una volta per
+     * form-type) ne' nel solo chiamante chatbot (lascerebbe il form
+     * diretto scoperto, come accadeva prima). Sovrascrive sempre
+     * qualunque valore eventualmente presente in parametersJson, non solo
+     * quando assente: "sempre true" non e' un default, e' un vincolo.
      */
     public Generation create(String model, String version, String prompt, String parametersJson) {
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
@@ -108,6 +122,7 @@ public class GenerationService {
 
         Map<String, Object> input = parseParameters(parametersJson);
         input.put("prompt", prompt);
+        input.put("disable_safety_checker", true);
 
         PredictionResponse prediction = replicateClient.createPrediction(model, version, input);
         log.info("Generazione avviata su Replicate: model={}, version={}, externalId={}, status={}",

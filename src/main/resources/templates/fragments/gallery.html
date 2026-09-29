@@ -191,11 +191,11 @@
              @click="imageGalleryClose"
              @keydown.window.escape="imageGalleryClose"
              x-trap.inert.noscroll="imageGalleryOpened"
-             class="fixed inset-0 z-[99] flex items-center justify-center bg-black/50 select-none cursor-zoom-out"
+             class="fixed inset-0 z-[99] flex items-center justify-center bg-scrim/50 select-none cursor-zoom-out"
              x-cloak>
-            <div class="flex relative justify-center items-center w-11/12 xl:w-4/5 h-11/12">
+            <div class="flex relative justify-center items-center w-11/12 xl:w-4/5 h-[91.6667%]">
                 <div @click="$event.stopPropagation(); $dispatch('image-gallery-prev')"
-                     class="flex absolute left-0 justify-center items-center w-14 h-14 text-white rounded-full translate-x-10 cursor-pointer xl:-translate-x-24 2xl:-translate-x-32 bg-white/10 hover:bg-white/20">
+                     class="flex absolute left-0 justify-center items-center w-14 h-14 text-scrim-contrast rounded-full translate-x-10 cursor-pointer xl:-translate-x-24 2xl:-translate-x-32 bg-scrim-contrast/10 hover:bg-scrim-contrast/20">
                     <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                     </svg>
@@ -211,7 +211,7 @@
                      alt="">
 
                 <div @click="$event.stopPropagation(); $dispatch('image-gallery-next')"
-                     class="flex absolute right-0 justify-center items-center w-14 h-14 text-white rounded-full -translate-x-10 cursor-pointer xl:translate-x-24 2xl:translate-x-32 bg-white/10 hover:bg-white/20">
+                     class="flex absolute right-0 justify-center items-center w-14 h-14 text-scrim-contrast rounded-full -translate-x-10 cursor-pointer xl:translate-x-24 2xl:translate-x-32 bg-scrim-contrast/10 hover:bg-scrim-contrast/20">
                     <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                     </svg>

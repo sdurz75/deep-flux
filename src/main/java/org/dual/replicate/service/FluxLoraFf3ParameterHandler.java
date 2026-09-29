@@ -32,7 +32,6 @@ public class FluxLoraFf3ParameterHandler implements GenerationParameterHandler {
     public static final int DEFAULT_HEIGHT = 1280;
     public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
     public static final int DEFAULT_NUM_INFERENCE_STEPS = 28;
-    public static final double DEFAULT_GUIDANCE_SCALE = 3;
     public static final double DEFAULT_LORA_SCALE = 1;
     public static final String DEFAULT_FLUX_MODEL = "dev";
     public static final int DEFAULT_NUM_OUTPUTS = 1;
@@ -67,54 +66,17 @@ public class FluxLoraFf3ParameterHandler implements GenerationParameterHandler {
         defaults.put("output_format", DEFAULT_OUTPUT_FORMAT);
         defaults.put("flux_model", DEFAULT_FLUX_MODEL);
         defaults.put("num_inference_steps", DEFAULT_NUM_INFERENCE_STEPS);
-        defaults.put("guidance_scale", DEFAULT_GUIDANCE_SCALE);
         defaults.put("lora_scale", DEFAULT_LORA_SCALE);
-        // "seed" intenzionalmente assente: il default e' vuoto/casuale
-        // (placeholder "casuale" nel fragment), non un valore censito.
+        // "seed" e "guidance_scale" intenzionalmente assenti: il default
+        // e' quello di Replicate stesso (applicato quando la chiave manca
+        // del tutto dall'input, vedi toParameterMap/putIfPresent sopra),
+        // non un valore che l'app forza in UI - stesso principio gia'
+        // adottato per seed (placeholder "casuale" nel fragment).
         return defaults;
     }
 
     @Override
     public String fragmentName() {
         return "fragments/generation-params-flux-lora-ff3 :: fields";
-    }
-
-    private static void putIfPresent(Map<String, Object> params, String key, Object value) {
-        if (value != null) {
-            params.put(key, value);
-        }
-    }
-
-    private static Integer asInteger(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Long asLong(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Double asDouble(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Double.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }
