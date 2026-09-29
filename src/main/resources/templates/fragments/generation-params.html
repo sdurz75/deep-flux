@@ -62,10 +62,34 @@
           filosofia del progetto (niente motore di schema dinamico):
           aggiungerne uno nuovo significa aggiungere un altro th:case qui.
         -->
+        <!--
+          th:case e th:replace NON vanno mai sullo stesso tag: l'ordine di
+          precedenza degli attributi di Thymeleaf processa l'inclusione
+          fragment (th:insert/th:replace) PRIMA della valutazione
+          condizionale (th:switch/th:case) - un div che porta entrambi
+          esegue il th:replace incondizionatamente, il th:case (che vive
+          sullo stesso nodo appena sostituito) non ha mai l'occasione di
+          escludere gli altri rami. Verificato dal vivo: senza questo
+          annidamento, un curl su /generations/new restituiva TUTTI E TRE
+          i fragment (FF3+klein-9b+krea-dev concatenati, ognuno coi propri
+          campi #param-*) ad ogni singola richiesta, non solo dopo una
+          navigazione - il case non filtrava mai nulla. Fix: th:case su un
+          <th:block> dedicato (il solo nodo che decide se il ramo
+          sopravvive), th:replace su un <th:block> annidato al suo
+          interno (nessun tag proprio: th:block non emette wrapper, quindi
+          il markup finale resta identico a prima del fix, un solo set di
+          campi).
+        -->
         <th:block th:switch="${formType}">
-            <div th:case="'FLUX_LORA_FF3'" th:replace="~{fragments/generation-params-flux-lora-ff3 :: fields}"></div>
-            <div th:case="'FLUX_2_KLEIN_9B'" th:replace="~{fragments/generation-params-flux-2-klein-9b :: fields}"></div>
-            <div th:case="'FLUX_KREA_DEV'" th:replace="~{fragments/generation-params-flux-krea-dev :: fields}"></div>
+            <th:block th:case="'FLUX_LORA_FF3'">
+                <th:block th:replace="~{fragments/generation-params-flux-lora-ff3 :: fields}"></th:block>
+            </th:block>
+            <th:block th:case="'FLUX_2_KLEIN_9B'">
+                <th:block th:replace="~{fragments/generation-params-flux-2-klein-9b :: fields}"></th:block>
+            </th:block>
+            <th:block th:case="'FLUX_KREA_DEV'">
+                <th:block th:replace="~{fragments/generation-params-flux-krea-dev :: fields}"></th:block>
+            </th:block>
         </th:block>
     </div>
 </th:block>

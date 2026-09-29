@@ -61,6 +61,45 @@ class TemplateRenderingTests {
     }
 
     /**
+     * Regressione: th:case e th:replace sullo STESSO tag in
+     * fragments/generation-params.html non filtravano nulla (l'ordine di
+     * precedenza degli attributi di Thymeleaf processa th:replace PRIMA
+     * di th:switch/th:case), quindi un caricamento pieno di /generations/new
+     * (o /deep-chat/{id}, stesso fragment condiviso) concatenava TUTTI E
+     * TRE i form-type invece del solo formType corrente - bug presente su
+     * ogni singola richiesta, non solo dopo una navigazione (osservato
+     * dal vivo con un curl fresco, non solo dopo "esco e torno" come
+     * inizialmente segnalato: quella frase descriveva solo QUANDO l'utente
+     * se ne era accorto, non la vera condizione di innesco). Il fix
+     * annida th:case/th:replace su due <th:block> distinti (vedi il
+     * fragment): qui si verifica che, col modello di default (FF3,
+     * SORT_ORDER=0), compaiano SOLO i suoi campi (flux_model/lora_scale),
+     * mai quelli di klein-9b/krea-dev (go_fast/megapixels), e che
+     * "param-seed" (nome ripetuto identico nei tre fragment) appaia
+     * esattamente una volta.
+     */
+    @Test
+    void generationFormRendersOnlyTheDefaultModelFieldsOnce() throws Exception {
+        String body = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"flux_model\"");
+        assertThat(body).doesNotContain("name=\"go_fast\"", "name=\"megapixels\"");
+        assertThat(countOccurrences(body, "id=\"param-seed\"")).isEqualTo(1);
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = haystack.indexOf(needle, index)) != -1) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+
+    /**
      * Nuova validazione introdotta col catalogo modelli in DB (vedi il
      * piano di questa feature): GenerationController.create ora rifiuta
      * un modello non censito PRIMA di chiamare Replicate, invece di
