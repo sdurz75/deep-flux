@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
+import org.dual.replicate.domain.GenerationKind;
+import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
@@ -77,9 +79,21 @@ public class GenerationController {
     @GetMapping("/new")
     public String form(@RequestParam(required = false) String prompt,
                         @RequestParam(required = false) Long seed,
+                        @RequestParam(required = false) Long source,
                         Model model) {
-        model.addAttribute("prompt", prompt);
         String defaultModel = modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse("");
+        // "Anima" (vedi fragments/generation.html :: status): preseleziona il primo modello video e
+        // porta con se' la generazione immagine sorgente (hidden sourceGenerationId nel form).
+        Generation sourceGeneration = source == null ? null : animatableSource(source);
+        if (sourceGeneration != null) {
+            defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
+                    .map(ReplicateModel::getIdentifier).orElse(defaultModel);
+            model.addAttribute("sourceGeneration", sourceGeneration);
+            if (prompt == null) {
+                prompt = sourceGeneration.getPrompt();
+            }
+        }
+        model.addAttribute("prompt", prompt);
         populateGenerationParamsModel(model, defaultModel, Map.of());
         // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,
         // ramo SUCCEEDED): non passa per populateFormTypeFields/defaultFields (seed ne e'
@@ -95,8 +109,13 @@ public class GenerationController {
     public String create(@RequestParam String model,
                           @RequestParam(required = false) String version,
                           @RequestParam String prompt,
+                          @RequestParam(required = false) Long sourceGenerationId,
                           @RequestParam Map<String, String> allParams,
                           Model uiModel) {
+        Generation sourceGeneration = sourceGenerationId == null ? null : animatableSource(sourceGenerationId);
+        if (sourceGeneration != null) {
+            uiModel.addAttribute("sourceGeneration", sourceGeneration);
+        }
         try {
             GenerationFormType formType = modelCatalog.formTypeOf(model)
                     .orElseThrow(() -> new ReplicateException(messages.get("generateForm.error.unknownModel", model)));
@@ -104,8 +123,17 @@ public class GenerationController {
                     ? modelCatalog.versionOf(model).orElse(null)
                     : version;
             Map<String, Object> parameters = parameterHandlers.get(formType).toParameterMap(allParams);
+            // img2video: solo se il modello scelto produce video (per un modello immagine la sorgente
+            // e' ignorata). L'immagine la aggiunge GenerationService#create all'input Replicate (come
+            // data-URI, fuori da parametersJson); con un'immagine in input p-video ignora aspect_ratio,
+            // quindi non lo si invia.
+            boolean animate = sourceGeneration != null && formType.kind() == GenerationKind.VIDEO;
+            if (animate) {
+                parameters.remove("aspect_ratio");
+            }
             String parametersJson = objectMapper.writeValueAsString(parameters);
-            Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson);
+            Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
+                    formType.kind(), animate ? sourceGeneration.getId() : null);
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
@@ -120,6 +148,15 @@ public class GenerationController {
             populateGenerationParamsModel(uiModel, model, allParams);
             return "fragments/generate-form :: form";
         }
+    }
+
+    /** La generazione immagine completata da animare, o null se non esiste/non e' animabile (parametro ignorato). */
+    private Generation animatableSource(Long id) {
+        return generationRepository.findById(id)
+                .filter(g -> g.getKind() == GenerationKind.IMAGE
+                        && g.getStatus() == GenerationStatus.SUCCEEDED
+                        && !g.getImageFilenames().isEmpty())
+                .orElse(null);
     }
 
     /**

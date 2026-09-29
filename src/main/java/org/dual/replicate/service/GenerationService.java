@@ -14,6 +14,7 @@ import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
@@ -38,6 +39,9 @@ public class GenerationService {
     private static final Logger log = LoggerFactory.getLogger(GenerationService.class);
 
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
+
+    /** Un video impiega piu' di un'immagine (fino a 20 s di clip): stessa logica di TIMEOUT, soglia piu' larga. */
+    private static final Duration VIDEO_TIMEOUT = Duration.ofMinutes(15);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
 
     /** Soglia PER MODELLO oltre la quale create() rifiuta una nuova generazione, vedi TooManyPredictionsException. */
@@ -93,7 +97,7 @@ public class GenerationService {
      * deve essere un oggetto JSON valido: i suoi campi vengono uniti al
      * prompt per formare l'input della prediction.
      *
-     * {@code disable_safety_checker} e' sempre forzato a true qui,
+     * Per le immagini {@code disable_safety_checker} e' sempre forzato a true qui (per i video no, vedi l'overload sotto),
      * qualunque sia il modello o il chiamante (form diretto via
      * GenerationController, tool via ImageGenerationTool): nessuno dei
      * form-type censiti lo espone come campo (vedi
@@ -108,6 +112,19 @@ public class GenerationService {
      * quando assente: "sempre true" non e' un default, e' un vincolo.
      */
     public Generation create(String model, String version, String prompt, String parametersJson) {
+        return create(model, version, prompt, parametersJson, GenerationKind.IMAGE, null);
+    }
+
+    /**
+     * Come {@link #create(String, String, String, String)} ma per un
+     * {@code kind} esplicito (vedi {@link GenerationKind}) e con l'eventuale
+     * generazione sorgente di un img2video. {@code disable_safety_checker}
+     * e' un input dei soli modelli immagine censiti: p-video non lo
+     * dichiara (ha un suo {@code disable_safety_filter}, gia' true di
+     * default), quindi per i video non viene aggiunto.
+     */
+    public Generation create(String model, String version, String prompt, String parametersJson,
+                             GenerationKind kind, Long sourceGenerationId) {
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
         // a null, altrimenti "" viene persistita e i th:if dei template (per cui una
         // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
@@ -115,22 +132,52 @@ public class GenerationService {
         parametersJson = blankToNull(parametersJson);
 
         long inProgress = repository.countByModelAndStatusInAndCreatedAtAfter(
-                model, List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING), Instant.now().minus(TIMEOUT));
+                model, List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING), Instant.now().minus(timeoutFor(kind)));
         if (inProgress >= MAX_IN_PROGRESS_PREDICTIONS_PER_MODEL) {
             throw new TooManyPredictionsException(messages.get("generation.error.tooManyInProgress", inProgress));
         }
 
         Map<String, Object> input = parseParameters(parametersJson);
         input.put("prompt", prompt);
-        input.put("disable_safety_checker", true);
+        if (kind == GenerationKind.IMAGE) {
+            input.put("disable_safety_checker", true);
+        } else if (sourceGenerationId != null) {
+            input.put("image", sourceImageDataUri(sourceGenerationId));
+        }
 
         PredictionResponse prediction = replicateClient.createPrediction(model, version, input);
         log.info("Generazione avviata su Replicate: model={}, version={}, externalId={}, status={}",
                 model, version, prediction.id(), prediction.status());
 
         Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
+        generation.setKind(kind);
+        generation.setSourceGenerationId(sourceGenerationId);
         generation.setStatus(mapStatus(prediction.status()));
         return repository.save(generation);
+    }
+
+    /**
+     * Prima immagine della generazione sorgente di un img2video, come
+     * data-URI (vedi ImageStorageService#readAsDataUri). Va nell'input
+     * Replicate ma MAI in parametersJson: sarebbe un LOB da centinaia di KB
+     * persistito e poi stampato nel dettaglio; la sorgente resta tracciata da
+     * {@code sourceGenerationId}.
+     */
+    private String sourceImageDataUri(Long sourceGenerationId) {
+        Generation source = repository.findById(sourceGenerationId)
+                .orElseThrow(() -> new ReplicateException(messages.get("generation.error.sourceImageMissing")));
+        if (source.getImageFilenames().isEmpty()) {
+            throw new ReplicateException(messages.get("generation.error.sourceImageMissing"));
+        }
+        try {
+            return imageStorageService.readAsDataUri(source.getImageFilenames().get(0));
+        } catch (java.io.UncheckedIOException e) {
+            throw new ReplicateException(messages.get("generation.error.sourceImageMissing"));
+        }
+    }
+
+    private static Duration timeoutFor(GenerationKind kind) {
+        return kind == GenerationKind.VIDEO ? VIDEO_TIMEOUT : TIMEOUT;
     }
 
     private String blankToNull(String value) {
@@ -198,9 +245,9 @@ public class GenerationService {
             generation.setStatus(GenerationStatus.FAILED);
             generation.setErrorMessage(prediction.error() != null ? prediction.error() : messages.get("generation.error.failedGeneric"));
             generation.setCompletedAt(Instant.now());
-        } else if (Duration.between(generation.getCreatedAt(), Instant.now()).compareTo(TIMEOUT) > 0) {
+        } else if (Duration.between(generation.getCreatedAt(), Instant.now()).compareTo(timeoutFor(generation.getKind())) > 0) {
             generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage(messages.get("generation.error.timeout", TIMEOUT.toMinutes()));
+            generation.setErrorMessage(messages.get("generation.error.timeout", timeoutFor(generation.getKind()).toMinutes()));
             generation.setCompletedAt(Instant.now());
         } else {
             generation.setStatus(mapStatus(prediction.status()));

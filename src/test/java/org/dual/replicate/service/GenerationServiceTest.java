@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
@@ -98,6 +99,86 @@ class GenerationServiceTest {
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
         assertThat(inputCaptor.getValue()).containsEntry("disable_safety_checker", true);
+    }
+
+    /** Un video non riceve disable_safety_checker (p-video non lo dichiara), ma ricorda kind e sorgente. */
+    @Test
+    void createForVideoOmitsDisableSafetyCheckerAndRecordsKindAndSource() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("prunaai/p-video", null, "a cat walks", "{\"duration\": 5}",
+                GenerationKind.VIDEO, 7L);
+
+        assertThat(result.getKind()).isEqualTo(GenerationKind.VIDEO);
+        assertThat(result.getSourceGenerationId()).isEqualTo(7L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("prompt", "a cat walks").doesNotContainKey("disable_safety_checker");
+    }
+
+    /** img2video: l'immagine sorgente va nell'input Replicate come data-URI, ma NON in parametersJson persistito. */
+    @Test
+    void createForVideoWithSourceSendsImageButDoesNotPersistItInParametersJson() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("prunaai/p-video", null, "walks", "{\"duration\": 5}", GenerationKind.VIDEO, 7L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,AAAA");
+        assertThat(result.getParametersJson()).doesNotContain("image").doesNotContain("base64");
+    }
+
+    /** File sorgente illeggibile: errore mostrabile dal form (ReplicateException), non un 500, e nessuna prediction avviata. */
+    @Test
+    void createForVideoFailsCleanlyWhenTheSourceFileIsUnreadable() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("gone.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("gone.png"))
+                .thenThrow(new java.io.UncheckedIOException("missing", new java.io.IOException("nope")));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L))
+                .isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
+        org.mockito.Mockito.verifyNoInteractions(replicateClient);
+    }
+
+    /** Una generazione video ancora in corso dopo il timeout delle immagini (5 min) non deve essere marcata FAILED. */
+    @Test
+    void refreshDoesNotTimeOutAVideoAfterFiveMinutes() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation generation = new Generation("pred-v", "prunaai/p-video", null, "p", null);
+        generation.setKind(GenerationKind.VIDEO);
+        ReflectionTestUtils.setField(generation, "id", 5L);
+        ReflectionTestUtils.setField(generation, "createdAt", java.time.Instant.now().minus(java.time.Duration.ofMinutes(8)));
+        when(repository.findById(5L)).thenReturn(java.util.Optional.of(generation));
+        when(replicateClient.getPrediction("pred-v"))
+                .thenReturn(new PredictionResponse("pred-v", "processing", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation refreshed = service.refresh(5L);
+
+        assertThat(refreshed.getStatus()).isEqualTo(GenerationStatus.PROCESSING);
     }
 
     @Test
