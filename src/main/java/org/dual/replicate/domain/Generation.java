@@ -1,5 +1,6 @@
 package org.dual.replicate.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +85,14 @@ public class Generation {
 
     @Lob
     private String errorMessage;
+
+    /**
+     * Costo stimato in USD (vedi V13, ReplicatePricing): snapshot calcolato
+     * al completamento, null se non stimabile (righe precedenti, fallite,
+     * modello senza regola).
+     */
+    @Column(precision = 12, scale = 6)
+    private BigDecimal costUsd;
 
     /**
      * Tipo di media prodotto (vedi V12): IMAGE per tutte le righe
@@ -190,6 +199,14 @@ public class Generation {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public BigDecimal getCostUsd() {
+        return costUsd;
+    }
+
+    public void setCostUsd(BigDecimal costUsd) {
+        this.costUsd = costUsd;
     }
 
     public GenerationKind getKind() {

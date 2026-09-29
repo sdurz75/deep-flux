@@ -63,6 +63,13 @@ L'applicazione serve a:
    video. `disable_safety_checker` e' forzato solo per le immagini (p-video non
    lo dichiara). Fuori scope per ora: upload di un file esterno, audio-to-video,
    video in chat.
+   **Costo** — il dettaglio riporta il costo *stimato* della generazione
+   (l'API Replicate non lo espone, solo `metrics`): `ReplicatePricing` (funzione
+   statica, una regola per modello censito) lo calcola al completamento da
+   `PredictionResponse.metrics` e `GenerationService#refresh` lo salva in
+   `GENERATION.COST_USD` (V13) come snapshot; assente (nessuna riga nel
+   dettaglio) per generazioni precedenti, fallite o di un modello senza regola.
+   Un nuovo modello censito richiede anche la sua regola li'.
 2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
    tramite un archivio** — ogni generazione (chatbot o form diretto)
    diventa una riga `Generation`. `/gallery` resta l'archivio delle sole
@@ -258,6 +265,7 @@ src/main/java/org/dual/replicate/
     Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
     FluxKreaDevParameterHandler.java # GenerationParameterHandler di FLUX_KREA_DEV: aspect_ratio/megapixels(2 sole opzioni)/seed/go_fast/guidance/num_outputs/formato/qualita'/steps (schema reale del modello, vedi migrazione V10)
     PVideoParameterHandler.java # GenerationParameterHandler di P_VIDEO: duration/aspect_ratio/resolution/fps/draft/prompt_upsampling/seed (schema reale di prunaai/p-video, vedi migrazione V12); `image` lo aggiunge GenerationController (Anima)
+    ReplicatePricing.java (in replicate/) # stima del costo USD di una prediction completata da metrics, una regola per modello (vedi Scopo)
     ImageStorageService.java    # scrive (in streaming) i file immagine/video su storage.images-dir; readAsDataUri() per l'input img2video
     PromptEnhancementService.java # riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
@@ -287,6 +295,7 @@ src/main/resources/
     V8__add_generation_seed.sql      # colonna GENERATION.SEED (Long, nullable): il seed usato diventa un campo di prima classe, non piu' solo dentro PARAMETERS_JSON
     V11__generation_conversation.sql # colonna GENERATION.CONVERSATION_ID (nullable, FK ON DELETE SET NULL): conversazione che ha avviato la generazione, per ripristinare il placeholder al reload di /deep-chat
     V12__video_generation.sql        # GENERATION.KIND (IMAGE/VIDEO) + SOURCE_GENERATION_ID (FK ON DELETE SET NULL), estende l'ENUM FORM_TYPE + seed di prunaai/p-video (VERSION NULL, SORT_ORDER 3)
+    V13__generation_cost.sql         # colonna GENERATION.COST_USD (DECIMAL, nullable): costo stimato al completamento, vedi ReplicatePricing
     V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
     index.html                   # home

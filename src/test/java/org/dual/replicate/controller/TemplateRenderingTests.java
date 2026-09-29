@@ -214,6 +214,32 @@ class TemplateRenderingTests {
                 .contains("/generations/" + image.getId());
     }
 
+    /** Il dettaglio mostra il costo stimato salvato, e nasconde la riga se non c'e' (righe vecchie, modelli senza regola). */
+    @Test
+    @Transactional
+    void detailShowsEstimatedCostOnlyWhenPresent() throws Exception {
+        Generation priced = new Generation("pred-p", "black-forest-labs/flux-krea-dev", null, "a cat", null);
+        priced.setStatus(GenerationStatus.SUCCEEDED);
+        priced.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("4-0.png")));
+        priced.setCostUsd(new java.math.BigDecimal("0.120000"));
+        priced = repository.save(priced);
+        Generation unpriced = new Generation("pred-u", "owner/model", null, "a dog", null);
+        unpriced.setStatus(GenerationStatus.SUCCEEDED);
+        unpriced.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("5-0.png")));
+        unpriced = repository.save(unpriced);
+
+        String withCost = mockMvc.perform(get("/generations/" + priced.getId()).header("Accept-Language", "en"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String italian = mockMvc.perform(get("/generations/" + priced.getId()).header("Accept-Language", "it"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String withoutCost = mockMvc.perform(get("/generations/" + unpriced.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(withCost).contains("Estimated cost").contains("0.1200 USD");
+        assertThat(italian).contains("Costo stimato").contains("0,1200 USD");
+        assertThat(withoutCost).doesNotContain("Estimated cost").doesNotContain("Costo stimato");
+    }
+
     /** Galleria e listato mostrano un video come <video>, non come <img> (che romperebbe anche la lightbox). */
     @Test
     @Transactional

@@ -9,7 +9,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * Sottoinsieme della risposta di GET/POST /v1/predictions{,/{id}} che ci
  * interessa. "output" e' tipizzato Object perche' lo schema varia da
  * modello a modello: puo' essere una stringa (un URL), una lista di
- * stringhe, o assente finche' la prediction non e' completa.
+ * stringhe, o assente finche' la prediction non e' completa. "metrics"
+ * (predict_time piu' campi specifici del modello, es. numero di immagini
+ * o durata del video) serve solo a stimare il costo, vedi ReplicatePricing.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record PredictionResponse(
@@ -18,8 +20,15 @@ public record PredictionResponse(
         Object output,
         String error,
         Map<String, Object> input,
-        String logs
+        String logs,
+        Map<String, Object> metrics
 ) {
+
+    /** Senza metrics (null): le predizioni non ancora completate non le hanno. */
+    public PredictionResponse(String id, String status, Object output, String error,
+                              Map<String, Object> input, String logs) {
+        this(id, status, output, error, input, logs, null);
+    }
 
     /**
      * Estrae tutti gli URL utili da "output", qualunque sia la sua forma

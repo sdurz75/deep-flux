@@ -19,6 +19,7 @@ import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
+import org.dual.replicate.replicate.ReplicatePricing;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.TooManyPredictionsException;
 import org.dual.replicate.repository.GenerationRepository;
@@ -235,6 +236,8 @@ public class GenerationService {
                 if (generation.getSeed() == null) {
                     generation.setSeed(seedFromLogs(prediction.logs()));
                 }
+                ReplicatePricing.estimate(generation.getModel(), prediction.metrics())
+                        .ifPresent(generation::setCostUsd);
             }
             generation.setCompletedAt(Instant.now());
         } else if (prediction.canceled()) {
@@ -321,8 +324,8 @@ public class GenerationService {
             log.warn("Generazione fallita: id={}, model={}, externalId={}, error={}",
                     saved.getId(), saved.getModel(), saved.getExternalId(), saved.getErrorMessage());
         } else {
-            log.info("Generazione completata: id={}, model={}, externalId={}, files={}",
-                    saved.getId(), saved.getModel(), saved.getExternalId(), saved.getImageFilenames());
+            log.info("Generazione completata: id={}, model={}, externalId={}, files={}, costUsd={}",
+                    saved.getId(), saved.getModel(), saved.getExternalId(), saved.getImageFilenames(), saved.getCostUsd());
         }
         return saved;
     }

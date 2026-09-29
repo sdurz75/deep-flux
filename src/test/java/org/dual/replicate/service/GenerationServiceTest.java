@@ -126,6 +126,28 @@ class GenerationServiceTest {
         assertThat(inputCaptor.getValue()).containsEntry("prompt", "a cat walks").doesNotContainKey("disable_safety_checker");
     }
 
+    /** Un refresh SUCCEEDED con metrics salva il costo stimato; senza metrics resta null (mai un numero inventato). */
+    @Test
+    void refreshStoresEstimatedCostFromMetricsWhenAvailable() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation withMetrics = new Generation("pred-c1", "black-forest-labs/flux-krea-dev", null, "p", null);
+        Generation withoutMetrics = new Generation("pred-c2", "black-forest-labs/flux-krea-dev", null, "p", null);
+        ReflectionTestUtils.setField(withMetrics, "id", 21L);
+        ReflectionTestUtils.setField(withoutMetrics, "id", 22L);
+        when(repository.findById(21L)).thenReturn(java.util.Optional.of(withMetrics));
+        when(repository.findById(22L)).thenReturn(java.util.Optional.of(withoutMetrics));
+        when(repository.existsById(any())).thenReturn(true);
+        when(replicateClient.getPrediction("pred-c1")).thenReturn(new PredictionResponse("pred-c1", "succeeded",
+                "https://example.com/a.png", null, null, null, Map.of("image_output_count", 2)));
+        when(replicateClient.getPrediction("pred-c2")).thenReturn(new PredictionResponse("pred-c2", "succeeded",
+                "https://example.com/b.png", null, null, null));
+        when(imageStorageService.downloadAndStore(any(), org.mockito.ArgumentMatchers.anyInt(), anyString())).thenReturn("x.png");
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.refresh(21L).getCostUsd()).isEqualByComparingTo("0.12");
+        assertThat(service.refresh(22L).getCostUsd()).isNull();
+    }
+
     /** img2video: l'immagine sorgente va nell'input Replicate come data-URI, ma NON in parametersJson persistito. */
     @Test
     void createForVideoWithSourceSendsImageButDoesNotPersistItInParametersJson() {

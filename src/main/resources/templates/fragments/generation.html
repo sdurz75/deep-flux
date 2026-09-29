@@ -54,6 +54,12 @@
             <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>
             <dd class="ms-0 mt-1" th:text="${generation.model}">modello</dd>
 
+            <!--/* Costo stimato (ReplicatePricing, salvato al completamento): assente per righe vecchie/modelli senza regola. */-->
+            <th:block th:if="${generation.costUsd != null}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.cost})}">Costo stimato</dt>
+                <dd class="ms-0 mt-1" th:text="#{generationDetail.value.cost(${generation.costUsd})}">≈ 0.0600 USD</dd>
+            </th:block>
+
             <th:block th:if="${generation.sourceGenerationId != null}">
                 <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.source})}">Generazione sorgente</dt>
                 <dd class="ms-0 mt-1">
