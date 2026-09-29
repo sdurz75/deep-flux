@@ -55,7 +55,22 @@
 
     <a th:href="@{'/generations/' + ${generation.id}(generationsPage=${currentPage})}" class="flex-1 min-w-0 no-underline text-ink dark:text-ink-dark">
         <p class="truncate" th:text="${generation.prompt}">prompt</p>
-        <p class="text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="${generation.model} + ' · ' + ${generation.createdAt}">modello · data</p>
+        <p class="flex items-center gap-2 min-w-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">
+            <!-- Tipo di media (GenerationKind): leggibile anche senza thumbnail (PENDING/PROCESSING/FAILED). -->
+            <span th:if="${generation.video}"
+                  class="inline-flex items-center gap-1 shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold
+                         border border-accent dark:border-accent-dark text-accent dark:text-accent-dark">
+                <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span th:text="#{generations.kind.video}">Video</span>
+            </span>
+            <span th:unless="${generation.video}"
+                  class="inline-flex items-center gap-1 shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold
+                         border border-line dark:border-line-dark">
+                <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.16-5.16a2.25 2.25 0 013.18 0l5.16 5.16m-1.5-1.5l1.41-1.41a2.25 2.25 0 013.18 0l2.91 2.91M3.75 20.25h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v13.5a1.5 1.5 0 001.5 1.5z"/></svg>
+                <span th:text="#{generations.kind.image}">Immagine</span>
+            </span>
+            <span class="truncate" th:text="${generation.model} + ' · ' + ${generation.createdAt}">modello · data</span>
+        </p>
     </a>
 
     <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.delete}, hxPost=@{'/generations/' + ${generation.id} + '/delete'},

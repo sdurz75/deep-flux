@@ -32,7 +32,7 @@
 
     <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">
         <div class="flex justify-end mb-2">
-            <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.delete}, hxPost=null,
+            <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.deleteGeneration}, hxPost=null,
                         hxDelete=@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})},
                         hxConfirm=#{gallery.confirm.delete}, hxSwap='none', hxTarget=null,
                         extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
@@ -112,7 +112,7 @@
     <div id="generation-status" th:if="${generation.status.name() == 'FAILED'}">
         <p th:replace="~{fragments/alert :: error(text=${generation.errorMessage})}">Errore</p>
         <div class="flex justify-end mt-2">
-            <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.delete}, hxPost=null,
+            <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.deleteGeneration}, hxPost=null,
                         hxDelete=@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})},
                         hxConfirm=#{gallery.confirm.delete}, hxSwap='none', hxTarget=null,
                         extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
