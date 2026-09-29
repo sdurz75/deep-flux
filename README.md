@@ -94,3 +94,4 @@ c'e' altro stato lato server da propagare attraverso il proxy.
 ## Dettagli
 
 Per stack, convenzioni e come estendere il progetto vedi [`CLAUDE.md`](./CLAUDE.md).
+# deep-flux
