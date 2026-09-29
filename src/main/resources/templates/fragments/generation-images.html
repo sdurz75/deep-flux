@@ -80,12 +80,19 @@
      }"
      @keyup.right.window="imageGalleryNext()"
      @keyup.left.window="imageGalleryPrev()">
-    <div th:each="filename : ${generation.imageFilenames}" class="relative">
-        <img th:src="@{'/images/' + ${filename}}"
+    <div th:each="filename : ${generation.imageFilenames}" class="relative group" th:classappend="${generation.video} ? 'col-span-full'">
+        <!-- Video: un solo elemento a larghezza piena con i controlli nativi, fuori dalla lightbox ('.generation-image' e' solo delle <img>). -->
+        <video th:if="${generation.video}" th:src="@{'/images/' + ${filename}}" controls playsinline preload="metadata"
+               class="w-full max-h-[70vh] bg-black rounded-md border border-line dark:border-line-dark block"></video>
+        <img th:unless="${generation.video}" th:src="@{'/images/' + ${filename}}"
              th:alt="${generation.prompt}"
              class="generation-image w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-contain
                     bg-surface dark:bg-surface-dark rounded-md border border-line dark:border-line-dark block cursor-zoom-in"
              @click="imageGalleryOpen">
+        <!-- "Anima" sull'immagine esatta di questo thumbnail (sourceImage=filename), non su una a scelta implicita. -->
+        <th:block th:unless="${generation.video}">
+            <a th:replace="~{fragments/button :: animateOverlay(url=@{/generations/new(source=${generation.id}, sourceImage=${filename})}, title=#{generationDetail.action.animate}, extraClass='top-1 left-1')}"></a>
+        </th:block>
         <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.deleteImage},
                     hxPost=null,
                     hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},

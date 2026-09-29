@@ -1,5 +1,6 @@
 package org.dual.replicate.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +85,37 @@ public class Generation {
 
     @Lob
     private String errorMessage;
+
+    /**
+     * Costo stimato in USD (vedi V13, ReplicatePricing): snapshot calcolato
+     * al completamento, null se non stimabile (righe precedenti, fallite,
+     * modello senza regola).
+     */
+    @Column(precision = 12, scale = 6)
+    private BigDecimal costUsd;
+
+    /**
+     * Tipo di media prodotto (vedi V12): IMAGE per tutte le righe
+     * preesistenti, VIDEO per i modelli video. I file restano comunque in
+     * {@link #imageFilenames} (un mp4 e' un output singolo).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GenerationKind kind = GenerationKind.IMAGE;
+
+    /**
+     * Generazione da cui questa e' stata derivata (img2video: l'immagine
+     * animata), null altrimenti. Non e' una relazione JPA: la FK e' ON
+     * DELETE SET NULL (vedi V12) e basta l'id per linkare il dettaglio.
+     */
+    private Long sourceGenerationId;
+
+    /**
+     * Immagine caricata dall'utente come sorgente di un img2video
+     * stand-alone (vedi V14), null altrimenti. Il file vive sotto
+     * storage.images-dir e viene eliminato insieme alla generazione.
+     */
+    private String sourceUploadFilename;
 
     /**
      * Conversazione di /deep-chat che ha avviato la generazione (null per il
@@ -174,6 +206,42 @@ public class Generation {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public BigDecimal getCostUsd() {
+        return costUsd;
+    }
+
+    public void setCostUsd(BigDecimal costUsd) {
+        this.costUsd = costUsd;
+    }
+
+    public GenerationKind getKind() {
+        return kind;
+    }
+
+    public void setKind(GenerationKind kind) {
+        this.kind = kind;
+    }
+
+    public boolean isVideo() {
+        return kind == GenerationKind.VIDEO;
+    }
+
+    public Long getSourceGenerationId() {
+        return sourceGenerationId;
+    }
+
+    public void setSourceGenerationId(Long sourceGenerationId) {
+        this.sourceGenerationId = sourceGenerationId;
+    }
+
+    public String getSourceUploadFilename() {
+        return sourceUploadFilename;
+    }
+
+    public void setSourceUploadFilename(String sourceUploadFilename) {
+        this.sourceUploadFilename = sourceUploadFilename;
     }
 
     public Long getConversationId() {

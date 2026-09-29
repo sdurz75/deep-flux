@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
@@ -98,6 +99,162 @@ class GenerationServiceTest {
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
         assertThat(inputCaptor.getValue()).containsEntry("disable_safety_checker", true);
+    }
+
+    /** Un video non riceve disable_safety_checker (p-video non lo dichiara), ma ricorda kind e sorgente. */
+    @Test
+    void createForVideoOmitsDisableSafetyCheckerAndRecordsKindAndSource() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("prunaai/p-video", null, "a cat walks", "{\"duration\": 5}",
+                GenerationKind.VIDEO, 7L, null);
+
+        assertThat(result.getKind()).isEqualTo(GenerationKind.VIDEO);
+        assertThat(result.getSourceGenerationId()).isEqualTo(7L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("prompt", "a cat walks").doesNotContainKey("disable_safety_checker");
+    }
+
+    /** Un refresh SUCCEEDED con metrics salva il costo stimato; senza metrics resta null (mai un numero inventato). */
+    @Test
+    void refreshStoresEstimatedCostFromMetricsWhenAvailable() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation withMetrics = new Generation("pred-c1", "black-forest-labs/flux-krea-dev", null, "p", null);
+        Generation withoutMetrics = new Generation("pred-c2", "black-forest-labs/flux-krea-dev", null, "p", null);
+        ReflectionTestUtils.setField(withMetrics, "id", 21L);
+        ReflectionTestUtils.setField(withoutMetrics, "id", 22L);
+        when(repository.findById(21L)).thenReturn(java.util.Optional.of(withMetrics));
+        when(repository.findById(22L)).thenReturn(java.util.Optional.of(withoutMetrics));
+        when(repository.existsById(any())).thenReturn(true);
+        when(replicateClient.getPrediction("pred-c1")).thenReturn(new PredictionResponse("pred-c1", "succeeded",
+                "https://example.com/a.png", null, null, null, Map.of("image_output_count", 2)));
+        when(replicateClient.getPrediction("pred-c2")).thenReturn(new PredictionResponse("pred-c2", "succeeded",
+                "https://example.com/b.png", null, null, null));
+        when(imageStorageService.downloadAndStore(any(), org.mockito.ArgumentMatchers.anyInt(), anyString())).thenReturn("x.png");
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.refresh(21L).getCostUsd()).isEqualByComparingTo("0.12");
+        assertThat(service.refresh(22L).getCostUsd()).isNull();
+    }
+
+    /** img2video: l'immagine sorgente va nell'input Replicate come data-URI, ma NON in parametersJson persistito. */
+    @Test
+    void createForVideoWithSourceSendsImageButDoesNotPersistItInParametersJson() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("prunaai/p-video", null, "walks", "{\"duration\": 5}", GenerationKind.VIDEO, 7L, null);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,AAAA");
+        assertThat(result.getParametersJson()).doesNotContain("image").doesNotContain("base64");
+    }
+
+    /** img2video stand-alone: l'upload va nell'input come data-URI, non in parametersJson, ed e' tracciato sulla riga. */
+    @Test
+    void createForVideoWithUploadSendsImageAndRecordsTheUploadFilename() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        when(imageStorageService.readAsDataUri("upload-x.png")).thenReturn("data:image/png;base64,CCCC");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-u", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("prunaai/p-video", null, "walks", "{\"duration\": 5}",
+                GenerationKind.VIDEO, 7L, null, "upload-x.png");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,CCCC");
+        assertThat(result.getSourceUploadFilename()).isEqualTo("upload-x.png");
+        assertThat(result.getSourceGenerationId()).isNull();
+        assertThat(result.getParametersJson()).doesNotContain("base64");
+    }
+
+    /** Se Replicate rifiuta, il file caricato non ha piu' un proprietario: va eliminato. */
+    @Test
+    void createDeletesTheUploadWhenCreationFails() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        when(imageStorageService.readAsDataUri("upload-y.png")).thenReturn("data:image/png;base64,DDDD");
+        when(replicateClient.createPrediction(anyString(), any(), any())).thenThrow(new RuntimeException("boom"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create("prunaai/p-video", null, "walks", null,
+                GenerationKind.VIDEO, null, null, "upload-y.png")).hasMessage("boom");
+
+        verify(imageStorageService).delete("upload-y.png");
+    }
+
+    /** Con piu' immagini la sorgente e' quella scelta sul thumbnail, non la prima. */
+    @Test
+    void createForVideoUsesTheChosenSourceImage() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png", "7-1.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-1.png")).thenReturn("data:image/png;base64,BBBB");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-v", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L, "7-1.png");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,BBBB");
+    }
+
+    /** File sorgente illeggibile: errore mostrabile dal form (ReplicateException), non un 500, e nessuna prediction avviata. */
+    @Test
+    void createForVideoFailsCleanlyWhenTheSourceFileIsUnreadable() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("gone.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
+        when(imageStorageService.readAsDataUri("gone.png"))
+                .thenThrow(new java.io.UncheckedIOException("missing", new java.io.IOException("nope")));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L, null))
+                .isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
+        org.mockito.Mockito.verifyNoInteractions(replicateClient);
+    }
+
+    /** Una generazione video ancora in corso dopo il timeout delle immagini (5 min) non deve essere marcata FAILED. */
+    @Test
+    void refreshDoesNotTimeOutAVideoAfterFiveMinutes() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        Generation generation = new Generation("pred-v", "prunaai/p-video", null, "p", null);
+        generation.setKind(GenerationKind.VIDEO);
+        ReflectionTestUtils.setField(generation, "id", 5L);
+        ReflectionTestUtils.setField(generation, "createdAt", java.time.Instant.now().minus(java.time.Duration.ofMinutes(8)));
+        when(repository.findById(5L)).thenReturn(java.util.Optional.of(generation));
+        when(replicateClient.getPrediction("pred-v"))
+                .thenReturn(new PredictionResponse("pred-v", "processing", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation refreshed = service.refresh(5L);
+
+        assertThat(refreshed.getStatus()).isEqualTo(GenerationStatus.PROCESSING);
     }
 
     @Test

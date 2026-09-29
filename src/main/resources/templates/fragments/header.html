@@ -26,6 +26,7 @@
             <div class="flex gap-4 flex-1 max-sm:order-1 max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-2 max-sm:basis-full">
                 <a th:replace="~{fragments/header :: navLink(path='/', text=#{header.nav.home})}">Home</a>
                 <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
+                <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
                 <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
                 <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
                 <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>

@@ -51,6 +51,27 @@
             <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>
             <dd class="ms-0 mt-1" th:text="${generation.model}">modello</dd>
 
+            <!--/* Costo stimato (ReplicatePricing, salvato al completamento): assente per righe vecchie/modelli senza regola. */-->
+            <th:block th:if="${generation.costUsd != null}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.cost})}">Costo stimato</dt>
+                <dd class="ms-0 mt-1" th:text="#{generationDetail.value.cost(${generation.costUsd})}">≈ 0.0600 USD</dd>
+            </th:block>
+
+            <th:block th:if="${generation.sourceGenerationId != null}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.source})}">Generazione sorgente</dt>
+                <dd class="ms-0 mt-1">
+                    <a th:href="@{'/generations/' + ${generation.sourceGenerationId}}"
+                       th:text="#{generationDetail.value.generationNumber(${generation.sourceGenerationId})}">n. 1</a>
+                </dd>
+            </th:block>
+
+            <th:block th:if="${generation.sourceUploadFilename != null}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.source})}">Sorgente</dt>
+                <dd class="ms-0 mt-1">
+                    <img th:src="@{'/images/' + ${generation.sourceUploadFilename}}" alt="" class="h-24 w-auto rounded-md">
+                </dd>
+            </th:block>
+
             <!--
               Seed sempre mostrato (a differenza di version/parametri sotto,
               nascosti se assenti): l'utente deve poterlo vedere chiaramente

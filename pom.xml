@@ -27,6 +27,8 @@
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>2.0.1</spring-ai.version>
+        <!-- Tailwind standalone CLI (profilo "tailwind"). v3 come il Play CDN. -->
+        <tailwind.version>3.4.17</tailwind.version>
     </properties>
 
     <dependencyManagement>
@@ -127,6 +129,20 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Config Tailwind condivisa: il Play CDN (default, fragments/layout.html)
+                 la carica come /js/tailwind.config.js, la CLI la legge da src/main/tailwind. -->
+            <resource>
+                <directory>src/main/tailwind</directory>
+                <includes>
+                    <include>tailwind.config.js</include>
+                </includes>
+                <targetPath>static/js</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
@@ -152,5 +168,66 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            Build Tailwind (opt-in): mvn -Ptailwind clean package
+            Scarica via curl il binario standalone (niente Node/npm, cache in target/tailwind) e compila
+            target/classes/static/css/tailwind.css; TailwindAssets lo rileva e
+            layout.html smette di usare il Play CDN. Senza profilo: invariato.
+            Supportati macOS e Linux (x64/arm64).
+        -->
+        <profile>
+            <id>tailwind</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.2.0</version>
+                        <executions>
+                            <execution>
+                                <id>compile-tailwind</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="sh" failonerror="true">
+                                            <arg value="-c"/>
+                                            <arg value='B="${project.build.directory}/tailwind/${tailwind.binary}"; mkdir -p "${project.build.directory}/tailwind" &amp;&amp; { [ -x "$B" ] || { curl -fsSL -o "$B" "https://github.com/tailwindlabs/tailwindcss/releases/download/v${tailwind.version}/${tailwind.binary}" &amp;&amp; chmod +x "$B"; }; } &amp;&amp; "$B" -c src/main/tailwind/tailwind.config.js -i src/main/tailwind/input.css -o "${project.build.outputDirectory}/static/css/tailwind.css" --minify'/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Scelta del binario per OS/arch: solo proprieta', innocui fuori dal profilo "tailwind". -->
+        <profile>
+            <id>tailwind-macos-arm64</id>
+            <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-macos-arm64</tailwind.binary></properties>
+        </profile>
+        <profile>
+            <id>tailwind-macos-x64</id>
+            <activation><os><family>mac</family><arch>x86_64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-macos-x64</tailwind.binary></properties>
+        </profile>
+        <profile>
+            <id>tailwind-linux-x64</id>
+            <activation><os><family>unix</family><name>Linux</name><arch>amd64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-linux-x64</tailwind.binary></properties>
+        </profile>
+        <profile>
+            <id>tailwind-linux-arm64</id>
+            <activation><os><family>unix</family><name>Linux</name><arch>aarch64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-linux-arm64</tailwind.binary></properties>
+        </profile>
+    </profiles>
 
 </project>

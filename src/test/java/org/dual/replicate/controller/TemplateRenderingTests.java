@@ -9,6 +9,7 @@ import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
@@ -129,6 +130,159 @@ class TemplateRenderingTests {
     void paramsEndpointRendersFieldsForKnownModel() throws Exception {
         mockMvc.perform(get("/generations/params").param("model", "sdurz75/flux-lora-ff3"))
                 .andExpect(status().isOk());
+    }
+
+    /** Quarto form-type (P_VIDEO, V12/PVideoParameterHandler): il fragment dedicato renderizza, con i default del modello. */
+    @Test
+    void paramsEndpointRendersFieldsForPVideo() throws Exception {
+        String body = mockMvc.perform(get("/generations/params").param("model", "prunaai/p-video"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"duration\"", "name=\"resolution\"", "name=\"fps\"",
+                "name=\"draft\"", "name=\"prompt_upsampling\"");
+        assertThat(body).containsPattern("<option value=\"720p\"[^>]*selected");
+        assertThat(body).containsPattern("name=\"prompt_upsampling\"[^>]*checked");
+        assertThat(body).doesNotContainPattern("name=\"draft\"[^>]*checked");
+    }
+
+    /** /deep-chat propone solo modelli immagine: il modello video non compare nel suo combobox. */
+    @Test
+    @Transactional
+    void deepChatModelSelectExcludesVideoModels() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String form = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        String videoForm = mockMvc.perform(get("/generations/new").param("kind", "video"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(chat).doesNotContain("prunaai/p-video");
+        // Immagini e video non si mescolano: /generations/new elenca solo immagini, ?kind=video solo video.
+        assertThat(form).doesNotContain("prunaai/p-video");
+        assertThat(videoForm).contains("prunaai/p-video").doesNotContain("black-forest-labs/flux-2-klein-9b");
+    }
+
+    /** "Anima": /generations/new?source= preseleziona p-video e porta la sorgente (hidden + anteprima). */
+    @Test
+    @Transactional
+    void newFormWithSourcePreselectsVideoModelAndCarriesTheSource() throws Exception {
+        Generation image = new Generation("pred-img", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("1-0.png")));
+        image = repository.save(image);
+
+        String body = mockMvc.perform(get("/generations/new").param("source", String.valueOf(image.getId()))
+                        .param("sourceImage", "1-0.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("name=\"sourceUpload\"");
+        assertThat(body).containsPattern("name=\"sourceGenerationId\"[^>]*value=\"" + image.getId() + "\"");
+        assertThat(body).containsPattern("name=\"sourceImage\"[^>]*value=\"1-0.png\"");
+        assertThat(body).contains("name=\"duration\"");
+        assertThat(body).containsPattern("<option value=\"prunaai/p-video\"[^>]*selected");
+        assertThat(body).contains("/images/1-0.png");
+    }
+
+    /** Una sorgente non animabile (inesistente) e' ignorata: form normale, nessun hidden. */
+    @Test
+    void newFormIgnoresUnknownSource() throws Exception {
+        String body = mockMvc.perform(get("/generations/new").param("source", "999999"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("name=\"sourceGenerationId\"");
+    }
+
+    /** Una sourceImage che non appartiene alla generazione rende la sorgente non valida: ignorata. */
+    @Test
+    @Transactional
+    void newFormIgnoresSourceImageNotBelongingToTheGeneration() throws Exception {
+        Generation image = new Generation("pred-img2", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("1-0.png")));
+        image = repository.save(image);
+
+        String body = mockMvc.perform(get("/generations/new").param("source", String.valueOf(image.getId()))
+                        .param("sourceImage", "other.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("name=\"sourceGenerationId\"");
+    }
+
+    /** Dettaglio: un'immagine completata offre "Anima"; un video ha <video controls> e il link alla sorgente, niente "Anima". */
+    @Test
+    @Transactional
+    void detailOffersAnimateForImagesAndRendersVideoForVideos() throws Exception {
+        Generation image = new Generation("pred-i", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("2-0.png", "2-1.png")));
+        image = repository.save(image);
+
+        Generation video = new Generation("pred-v", "prunaai/p-video", null, "a cat walks", null);
+        video.setKind(GenerationKind.VIDEO);
+        video.setSourceGenerationId(image.getId());
+        video.setStatus(GenerationStatus.SUCCEEDED);
+        video.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("3-0.mp4")));
+        video = repository.save(video);
+
+        String imageBody = mockMvc.perform(get("/generations/" + image.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String videoBody = mockMvc.perform(get("/generations/" + video.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(imageBody).contains("/generations/new?source=" + image.getId() + "&amp;sourceImage=2-0.png")
+                .contains("/generations/new?source=" + image.getId() + "&amp;sourceImage=2-1.png")
+                .doesNotContain("<video");
+        assertThat(videoBody).containsPattern("<video[^>]*src=\"[^\"]*/images/3-0.mp4\"[^>]*controls")
+                .doesNotContain("?source=")
+                .contains("/generations/" + image.getId());
+    }
+
+    /** Il dettaglio mostra il costo stimato salvato, e nasconde la riga se non c'e' (righe vecchie, modelli senza regola). */
+    @Test
+    @Transactional
+    void detailShowsEstimatedCostOnlyWhenPresent() throws Exception {
+        Generation priced = new Generation("pred-p", "black-forest-labs/flux-krea-dev", null, "a cat", null);
+        priced.setStatus(GenerationStatus.SUCCEEDED);
+        priced.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("4-0.png")));
+        priced.setCostUsd(new java.math.BigDecimal("0.120000"));
+        priced = repository.save(priced);
+        Generation unpriced = new Generation("pred-u", "owner/model", null, "a dog", null);
+        unpriced.setStatus(GenerationStatus.SUCCEEDED);
+        unpriced.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("5-0.png")));
+        unpriced = repository.save(unpriced);
+
+        String withCost = mockMvc.perform(get("/generations/" + priced.getId()).header("Accept-Language", "en"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String italian = mockMvc.perform(get("/generations/" + priced.getId()).header("Accept-Language", "it"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String withoutCost = mockMvc.perform(get("/generations/" + unpriced.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(withCost).contains("Estimated cost").contains("0.1200 USD");
+        assertThat(italian).contains("Costo stimato").contains("0,1200 USD");
+        assertThat(withoutCost).doesNotContain("Estimated cost").doesNotContain("Costo stimato");
+    }
+
+    /** Galleria e listato mostrano un video come <video>, non come <img> (che romperebbe anche la lightbox). */
+    @Test
+    @Transactional
+    void galleryAndListRenderVideosAsVideoElements() throws Exception {
+        Generation video = new Generation("pred-gv", "prunaai/p-video", null, "clip", null);
+        video.setKind(GenerationKind.VIDEO);
+        video.setStatus(GenerationStatus.SUCCEEDED);
+        video.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("9-0.mp4")));
+        repository.save(video);
+
+        String gallery = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String list = mockMvc.perform(get("/generations")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(gallery).containsPattern("<video[^>]*/images/9-0.mp4");
+        assertThat(gallery).doesNotContainPattern("<img[^>]*/images/9-0.mp4");
+        assertThat(list).containsPattern("<video[^>]*/images/9-0.mp4");
+        assertThat(list).doesNotContainPattern("<img[^>]*/images/9-0.mp4");
     }
 
     @Test
@@ -872,5 +1026,15 @@ class TemplateRenderingTests {
             properties.load(in);
         }
         return properties;
+    }
+
+    /** Da zero (?kind=video) c'e' il campo di upload; con una sorgente "Anima" no. */
+    @Test
+    @Transactional
+    void uploadFieldOnlyWhenStartingVideoFromScratch() throws Exception {
+        String body = mockMvc.perform(get("/generations/new").param("kind", "video"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"sourceUpload\"");
     }
 }

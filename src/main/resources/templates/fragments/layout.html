@@ -68,39 +68,19 @@
       diverse che solo si assomigliano: "canvas-dark" e' un colore come
       un altro nella palette, "dark:" e' cio' che decide quando usarlo.
     -->
+    <!--
+      Config Tailwind UNICA: src/main/tailwind/tailwind.config.js (copiata
+      in /js/tailwind.config.js a build). In modalita' CDN la si carica
+      con uno shim `module` (il file e' CommonJS per la CLI). Con il
+      profilo Maven "tailwind" (vedi TailwindAssets) si serve invece il
+      CSS compilato e il Play CDN non viene caricato affatto.
+    -->
+    <link rel="stylesheet" th:if="${@tailwindAssets.compiled}" th:href="@{/css/tailwind.css}">
+    <th:block th:unless="${@tailwindAssets.compiled}">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: ['selector', '[data-theme="dark"]'],
-            corePlugins: { preflight: true },
-            theme: {
-                extend: {
-                    colors: {
-                        canvas:            { DEFAULT: '#ffffff', dark: '#0d1117' },
-                        surface:           { DEFAULT: '#f6f8fa', dark: '#161b22' },
-                        ink:               { DEFAULT: '#1f2328', dark: '#e6edf3' },
-                        'ink-muted':       { DEFAULT: '#59636e', dark: '#8b949e' },
-                        line:              { DEFAULT: '#d0d7de', dark: '#30363d' },
-                        accent:            { DEFAULT: '#0969da', dark: '#58a6ff' },
-                        'accent-contrast': { DEFAULT: '#ffffff', dark: '#0d1117' },
-                        danger:            { DEFAULT: '#cf222e', dark: '#f85149' },
-                        // scrim/scrim-contrast: overlay del lightbox immagini
-                        // (fragments/gallery.html, fragments/generation-images.html).
-                        // DEFAULT e dark identici di proposito: e' un backdrop a
-                        // schermo intero sempre nero, non deve seguire il tema del
-                        // sito - qui solo per rispettare la regola "sempre nomi da
-                        // theme.extend.colors, mai un colore hardcoded nel markup".
-                        scrim:             { DEFAULT: '#000000', dark: '#000000' },
-                        'scrim-contrast':  { DEFAULT: '#ffffff', dark: '#ffffff' },
-                    },
-                    fontFamily: {
-                        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
-                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
-                    },
-                },
-            },
-        };
-    </script>
+    <script>var module = {};</script>
+    <script th:src="@{/js/tailwind.config.js}"></script>
+    <script>tailwind.config = module.exports;</script>
 
     <!--
       Stili trasversali che altrimenti andrebbero ripetuti identici su
@@ -141,6 +121,7 @@
             label { @apply block mt-4 mb-2 text-sm text-ink-muted dark:text-ink-muted-dark; }
         }
     </style>
+    </th:block>
 </head>
 
 <body class="m-0 bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark font-sans leading-normal transition-colors duration-150"

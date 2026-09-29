@@ -2,12 +2,12 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
-    <title th:text="#{generate.title}">Genera immagine</title>
+    <title th:text="${videoPage} ? #{generate.video.title} : #{generate.title}">Genera immagine</title>
 </head>
 <body>
 <div layout:fragment="content">
-    <h1 th:text="#{generate.title}">Genera immagine</h1>
-    <p th:text="#{generate.intro}">Scegli un modello censito, scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</p>
+    <h1 th:text="${videoPage} ? #{generate.video.title} : #{generate.title}">Genera immagine</h1>
+    <p th:text="${videoPage} ? #{generate.video.intro} : #{generate.intro}">Scegli un modello censito, scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</p>
 
     <div id="generation-panel">
         <div th:replace="~{fragments/generate-form :: form}"></div>

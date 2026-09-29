@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campi del form-type P_VIDEO (vedi GenerationFormType/PVideoParameterHandler):
+  schema reale di prunaai/p-video (GET /v1/models/...), esclusi "image"
+  (aggiunto dal controller quando il video nasce da una generazione, vedi
+  GenerationController#create), "audio", "last_frame_image", "save_audio",
+  "no_op" e "disable_safety_filter". Legge i valori correnti dal Model
+  (nomi = chiave Replicate del campo), come gli altri fragment di form-type.
+  Nota: con un'immagine sorgente il modello ignora aspect_ratio.
+-->
+<th:block th:fragment="fields">
+
+    <!--/* Immagine di partenza caricata dall'utente (opzionale): va nel multipart della POST /generations. Assente se il video parte da una generazione ("Anima": sourceGeneration nel Model), solo partendo da zero. */-->
+    <div th:unless="${sourceGeneration}" x-data="{ preview: null }">
+        <label for="param-source-upload" th:text="#{generationParams.label.sourceUpload}">Immagine di partenza (opzionale)</label>
+        <!--/* Controllo dimensione anche lato client (setCustomValidity blocca il submit del form htmx): il limite e il messaggio arrivano dal server via data-*, il controllo vero resta ImageStorageService#storeUpload. */-->
+        <input type="file" id="param-source-upload" name="sourceUpload" accept="image/png,image/jpeg,image/webp"
+               th:data-max-bytes="${maxUploadBytes}"
+               th:data-too-large="#{imagestorage.error.uploadTooLarge(${maxUploadBytes / (1024 * 1024)})}"
+               @change="const f = $el.files[0];
+                        $el.setCustomValidity(f && f.size > Number($el.dataset.maxBytes) ? $el.dataset.tooLarge : '');
+                        $el.reportValidity();
+                        preview = f ? URL.createObjectURL(f) : null">
+        <img x-show="preview" x-cloak :src="preview" alt="" class="mt-2 h-32 w-auto rounded-md">
+    </div>
+
+    <div>
+        <label for="param-duration" th:text="#{generationParams.label.duration}">Durata (secondi)</label>
+        <input type="number" id="param-duration" name="duration" min="1" max="20" th:value="${duration}">
+    </div>
+
+    <div>
+        <label for="param-aspect-ratio" th:text="#{generationParams.label.aspectRatio}">Aspect ratio</label>
+        <select id="param-aspect-ratio" name="aspect_ratio">
+            <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
+            <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
+            <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
+            <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
+            <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
+            <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
+            <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="param-resolution" th:text="#{generationParams.label.resolution}">Risoluzione</label>
+        <select id="param-resolution" name="resolution">
+            <option value="720p" th:selected="${resolution == '720p'}">720p</option>
+            <option value="1080p" th:selected="${resolution == '1080p'}">1080p</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="param-fps" th:text="#{generationParams.label.fps}">Frame al secondo</label>
+        <select id="param-fps" name="fps">
+            <option value="24" th:selected="${fps == 24 or fps == '24'}">24</option>
+            <option value="48" th:selected="${fps == 48 or fps == '48'}">48</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
+        <input type="number" id="param-seed" name="seed" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
+    </div>
+
+    <div>
+        <label for="param-draft" th:text="#{generationParams.label.draft}">Bozza (piu' veloce, qualita' minore)</label>
+        <input type="checkbox" id="param-draft" name="draft" value="true"
+               th:checked="${draft == true or draft == 'true'}">
+    </div>
+
+    <div>
+        <label for="param-prompt-upsampling" th:text="#{generationParams.label.promptUpsampling}">Migliora il prompt</label>
+        <input type="checkbox" id="param-prompt-upsampling" name="prompt_upsampling" value="true"
+               th:checked="${prompt_upsampling == true or prompt_upsampling == 'true'}">
+    </div>
+
+</th:block>
+
+</body>
+</html>

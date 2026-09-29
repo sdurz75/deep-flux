@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
 <head>
-    <title th:text="#{generationStatus.title}">Generazione in corso</title>
+    <title th:text="#{generationStatus.heading(${generation.id})}">Generazione #1</title>
 </head>
 <body>
 <div layout:fragment="content">

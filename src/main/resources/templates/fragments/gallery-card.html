@@ -71,12 +71,35 @@
           l'<img> mantiene lo spazio occupato (stesso aspect-ratio),
           niente collasso del layout della card.
         -->
-        <img th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
+        <img th:unless="${generation.video}"
+             th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
              th:alt="${generation.prompt}"
              class="w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-cover block cursor-zoom-in"
              @click="imageGalleryOpen"
              onerror="this.style.visibility='hidden'"
              loading="lazy">
+
+        <!--
+          Video (GenerationKind.VIDEO): thumbnail = primo frame del file
+          (preload="metadata", nessun poster/ffmpeg), non un <img>, quindi
+          fuori dal selettore '.gallery-card img' della lightbox (non la
+          corrompe). Niente zoom: il click porta al dettaglio, dove il
+          video ha i controlli.
+        -->
+        <a th:if="${generation.video}" th:href="@{'/generations/' + ${generation.id}(conversationId=${conversationId})}" class="block">
+            <video th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
+                   class="w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-cover block"
+                   muted playsinline preload="metadata"
+                   onerror="this.style.visibility='hidden'"></video>
+            <span class="absolute bottom-2 right-2 flex items-center justify-center w-7 h-7 rounded-full bg-black/60 text-white pointer-events-none">
+                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+        </a>
+
+        <!-- "Anima": img2video sulla thumbnail mostrata (imageFilenames[0]), vedi fragments/button.html :: animateOverlay. Solo immagini. -->
+        <th:block th:unless="${generation.video}">
+            <a th:replace="~{fragments/button :: animateOverlay(url=@{/generations/new(source=${generation.id}, sourceImage=${generation.imageFilenames[0]})}, title=#{generationDetail.action.animate}, extraClass='bottom-2 right-2')}"></a>
+        </th:block>
 
         <span th:if="${generation.imageFilenames.size() > 1}"
               th:text="'+' + (${generation.imageFilenames.size()} - 1)"
