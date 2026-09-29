@@ -44,6 +44,25 @@ L'applicazione serve a:
    cancellabili singolarmente, vedi `fragments/generation-images.html`,
    cancellazione dell'intera generazione) — niente pagina di dettaglio
    separata.
+   **Video (img2video/text2video)** — stessa pipeline, non una feature a
+   parte: una `Generation` ha un `GenerationKind` (`IMAGE`/`VIDEO`, migrazione
+   V12), derivato dal `GenerationFormType` del modello scelto
+   (`GenerationFormType#kind()`); oggi l'unico modello video e'
+   `prunaai/p-video` (`P_VIDEO`, `PVideoParameterHandler`). Il file mp4 resta
+   in `imageFilenames` (un output singolo), archivio/dettaglio/watcher/SSE sono
+   quelli delle immagini; cambiano solo il rendering (`<video>` invece di
+   `<img>` in galleria, listato, dettaglio, cronologia chat; niente lightbox per
+   i video) e il timeout (`GenerationService`, 15 min invece di 5). Il punto
+   d'ingresso e' il link "Anima in un video" nel dettaglio di un'immagine
+   completata (`/generations/new?source={id}`): preseleziona p-video, porta la
+   sorgente come hidden `sourceGenerationId` e `GenerationController#create` la
+   invia a Replicate come data-URI (`ImageStorageService#readAsDataUri`,
+   `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`); senza sorgente
+   p-video funziona da text-to-video. `/deep-chat` propone SOLO modelli immagine
+   (`ReplicateModelCatalog#models(GenerationKind)`): il tool di chat non genera
+   video. `disable_safety_checker` e' forzato solo per le immagini (p-video non
+   lo dichiara). Fuori scope per ora: upload di un file esterno, audio-to-video,
+   video in chat.
 2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
    tramite un archivio** — ogni generazione (chatbot o form diretto)
    diventa una riga `Generation`. `/gallery` resta l'archivio delle sole
@@ -81,8 +100,8 @@ L'applicazione serve a:
    globale in `/gallery` (punto 2 sopra) resta invariata, indipendente
    dalle conversazioni.
 
-Ulteriori evoluzioni seguiranno, ma sempre pertinenti a questi tre punti:
-non aggiungere feature (pagine demo, integrazioni, pattern) che non
+Ulteriori evoluzioni seguiranno, ma sempre pertinenti a questi tre punti
+(l'output puo' essere anche un video, vedi sopra): non aggiungere feature (pagine demo, integrazioni, pattern) che non
 servono direttamente a generare, archiviare o conversare sulle immagini.
 Se un domani serve dimostrare un pattern htmx/Alpine non ancora coperto
 dal codice reale, farlo aggiungendolo a una feature vera, non con una
@@ -211,7 +230,8 @@ src/main/java/org/dual/replicate/
     ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
     ChatMessageRole.java
     ReplicateModel.java         # entity JPA: un modello Replicate censito (owner/name/version/formType), vedi migrazione V6
-    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV)
+    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO); kind() = GenerationKind del media prodotto
+    GenerationKind.java         # enum IMAGE/VIDEO: tipo di media di una Generation (migrazione V12)
   repository/
     GenerationRepository.java
     ChatConversationRepository.java
@@ -237,7 +257,8 @@ src/main/java/org/dual/replicate/
     FluxLoraFf3ParameterHandler.java # GenerationParameterHandler di FLUX_LORA_FF3: i 9 campi tipizzati (width/height/formato/steps/guidance/seed/lora scale/variante flux/num output)
     Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
     FluxKreaDevParameterHandler.java # GenerationParameterHandler di FLUX_KREA_DEV: aspect_ratio/megapixels(2 sole opzioni)/seed/go_fast/guidance/num_outputs/formato/qualita'/steps (schema reale del modello, vedi migrazione V10)
-    ImageStorageService.java    # scrive i file immagine su storage.images-dir
+    PVideoParameterHandler.java # GenerationParameterHandler di P_VIDEO: duration/aspect_ratio/resolution/fps/draft/prompt_upsampling/seed (schema reale di prunaai/p-video, vedi migrazione V12); `image` lo aggiunge GenerationController (Anima)
+    ImageStorageService.java    # scrive (in streaming) i file immagine/video su storage.images-dir; readAsDataUri() per l'input img2video
     PromptEnhancementService.java # riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
@@ -265,6 +286,7 @@ src/main/resources/
     V7__add_flux_2_klein_9b_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-2-klein-9b (VERSION NULL, shortcut "ultima versione")
     V8__add_generation_seed.sql      # colonna GENERATION.SEED (Long, nullable): il seed usato diventa un campo di prima classe, non piu' solo dentro PARAMETERS_JSON
     V11__generation_conversation.sql # colonna GENERATION.CONVERSATION_ID (nullable, FK ON DELETE SET NULL): conversazione che ha avviato la generazione, per ripristinare il placeholder al reload di /deep-chat
+    V12__video_generation.sql        # GENERATION.KIND (IMAGE/VIDEO) + SOURCE_GENERATION_ID (FK ON DELETE SET NULL), estende l'ENUM FORM_TYPE + seed di prunaai/p-video (VERSION NULL, SORT_ORDER 3)
     V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
     index.html                   # home
@@ -282,6 +304,7 @@ src/main/resources/
       generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
       generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
       generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio
+      generation-params-p-video.html # campi del form-type P_VIDEO (vedi PVideoParameterHandler), incluso dallo stesso guscio
       generation-params-flux-krea-dev.html # campi del form-type FLUX_KREA_DEV (vedi GenerationFormType/FluxKreaDevParameterHandler), incluso dallo stesso guscio
       generation.html            # fragment status: polling di una generazione + dettaglio completo a stato terminale (prompt/modello/seed/parametri, immagini cancellabili, cancellazione generazione) - unica pagina di dettaglio, vedi CLAUDE.md
       generation-placeholder.html # placeholder(generationId, conversationId, generationsPage, cancelDisabled): immagine dummy + "Interrompi", stili inline (usato anche in <deep-chat>, vedi deep-chat.html)

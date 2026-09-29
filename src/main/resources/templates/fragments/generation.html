@@ -46,10 +46,21 @@
                 <span th:text="${generation.prompt}">prompt</span>
                 <a th:href="@{/generations/new(prompt=${generation.prompt})}" class="ms-2 text-[0.85rem]"
                    th:text="#{generationDetail.action.pushPrompt}">Usa in una nuova generazione</a>
+                <!-- "Anima": img2video, vedi GenerationController#form (parametro source). Solo per immagini. -->
+                <a th:unless="${generation.video}" th:href="@{/generations/new(source=${generation.id})}" class="ms-2 text-[0.85rem]"
+                   th:text="#{generationDetail.action.animate}">Anima in un video</a>
             </dd>
 
             <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>
             <dd class="ms-0 mt-1" th:text="${generation.model}">modello</dd>
+
+            <th:block th:if="${generation.sourceGenerationId != null}">
+                <dt th:replace="~{fragments/description-list :: term(text=#{generationDetail.label.source})}">Generazione sorgente</dt>
+                <dd class="ms-0 mt-1">
+                    <a th:href="@{'/generations/' + ${generation.sourceGenerationId}}"
+                       th:text="#{generationDetail.value.generationNumber(${generation.sourceGenerationId})}">n. 1</a>
+                </dd>
+            </th:block>
 
             <!--
               Seed sempre mostrato (a differenza di version/parametri sotto,

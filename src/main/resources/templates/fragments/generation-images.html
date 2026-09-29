@@ -80,8 +80,11 @@
      }"
      @keyup.right.window="imageGalleryNext()"
      @keyup.left.window="imageGalleryPrev()">
-    <div th:each="filename : ${generation.imageFilenames}" class="relative">
-        <img th:src="@{'/images/' + ${filename}}"
+    <div th:each="filename : ${generation.imageFilenames}" class="relative" th:classappend="${generation.video} ? 'col-span-full'">
+        <!-- Video: un solo elemento a larghezza piena con i controlli nativi, fuori dalla lightbox ('.generation-image' e' solo delle <img>). -->
+        <video th:if="${generation.video}" th:src="@{'/images/' + ${filename}}" controls playsinline preload="metadata"
+               class="w-full max-h-[70vh] bg-black rounded-md border border-line dark:border-line-dark block"></video>
+        <img th:unless="${generation.video}" th:src="@{'/images/' + ${filename}}"
              th:alt="${generation.prompt}"
              class="generation-image w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-contain
                     bg-surface dark:bg-surface-dark rounded-md border border-line dark:border-line-dark block cursor-zoom-in"

@@ -34,7 +34,12 @@
            class="w-5 h-5 rounded accent-accent dark:accent-accent-dark cursor-pointer shrink-0">
 
     <a th:href="@{'/generations/' + ${generation.id}(generationsPage=${currentPage})}" class="shrink-0">
-        <img th:if="${not #lists.isEmpty(generation.imageFilenames)}"
+        <video th:if="${generation.video and not #lists.isEmpty(generation.imageFilenames)}"
+               th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
+               muted playsinline preload="metadata"
+               onerror="this.style.visibility='hidden'"
+               class="w-14 h-14 rounded-md object-cover block"></video>
+        <img th:if="${not generation.video and not #lists.isEmpty(generation.imageFilenames)}"
              th:src="@{'/images/' + ${generation.imageFilenames[0]}}"
              th:alt="${generation.prompt}"
              onerror="this.style.visibility='hidden'"

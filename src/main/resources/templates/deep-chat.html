@@ -473,8 +473,10 @@
                 : resultTemplate
                 .replace(/__ID__/g, String(generationId == null ? '' : generationId))
                 .replace('__TEXT__', () => escapeHtml(text))
-                .replace('__IMAGES__', () => (files || []).map((f) =>
-                    '<img src="' + escapeHtml(f.src) + '" alt="' + escapeHtml(f.name)
+                .replace('__IMAGES__', () => (files || []).map((f) => f.type === 'video'
+                    ? '<video src="' + escapeHtml(f.src) + '" controls playsinline preload="metadata"'
+                    + ' style="max-width:100%;border-radius:8px;display:block"></video>'
+                    : '<img src="' + escapeHtml(f.src) + '" alt="' + escapeHtml(f.name)
                     + '" style="max-width:100%;border-radius:8px;display:block">').join(''));
             // Cronologia: i turni con immagini tornano come messaggi html (con controllo), non "files".
             deepChat.history = (window.deepChatHistory || []).map((m) =>

@@ -301,7 +301,7 @@ public class DeepChatService {
             return null;
         }
         return generation.getImageFilenames().stream()
-                .map(filename -> new FileRef("/images/" + filename, filename, "image"))
+                .map(filename -> new FileRef("/images/" + filename, filename, generation.isVideo() ? "video" : "image"))
                 .toList();
     }
 }
