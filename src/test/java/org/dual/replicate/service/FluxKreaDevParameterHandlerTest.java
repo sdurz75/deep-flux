@@ -45,8 +45,8 @@ class FluxKreaDevParameterHandlerTest {
                 .containsEntry("num_outputs", 1)
                 .containsEntry("output_format", "jpg")
                 .containsEntry("num_inference_steps", 28)
-                .doesNotContainKey("seed")
-                .doesNotContainKey("guidance")
-                .doesNotContainKey("output_quality");
+                .containsEntry("output_quality", 80)
+                .containsEntry("guidance", 3.0)
+                .doesNotContainKey("seed");
     }
 }

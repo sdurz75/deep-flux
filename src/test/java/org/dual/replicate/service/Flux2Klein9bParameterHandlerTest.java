@@ -37,7 +37,7 @@ class Flux2Klein9bParameterHandlerTest {
                 // go_fast=false e' una scelta deliberata dell'app, diversa dal default Replicate (true).
                 .containsEntry("go_fast", false)
                 .containsEntry("output_format", "jpg")
-                .doesNotContainKey("seed")
-                .doesNotContainKey("output_quality");
+                .containsEntry("output_quality", 80)
+                .doesNotContainKey("seed");
     }
 }

@@ -33,6 +33,7 @@ public class FluxLoraFf3ParameterHandler implements GenerationParameterHandler {
     public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
     public static final int DEFAULT_NUM_INFERENCE_STEPS = 28;
     public static final double DEFAULT_LORA_SCALE = 1;
+    public static final double DEFAULT_GUIDANCE_SCALE = 3;
     public static final String DEFAULT_FLUX_MODEL = "dev";
     public static final int DEFAULT_NUM_OUTPUTS = 1;
 
@@ -67,11 +68,9 @@ public class FluxLoraFf3ParameterHandler implements GenerationParameterHandler {
         defaults.put("flux_model", DEFAULT_FLUX_MODEL);
         defaults.put("num_inference_steps", DEFAULT_NUM_INFERENCE_STEPS);
         defaults.put("lora_scale", DEFAULT_LORA_SCALE);
-        // "seed" e "guidance_scale" intenzionalmente assenti: il default
-        // e' quello di Replicate stesso (applicato quando la chiave manca
-        // del tutto dall'input, vedi toParameterMap/putIfPresent sopra),
-        // non un valore che l'app forza in UI - stesso principio gia'
-        // adottato per seed (placeholder "casuale" nel fragment).
+        defaults.put("guidance_scale", DEFAULT_GUIDANCE_SCALE);
+        // "seed" intenzionalmente assente: il default e' quello di Replicate
+        // stesso (casuale, placeholder "casuale" nel fragment).
         return defaults;
     }
 

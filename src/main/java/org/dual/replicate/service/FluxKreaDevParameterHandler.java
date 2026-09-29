@@ -42,6 +42,8 @@ public class FluxKreaDevParameterHandler implements GenerationParameterHandler {
     public static final int DEFAULT_NUM_OUTPUTS = 1;
     public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
     public static final int DEFAULT_NUM_INFERENCE_STEPS = 28;
+    public static final int DEFAULT_OUTPUT_QUALITY = 80;
+    public static final double DEFAULT_GUIDANCE = 3;
 
     @Override
     public GenerationFormType formType() {
@@ -72,12 +74,10 @@ public class FluxKreaDevParameterHandler implements GenerationParameterHandler {
         defaults.put("num_outputs", DEFAULT_NUM_OUTPUTS);
         defaults.put("output_format", DEFAULT_OUTPUT_FORMAT);
         defaults.put("num_inference_steps", DEFAULT_NUM_INFERENCE_STEPS);
-        // "seed", "guidance" e "output_quality" intenzionalmente assenti:
-        // il default e' quello di Replicate stesso (applicato quando la
-        // chiave manca del tutto dall'input, vedi
-        // toParameterMap/putIfPresent sopra), non un valore che l'app
-        // forza in UI - stesso principio gia' adottato per seed
-        // (placeholder "casuale" nel fragment).
+        defaults.put("output_quality", DEFAULT_OUTPUT_QUALITY);
+        defaults.put("guidance", DEFAULT_GUIDANCE);
+        // "seed" intenzionalmente assente: il default e' quello di Replicate
+        // stesso (casuale, placeholder "casuale" nel fragment).
         return defaults;
     }
 

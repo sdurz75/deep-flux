@@ -34,6 +34,7 @@ public class Flux2Klein9bParameterHandler implements GenerationParameterHandler 
     public static final String DEFAULT_MEGAPIXELS = "1";
     public static final boolean DEFAULT_GO_FAST = false;
     public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
+    public static final int DEFAULT_OUTPUT_QUALITY = 80;
 
     @Override
     public GenerationFormType formType() {
@@ -59,11 +60,9 @@ public class Flux2Klein9bParameterHandler implements GenerationParameterHandler 
         defaults.put("megapixels", DEFAULT_MEGAPIXELS);
         defaults.put("go_fast", DEFAULT_GO_FAST);
         defaults.put("output_format", DEFAULT_OUTPUT_FORMAT);
-        // "seed" e "output_quality" intenzionalmente assenti: il default
-        // e' quello di Replicate stesso (applicato quando la chiave manca
-        // del tutto dall'input, vedi toParameterMap/putIfPresent sopra),
-        // non un valore che l'app forza in UI - stesso principio gia'
-        // adottato per seed (placeholder "casuale" nel fragment).
+        defaults.put("output_quality", DEFAULT_OUTPUT_QUALITY);
+        // "seed" intenzionalmente assente: il default e' quello di Replicate
+        // stesso (casuale, placeholder "casuale" nel fragment).
         return defaults;
     }
 
