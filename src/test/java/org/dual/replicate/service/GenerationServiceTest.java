@@ -169,6 +169,40 @@ class GenerationServiceTest {
         assertThat(result.getParametersJson()).doesNotContain("image").doesNotContain("base64");
     }
 
+    /** img2video stand-alone: l'upload va nell'input come data-URI, non in parametersJson, ed e' tracciato sulla riga. */
+    @Test
+    void createForVideoWithUploadSendsImageAndRecordsTheUploadFilename() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        when(imageStorageService.readAsDataUri("upload-x.png")).thenReturn("data:image/png;base64,CCCC");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-u", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("prunaai/p-video", null, "walks", "{\"duration\": 5}",
+                GenerationKind.VIDEO, 7L, null, "upload-x.png");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,CCCC");
+        assertThat(result.getSourceUploadFilename()).isEqualTo("upload-x.png");
+        assertThat(result.getSourceGenerationId()).isNull();
+        assertThat(result.getParametersJson()).doesNotContain("base64");
+    }
+
+    /** Se Replicate rifiuta, il file caricato non ha piu' un proprietario: va eliminato. */
+    @Test
+    void createDeletesTheUploadWhenCreationFails() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher);
+        when(imageStorageService.readAsDataUri("upload-y.png")).thenReturn("data:image/png;base64,DDDD");
+        when(replicateClient.createPrediction(anyString(), any(), any())).thenThrow(new RuntimeException("boom"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create("prunaai/p-video", null, "walks", null,
+                GenerationKind.VIDEO, null, null, "upload-y.png")).hasMessage("boom");
+
+        verify(imageStorageService).delete("upload-y.png");
+    }
+
     /** Con piu' immagini la sorgente e' quella scelta sul thumbnail, non la prima. */
     @Test
     void createForVideoUsesTheChosenSourceImage() {

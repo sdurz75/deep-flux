@@ -28,6 +28,14 @@ spring:
     import: optional:file:.env[.properties],classpath:prompts.properties
   application:
     name: deep-flux
+  servlet:
+    multipart:
+      # Immagine di partenza caricata per un img2video (ImageStorageService#storeUpload):
+      # il default di 1MB rifiuterebbe quasi ogni foto. Volutamente PIU' ALTI del limite applicativo
+      # (ImageStorageService.MAX_UPLOAD_BYTES, 10 MB): un rifiuto del container arriverebbe a htmx
+      # come 413 senza swap (nessun messaggio), cosi' invece l'errore tradotto finisce nel form.
+      max-file-size: 12MB
+      max-request-size: 15MB
   thymeleaf:
     # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
     cache: false
@@ -82,6 +90,14 @@ spring:
       chat:
         options:
           model: ${OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
+
+# Modello di visione dell'"AI enhance" dei video (PromptEnhancementService#enhanceVideo): guarda
+# l'immagine sorgente. Scelto per permissivita' oltre che per prezzo: niente modelli "moderated" di
+# OpenRouter (OpenAI/Anthropic/Amazon) ne' Gemini, che rifiutano spesso il nudo non esplicito.
+# Il fallback e' usato UNA volta se il primo rifiuta.
+enhancer:
+  vision-model: ${OPENROUTER_VISION_MODEL:qwen/qwen3-vl-32b-instruct}
+  vision-fallback-model: ${OPENROUTER_VISION_FALLBACK_MODEL:mistralai/mistral-small-3.2-24b-instruct}
 
 # Token generato su https://replicate.com/account/api-tokens.
 # Da esportare come variabile d'ambiente, mai committato:

@@ -111,6 +111,13 @@ public class Generation {
     private Long sourceGenerationId;
 
     /**
+     * Immagine caricata dall'utente come sorgente di un img2video
+     * stand-alone (vedi V14), null altrimenti. Il file vive sotto
+     * storage.images-dir e viene eliminato insieme alla generazione.
+     */
+    private String sourceUploadFilename;
+
+    /**
      * Conversazione di /deep-chat che ha avviato la generazione (null per il
      * form diretto): serve a ripristinare il placeholder di una generazione
      * ancora in corso quando la pagina viene ricaricata (vedi V11).
@@ -227,6 +234,14 @@ public class Generation {
 
     public void setSourceGenerationId(Long sourceGenerationId) {
         this.sourceGenerationId = sourceGenerationId;
+    }
+
+    public String getSourceUploadFilename() {
+        return sourceUploadFilename;
+    }
+
+    public void setSourceUploadFilename(String sourceUploadFilename) {
+        this.sourceUploadFilename = sourceUploadFilename;
     }
 
     public Long getConversationId() {

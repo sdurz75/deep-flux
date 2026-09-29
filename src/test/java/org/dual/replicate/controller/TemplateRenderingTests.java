@@ -156,8 +156,13 @@ class TemplateRenderingTests {
         String form = mockMvc.perform(get("/generations/new"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
+        String videoForm = mockMvc.perform(get("/generations/new").param("kind", "video"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
         assertThat(chat).doesNotContain("prunaai/p-video");
-        assertThat(form).contains("prunaai/p-video");
+        // Immagini e video non si mescolano: /generations/new elenca solo immagini, ?kind=video solo video.
+        assertThat(form).doesNotContain("prunaai/p-video");
+        assertThat(videoForm).contains("prunaai/p-video").doesNotContain("black-forest-labs/flux-2-klein-9b");
     }
 
     /** "Anima": /generations/new?source= preseleziona p-video e porta la sorgente (hidden + anteprima). */
@@ -173,6 +178,7 @@ class TemplateRenderingTests {
                         .param("sourceImage", "1-0.png"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
+        assertThat(body).doesNotContain("name=\"sourceUpload\"");
         assertThat(body).containsPattern("name=\"sourceGenerationId\"[^>]*value=\"" + image.getId() + "\"");
         assertThat(body).containsPattern("name=\"sourceImage\"[^>]*value=\"1-0.png\"");
         assertThat(body).contains("name=\"duration\"");
@@ -186,7 +192,7 @@ class TemplateRenderingTests {
         String body = mockMvc.perform(get("/generations/new").param("source", "999999"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).doesNotContain("sourceGenerationId");
+        assertThat(body).doesNotContain("name=\"sourceGenerationId\"");
     }
 
     /** Una sourceImage che non appartiene alla generazione rende la sorgente non valida: ignorata. */
@@ -202,7 +208,7 @@ class TemplateRenderingTests {
                         .param("sourceImage", "other.png"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).doesNotContain("sourceGenerationId");
+        assertThat(body).doesNotContain("name=\"sourceGenerationId\"");
     }
 
     /** Dettaglio: un'immagine completata offre "Anima"; un video ha <video controls> e il link alla sorgente, niente "Anima". */
@@ -1020,5 +1026,15 @@ class TemplateRenderingTests {
             properties.load(in);
         }
         return properties;
+    }
+
+    /** Da zero (?kind=video) c'e' il campo di upload; con una sorgente "Anima" no. */
+    @Test
+    @Transactional
+    void uploadFieldOnlyWhenStartingVideoFromScratch() throws Exception {
+        String body = mockMvc.perform(get("/generations/new").param("kind", "video"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"sourceUpload\"");
     }
 }

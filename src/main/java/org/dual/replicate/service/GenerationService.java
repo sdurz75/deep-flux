@@ -126,6 +126,30 @@ public class GenerationService {
      */
     public Generation create(String model, String version, String prompt, String parametersJson,
                              GenerationKind kind, Long sourceGenerationId, String sourceImage) {
+        return create(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage, null);
+    }
+
+    /**
+     * Come sopra, con in piu' {@code sourceUploadFilename}: un'immagine
+     * caricata dall'utente (vedi ImageStorageService#storeUpload) come
+     * sorgente di un img2video stand-alone. Ha la precedenza su
+     * {@code sourceGenerationId}. Se la creazione fallisce il file caricato
+     * viene eliminato: nessuna Generation lo possiede.
+     */
+    public Generation create(String model, String version, String prompt, String parametersJson,
+                             GenerationKind kind, Long sourceGenerationId, String sourceImage,
+                             String sourceUploadFilename) {
+        try {
+            return doCreate(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage, sourceUploadFilename);
+        } catch (RuntimeException e) {
+            imageStorageService.delete(sourceUploadFilename);
+            throw e;
+        }
+    }
+
+    private Generation doCreate(String model, String version, String prompt, String parametersJson,
+                                GenerationKind kind, Long sourceGenerationId, String sourceImage,
+                                String sourceUploadFilename) {
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
         // a null, altrimenti "" viene persistita e i th:if dei template (per cui una
         // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
@@ -142,6 +166,9 @@ public class GenerationService {
         input.put("prompt", prompt);
         if (kind == GenerationKind.IMAGE) {
             input.put("disable_safety_checker", true);
+        } else if (sourceUploadFilename != null) {
+            input.put("image", imageStorageService.readAsDataUri(sourceUploadFilename));
+            sourceGenerationId = null;
         } else if (sourceGenerationId != null) {
             input.put("image", sourceImageDataUri(sourceGenerationId, sourceImage));
         }
@@ -153,6 +180,7 @@ public class GenerationService {
         Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
         generation.setKind(kind);
         generation.setSourceGenerationId(sourceGenerationId);
+        generation.setSourceUploadFilename(sourceUploadFilename);
         generation.setStatus(mapStatus(prediction.status()));
         return repository.save(generation);
     }
@@ -398,7 +426,10 @@ public class GenerationService {
      * quasi simultanei sulle altre tab).
      */
     private void deleteGenerations(List<Generation> generations) {
-        generations.forEach(generation -> generation.getImageFilenames().forEach(imageStorageService::delete));
+        generations.forEach(generation -> {
+            generation.getImageFilenames().forEach(imageStorageService::delete);
+            imageStorageService.delete(generation.getSourceUploadFilename());
+        });
         List<Long> ids = generations.stream().map(Generation::getId).toList();
         repository.deleteAllById(ids);
         if (!ids.isEmpty()) {

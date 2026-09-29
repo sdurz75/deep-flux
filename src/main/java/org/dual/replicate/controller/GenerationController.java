@@ -19,6 +19,8 @@ import org.dual.replicate.repository.GenerationRepository;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
+import org.dual.replicate.service.ImageStorageService;
+import org.dual.replicate.service.PromptEnhancementRefusedException;
 import org.dual.replicate.service.PromptEnhancementService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,12 +29,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -59,6 +63,7 @@ public class GenerationController {
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final PromptEnhancementService promptEnhancementService;
+    private final ImageStorageService imageStorageService;
 
     public GenerationController(GenerationService generationService,
                                  GenerationRepository generationRepository,
@@ -66,7 +71,8 @@ public class GenerationController {
                                  GenerationParameterHandlers parameterHandlers,
                                  ObjectMapper objectMapper,
                                  Messages messages,
-                                 PromptEnhancementService promptEnhancementService) {
+                                 PromptEnhancementService promptEnhancementService,
+                                 ImageStorageService imageStorageService) {
         this.generationService = generationService;
         this.generationRepository = generationRepository;
         this.modelCatalog = modelCatalog;
@@ -74,6 +80,17 @@ public class GenerationController {
         this.objectMapper = objectMapper;
         this.messages = messages;
         this.promptEnhancementService = promptEnhancementService;
+        this.imageStorageService = imageStorageService;
+    }
+
+    /**
+     * Limite dell'upload sorgente (ImageStorageService#storeUpload) per il controllo lato client del
+     * campo sourceUpload di P_VIDEO: in ogni vista di questo controller, anche /params, perche' li'
+     * Thymeleaf non permette T(...) sugli attributi data-*.
+     */
+    @ModelAttribute("maxUploadBytes")
+    public long maxUploadBytes() {
+        return ImageStorageService.MAX_UPLOAD_BYTES;
     }
 
     @GetMapping("/new")
@@ -81,8 +98,16 @@ public class GenerationController {
                         @RequestParam(required = false) Long seed,
                         @RequestParam(required = false) Long source,
                         @RequestParam(required = false) String sourceImage,
+                        @RequestParam(required = false) String kind,
                         Model model) {
-        String defaultModel = modelCatalog.defaultModel().map(ReplicateModel::getIdentifier).orElse("");
+        String defaultModel = modelCatalog.models(GenerationKind.IMAGE).stream().findFirst()
+                .map(ReplicateModel::getIdentifier).orElse("");
+        // Video stand-alone (link dell'header): preseleziona il primo modello video, la sorgente
+        // e' l'immagine caricata dall'utente nel form (campo sourceUpload di P_VIDEO).
+        if ("video".equalsIgnoreCase(kind)) {
+            defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
+                    .map(ReplicateModel::getIdentifier).orElse(defaultModel);
+        }
         // "Anima" (vedi fragments/generation.html :: status): preseleziona il primo modello video e
         // porta con se' la generazione immagine sorgente (hidden sourceGenerationId nel form).
         Generation sourceGeneration = source == null ? null : animatableSource(source, sourceImage);
@@ -113,6 +138,7 @@ public class GenerationController {
                           @RequestParam String prompt,
                           @RequestParam(required = false) Long sourceGenerationId,
                           @RequestParam(required = false) String sourceImage,
+                          @RequestParam(required = false) MultipartFile sourceUpload,
                           @RequestParam Map<String, String> allParams,
                           Model uiModel) {
         Generation sourceGeneration = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
@@ -132,12 +158,19 @@ public class GenerationController {
             // data-URI, fuori da parametersJson); con un'immagine in input p-video ignora aspect_ratio,
             // quindi non lo si invia.
             boolean animate = sourceGeneration != null && formType.kind() == GenerationKind.VIDEO;
-            if (animate) {
+            // Immagine caricata dall'utente: ha la precedenza sulla sorgente "Anima", solo per i video
+            // (per un modello immagine e' ignorata, come la sorgente). Salvata per ultima, subito prima
+            // di create: il file lo elimina GenerationService#create se la creazione fallisce.
+            boolean upload = formType.kind() == GenerationKind.VIDEO && sourceUpload != null && !sourceUpload.isEmpty();
+            if (animate || upload) {
                 parameters.remove("aspect_ratio");
             }
             String parametersJson = objectMapper.writeValueAsString(parameters);
+            String uploadFilename = upload ? imageStorageService.storeUpload(sourceUpload) : null;
+            boolean fromGeneration = animate && !upload;
             Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
-                    formType.kind(), animate ? sourceGeneration.getId() : null, animate ? sourceImage : null);
+                    formType.kind(), fromGeneration ? sourceGeneration.getId() : null,
+                    fromGeneration ? sourceImage : null, uploadFilename);
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
@@ -152,6 +185,14 @@ public class GenerationController {
             populateGenerationParamsModel(uiModel, model, allParams);
             return "fragments/generate-form :: form";
         }
+    }
+
+    private PromptEnhancementService.SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
+        if (upload != null && !upload.isEmpty()) {
+            return imageStorageService.inspectUpload(upload);
+        }
+        Generation source = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
+        return source == null ? null : imageStorageService.read(sourceImage);
     }
 
     /**
@@ -201,19 +242,32 @@ public class GenerationController {
      * questo solo di una riscrittura testo via LLM - non vanno confusi.
      */
     @PostMapping("/enhance-prompt")
-    public String enhancePrompt(@RequestParam(required = false) String prompt, Model model) {
+    public String enhancePrompt(@RequestParam(required = false) String prompt,
+                                 @RequestParam(required = false) String model,
+                                 @RequestParam(required = false) MultipartFile sourceUpload,
+                                 @RequestParam(required = false) Long sourceGenerationId,
+                                 @RequestParam(required = false) String sourceImage,
+                                 Model uiModel) {
         String draft = prompt == null ? "" : prompt.trim();
-        if (draft.isEmpty()) {
-            model.addAttribute("prompt", prompt);
-            model.addAttribute("enhanceError", null);
-        } else {
-            try {
-                model.addAttribute("prompt", promptEnhancementService.enhance(draft));
-                model.addAttribute("enhanceError", null);
-            } catch (Exception e) {
-                model.addAttribute("prompt", prompt);
-                model.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", e.getMessage()));
+        // Flusso video: l'enhancer guarda l'immagine sorgente (upload > "Anima", stessa precedenza
+        // di create) e propone il movimento; con l'immagine anche la bozza vuota e' ammessa.
+        boolean video = model != null && modelCatalog.contains(model, GenerationKind.VIDEO);
+        try {
+            PromptEnhancementService.SourceImage image = video ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
+            if (draft.isEmpty() && image == null) {
+                uiModel.addAttribute("prompt", prompt);
+            } else {
+                uiModel.addAttribute("prompt", video ? promptEnhancementService.enhanceVideo(draft, image)
+                        : promptEnhancementService.enhance(draft));
             }
+            uiModel.addAttribute("enhanceError", null);
+        } catch (PromptEnhancementRefusedException e) {
+            // Il rifiuto del modello NON va nella textarea: si conserva la bozza e si mostra l'errore.
+            uiModel.addAttribute("prompt", prompt);
+            uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceRefused"));
+        } catch (Exception e) {
+            uiModel.addAttribute("prompt", prompt);
+            uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", e.getMessage()));
         }
         return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
     }
@@ -227,11 +281,16 @@ public class GenerationController {
      * valori inseriti dall'utente.
      */
     private void populateGenerationParamsModel(Model model, String modelValue, Map<String, String> allParams) {
-        model.addAttribute("models", modelCatalog.models());
+        // Immagini e video non si mescolano nel select: il tipo di media lo decide il modello corrente
+        // (video -> solo modelli video, altrimenti solo immagine). Si passa da un'altra pagina
+        // (header "Genera video" / "Genera immagine"), non dal select.
+        GenerationKind kind = modelCatalog.formTypeOf(modelValue).map(GenerationFormType::kind).orElse(GenerationKind.IMAGE);
+        model.addAttribute("models", modelCatalog.models(kind));
+        model.addAttribute("videoPage", kind == GenerationKind.VIDEO);
         model.addAttribute("model", modelValue);
         GenerationParameterHandler handler = modelCatalog.formTypeOf(modelValue)
                 .map(parameterHandlers::get)
-                .orElseGet(() -> modelCatalog.defaultModel()
+                .orElseGet(() -> modelCatalog.models(kind).stream().findFirst()
                         .map(m -> parameterHandlers.get(m.getFormType()))
                         .orElse(null));
         model.addAttribute("formType", handler == null ? null : handler.formType().name());

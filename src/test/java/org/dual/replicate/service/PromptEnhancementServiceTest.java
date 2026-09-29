@@ -28,7 +28,7 @@ class PromptEnhancementServiceTest {
                 .prompt().user(anyString()).call().content())
                 .thenReturn("  a majestic orange cat sitting on a windowsill, soft morning light  ");
 
-        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida");
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "vision", "fallback");
 
         assertThat(service.enhance("gatto arancione")).isEqualTo("a majestic orange cat sitting on a windowsill, soft morning light");
     }
@@ -40,8 +40,29 @@ class PromptEnhancementServiceTest {
                 .prompt().user(anyString()).call().content())
                 .thenReturn(null);
 
-        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida");
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "vision", "fallback");
 
         assertThat(service.enhance("gatto arancione")).isEmpty();
+    }
+
+    @Test
+    void isRefusalRecognisesTypicalRefusalsAndEmptyOutput() {
+        assertThat(PromptEnhancementService.isRefusal("I'm sorry, I can't help with that.")).isTrue();
+        assertThat(PromptEnhancementService.isRefusal("I cannot describe this image")).isTrue();
+        assertThat(PromptEnhancementService.isRefusal("  ")).isTrue();
+        assertThat(PromptEnhancementService.isRefusal(null)).isTrue();
+        assertThat(PromptEnhancementService.isRefusal("The camera slowly dollies in as her hair sways in the breeze.")).isFalse();
+    }
+
+    @Test
+    void enhanceVideoWithoutImageUsesTheTextModel() {
+        ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.defaultSystem(anyString()).build()
+                .prompt().system(anyString()).user(anyString()).call().content())
+                .thenReturn(" slow pan across the room ");
+
+        PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "vision", "fallback");
+
+        assertThat(service.enhanceVideo("stanza", null)).isEqualTo("slow pan across the room");
     }
 }

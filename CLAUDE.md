@@ -62,10 +62,14 @@ L'applicazione serve a:
    sorgente come hidden `sourceGenerationId` + `sourceImage` e `GenerationController#create` la
    invia a Replicate come data-URI (`ImageStorageService#readAsDataUri`,
    `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`); senza sorgente
-   p-video funziona da text-to-video. `/deep-chat` propone SOLO modelli immagine
+   p-video funziona da text-to-video. **Upload stand-alone**: il link "Genera video" dell'header
+   (`/generations/new?kind=video`) preseleziona p-video, il cui fragment ha un `<input type=file name=sourceUpload>`
+   (form `hx-encoding=multipart`); `ImageStorageService#storeUpload` valida i magic bytes (png/jpeg/webp, max 10 MB),
+   salva `upload-<uuid>.<ext>` (NON una `Generation`), lo traccia in `Generation.sourceUploadFilename` (V14), ha la
+   precedenza sulla sorgente "Anima" e viene eliminato con la generazione (o se la creazione fallisce). `/deep-chat` propone SOLO modelli immagine
    (`ReplicateModelCatalog#models(GenerationKind)`): il tool di chat non genera
    video. `disable_safety_checker` e' forzato solo per le immagini (p-video non
-   lo dichiara). Fuori scope per ora: upload di un file esterno, audio-to-video,
+   lo dichiara). Fuori scope per ora: audio-to-video,
    video in chat.
    **Costo** — il dettaglio riporta il costo *stimato* della generazione
    (l'API Replicate non lo espone, solo `metrics`): `ReplicatePricing` (funzione
@@ -271,7 +275,7 @@ src/main/java/org/dual/replicate/
     PVideoParameterHandler.java # GenerationParameterHandler di P_VIDEO: duration/aspect_ratio/resolution/fps/draft/prompt_upsampling/seed (schema reale di prunaai/p-video, vedi migrazione V12); `image` lo aggiunge GenerationController (Anima)
     ReplicatePricing.java (in replicate/) # stima del costo USD di una prediction completata da metrics, una regola per modello (vedi Scopo)
     ImageStorageService.java    # scrive (in streaming) i file immagine/video su storage.images-dir; readAsDataUri() per l'input img2video
-    PromptEnhancementService.java # riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
+    PromptEnhancementService.java # (anche enhanceVideo: per i video guarda l'immagine sorgente con un modello di visione OpenRouter non moderato, `enhancer.vision-model`/`vision-fallback-model`, guida in prompts.properties `generateForm.video-prompt-enhancement-guide`; un rifiuto del modello e' intercettato e non sovrascrive la textarea) riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
     ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
     DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
     DeepChatGenerationWatcher.java # @Async: attende in background l'esito di una generazione avviata da /deep-chat, la persiste come nuovo turno e la notifica via SSE
@@ -300,6 +304,7 @@ src/main/resources/
     V11__generation_conversation.sql # colonna GENERATION.CONVERSATION_ID (nullable, FK ON DELETE SET NULL): conversazione che ha avviato la generazione, per ripristinare il placeholder al reload di /deep-chat
     V12__video_generation.sql        # GENERATION.KIND (IMAGE/VIDEO) + SOURCE_GENERATION_ID (FK ON DELETE SET NULL), estende l'ENUM FORM_TYPE + seed di prunaai/p-video (VERSION NULL, SORT_ORDER 3)
     V13__generation_cost.sql         # colonna GENERATION.COST_USD (DECIMAL, nullable): costo stimato al completamento, vedi ReplicatePricing
+    V14__generation_source_upload.sql # colonna GENERATION.SOURCE_UPLOAD_FILENAME (nullable): immagine caricata dall'utente come sorgente di un img2video stand-alone
     V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
     index.html                   # home

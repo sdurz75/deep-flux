@@ -87,4 +87,23 @@ class ImageStorageServiceTest {
         assertThatThrownBy(() -> service.readAsDataUri("../secret.png")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.readAsDataUri("nope.png")).isInstanceOf(UncheckedIOException.class);
     }
+
+    @Test
+    void storeUploadSavesUnderGeneratedNameDetectingTypeFromMagicBytes() throws IOException {
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1};
+        var upload = new org.springframework.mock.web.MockMultipartFile("sourceUpload", "../../evil.jpg", "image/jpeg", png);
+
+        String filename = service.storeUpload(upload);
+
+        assertThat(filename).startsWith("upload-").endsWith(".png").doesNotContain("evil");
+        assertThat(Files.readAllBytes(dir.resolve(filename))).isEqualTo(png);
+    }
+
+    @Test
+    void storeUploadRejectsNonImagesEvenWithAnImageContentType() {
+        var upload = new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", "not an image".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> service.storeUpload(upload)).isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
+        assertThat(dir.toFile().list()).isEmpty();
+    }
 }
