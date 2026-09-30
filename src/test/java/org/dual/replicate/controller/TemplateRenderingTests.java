@@ -342,6 +342,19 @@ class TemplateRenderingTests {
                 .doesNotContain("href=\"/search\""); // ricerca semantica spenta nei test: niente link a una pagina inesistente
     }
 
+    /** Voci raggruppate in menu (Crea/Archivio/Sistema): gli stessi link stanno sia nella barra sia nello slideover. */
+    @Test
+    void headerGroupsLinksIntoMenusInBarAndSlideover() throws Exception {
+        String page = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String body = page.substring(page.indexOf("<header"), page.indexOf("</header>"));
+
+        assertThat(body).contains("Crea").contains("Archivio").contains("Sistema").contains("aria-haspopup=\"true\"");
+        assertThat(body.split("href=\"/generations/new\\?kind=video\"", -1)).hasSize(3); // barra + slideover
+        assertThat(body.split("href=\"/gallery\"", -1)).hasSize(3);
+        assertThat(body.split("href=\"/errors\"", -1)).hasSize(3);
+        assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(7); // 3 menu x 2 contenitori
+    }
+
     /**
      * Rifiuto atteso che risale a un controller (qui: la star di un file che non e' della generazione, tab vecchia): NON e'
      * un guasto, quindi nessuna riga nel registro errori, ma l'utente htmx vede comunque il messaggio (toast) e lo status e' 422.

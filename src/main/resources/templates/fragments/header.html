@@ -14,6 +14,9 @@
       sticky top-0: la barra resta visibile durante lo scroll (z-40, sotto lo
       z-[99] di lightbox/modal). navOpen: stato dello slideover mobile
       (scope Alpine annidato: "theme" del <body> resta ereditato).
+      Le voci sono raggruppate in menu a tendina Pines (navMenu): Crea, Archivio, Deep Chat (link diretto), Sistema.
+      Gli STESSI fragment alimentano la barra (inline=false: pannello assoluto) e lo slideover sotto md (inline=true:
+      gruppo che si espande sul posto), cosi' i menu funzionano anche a barra nascosta.
     -->
     <header class="sticky top-0 z-40 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark"
             x-data="{ navOpen: false }" @keydown.escape.window="navOpen = false">
@@ -21,10 +24,8 @@
         <nav class="max-w-[1200px] mx-auto px-4 py-4 flex items-center justify-between gap-4">
             <button th:replace="~{fragments/button :: navToggle(open='true', content='☰', title=#{header.nav.open})}">☰</button>
             <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-md:flex-1">deep-flux</a>
-            <div class="flex gap-4 flex-1 max-md:hidden"
-                 th:insert="~{fragments/header :: navLinks}"></div>
-            <div class="flex gap-1 max-md:hidden"
-                 th:insert="~{fragments/header :: themeSwitch}"></div>
+            <div class="flex items-center gap-4 flex-1 max-md:hidden"
+                 th:insert="~{fragments/header :: navLinks(inline=false)}"></div>
         </nav>
 
         <!-- Slideover Pines UI (solo sotto md) -->
@@ -40,28 +41,59 @@
                 <div class="flex justify-start">
                     <button th:replace="~{fragments/button :: navToggle(open='false', content='✕', title=#{header.nav.close})}">✕</button>
                 </div>
-                <div class="flex flex-col gap-4 mt-4" @click="navOpen = false"
-                     th:insert="~{fragments/header :: navLinks}"></div>
-                <div class="flex gap-1 mt-6" th:insert="~{fragments/header :: themeSwitch}"></div>
+                <!-- Chiude lo slideover solo cliccando un link, non i toggle dei menu. -->
+                <div class="flex flex-col gap-4 mt-4" @click="if ($event.target.closest('a')) navOpen = false"
+                     th:insert="~{fragments/header :: navLinks(inline=true)}"></div>
             </aside>
         </div>
     </header>
 </th:block>
 
-<th:block th:fragment="navLinks">
-    <a th:replace="~{fragments/header :: navLink(path='/', text=#{header.nav.home})}">Home</a>
+<!-- Voci di primo livello: tre menu semantici + Deep Chat (link diretto, l'azione principale). -->
+<th:block th:fragment="navLinks(inline)">
+    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.create}, items=~{fragments/header :: navCreate}, inline=${inline})}"></div>
+    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.archive}, items=~{fragments/header :: navArchive}, inline=${inline})}"></div>
+    <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
+    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.system}, items=~{fragments/header :: navSystem}, inline=${inline})}"></div>
+</th:block>
+
+<th:block th:fragment="navCreate">
     <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
     <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
     <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
+</th:block>
+
+<th:block th:fragment="navArchive">
     <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
-    <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
+    <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
     <!-- Solo con la ricerca semantica attiva (app.search.enabled): senza, /search non esiste. -->
     <th:block th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}">
         <a th:replace="~{fragments/header :: navLink(path='/search', text=#{header.nav.search})}">Ricerca</a>
     </th:block>
-    <a th:replace="~{fragments/header :: navLink(path='/errors', text=#{header.nav.errors})}">Errori</a>
 </th:block>
+
+<th:block th:fragment="navSystem">
+    <a th:replace="~{fragments/header :: navLink(path='/errors', text=#{header.nav.errors})}">Errori</a>
+    <div class="flex items-center gap-1 px-2 py-1.5">
+        <span class="mr-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{header.menu.theme}">Tema</span>
+        <th:block th:insert="~{fragments/header :: themeSwitch}"></th:block>
+    </div>
+</th:block>
+
+<!--
+  Menu a tendina Pines UI: stato Alpine locale `open` (scope annidato, `theme`/`navOpen` restano ereditati); si chiude con
+  click fuori o Esc. `items` e' un fragment-expression con le voci; inline=false = pannello assoluto sotto il toggle (barra),
+  inline=true = gruppo che si espande sul posto (slideover). I link dentro il pannello prendono padding dal selettore
+  figlio-diretto (`[&>a]`), cosi' navLink resta identico ovunque.
+-->
+<div th:fragment="navMenu(label, items, inline)" class="relative" x-data="{ open: false }"
+     @click.outside="open = false" @keydown.escape.window="open = false">
+    <button th:replace="~{fragments/button :: menuToggle(text=${label})}">Menu</button>
+    <div x-show="open" x-cloak x-transition.opacity
+         th:classappend="${inline} ? 'mt-2 ml-2 pl-2 border-l border-line dark:border-line-dark flex flex-col gap-1 [&>a]:py-1.5'
+                                   : 'absolute left-0 top-full mt-2 z-50 min-w-48 rounded-md p-1 flex flex-col gap-0.5 shadow-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark [&>a]:px-2 [&>a]:py-1.5 [&>a]:rounded'"
+         th:insert="${items}"></div>
+</div>
 
 <th:block th:fragment="themeSwitch">
     <button th:replace="~{fragments/button :: themeToggle(value='light', content='☀️', title=#{header.theme.light})}">☀️</button>
