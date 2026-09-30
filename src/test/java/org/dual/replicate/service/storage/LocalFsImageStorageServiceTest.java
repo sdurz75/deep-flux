@@ -42,6 +42,17 @@ class LocalFsImageStorageServiceTest {
             exchange.sendResponseHeaders(404, -1);
             exchange.close();
         });
+        java.util.concurrent.atomic.AtomicInteger flakyCalls = new java.util.concurrent.atomic.AtomicInteger();
+        server.createContext("/flaky.mp4", exchange -> {
+            if (flakyCalls.incrementAndGet() == 1) {
+                exchange.sendResponseHeaders(503, -1);
+            } else {
+                byte[] body = "video-bytes".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
         server.start();
         Messages messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
@@ -62,6 +73,14 @@ class LocalFsImageStorageServiceTest {
         String filename = service.downloadAndStore(url("/x.mp4"));
 
         assertThat(filename).matches("[0-9a-f]{64}\\.mp4");
+        assertThat(Files.readString(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo("video-bytes");
+    }
+
+    /** Un blip transitorio non deve far fallire una prediction riuscita (gli URL di output scadono); un 404 invece no. */
+    @Test
+    void aTransientDownloadErrorIsRetried() throws IOException {
+        String filename = service.downloadAndStore(url("/flaky.mp4"));
+
         assertThat(Files.readString(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo("video-bytes");
     }
 

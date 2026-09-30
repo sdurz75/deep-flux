@@ -273,7 +273,8 @@ class WebDavImageStorageServiceTest {
         assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png"))
                 .isInstanceOf(StorageException.class);
 
-        assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 3); // 1 tentativo + 2 ritentativi
+        // 3 tentativi WebDAV per ognuno dei 3 tentativi di download (retry nidificati, accettato: vedi AbstractImageStorageService)
+        assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 9);
         assertThat(store).hasSize(1); // niente .part rimasto
     }
 

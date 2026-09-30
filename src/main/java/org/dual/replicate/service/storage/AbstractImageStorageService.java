@@ -10,7 +10,9 @@ import java.util.OptionalLong;
 
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
+import org.dual.replicate.remote.RemoteCaller;
 import org.dual.replicate.remote.RestClientTranslator;
+import org.dual.replicate.remote.RetryPolicy;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.dual.replicate.service.PromptEnhancementService;
@@ -51,27 +53,28 @@ public abstract class AbstractImageStorageService implements IImageStorageServic
     @Override
     public String downloadAndStore(String sourceUrl) {
         String filename = newFilename(extensionFrom(sourceUrl));
-        try {
-            restClient.get()
-                    .uri(URI.create(sourceUrl))
-                    .exchange((request, response) -> {
-                        if (response.getStatusCode().isError()) {
-                            throw new IOException("HTTP " + response.getStatusCode().value() + " da " + sourceUrl);
-                        }
-                        write(filename, response.getBody());
-                        return null;
-                    });
-        } catch (RestClientException e) {
-            // RestClient incapsula l'IOException dell'exchange (download o scrittura) in ResourceAccessException.
-            throw new StorageException(messages.get("imagestorage.error.saveImage", filename), e, downloadFailureKind(e));
-        } catch (IllegalArgumentException e) {
-            // URI.create su un URL di output malformato.
-            throw new StorageException(messages.get("imagestorage.error.saveImage", filename), e, Kind.PERMANENT);
-        }
+        // Un blip di rete durante il download di una prediction RIUSCITA la farebbe fallire (gli URL di output scadono):
+        // si ritenta l'intero download+scrittura (idempotente: stesso nome, scrittura atomica). Se il backend ritenta gia'
+        // da se' (WebDAV) i tentativi si moltiplicano (fino a 3x3): accettato, e' un caso sporadico e l'esito peggiore e'
+        // solo qualche richiesta in piu' prima di fallire.
+        RemoteCaller.builder(e -> new StorageException(messages.get("imagestorage.error.saveImage", filename), e,
+                        downloadFailureKind(e)))
+                .retry(RetryPolicy.DEFAULT).build()
+                .call("downloadOutput", () -> restClient.get()
+                        .uri(URI.create(sourceUrl))
+                        .exchange((request, response) -> {
+                            if (response.getStatusCode().isError()) {
+                                int status = response.getStatusCode().value();
+                                throw new StorageException("HTTP " + status + " da " + sourceUrl, null,
+                                        RestClientTranslator.kindOfStatus(status));
+                            }
+                            write(filename, response.getBody());
+                            return null;
+                        }));
         return filename;
     }
 
-    private static Kind downloadFailureKind(RestClientException e) {
+    private static Kind downloadFailureKind(Throwable e) {
         if (e instanceof RestClientResponseException response) {
             return RestClientTranslator.kindOfStatus(response.getStatusCode().value());
         }
