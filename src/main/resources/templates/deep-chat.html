@@ -477,7 +477,45 @@
             // Risultato di una generazione (fragments/generation-result.html): messaggio "html"
             // con testo, bottone nascondi/mostra e le immagini; rimpiazza il placeholder.
             const resultTemplate = document.getElementById('generation-result-tpl').innerHTML;
-            const resultHtml = (generationId, text, files) => !files || !files.length
+            // Stato nascondi/mostra delle immagini per generazione: preferenza di visualizzazione del
+            // browser (localStorage, ids delle generazioni nascoste), ripristinata anche al reload.
+            const HIDDEN_KEY = 'deepChat.hiddenGenerations';
+            const hiddenGenerations = () => {
+                try {
+                    return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]');
+                } catch (e) {
+                    return [];
+                }
+            };
+            const rememberHidden = (generationId, hidden) => {
+                try {
+                    const ids = hiddenGenerations().filter((id) => String(id) !== String(generationId));
+                    if (hidden) {
+                        ids.push(generationId);
+                    }
+                    localStorage.setItem(HIDDEN_KEY, JSON.stringify(ids));
+                } catch (e) {
+                    // localStorage non disponibile: lo stato vale solo finche' la pagina resta aperta.
+                }
+            };
+            const asHidden = (html) => {
+                const tpl = document.createElement('template');
+                tpl.innerHTML = html;
+                const images = tpl.content.querySelector('.gen-images');
+                const button = tpl.content.querySelector('.gen-toggle');
+                if (!images || !button) {
+                    return html;
+                }
+                images.style.display = 'none';
+                button.textContent = button.dataset.showText;
+                return tpl.innerHTML;
+            };
+            const resultHtml = (generationId, text, files) => {
+                const html = buildResultHtml(generationId, text, files);
+                return files && files.length && generationId != null
+                    && hiddenGenerations().some((id) => String(id) === String(generationId)) ? asHidden(html) : html;
+            };
+            const buildResultHtml = (generationId, text, files) => !files || !files.length
                 ? '<span style="white-space:pre-wrap">' + escapeHtml(text) + '</span>'
                 : resultTemplate
                 .replace(/__ID__/g, String(generationId == null ? '' : generationId))
@@ -492,7 +530,7 @@
             // vengono rimandati all'LLM come contesto (i messaggi html non sono testo della richiesta).
             deepChat.history = (window.deepChatHistory || []).map((m) =>
                 m.error ? {role: 'ai', html: '<span style="color:#cf222e">' + escapeHtml(m.text) + '</span>'}
-                : m.files && m.files.length ? {role: m.role, html: resultHtml(null, m.text, m.files)} : m);
+                : m.files && m.files.length ? {role: m.role, html: resultHtml(m.generationId, m.text, m.files)} : m);
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
                 const parameters = {};
@@ -567,6 +605,10 @@
                             const hidden = images.style.display !== 'none';
                             images.style.display = hidden ? 'none' : 'flex';
                             button.textContent = hidden ? button.dataset.showText : button.dataset.hideText;
+                            const generationId = button.closest('[data-generation-result]').dataset.generationId;
+                            if (generationId) {
+                                rememberHidden(generationId, hidden);
+                            }
                         }
                     }
                 },

@@ -193,10 +193,12 @@ public class DeepChatController {
     private HistoryMessage toHistoryMessage(ChatMessage message) {
         String role = message.getRole() == ChatMessageRole.USER ? "user" : "ai";
         List<DeepChatService.FileRef> files = DeepChatService.toFiles(message.getGeneration());
-        return new HistoryMessage(role, message.getContent(), files, message.isError() ? Boolean.TRUE : null);
+        Long generationId = message.getGeneration() != null ? message.getGeneration().getId() : null;
+        return new HistoryMessage(role, message.getContent(), files, message.isError() ? Boolean.TRUE : null, generationId);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private record HistoryMessage(String role, String text, List<DeepChatService.FileRef> files, Boolean error) {
+    private record HistoryMessage(String role, String text, List<DeepChatService.FileRef> files, Boolean error,
+                                  Long generationId) {
     }
 }
