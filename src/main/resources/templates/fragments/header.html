@@ -10,36 +10,58 @@
   su quella dei template sorgente) resta invariato.
 -->
 <th:block th:fragment="header">
-    <header class="border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark">
-        <!--
-          px-4 fisso (non il clamp fluido di <main>/<footer>, vedi
-          fragments/layout.html): comportamento gia' cosi' prima di
-          questa migrazione, riprodotto qui, non una differenza
-          introdotta ora. max-sm: sotto i 640px: ognuno dei tre blocchi
-          (brand, nav-links, theme-switch) va sulla propria riga a piena
-          larghezza, altrimenti a quella soglia si accavallano (brand
-          non si restringe, verificato a 390px).
-        -->
-        <nav class="max-w-[1200px] mx-auto px-4 py-4 flex items-center justify-between gap-4
-                    max-sm:flex-wrap max-sm:gap-2">
-            <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-sm:basis-full">deep-flux</a>
-            <div class="flex gap-4 flex-1 max-sm:order-1 max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-2 max-sm:basis-full">
-                <a th:replace="~{fragments/header :: navLink(path='/', text=#{header.nav.home})}">Home</a>
-                <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
-                <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
-                <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
-                <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
-                <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
-                <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
-            </div>
-
-            <div class="flex gap-1 max-sm:order-2 max-sm:basis-full">
-                <button th:replace="~{fragments/button :: themeToggle(value='light', content='☀️', title=#{header.theme.light})}">☀️</button>
-                <button th:replace="~{fragments/button :: themeToggle(value='dark', content='🌙', title=#{header.theme.dark})}">🌙</button>
-                <button th:replace="~{fragments/button :: themeToggle(value='auto', content=#{header.theme.auto}, title=#{header.theme.auto})}">Auto</button>
-            </div>
+    <!--
+      sticky top-0: la barra resta visibile durante lo scroll (z-40, sotto lo
+      z-[99] di lightbox/modal). navOpen: stato dello slideover mobile
+      (scope Alpine annidato: "theme" del <body> resta ereditato).
+    -->
+    <header class="sticky top-0 z-40 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark"
+            x-data="{ navOpen: false }" @keydown.escape.window="navOpen = false">
+        <!-- px-4 fisso (non il clamp fluido di <main>/<footer>, vedi fragments/layout.html). -->
+        <nav class="max-w-[1200px] mx-auto px-4 py-4 flex items-center justify-between gap-4">
+            <button th:replace="~{fragments/button :: navToggle(open='true', content='☰', title=#{header.nav.open})}">☰</button>
+            <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-md:flex-1">deep-flux</a>
+            <div class="flex gap-4 flex-1 max-md:hidden"
+                 th:insert="~{fragments/header :: navLinks}"></div>
+            <div class="flex gap-1 max-md:hidden"
+                 th:insert="~{fragments/header :: themeSwitch}"></div>
         </nav>
+
+        <!-- Slideover Pines UI (solo sotto md) -->
+        <div x-show="navOpen" x-cloak class="md:hidden" x-trap.inert.noscroll="navOpen">
+            <div class="fixed inset-0 z-[99] bg-scrim/50" @click="navOpen = false"
+                 x-show="navOpen" x-transition.opacity></div>
+            <aside class="fixed inset-y-0 left-0 z-[100] w-64 max-w-[80vw] overflow-y-auto p-4
+                          bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark shadow-xl"
+                   x-show="navOpen"
+                   x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full"
+                   x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-150"
+                   x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full">
+                <div class="flex justify-start">
+                    <button th:replace="~{fragments/button :: navToggle(open='false', content='✕', title=#{header.nav.close})}">✕</button>
+                </div>
+                <div class="flex flex-col gap-4 mt-4" @click="navOpen = false"
+                     th:insert="~{fragments/header :: navLinks}"></div>
+                <div class="flex gap-1 mt-6" th:insert="~{fragments/header :: themeSwitch}"></div>
+            </aside>
+        </div>
     </header>
+</th:block>
+
+<th:block th:fragment="navLinks">
+    <a th:replace="~{fragments/header :: navLink(path='/', text=#{header.nav.home})}">Home</a>
+    <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
+    <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
+    <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
+    <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
+    <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
+    <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
+</th:block>
+
+<th:block th:fragment="themeSwitch">
+    <button th:replace="~{fragments/button :: themeToggle(value='light', content='☀️', title=#{header.theme.light})}">☀️</button>
+    <button th:replace="~{fragments/button :: themeToggle(value='dark', content='🌙', title=#{header.theme.dark})}">🌙</button>
+    <button th:replace="~{fragments/button :: themeToggle(value='auto', content=#{header.theme.auto}, title=#{header.theme.auto})}">Auto</button>
 </th:block>
 
 <!--

@@ -192,6 +192,21 @@
                color:inherit;cursor:pointer;font-size:0.85rem"
         th:text="${text}">Nascondi</button>
 
+<!--
+  navToggle(open, content, title): md:hidden (i due usi stanno solo sotto md). apre (open=true) o chiude (open=false) lo
+  slideover di navigazione di fragments/header.html (stato Alpine navOpen sul
+  <header>). Valore per-istanza via data-* letto con $el.dataset, stesso ponte
+  di themeToggle qui sotto.
+-->
+<button th:fragment="navToggle(open, content, title)"
+        type="button"
+        th:data-nav-open="${open}"
+        class="border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
+               rounded-md px-3 py-1 cursor-pointer text-lg leading-none md:hidden"
+        @click="navOpen = $el.dataset.navOpen === 'true'"
+        th:title="${title}" th:aria-label="${title}"
+        th:text="${content}">☰</button>
+
 <button th:fragment="themeToggle(value, content, title)"
         type="button"
         th:data-theme-value="${value}"

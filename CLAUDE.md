@@ -332,7 +332,7 @@ src/main/resources/
     deep-chat.html                # pagina che ospita <deep-chat> + rail sinistro non collassabile (lista conversazioni/impostazioni) + accordion collassabile (galleria contestuale)
     fragments/
       layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect, config Tailwind + @layer base
-      header.html                # header di navigazione + theme switch, incluso da layout.html
+      header.html                # header di navigazione + theme switch, incluso da layout.html (sticky; sotto md link/theme switch stanno in uno slideover Pines UI, stato Alpine `navOpen`, bottoni `button.html :: navToggle`)
       button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle/aiEnhance) e delle icone overlay dei thumbnail (animateOverlay, downloadOverlay: <a download> verso /images/**, su ogni thumbnail di gallery-card e generation-images, video inclusi), vedi "Convenzione: theming"
       alert.html                 # fragment error(text): box di errore/avviso, riusato da generate-form/generation/generation-params
       generate-form.html         # fragment del form (riusato anche per mostrare errori); promptField(prompt, enhanceError) e' il blocco label+textarea+icona "AI enhance", risostituito per intero (outerHTML) da POST /generations/enhance-prompt
