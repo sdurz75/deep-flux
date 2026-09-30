@@ -56,6 +56,10 @@
     <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
     <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
     <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
+    <!-- Solo con la ricerca semantica attiva (app.search.enabled): senza, /search non esiste. -->
+    <th:block th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}">
+        <a th:replace="~{fragments/header :: navLink(path='/search', text=#{header.nav.search})}">Ricerca</a>
+    </th:block>
     <a th:replace="~{fragments/header :: navLink(path='/errors', text=#{header.nav.errors})}">Errori</a>
 </th:block>
 

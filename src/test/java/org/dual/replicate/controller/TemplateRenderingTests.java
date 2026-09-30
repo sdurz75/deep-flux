@@ -338,7 +338,8 @@ class TemplateRenderingTests {
     void layoutHasToastContainerAndErrorsNavLink() throws Exception {
         String body = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).contains("@app-error.window").contains("href=\"/errors\"");
+        assertThat(body).contains("@app-error.window").contains("href=\"/errors\"")
+                .doesNotContain("href=\"/search\""); // ricerca semantica spenta nei test: niente link a una pagina inesistente
     }
 
     /**

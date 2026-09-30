@@ -528,7 +528,20 @@
             // Cronologia: i turni con immagini tornano come messaggi html (con controllo), non "files".
             // I turni d'errore (LLM fallito, ChatMessage.error) tornano come html con stile d'errore: cosi' non
             // vengono rimandati all'LLM come contesto (i messaggi html non sono testo della richiesta).
+            // Link alle generazioni nel testo dell'assistente (es. "/generations/12" dal tool searchArchive): il path
+            // assoluto sparirebbe dietro un reverse proxy su subpath, quindi diventa un link markdown RELATIVO alla pagina
+            // corrente (/deep-chat -> generations/12, /deep-chat/5 -> ../generations/12). Solo in visualizzazione: il
+            // testo salvato resta quello originale.
+            const generationHref = (id) => {
+                const at = location.pathname.lastIndexOf('/deep-chat');
+                const depth = (location.pathname.slice(at + 1).match(/\//g) || []).length;
+                return '../'.repeat(depth) + 'generations/' + id;
+            };
+            const linkGenerations = (text) => typeof text !== 'string' ? text
+                : text.replace(/(\]\()?(?<![\w\/.])\/generations\/(\d+)/g,
+                    (match, inLink, id) => inLink ? inLink + generationHref(id) : '[#' + id + '](' + generationHref(id) + ')');
             deepChat.history = (window.deepChatHistory || []).map((m) =>
+                m.role === 'ai' && m.text && !m.error && !(m.files && m.files.length) ? {...m, text: linkGenerations(m.text)} :
                 m.error ? {role: 'ai', html: '<span style="color:#cf222e">' + escapeHtml(m.text) + '</span>'}
                 : m.files && m.files.length ? {role: m.role, html: resultHtml(m.generationId, m.text, m.files)} : m);
             deepChat.requestInterceptor = (details) => {
@@ -637,6 +650,9 @@
 
             // Risposta del turno: se ha avviato generazioni, i placeholder finiscono nella stessa bolla.
             deepChat.responseInterceptor = (response) => {
+                if (response && response.text) {
+                    response.text = linkGenerations(response.text);
+                }
                 if (response && response.generationIds && response.generationIds.length) {
                     response.html = response.generationIds.map(placeholderHtml).join('');
                 }

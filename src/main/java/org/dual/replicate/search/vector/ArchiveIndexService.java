@@ -51,7 +51,7 @@ public class ArchiveIndexService {
     public static final String TYPE_CHAT = "chat";
     public static final String TYPE_CONVERSATION = "conversation";
     /** ~512 token del modello: oltre, il tokenizer tronca comunque. */
-    static final int MAX_CHARS = 1800;
+    public static final int MAX_CHARS = 1800;
 
     private final H2VectorStore store;
     private final GenerationRepository generations;
@@ -96,7 +96,7 @@ public class ArchiveIndexService {
     }
 
     /** Non blocca il chiamante; richieste durante un giro ne fanno ripartire uno solo alla fine. */
-    void reindexAsync() {
+    public void reindexAsync() {
         if (!running.compareAndSet(false, true)) {
             rerun.set(true);
             return;
@@ -111,6 +111,11 @@ public class ArchiveIndexService {
                 running.set(false);
             }
         });
+    }
+
+    /** {@code true} mentre un giro di riconciliazione e' in corso. */
+    public boolean isRunning() {
+        return running.get();
     }
 
     /** Un giro completo (sincrono). */

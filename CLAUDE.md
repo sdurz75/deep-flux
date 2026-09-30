@@ -415,7 +415,24 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
 - `app.search.enabled=false` (i test, `application-test.yml`) spegne indice, tool ed `EmbeddingModel` (`spring.ai.model.embedding=none`):
   `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`). Prove reali, opt-in:
   `mvn test -Dtest='E5ModelSmokeTest,SemanticSearchWiringTest' -Dsemantic.model.test=true`.
-- Fuori scope per ora: UI di ricerca in galleria/liste, descrizioni delle immagini con un modello di visione.
+- **UI `/search`** (`SemanticSearchController`, `search.html` + `fragments/search.html`; link nell'header solo con `app.search.enabled`):
+  interroga (`GET /search/results`, punteggi in %, via l'interfaccia `VectorStore`), sfoglia per tipo (`/search/list/{type}`: il tipo sta
+  nel PATH cosi' la paginazione generica non lo perde), mostra dettagli/metadata/modello/hash, statistiche e "Riconcilia ora".
+  **Solo le note manuali (`type=note`) sono creabili/modificabili/eliminabili**: la riconciliazione non le tocca. I documenti
+  derivati (generation/chat/conversation) sono in sola lettura (la fonte di verita' e' il DB, una modifica o cancellazione a mano
+  verrebbe annullata al giro dopo): su di essi solo "Ri-embedda" (anche dopo un cambio di modello). Un id non-nota su
+  modifica/eliminazione => 422.
+  "Nuova nota" e "Modifica" usano lo STESSO **dialog modale Pines** (`search.html`, stessa meccanica del lightbox:
+  `x-data="{ dialogOpen: false }"`, `x-trap.inert.noscroll`, senza teleport; bottoni `button :: dialogOpen|dialogClose|dialogCloseIcon`,
+  che assumono `dialogOpen` su un antenato). `dialogOpen` con `hxGet` ricarica `#note-form` (`fragments/search :: noteForm`, vuoto per
+  `GET /search/notes/new`, precompilato per `/search/notes/{id}/edit`) a ogni apertura. Al salvataggio riuscito il server emette
+  `HX-Trigger: note-saved` (`AppErrorService#addHxTrigger`) che chiude il dialog (risposta: elenco in creazione, riga `#doc-...`
+  in modifica); con un errore di validazione risponde col form (`HX-Retarget: #note-form`) e il dialog resta aperto. Le statistiche
+  si aggiornano fuori banda (`hx-swap-oob`).
+  La ricerca ha una **soglia di somiglianza minima** in % (`threshold`, 0..100, default `app.search.similarity-threshold-percent`=0):
+  i punteggi e5 sono compressi (tipicamente 70-90%), quindi la soglia utile e' alta.
+  Test del controller con embedding finto: `SemanticSearchControllerTest`.
+- Fuori scope per ora: ricerca semantica nelle liste/galleria esistenti, descrizioni delle immagini con un modello di visione.
 
 ## Comandi utili
 

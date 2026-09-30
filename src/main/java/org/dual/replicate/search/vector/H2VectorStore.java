@@ -50,7 +50,24 @@ public class H2VectorStore implements VectorStore {
     static final String QUERY_PREFIX = "query: ";
     private static final int BATCH = 32;
 
-    private record Entry(String id, String content, Map<String, Object> metadata, float[] vector, String model, String hash) {
+    private record Entry(String id, String content, Map<String, Object> metadata, float[] vector, String model, String hash,
+                         Instant updatedAt) {
+    }
+
+    /** Un documento cosi' come sta nello store, per l'interfaccia di amministrazione (senza il vettore). */
+    public record StoredDocument(String id, String type, Long refId, Long conversationId, String content,
+                                 Map<String, Object> metadata, String model, String hash, Instant updatedAt, int dimensions) {
+    }
+
+    /** Una pagina di {@link StoredDocument} (numerazione da 1). */
+    public record Listing(List<StoredDocument> documents, int page, int totalPages, long total) {
+        public boolean hasPrevious() {
+            return page > 1;
+        }
+
+        public boolean hasNext() {
+            return page < totalPages;
+        }
     }
 
     private final JdbcClient jdbc;
@@ -78,6 +95,8 @@ public class H2VectorStore implements VectorStore {
             Entry existing = entries.get(document.getId());
             if (existing == null || !existing.hash().equals(hash(document.getText())) || !embeddingModelId.equals(existing.model())) {
                 todo.add(document);
+            } else if (!sameMetadata(existing.metadata(), document.getMetadata())) {
+                upsert(document, existing.vector()); // solo i metadata sono cambiati: il vettore resta valido
             }
         }
         for (int from = 0; from < todo.size(); from += BATCH) {
@@ -145,6 +164,64 @@ public class H2VectorStore implements VectorStore {
         return entries.values().stream().filter(e -> type.equals(e.metadata().get("type"))).map(Entry::id).toList();
     }
 
+    /** Il documento {@code id}, se c'e'. */
+    public java.util.Optional<StoredDocument> find(String id) {
+        ensureLoaded();
+        return java.util.Optional.ofNullable(entries.get(id)).map(H2VectorStore::stored);
+    }
+
+    /** Una pagina (da 1) dei documenti di {@code type} ({@code null} = tutti), piu' recenti prima. */
+    public Listing list(String type, int page, int size) {
+        ensureLoaded();
+        List<Entry> matching = entries.values().stream()
+                .filter(e -> type == null || type.equals(e.metadata().get("type")))
+                .sorted(java.util.Comparator.comparing(Entry::updatedAt).reversed().thenComparing(Entry::id))
+                .toList();
+        int totalPages = Math.max(1, (int) Math.ceil(matching.size() / (double) size));
+        int current = Math.min(Math.max(1, page), totalPages);
+        List<StoredDocument> documents = matching.stream().skip((long) (current - 1) * size).limit(size)
+                .map(H2VectorStore::stored).toList();
+        return new Listing(documents, current, totalPages, matching.size());
+    }
+
+    /** Quanti documenti per {@code type}. */
+    public Map<String, Long> countsByType() {
+        ensureLoaded();
+        Map<String, Long> counts = new java.util.TreeMap<>();
+        entries.values().forEach(e -> counts.merge(String.valueOf(e.metadata().get("type")), 1L, Long::sum));
+        return counts;
+    }
+
+    /** Ricalcola l'embedding di {@code id} anche se testo e modello non sono cambiati. {@code false} se non esiste. */
+    public synchronized boolean reembed(String id) {
+        ensureLoaded();
+        Entry entry = entries.get(id);
+        if (entry == null) {
+            return false;
+        }
+        Document document = Document.builder().id(id).text(entry.content()).metadata(entry.metadata()).build();
+        upsert(document, normalize(embeddingModel.embed(PASSAGE_PREFIX + entry.content())));
+        return true;
+    }
+
+    /** L'id del modello di embedding corrente (l'URI ONNX) e la dimensione dei vettori. */
+    public String embeddingModelId() {
+        return embeddingModelId;
+    }
+
+    public int dimensions() {
+        ensureLoaded();
+        return entries.values().stream().findFirst().map(e -> e.vector().length).orElseGet(embeddingModel::dimensions);
+    }
+
+    private static StoredDocument stored(Entry e) {
+        Object conversationId = e.metadata().get("conversationId");
+        return new StoredDocument(e.id(), String.valueOf(e.metadata().get("type")),
+                ((Number) e.metadata().get("refId")).longValue(),
+                conversationId instanceof Number n ? n.longValue() : null, e.content(), e.metadata(), e.model(), e.hash(),
+                e.updatedAt(), e.vector().length);
+    }
+
     public int size() {
         ensureLoaded();
         return entries.size();
@@ -156,6 +233,7 @@ public class H2VectorStore implements VectorStore {
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());
         String hash = hash(document.getText());
         Object conversationId = metadata.get("conversationId");
+        Instant now = Instant.now();
         jdbc.sql("""
                 merge into VECTOR_DOC (ID, TYPE, REF_ID, CONVERSATION_ID, CONTENT, METADATA, EMBEDDING, EMBEDDING_MODEL, CONTENT_HASH, UPDATED_AT)
                 key (ID) values (:id, :type, :refId, :conversationId, :content, :metadata, :embedding, :model, :hash, :updatedAt)
@@ -169,20 +247,21 @@ public class H2VectorStore implements VectorStore {
                 .param("embedding", toBytes(vector))
                 .param("model", embeddingModelId)
                 .param("hash", hash)
-                .param("updatedAt", Timestamp.from(Instant.now()))
+                .param("updatedAt", Timestamp.from(now))
                 .update();
-        entries.put(document.getId(), new Entry(document.getId(), document.getText(), metadata, vector, embeddingModelId, hash));
+        entries.put(document.getId(), new Entry(document.getId(), document.getText(), metadata, vector, embeddingModelId, hash, now));
     }
 
     private synchronized void ensureLoaded() {
         if (loaded) {
             return;
         }
-        jdbc.sql("select ID, CONTENT, METADATA, EMBEDDING, EMBEDDING_MODEL, CONTENT_HASH from VECTOR_DOC").query(rs -> {
+        jdbc.sql("select ID, CONTENT, METADATA, EMBEDDING, EMBEDDING_MODEL, CONTENT_HASH, UPDATED_AT from VECTOR_DOC").query(rs -> {
             Map<String, Object> metadata = objectMapper.readValue(rs.getString("METADATA"), new TypeReference<Map<String, Object>>() {
             });
             entries.put(rs.getString("ID"), new Entry(rs.getString("ID"), rs.getString("CONTENT"), metadata,
-                    fromBytes(rs.getBytes("EMBEDDING")), rs.getString("EMBEDDING_MODEL"), rs.getString("CONTENT_HASH")));
+                    fromBytes(rs.getBytes("EMBEDDING")), rs.getString("EMBEDDING_MODEL"), rs.getString("CONTENT_HASH"),
+                    rs.getTimestamp("UPDATED_AT").toInstant()));
         });
         loaded = true;
         log.info("Vector store: {} documenti caricati", entries.size());
@@ -227,6 +306,11 @@ public class H2VectorStore implements VectorStore {
             return Double.compare(x.doubleValue(), y.doubleValue()) == 0;
         }
         return a.toString().equals(b.toString());
+    }
+
+    /** Numeri da JSON (Integer) e da codice (Long) sono lo stesso valore: si confrontano per valore, non per tipo. */
+    private static boolean sameMetadata(Map<String, Object> a, Map<String, Object> b) {
+        return a.keySet().equals(b.keySet()) && a.keySet().stream().allMatch(k -> same(a.get(k), b.get(k)));
     }
 
     private static boolean inList(Object value, Object list) {

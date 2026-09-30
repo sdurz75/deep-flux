@@ -142,4 +142,57 @@ class H2VectorStoreTest {
         assertThatThrownBy(() -> store.add(List.of(Document.builder().id("x").text("t").metadata(Map.of("type", "chat")).build())))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void adminApiFindsListsCountsAndReembeds() {
+        store.add(List.of(doc("generation:1", "gatto", "generation", 1), doc("chatmessage:1", "auto", "chat", 1),
+                doc("chatmessage:2", "mare", "chat", 2)));
+
+        assertThat(store.find("generation:1")).hasValueSatisfying(d -> {
+            assertThat(d.type()).isEqualTo("generation");
+            assertThat(d.refId()).isEqualTo(1L);
+            assertThat(d.model()).isEqualTo("modello-a");
+            assertThat(d.dimensions()).isEqualTo(FakeEmbeddingModel.THEMES.size());
+            assertThat(d.updatedAt()).isNotNull();
+        });
+        assertThat(store.find("nope")).isEmpty();
+        assertThat(store.countsByType()).containsEntry("chat", 2L).containsEntry("generation", 1L);
+        H2VectorStore.Listing chats = store.list("chat", 1, 1);
+        assertThat(chats.total()).isEqualTo(2);
+        assertThat(chats.totalPages()).isEqualTo(2);
+        assertThat(chats.documents()).hasSize(1);
+        assertThat(chats.hasNext()).isTrue();
+        assertThat(store.list(null, 1, 10).documents()).hasSize(3);
+        assertThat(store.list("chat", 99, 1).page()).isEqualTo(2); // pagina oltre la fine: ricade sull'ultima
+
+        int before = embedding.embedded.get();
+        assertThat(store.reembed("generation:1")).isTrue();
+        assertThat(embedding.embedded.get()).isGreaterThan(before); // ricalcolato anche se nulla e' cambiato
+        assertThat(store.reembed("nope")).isFalse();
+    }
+
+    @Test
+    void aMetadataOnlyChangeIsSavedWithoutReEmbedding() {
+        store.add(List.of(Document.builder().id("note:1").text("gatto").metadata(Map.of("type", "note", "refId", 1L)).build()));
+        int before = embedding.embedded.get();
+
+        store.add(List.of(Document.builder().id("note:1").text("gatto").metadata(Map.of("type", "note", "refId", 1L, "title", "Idea")).build()));
+
+        assertThat(embedding.embedded.get()).isEqualTo(before);
+        assertThat(store.find("note:1").orElseThrow().metadata()).containsEntry("title", "Idea");
+        assertThat(new H2VectorStore(jdbc, embedding, objectMapper, "modello-a").find("note:1").orElseThrow().metadata())
+                .containsEntry("title", "Idea"); // e sopravvive a un riavvio
+    }
+
+    @Test
+    void reloadedNumbersCompareEqualSoNothingIsRewrittenNeedlessly() {
+        Document d = doc("generation:1", "gatto", "generation", 1);
+        store.add(List.of(d));
+        H2VectorStore reloaded = new H2VectorStore(jdbc, embedding, objectMapper, "modello-a");
+        java.time.Instant stamp = reloaded.find("generation:1").orElseThrow().updatedAt();
+
+        reloaded.add(List.of(d)); // dal DB refId torna Integer, nel documento e' Long: stesso valore
+
+        assertThat(reloaded.find("generation:1").orElseThrow().updatedAt()).isEqualTo(stamp);
+    }
 }

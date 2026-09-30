@@ -14,11 +14,11 @@ import org.springframework.ai.embedding.EmbeddingResponse;
  * Embedding finto e deterministico per i test (mai il modello vero): 8 dimensioni, una per "tema" (parola chiave), cosi' la
  * prossimita' e' controllabile. Conta i testi embeddati per verificare che gli invariati non vengano ricalcolati.
  */
-class FakeEmbeddingModel implements EmbeddingModel {
+public class FakeEmbeddingModel implements EmbeddingModel {
 
-    static final List<String> THEMES = List.of("gatto", "felino", "auto", "montagna", "mare", "ritratto", "castello", "drago");
-    final AtomicInteger embedded = new AtomicInteger();
-    final List<String> seen = new ArrayList<>();
+    public static final List<String> THEMES = List.of("gatto", "felino", "auto", "montagna", "mare", "ritratto", "castello", "drago");
+    public final AtomicInteger embedded = new AtomicInteger();
+    public final List<String> seen = new ArrayList<>();
 
     @Override
     public float[] embed(Document document) {
