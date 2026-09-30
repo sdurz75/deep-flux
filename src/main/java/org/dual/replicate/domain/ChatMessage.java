@@ -103,6 +103,10 @@ public class ChatMessage {
         return id;
     }
 
+    public ChatConversation getConversation() {
+        return conversation;
+    }
+
     public ChatMessageRole getRole() {
         return role;
     }

@@ -59,6 +59,17 @@
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
+        <!-- Ricerca semantica (vedi CLAUDE.md, "Ricerca semantica"): interfaccia VectorStore (implementata su H2, nessun DB
+             esterno) + embedding LOCALI via ONNX (multilingual-e5-small, scaricato al primo avvio in ./data/models). -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-vector-store</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-transformers</artifactId>
+        </dependency>
+
         <!-- Gia' in classpath transitivamente (spring-ai-starter-model-openai la
              porta per il client HTTP verso OpenRouter, vedi CLAUDE.md, eccezione
              WebFlux): dichiarata qui esplicitamente perche' il nostro stesso

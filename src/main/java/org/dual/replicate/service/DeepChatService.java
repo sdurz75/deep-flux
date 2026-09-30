@@ -5,8 +5,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.ChatConversation;
@@ -71,6 +73,7 @@ public class DeepChatService {
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
                             ImageGenerationTool imageGenerationTool,
+                            Optional<ArchiveSearchTool> archiveSearchTool,
                             ChatConversationRepository chatConversationRepository,
                             ChatMessageRepository chatMessageRepository,
                             DeepChatGenerationWatcher generationWatcher,
@@ -86,7 +89,9 @@ public class DeepChatService {
                 .defaultSystem("""
                         You are a helpful, friendly assistant. You can search the public web
                         with the searchWeb tool whenever a question needs current information
-                        or facts you may not know. You can also generate images with the
+                        or facts you may not know. You can search the user's own archive of past
+                        generations and conversations by meaning with the searchArchive tool
+                        (when the user refers to something made or discussed before). You can also generate images with the
                         generateImage tool: it always uses the model currently selected in the
                         UI (you are told which one in a system note), there is no way to pick a
                         different one for it - if the user asks for a different model, tell them
@@ -114,7 +119,8 @@ public class DeepChatService {
                         their consent, and never anything involving minors.
 
                         """ + imagePromptingGuide)
-                .defaultTools(webSearchTool, imageGenerationTool)
+                // searchArchive solo con la ricerca semantica attiva (app.search.enabled).
+                .defaultTools(Stream.concat(Stream.of(webSearchTool, imageGenerationTool), archiveSearchTool.stream()).toArray())
                 .build();
     }
 

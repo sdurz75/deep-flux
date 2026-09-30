@@ -100,6 +100,20 @@ spring:
       chat:
         options:
           model: ${OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
+    # Ricerca semantica (H2VectorStore): embedding LOCALI, nessuna chiamata di rete a runtime. Il modello ONNX
+    # (multilingual-e5-small quantizzato, ~120 MB, italiano/inglese) e il tokenizer si scaricano UNA volta al primo avvio in
+    # ./data/models. Cambiare l'URI del modello => ArchiveIndexService reindicizza tutto (l'URI e' l'id del modello).
+    model:
+      embedding: transformers
+    embedding:
+      transformer:
+        cache:
+          directory: ./data/models
+        onnx:
+          model-uri: https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/onnx/model_quantized.onnx
+          model-output-name: last_hidden_state
+        tokenizer:
+          uri: https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/tokenizer.json
 
 # Modello di visione dell'"AI enhance" dei video (PromptEnhancementService#enhanceVideo): guarda
 # l'immagine sorgente. Scelto per permissivita' oltre che per prezzo: niente modelli "moderated" di
@@ -139,6 +153,12 @@ app:
     # ogni pochi minuti (GenerationRecoveryService). Disattivato nei test (application-test.yml).
     enabled: true
     sweep-interval: 2m
+  search:
+    # Indice semantico (ArchiveIndexService / ArchiveSearchTool): prompt delle generazioni, messaggi e titoli delle chat.
+    # Disattivato nei test (application-test.yml): l'EmbeddingModel locale scaricherebbe il modello.
+    enabled: true
+    reindex-interval: 5m
+    top-k: 5
 
 storage:
   # Backend dei binari (immagini, video, upload sorgente), serviti sempre via /images/** (ImageController):

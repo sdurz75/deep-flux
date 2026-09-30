@@ -117,7 +117,8 @@ Spring Boot 4.x + Spring MVC; Thymeleaf + thymeleaf-layout-dialect (`layout:deco
 Alpine.js via CDN; Pines UI (componenti Alpine+Tailwind da copiare, `preflight` attivo, stessa base di stile del sito);
 Spring Data JPA + H2 su file; Flyway (`spring-boot-starter-flyway`, `ddl-auto: validate`); `RestClient`
 (`spring-boot-starter-restclient`) verso Replicate; Spring AI (`spring-ai-starter-model-openai`, `ChatClient`, `base-url`
-`https://openrouter.ai/api/v1`, richiede Boot 4.x / Spring AI 2.0.x); Maven; Java 21.
+`https://openrouter.ai/api/v1`, richiede Boot 4.x / Spring AI 2.0.x); embedding locali ONNX (`spring-ai-starter-model-transformers`) e
+`spring-ai-vector-store` per la ricerca semantica; Maven; Java 21.
 
 ## Struttura del progetto
 
@@ -142,9 +143,11 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   modello e' intercettato e non sovrascrive la textarea), `DeepChatService`, `DeepChatGenerationWatcher`,
   `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
   id delle generazioni avviate nel turno), `AppErrorService`, `GenerationRecoveryService`, `DeepChatFailedException`.
+- `search/vector/`: `H2VectorStore` (`VectorStore` su H2, tabella `VECTOR_DOC` V19), `ArchiveIndexService` (riconciliazione dell'indice),
+  `SemanticSearchConfig`; `service/ArchiveSearchTool` (tool `searchArchive` della chat). Vedi "Ricerca semantica".
 - `remote/`: `RemoteServiceException`, `RemoteCaller`, `RetryPolicy`, `RestClientTranslator`, `RestRemoteClient` (vedi
   "Errori e retry generici"). `config/`: `TailwindAssets`, `UnhandledExceptionResolver`.
-- `db/migration/`: V1..V18, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
+- `db/migration/`: V1..V19, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
   modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
 - `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
   theme switch in uno slideover Pines, stato Alpine `navOpen`, `button.html :: navToggle`), `button.html` (bottoni +
@@ -389,6 +392,30 @@ Per aggiungere un servizio remoto:
   transient}`; `transient: true` aggiunge "Riprova tra qualche istante". `AppErrorService#addHxTrigger` FONDE gli eventi
   nell'unico header `HX-Trigger` (un controller puo' emettere `gallery-update` e un toast insieme). Un bottone "Riprova" generico
   sul toast e' escluso di proposito: rieseguire una POST (`create`) creerebbe una seconda prediction a pagamento.
+
+## Ricerca semantica (vector store su H2, embedding locali)
+
+Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dall'interfaccia Spring AI `VectorStore` (bean
+`H2VectorStore`): un domani si puo' sostituire con Elasticsearch/Qdrant cambiando quel bean.
+
+- **Embedding**: `EmbeddingModel` locale (`TransformersEmbeddingModel`, ONNX) con `multilingual-e5-small` quantizzato (384 dim,
+  italiano/inglese, ~120 MB). Il modello e il tokenizer si scaricano UNA volta al primo avvio da Hugging Face in `./data/models`
+  (fuori da git; niente download in build). `spring.ai.model.embedding=transformers` evita che l'autoconfig OpenAI crei un secondo
+  `EmbeddingModel`. I modelli e5 vogliono i prefissi `passage: ` (documenti) e `query: ` (ricerche): li applica `H2VectorStore`,
+  chi lo usa passa il testo nudo. I punteggi e5 sono compressi (0.7-0.9): usare top-K, non soglie fisse.
+- **`H2VectorStore`**: documenti in `VECTOR_DOC` (embedding normalizzato, `EMBEDDING_MODEL`, `CONTENT_HASH`), letti da una mappa in
+  memoria (coseno = prodotto scalare, lineare: adatto a decine di migliaia di righe). Ogni documento ha i metadata `type`
+  (stringa) e `refId` (numero), opzionali `conversationId`, `role`, `kind`. Filtri supportati: EQ, NE, IN, NIN, AND, OR, NOT,
+  ISNULL/ISNOTNULL. Cambiare modello (URI ONNX = id del modello) => alla riconciliazione successiva si ri-embedda tutto.
+- **`ArchiveIndexService`** allinea l'indice con una riconciliazione idempotente (non ganci su ogni `save`): prompt delle generazioni
+  SUCCEEDED (`type=generation`), messaggi di chat non d'errore (`chat`), titoli (`conversation`); aggiunge i mancanti/cambiati,
+  rimuove i documenti la cui riga non esiste piu'. Gira in background all'avvio (backfill), ogni `app.search.reindex-interval` e a
+  ogni `GenerationCompletedEvent`. Un documento che fallisce e' registrato (`AppErrorService`) e non ferma gli altri.
+- **`ArchiveSearchTool`** (`searchArchive(query, type?)`) e' tra i tool di `DeepChatService` solo se `app.search.enabled`.
+- `app.search.enabled=false` (i test, `application-test.yml`) spegne indice, tool ed `EmbeddingModel` (`spring.ai.model.embedding=none`):
+  `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`). Prove reali, opt-in:
+  `mvn test -Dtest='E5ModelSmokeTest,SemanticSearchWiringTest' -Dsemantic.model.test=true`.
+- Fuori scope per ora: UI di ricerca in galleria/liste, descrizioni delle immagini con un modello di visione.
 
 ## Comandi utili
 
