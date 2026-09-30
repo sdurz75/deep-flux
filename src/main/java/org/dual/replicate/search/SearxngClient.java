@@ -35,7 +35,15 @@ public class SearxngClient {
         // concatena senza inserire un separatore - senza lo slash qui,
         // un base-url senza slash finale (es. ".../xng" invece di
         // ".../xng/") risolverebbe silenziosamente in ".../xngsearch".
-        this.restClient = restClientBuilder.baseUrl(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/").build();
+        // Timeout PROPRI e piu' stretti dei globali (spring.http.clients.*): la ricerca gira DENTRO un turno
+        // LLM, un SearXNG appeso terrebbe aperto il thread e l'intero turno ben oltre il limite dell'LLM.
+        java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(10)).build();
+        org.springframework.http.client.JdkClientHttpRequestFactory requestFactory =
+                new org.springframework.http.client.JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(java.time.Duration.ofSeconds(20));
+        this.restClient = restClientBuilder.requestFactory(requestFactory)
+                .baseUrl(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/").build();
         this.username = username;
         this.password = password;
         this.messages = messages;
@@ -60,6 +68,10 @@ public class SearxngClient {
             return response == null || response.results() == null ? List.of() : response.results();
         } catch (RestClientException e) {
             throw toSearxngException(e);
+        } catch (RuntimeException e) {
+            // Risposta non decodificabile (HttpMessageNotReadableException), URI non valido...: qualunque cosa
+            // esca da qui deve essere una SearxngException, l'unico tipo che il chiamante sa gestire.
+            throw new SearxngException(messages.get("searxng.error.connectionFailed", e.getMessage()), e);
         }
     }
 

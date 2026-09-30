@@ -28,8 +28,8 @@
   (la griglia CSS vive sul div grid() qui sotto, la paginazione e' un
   fratello separato).
 -->
-<th:block th:fragment="content(generations, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
-    <div style="display:contents" th:hx-get="@{/gallery(page=${currentPage})}"
+<th:block th:fragment="content(items, tab, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
+    <div style="display:contents" th:hx-get="@{/gallery(page=${currentPage}, tab=${tab})}"
          hx-trigger="gallery-update from:body" hx-target="#gallery-content" hx-swap="innerHTML">
         <!--
           Il messaggio "galleria vuota" vive QUI (non piu' in gallery.html,
@@ -40,15 +40,30 @@
           galleria vuota deve far sparire questo messaggio, non lasciarlo
           sopra alla nuova immagine.
         -->
-        <p th:if="${#lists.isEmpty(generations)}">
+        <!--
+          Tab Tutte/Preferiti: link htmx dentro content(...) (non in gallery.html) cosi' lo
+          stato attivo e' deciso dal server a ogni swap, SSE incluso. Sempre da pagina 1.
+        -->
+        <nav class="flex gap-1 mb-4 border-b border-line dark:border-line-dark" role="tablist">
+            <a th:each="t : ${#strings.arraySplit('all,favourites', ',')}"
+               th:href="@{/gallery(tab=${t})}" th:hx-get="@{/gallery(tab=${t})}"
+               hx-target="#gallery-content" hx-swap="innerHTML" role="tab"
+               th:aria-selected="${t == tab}"
+               th:text="${t == 'all'} ? #{gallery.tab.all} : #{gallery.tab.favourites}"
+               class="px-4 py-2 -mb-px border-b-2 no-underline text-[0.9rem]"
+               th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Tutte</a>
+        </nav>
+        <p th:if="${#lists.isEmpty(items) and tab == 'all'}">
             <span th:text="#{gallery.empty.prefix}">Nessuna immagine ancora.</span>
             <a th:href="@{/generations/new}" th:text="#{gallery.empty.link}">Generane una</a>.
         </p>
+        <p th:if="${#lists.isEmpty(items) and tab == 'favourites'}" th:text="#{gallery.empty.favourites}"
+           class="text-ink-muted dark:text-ink-muted-dark">Nessun preferito ancora.</p>
         <!-- th:unless su un th:block separato, non th:if sullo stesso tag di th:replace: stesso principio gia' documentato altrove in questo file (th:each+th:replace), th:replace ha precedenza piu' alta e scatterebbe comunque. Altrimenti la toolbar di selezione (dentro grid(...)) comparirebbe anche a galleria vuota. -->
-        <th:block th:unless="${#lists.isEmpty(generations)}">
-            <div th:replace="~{fragments/gallery :: grid(${generations}, null)}"></div>
+        <th:block th:unless="${#lists.isEmpty(items)}">
+            <div th:replace="~{fragments/gallery :: grid(${items}, null, ${tab == 'all'})}"></div>
         </th:block>
-        <div th:replace="~{fragments/pagination :: nav('/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        <div th:replace="~{fragments/pagination :: nav(${tab == 'favourites'} ? '/gallery?tab=favourites' : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
     </div>
 </th:block>
 
@@ -68,11 +83,11 @@
   fragments/gallery-card.html), sempre valorizzato qui - unico
   chiamante di gridOrEmpty e' la galleria contestuale di /deep-chat.
 -->
-<th:block th:fragment="gridOrEmpty(generations, emptyMessage, conversationId)">
-    <p th:if="${#lists.isEmpty(generations)}" th:text="${emptyMessage}"
+<th:block th:fragment="gridOrEmpty(items, emptyMessage, conversationId)">
+    <p th:if="${#lists.isEmpty(items)}" th:text="${emptyMessage}"
        class="text-ink-muted dark:text-ink-muted-dark">Nessuna immagine.</p>
-    <th:block th:unless="${#lists.isEmpty(generations)}">
-        <div th:replace="~{fragments/gallery :: grid(${generations}, ${conversationId})}"></div>
+    <th:block th:unless="${#lists.isEmpty(items)}">
+        <div th:replace="~{fragments/gallery :: grid(${items}, ${conversationId}, true)}"></div>
     </th:block>
 </th:block>
 
@@ -131,7 +146,7 @@
   lo stato disabled, e da ogni checkbox delle card per il proprio stato
   checked/unchecked.
 -->
-<th:block th:fragment="grid(generations, conversationId)">
+<th:block th:fragment="grid(items, conversationId, selectable)">
     <form x-data="{
             selectedIds: [],
             imageGalleryOpened: false,
@@ -168,7 +183,7 @@
          @keyup.left.window="imageGalleryPrev()">
 
         <!-- Toolbar di selezione: conteggio (puro Alpine) + bottone "Elimina selezionate", disabilitato finche' selectedIds e' vuoto (vedi fragments/button.html :: dangerSelectable). -->
-        <div class="flex items-center justify-between gap-3 mb-3">
+        <div th:if="${selectable}" class="flex items-center justify-between gap-3 mb-3">
             <span class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">
                 <span x-text="selectedIds.length"></span> <span th:text="#{gallery.selection.label}">selezionate</span>
             </span>
@@ -178,8 +193,8 @@
         <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
              x-ref="gallery">
 
-        <th:block th:each="g : ${generations}">
-            <div th:replace="~{fragments/gallery-card :: card(${g}, ${conversationId})}"></div>
+        <th:block th:each="item : ${items}">
+            <div th:replace="~{fragments/gallery-card :: card(${item}, ${conversationId}, ${selectable})}"></div>
         </th:block>
 
         <!-- Lightbox fullscreen: apertura via imageGalleryOpen sul click di un'immagine (in fragments/gallery-card.html). -->

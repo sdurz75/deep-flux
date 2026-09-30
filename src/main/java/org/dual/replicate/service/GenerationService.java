@@ -4,15 +4,19 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
@@ -75,25 +79,31 @@ public class GenerationService {
      */
     private static final Pattern SEED_LOG_PATTERN = Pattern.compile("(?i)\\bseed\\b\\D{0,10}(\\d+)");
 
+    /** Lock a strisce per generazione (id % N): nessuna mappa che cresce, collisioni innocue (solo serializzazione in piu'). */
+    private static final Object[] REFRESH_LOCKS = java.util.stream.Stream.generate(Object::new).limit(64).toArray();
+
     private final GenerationRepository repository;
     private final ReplicateClient replicateClient;
     private final ImageStorageService imageStorageService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
+    private final AppErrorService appErrors;
 
     public GenerationService(GenerationRepository repository,
                               ReplicateClient replicateClient,
                               ImageStorageService imageStorageService,
                               ObjectMapper objectMapper,
                               Messages messages,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher,
+                              AppErrorService appErrors) {
         this.repository = repository;
         this.replicateClient = replicateClient;
         this.imageStorageService = imageStorageService;
         this.objectMapper = objectMapper;
         this.messages = messages;
         this.eventPublisher = eventPublisher;
+        this.appErrors = appErrors;
     }
 
     /**
@@ -160,7 +170,12 @@ public class GenerationService {
             return doCreate(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage,
                     sourceUploadFilename, sourceImageParam, sourceRequired);
         } catch (RuntimeException e) {
-            imageStorageService.delete(sourceUploadFilename);
+            try {
+                imageStorageService.delete(sourceUploadFilename);
+            } catch (RuntimeException cleanupFailure) {
+                // Un file da ripulire che non si lascia cancellare NON deve mascherare l'errore vero della creazione.
+                e.addSuppressed(cleanupFailure);
+            }
             throw e;
         }
     }
@@ -201,12 +216,31 @@ public class GenerationService {
         log.info("Generazione avviata su Replicate: model={}, version={}, externalId={}, status={}",
                 model, version, prediction.id(), prediction.status());
 
-        Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
-        generation.setKind(kind);
-        generation.setSourceGenerationId(sourceGenerationId);
-        generation.setSourceUploadFilename(sourceUploadFilename);
-        generation.setStatus(mapStatus(prediction.status()));
-        return repository.save(generation);
+        // Da qui la prediction ESISTE (e viene fatturata) su Replicate: se non riusciamo a tracciarla
+        // localmente (id assente, DB in errore) nessuno la vedrebbe mai, quindi la si annulla al meglio
+        // prima di propagare l'errore.
+        try {
+            if (prediction.id() == null || prediction.id().isBlank()) {
+                throw new ReplicateException(messages.get("replicate.error.emptyResponse"));
+            }
+            Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
+            generation.setKind(kind);
+            generation.setSourceGenerationId(sourceGenerationId);
+            generation.setSourceUploadFilename(sourceUploadFilename);
+            // Una prediction gia' terminale alla risposta del POST (cache, fallimento immediato) NON va salvata
+            // terminale: senza download ne' errorMessage nessuno la completerebbe mai (refresh() salta le righe
+            // terminali). La si tiene in corso: il primo refresh() legge l'esito vero e lo chiude come le altre.
+            GenerationStatus initial = mapStatus(prediction.status());
+            generation.setStatus(initial == GenerationStatus.SUCCEEDED || initial == GenerationStatus.FAILED
+                    ? GenerationStatus.PROCESSING : initial);
+            return repository.save(generation);
+        } catch (RuntimeException e) {
+            cancelPredictionQuietly(prediction.id(), null, null);
+            if (e instanceof ReplicateException) {
+                throw e;
+            }
+            throw new ReplicateException(messages.get("generation.error.persistFailed", e.getMessage()), e);
+        }
     }
 
     /**
@@ -251,7 +285,15 @@ public class GenerationService {
             return null;
         }
         Matcher matcher = SEED_LOG_PATTERN.matcher(logs);
-        return matcher.find() ? Long.valueOf(matcher.group(1)) : null;
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(matcher.group(1));
+        } catch (NumberFormatException e) {
+            // Best-effort: un "seed" enorme nei log (oltre Long) non deve far fallire una generazione riuscita.
+            return null;
+        }
     }
 
     /**
@@ -261,6 +303,15 @@ public class GenerationService {
      * chiamata esterna se lo stato e' gia' terminale.
      */
     public Generation refresh(Long id) {
+        // Un solo refresh alla volta per generazione (poller htmx, watcher, sweep di recupero possono incrociarsi):
+        // senza, due download degli stessi output si sovrascrivono a vicenda e il perdente, fallendo, cancellerebbe
+        // i file del vincitore. Il secondo chiamante rilegge la riga dopo il lock e la trova gia' terminale.
+        synchronized (REFRESH_LOCKS[(int) (Math.abs(id) % REFRESH_LOCKS.length)]) {
+            return doRefresh(id);
+        }
+    }
+
+    private Generation doRefresh(Long id) {
         Generation generation = get(id);
         if (generation.isTerminal()) {
             return generation;
@@ -269,30 +320,44 @@ public class GenerationService {
         PredictionResponse prediction;
         try {
             prediction = getPredictionWithRetry(generation.getExternalId());
-        } catch (Exception e) {
-            generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage(messages.get("generation.error.contactFailed", e.getMessage()));
-            generation.setCompletedAt(Instant.now());
-            return saveAndLogIfTerminal(generation);
+        } catch (RuntimeException e) {
+            return handlePollFailure(generation, e);
         }
 
         if (prediction.succeeded()) {
-            List<String> outputUrls = prediction.outputUrls();
-            if (outputUrls.isEmpty()) {
+            List<String> filenames = new ArrayList<>();
+            try {
+                List<String> outputUrls = prediction.outputUrls();
+                if (outputUrls.isEmpty()) {
+                    generation.setStatus(GenerationStatus.FAILED);
+                    generation.setErrorMessage(messages.get("generation.error.noOutput"));
+                } else {
+                    for (int i = 0; i < outputUrls.size(); i++) {
+                        filenames.add(imageStorageService.downloadAndStore(generation.getId(), i, outputUrls.get(i)));
+                    }
+                    generation.setImageFilenames(filenames);
+                    generation.setStatus(GenerationStatus.SUCCEEDED);
+                    if (generation.getSeed() == null) {
+                        generation.setSeed(seedFromLogs(prediction.logs()));
+                    }
+                    ReplicatePricing.estimate(generation.getModel(), prediction.metrics())
+                            .ifPresent(generation::setCostUsd);
+                }
+            } catch (RuntimeException e) {
+                // Download/post-processing falliti: la prediction e' finita su Replicate ma il risultato
+                // non e' recuperabile in modo affidabile (gli URL di output scadono). Stato terminale
+                // FAILED (mai lasciarla PENDING/PROCESSING all'infinito), file parziali ripuliti.
+                for (String written : filenames) {
+                    try {
+                        imageStorageService.delete(written);
+                    } catch (RuntimeException cleanupFailure) {
+                        e.addSuppressed(cleanupFailure); // la transizione a FAILED non deve dipendere dalla pulizia
+                    }
+                }
+                generation.setImageFilenames(new ArrayList<>());
+                appErrors.record(AppErrorSource.STORAGE, "downloadOutput", e, generation.getId(), generation.getConversationId());
                 generation.setStatus(GenerationStatus.FAILED);
-                generation.setErrorMessage(messages.get("generation.error.noOutput"));
-            } else {
-                List<String> filenames = new ArrayList<>();
-                for (int i = 0; i < outputUrls.size(); i++) {
-                    filenames.add(imageStorageService.downloadAndStore(generation.getId(), i, outputUrls.get(i)));
-                }
-                generation.setImageFilenames(filenames);
-                generation.setStatus(GenerationStatus.SUCCEEDED);
-                if (generation.getSeed() == null) {
-                    generation.setSeed(seedFromLogs(prediction.logs()));
-                }
-                ReplicatePricing.estimate(generation.getModel(), prediction.metrics())
-                        .ifPresent(generation::setCostUsd);
+                generation.setErrorMessage(messages.get("generation.error.downloadFailed", AppErrorService.sanitize(e)));
             }
             generation.setCompletedAt(Instant.now());
         } else if (prediction.canceled()) {
@@ -303,15 +368,76 @@ public class GenerationService {
             generation.setStatus(GenerationStatus.FAILED);
             generation.setErrorMessage(prediction.error() != null ? prediction.error() : messages.get("generation.error.failedGeneric"));
             generation.setCompletedAt(Instant.now());
-        } else if (Duration.between(generation.getCreatedAt(), Instant.now()).compareTo(timeoutFor(generation.getKind())) > 0) {
-            generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage(messages.get("generation.error.timeout", timeoutFor(generation.getKind()).toMinutes()));
-            generation.setCompletedAt(Instant.now());
+        } else if (isPastTimeout(generation)) {
+            failForTimeout(generation);
         } else {
             generation.setStatus(mapStatus(prediction.status()));
         }
 
         return saveAndLogIfTerminal(generation);
+    }
+
+    /** True se la generazione, ancora non terminale, ha superato il proprio timeout di business (image/video). */
+    public boolean isOverdue(Generation generation) {
+        return !generation.isTerminal() && isPastTimeout(generation);
+    }
+
+    private boolean isPastTimeout(Generation generation) {
+        return Duration.between(generation.getCreatedAt(), Instant.now()).compareTo(timeoutFor(generation.getKind())) > 0;
+    }
+
+    /** Timeout di business: FAILED + annullamento best-effort della prediction (altrimenti Replicate continua e fattura). */
+    private void failForTimeout(Generation generation) {
+        generation.setStatus(GenerationStatus.FAILED);
+        generation.setErrorMessage(messages.get("generation.error.timeout", timeoutFor(generation.getKind()).toMinutes()));
+        generation.setCompletedAt(Instant.now());
+        cancelPredictionQuietly(generation.getExternalId(), generation.getId(), generation.getConversationId());
+    }
+
+    /**
+     * Il poll verso Replicate e' fallito (dopo i ritentativi). Sempre registrato ({@link AppErrorService}: la serie
+     * evita righe/toast a ogni poll). Un errore PERMANENTE (token errato, 4xx, risposta illeggibile) fa fallire la
+     * generazione subito; uno TRANSITORIO (rete, timeout, 5xx) la lascia in corso e riprova al prossimo poll — la
+     * prediction su Replicate continua e il suo esito non va perso per un'interruzione di pochi secondi — ma il
+     * timeout di business vale comunque, cosi' non esiste attesa infinita.
+     */
+    private Generation handlePollFailure(Generation generation, RuntimeException e) {
+        appErrors.record(AppErrorSource.REPLICATE, "getPrediction", e, generation.getId(), generation.getConversationId());
+        boolean permanent = e instanceof ReplicateException replicateException && !replicateException.isTransient();
+        if (permanent) {
+            generation.setStatus(GenerationStatus.FAILED);
+            generation.setErrorMessage(messages.get("generation.error.contactFailed", AppErrorService.sanitize(e)));
+            generation.setCompletedAt(Instant.now());
+            // La riga diventa terminale e non verra' piu' interrogata: se la prediction gira ancora (risposta
+            // illeggibile, non un 401/404) va fermata, altrimenti continua e costa.
+            cancelPredictionQuietly(generation.getExternalId(), generation.getId(), generation.getConversationId());
+            return saveAndLogIfTerminal(generation);
+        }
+        if (isPastTimeout(generation)) {
+            failForTimeout(generation);
+            return saveAndLogIfTerminal(generation);
+        }
+        return generation;
+    }
+
+    /**
+     * Annullamento best-effort di una prediction che non ci serve piu' (timeout, cancellazione di una
+     * generazione in corso, riga non salvabile). Non lancia mai: e' gia' un percorso di errore. Un 4xx
+     * (prediction gia' terminale) e' atteso e solo loggato; il resto e' registrato.
+     */
+    private void cancelPredictionQuietly(String externalId, Long generationId, Long conversationId) {
+        if (externalId == null || externalId.isBlank()) {
+            return;
+        }
+        try {
+            replicateClient.cancelPrediction(externalId);
+        } catch (RuntimeException e) {
+            if (e instanceof ReplicateException r && !r.isTransient()) {
+                log.info("Annullamento della prediction {} non necessario/riuscito: {}", externalId, e.getMessage());
+            } else {
+                appErrors.record(AppErrorSource.REPLICATE, "cancelPrediction", e, generationId, conversationId);
+            }
+        }
     }
 
     /**
@@ -354,7 +480,7 @@ public class GenerationService {
      * (successo) o WARN (fallimento, con l'errore restituito dall'API).
      */
     private Generation saveAndLogIfTerminal(Generation generation) {
-        if (generation.isTerminal() && !repository.existsById(generation.getId())) {
+        if (!repository.existsById(generation.getId())) {
             // La riga e' stata cancellata (GenerationController#deleteOne/delete/deleteImage/
             // deleteAll/deleteEverything) mentre questo refresh() era in volo su Replicate: da
             // /generations (vedi CLAUDE.md) anche generazioni non terminali sono ora cancellabili,
@@ -418,6 +544,9 @@ public class GenerationService {
             try {
                 return replicateClient.getPrediction(externalId);
             } catch (RuntimeException e) {
+                if (e instanceof ReplicateException r && !r.isTransient()) {
+                    throw e; // permanente (token errato, 4xx...): ritentare non serve
+                }
                 lastError = e;
             }
             attempt++;
@@ -431,6 +560,10 @@ public class GenerationService {
                 throw lastError;
             }
         }
+    }
+
+    public boolean exists(Long id) {
+        return repository.existsById(id);
     }
 
     public Generation get(Long id) {
@@ -451,8 +584,20 @@ public class GenerationService {
      */
     private void deleteGenerations(List<Generation> generations) {
         generations.forEach(generation -> {
-            generation.getImageFilenames().forEach(imageStorageService::delete);
-            imageStorageService.delete(generation.getSourceUploadFilename());
+            if (!generation.isTerminal()) {
+                // Cancellare una generazione in corso non deve lasciare la prediction viva (e fatturata) su Replicate.
+                cancelPredictionQuietly(generation.getExternalId(), generation.getId(), generation.getConversationId());
+            }
+            // Un file che non si lascia cancellare NON deve interrompere il batch a meta' (righe rimaste con i
+            // file gia' spariti, evento mai pubblicato): la riga va comunque eliminata, il file orfano e' registrato.
+            Stream.concat(generation.getImageFilenames().stream(), Stream.of(generation.getSourceUploadFilename()))
+                    .forEach(file -> {
+                        try {
+                            imageStorageService.delete(file);
+                        } catch (RuntimeException e) {
+                            appErrors.record(AppErrorSource.STORAGE, "deleteFile", e, generation.getId(), generation.getConversationId());
+                        }
+                    });
         });
         List<Long> ids = generations.stream().map(Generation::getId).toList();
         repository.deleteAllById(ids);
@@ -519,9 +664,32 @@ public class GenerationService {
         List<String> remaining = new ArrayList<>(generation.getImageFilenames());
         remaining.remove(filename);
         generation.setImageFilenames(remaining);
+        generation.getFavouriteFilenames().remove(filename);
         repository.save(generation);
         eventPublisher.publishEvent(new GenerationImageDeletedEvent(generationId));
         return false;
+    }
+
+    /**
+     * Inverte la star di UN file di una generazione (V16). Stessa guardia
+     * anti path-traversal di deleteImage: il filename deve essere uno di
+     * quelli gia' registrati per QUESTA generazione.
+     *
+     * @return il nuovo stato: true se ora e' preferito
+     */
+    public boolean toggleFavourite(Long generationId, String filename) {
+        Generation generation = get(generationId);
+        if (!generation.getImageFilenames().contains(filename)) {
+            throw new ReplicateException(messages.get("gallery.error.imageNotFound"));
+        }
+        Set<String> favourites = new LinkedHashSet<>(generation.getFavouriteFilenames());
+        boolean nowFavourite = favourites.add(filename);
+        if (!nowFavourite) {
+            favourites.remove(filename);
+        }
+        generation.setFavouriteFilenames(favourites);
+        repository.save(generation);
+        return nowFavourite;
     }
 
     private Map<String, Object> parseParameters(String parametersJson) {

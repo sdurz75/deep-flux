@@ -108,6 +108,15 @@ L'applicazione serve a:
    generazione elimina anche i suoi file immagine; cancellare l'ultima
    immagine rimasta di una generazione elimina a cascata la generazione
    stessa (`GenerationService#deleteImage`).
+   **Preferiti (star)** — ogni singolo file (immagine o video) di una
+   generazione puo' avere la star, overlay rosa (token `favourite`,
+   `button.html :: starOverlay`, `POST /generations/{id}/favourite`,
+   `GenerationService#toggleFavourite`, `Generation.favouriteFilenames`,
+   migrazione V16) su card di `/gallery`, galleria contestuale di chat e
+   griglia del dettaglio. `/gallery` ha due tab (`?tab=all|favourites`): Tutte
+   (una card per generazione) e Preferiti (una card per file con la star, via
+   `GalleryItem`, senza checkbox/cancellazione in blocco). `deleteImage` toglie
+   anche la star del file rimosso.
 3. **Mantenere una storia delle conversazioni e poterle riprendere in
    futuro** — `/deep-chat` supporta piu' conversazioni, ognuna una riga
    `ChatConversation` (migrazione V5) che raggruppa i propri turni
@@ -277,6 +286,10 @@ src/main/java/org/dual/replicate/
     SearxngClient.java          # wrapper RestClient su un'istanza SearXNG (Basic Auth)
     SearxngResponse.java, SearchResult.java, SearxngException.java
   service/
+    GalleryItem.java            # record (Generation, file): una card di galleria, vedi Scopo punto 2 (Preferiti)
+    AppErrorService.java        # registro errori: log + APP_ERROR (serie) + toast SSE, mai lancia; vedi "Convenzione: errori"
+    GenerationRecoveryService.java # recupero all'avvio + sweep delle generazioni rimaste in corso / senza turno di chat
+    DeepChatFailedException.java # turno di chat fallito e gia' registrato
     GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download; pubblica GenerationCompletedEvent a ogni transizione terminale
     GenerationCompletedEvent.java # evento di dominio: una Generation e' diventata terminale (successo o fallimento), qualunque sia il percorso che ce l'ha portata
     GenerationsDeletedEvent.java # evento di dominio: una o piu' Generation sono state eliminate (GenerationService#delete/#deleteAll/#deleteEverything), singola o in blocco
@@ -321,6 +334,9 @@ src/main/resources/
     V12__video_generation.sql        # GENERATION.KIND (IMAGE/VIDEO) + SOURCE_GENERATION_ID (FK ON DELETE SET NULL), estende l'ENUM FORM_TYPE + seed di prunaai/p-video (VERSION NULL, SORT_ORDER 3)
     V13__generation_cost.sql         # colonna GENERATION.COST_USD (DECIMAL, nullable): costo stimato al completamento, vedi ReplicatePricing
     V14__generation_source_upload.sql # colonna GENERATION.SOURCE_UPLOAD_FILENAME (nullable): immagine caricata dall'utente come sorgente di un img2video stand-alone
+    V16__generation_favourite.sql    # tabella GENERATION_FAVOURITE (file con la star, FK ON DELETE CASCADE)
+    V17__app_error.sql               # tabella APP_ERROR (registro errori, /errors)
+    V18__chat_message_error.sql      # CHAT_MESSAGE.ERROR: turno ASSISTANT d'errore
     V15__add_flux_kontext_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-kontext-dev (VERSION NULL, SORT_ORDER 4): modello di modifica immagine
     V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
   templates/
@@ -686,6 +702,43 @@ parametri invece del testo risolto). Allo stesso modo il catch-all di
 arbitrarie di framework terzi (Spring AI, errori di rete): solo il
 prefisso `"Errore nel contattare l'assistente: "` e' tradotto, il resto
 resta quello che la libreria ha restituito.
+
+## Convenzione: errori delle chiamate remote e stati terminali
+
+Ogni chiamata a Replicate, OpenRouter (Spring AI) o SearXNG, e ogni errore interno non gestito, passa da
+`AppErrorService#record(source, operation, throwable[, generationId, conversationId])`: MAI un `catch` che
+ingoia l'eccezione o la logga soltanto. `record` logga con stack, salva/aggiorna una riga `APP_ERROR` (V17,
+transazione propria, non lancia mai) consultabile da **`/errors`** (`ErrorController`, link "Errori" nell'header)
+e, alla prima occorrenza di una *serie*, pubblica un `ErrorToastEvent` → SSE `error-toast` → toast in tutte le
+tab con `fragments/live-events.html` (gallery, generations, deep-chat, generation-status, errors).
+Una serie = stesso (source, operation, generationId, tipo eccezione) entro 5 minuti: aggiorna
+`occurrences`/`last_seen_at` invece di creare una riga (e un toast) per ogni poll durante un'outage.
+
+- **Toast** (`fragments/toast.html`, incluso da `layout.html`): ascolta l'evento window `app-error` ({key, message}),
+  dedupe per `key`. Sorgenti: SSE (sopra); header `HX-Trigger` sulle risposte htmx (`AppErrorService#addToastHeader`,
+  usato da `GenerationController` create/enhance/cancel e da `UnhandledExceptionResolver`); listener globali
+  `htmx:responseError`/`htmx:sendError` (solo se la risposta non portava gia' un toast dal server).
+- **Chi registra**: dove l'eccezione viene *gestita/ingoiata* (servizio in background, tool, watcher), non dove
+  attraversa soltanto: un errore che risale a un controller lo registra il controller (es. `create`, `enhancePrompt`).
+  `UnhandledExceptionResolver` (LOWEST_PRECEDENCE) e `AsyncErrorConfig` sono la rete per il resto.
+- **Nessuno stato indefinito** (tre reti): (a) `GenerationService#refresh` non lascia mai uno stato parziale — download/
+  post-processing in try/catch → `FAILED` + file ripuliti; un errore di poll *transitorio* (`ReplicateException#isTransient`:
+  rete, timeout, 429/5xx) NON fallisce la generazione (la prediction continua su Replicate) ma il timeout di business vale
+  comunque e annulla la prediction; uno *permanente* (4xx) la fallisce subito. (b) `GenerationRecoveryService` all'avvio
+  (`ApplicationReadyEvent`) fa avanzare ogni riga PENDING/PROCESSING e riavvia i watcher persi. (c) lo stesso servizio, a
+  intervalli (`app.recovery.sweep-interval`), chiude le righe oltre il proprio timeout e scrive i turni di chat mancanti
+  (`DeepChatGenerationWatcher#persistOutcome`, idempotente). Disattivabile con `app.recovery.enabled=false` (i test).
+- **Cancellare o far scadere una generazione in corso annulla la prediction** su Replicate (`cancelPredictionQuietly`).
+  Se `create` non riesce a salvare la riga dopo aver creato la prediction, la annulla.
+- **Chat**: se la chiamata LLM fallisce, `DeepChatService#reply` scrive un turno ASSISTANT d'errore
+  (`ChatMessage.error`, V18: mostrato in rosso, mai rimandato all'LLM) cosi' il turno USER non resta orfano, e lancia
+  `DeepChatFailedException` (gia' registrata: `DeepChatApiController` mostra solo il messaggio). I tool
+  (`WebSearchTool`, `ImageGenerationTool`) catturano da se' e rimandano il testo d'errore al modello.
+- **Timeout**: `spring.http.clients.connect-timeout/read-timeout` (application.yml) valgono per tutti i
+  `RestClient.Builder` auto-configurati (Replicate, download, Spring AI); SearXNG ha un timeout piu' stretto proprio.
+  Un nuovo client HTTP deve usare il `RestClient.Builder` iniettato, mai `RestClient.create()`.
+- **Locale**: `AppErrorService` risolve il toast con la locale del thread; un thread async la imposta prima
+  (vedi `DeepChatGenerationWatcher#watch`), il recupero usa l'italiano.
 
 ## Comandi utili
 

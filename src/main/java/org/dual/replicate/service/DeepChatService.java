@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
@@ -65,6 +66,7 @@ public class DeepChatService {
     // reply()/buildMessages()), collisione con Messages se chiamato
     // uguale.
     private final Messages i18n;
+    private final AppErrorService appErrors;
 
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
@@ -73,11 +75,13 @@ public class DeepChatService {
                             ChatMessageRepository chatMessageRepository,
                             DeepChatGenerationWatcher generationWatcher,
                             Messages i18n,
+                            AppErrorService appErrors,
                             @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.generationWatcher = generationWatcher;
         this.i18n = i18n;
+        this.appErrors = appErrors;
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
                         You are a helpful, friendly assistant. You can search the public web
@@ -160,27 +164,37 @@ public class DeepChatService {
             toolContext.put(ImageGenerationTool.PARAMETERS_CONTEXT_KEY, generationParameters);
             toolContext.put(ImageGenerationTool.MODEL_CONTEXT_KEY, selectedModel);
 
-            ChatResponse chatResponse;
+            String text;
             try {
-                chatResponse = chatClient.prompt()
-                        .messages(messages)
-                        .toolContext(toolContext)
-                        .call()
-                        .chatResponse();
+                ChatResponse chatResponse;
+                try {
+                    chatResponse = chatClient.prompt()
+                            .messages(messages)
+                            .toolContext(toolContext)
+                            .call()
+                            .chatResponse();
+                } catch (RuntimeException e) {
+                    log.warn("Chiamata al modello LLM remoto (OpenRouter) fallita dopo {} ms: {}",
+                            Duration.between(start, Instant.now()).toMillis(), e.getMessage());
+                    throw e;
+                }
+                Duration elapsed = Duration.between(start, Instant.now());
+                if (chatResponse == null || chatResponse.getResult() == null
+                        || chatResponse.getResult().getOutput() == null
+                        || chatResponse.getResult().getOutput().getText() == null) {
+                    throw new IllegalStateException(i18n.get("deepchat.error.llmEmptyResult"));
+                }
+                logChatResponse(chatResponse, elapsed);
+                text = chatResponse.getResult().getOutput().getText();
             } catch (RuntimeException e) {
-                log.warn("Chiamata al modello LLM remoto (OpenRouter) fallita dopo {} ms: {}",
-                        Duration.between(start, Instant.now()).toMillis(), e.getMessage(), e);
-                throw e;
+                throw failTurn(conversation, AppErrorSource.OPENROUTER, "chatTurn", e);
             }
 
-            Duration elapsed = Duration.between(start, Instant.now());
-            logChatResponse(chatResponse, elapsed);
-            if (chatResponse.getResult() == null) {
-                throw new IllegalStateException(i18n.get("deepchat.error.llmEmptyResult"));
+            try {
+                chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, null));
+            } catch (RuntimeException e) {
+                throw failTurn(conversation, AppErrorSource.INTERNAL, "saveChatTurn", e);
             }
-            String text = chatResponse.getResult().getOutput().getText();
-
-            chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, null));
             return new Reply(text, resultHolder.getStartedGenerationIds());
         } finally {
             // Nel finally PIU' ESTERNO, dopo aver salvato il turno AI (non
@@ -191,11 +205,33 @@ public class DeepChatService {
             // (es. flux-schnell) puo' finire prima che l'LLM produca il
             // testo del turno, il messaggio "immagine pronta" non deve mai
             // precedere quello del turno che l'ha avviata.
-            resultHolder.getStartedGenerationIds().forEach(id -> {
-                generationWatcher.attachToConversation(id, conversation.getId());
-                generationWatcher.watch(id, conversation.getId(), locale);
-            });
+            for (Long id : resultHolder.getStartedGenerationIds()) {
+                // Per id: un fallimento su uno non deve impedire agli altri di avere il watcher, ne'
+                // mascherare l'eccezione originale del turno (il recupero riprende comunque le orfane).
+                try {
+                    generationWatcher.attachToConversation(id, conversation.getId());
+                    generationWatcher.watch(id, conversation.getId(), locale);
+                } catch (RuntimeException e) {
+                    appErrors.record(AppErrorSource.INTERNAL, "watchStart", e, id, conversation.getId());
+                }
+            }
         }
+    }
+
+    /**
+     * Il turno e' fallito: registra l'errore (log + tabella + toast), scrive in cronologia un turno
+     * ASSISTANT d'errore (il turno USER e' gia' salvato: senza, resterebbe orfano) e ritorna l'eccezione
+     * da lanciare, gia' col messaggio per l'utente. Non lancia mai da se'.
+     */
+    private DeepChatFailedException failTurn(ChatConversation conversation, AppErrorSource source, String operation, RuntimeException cause) {
+        appErrors.record(source, operation, cause, null, conversation.getId());
+        String userMessage = i18n.get("deepchat.error.contactAssistant", AppErrorService.sanitize(cause));
+        try {
+            chatMessageRepository.save(ChatMessage.errorTurn(conversation, userMessage));
+        } catch (RuntimeException e) {
+            log.error("Impossibile salvare il turno d'errore in cronologia: {}", e.toString());
+        }
+        return new DeepChatFailedException(userMessage, cause);
     }
 
     /**

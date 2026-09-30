@@ -7,6 +7,9 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
+import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.DeepChatFailedException;
 import org.dual.replicate.service.DeepChatService;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,15 +41,18 @@ public class DeepChatApiController {
     private final ReplicateModelCatalog modelCatalog;
     private final GenerationParameterHandlers parameterHandlers;
     private final Messages messages;
+    private final AppErrorService appErrors;
 
     public DeepChatApiController(DeepChatService deepChatService,
                                   ReplicateModelCatalog modelCatalog,
                                   GenerationParameterHandlers parameterHandlers,
-                                  Messages messages) {
+                                  Messages messages,
+                                  AppErrorService appErrors) {
         this.deepChatService = deepChatService;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
         this.messages = messages;
+        this.appErrors = appErrors;
     }
 
     @PostMapping
@@ -60,8 +66,13 @@ public class DeepChatApiController {
                     request.conversationId(), request.messages(), request.model(), toGenerationParameters(request));
             return new Reply(reply.text(), null, null,
                     reply.startedGenerationIds().isEmpty() ? null : reply.startedGenerationIds());
+        } catch (DeepChatFailedException e) {
+            // Gia' registrato (tabella errori + toast) e scritto in cronologia da DeepChatService#reply.
+            return new Reply(null, e.getMessage(), null, null);
         } catch (Exception e) {
-            return new Reply(null, messages.get("deepchat.error.contactAssistant", e.getMessage()), null, null);
+            // Fallimento prima/fuori dalla chiamata LLM (conversazione inesistente, parametri non validi...).
+            appErrors.record(AppErrorSource.INTERNAL, "chatRequest", e, null, request.conversationId());
+            return new Reply(null, messages.get("deepchat.error.contactAssistant", AppErrorService.sanitize(e)), null, null);
         }
     }
 

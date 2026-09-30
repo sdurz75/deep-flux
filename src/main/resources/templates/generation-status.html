@@ -22,6 +22,9 @@
     <p><em th:text="${generation.prompt}">prompt</em></p>
 
     <div th:replace="~{fragments/generation :: status}"></div>
+
+    <!-- Solo per i toast d'errore (error-toast): un poll che fallisce ripetutamente non ha altro canale su questa pagina. -->
+    <div th:replace="~{fragments/live-events :: connect}"></div>
 </div>
 </body>
 </html>

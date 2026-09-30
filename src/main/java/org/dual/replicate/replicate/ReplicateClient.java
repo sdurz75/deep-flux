@@ -49,20 +49,20 @@ public class ReplicateClient {
         } else {
             String[] ownerAndName = model.split("/", 2);
             if (ownerAndName.length != 2) {
-                throw new ReplicateException(messages.get("replicate.error.invalidModelFormat"));
+                throw new ReplicateConfigurationException(messages.get("replicate.error.invalidModelFormat"));
             }
             path = "/models/%s/%s/predictions".formatted(ownerAndName[0], ownerAndName[1]);
         }
         body.put("input", input);
 
         try {
-            return restClient.post()
+            return requireBody(restClient.post()
                     .uri(path)
                     .headers(this::authHeaders)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(PredictionResponse.class);
+                    .body(PredictionResponse.class));
         } catch (RestClientException e) {
             throw toReplicateException(e);
         }
@@ -71,11 +71,11 @@ public class ReplicateClient {
     public PredictionResponse getPrediction(String externalId) {
         requireToken();
         try {
-            return restClient.get()
+            return requireBody(restClient.get()
                     .uri("/predictions/{id}", externalId)
                     .headers(this::authHeaders)
                     .retrieve()
-                    .body(PredictionResponse.class);
+                    .body(PredictionResponse.class));
         } catch (RestClientException e) {
             throw toReplicateException(e);
         }
@@ -90,24 +90,37 @@ public class ReplicateClient {
     public PredictionResponse cancelPrediction(String externalId) {
         requireToken();
         try {
-            return restClient.post()
+            return requireBody(restClient.post()
                     .uri("/predictions/{id}/cancel", externalId)
                     .headers(this::authHeaders)
                     .retrieve()
-                    .body(PredictionResponse.class);
+                    .body(PredictionResponse.class));
         } catch (RestClientException e) {
             throw toReplicateException(e);
         }
+    }
+
+    /** Un 2xx con corpo vuoto non e' una risposta utilizzabile: errore riprovabile, mai un null che poi esplode altrove. */
+    private PredictionResponse requireBody(PredictionResponse response) {
+        if (response == null) {
+            throw new ReplicateException(messages.get("replicate.error.emptyResponse"), null, true);
+        }
+        return response;
     }
 
     /** Traduce un errore RestClient (HTTP non-2xx o connessione fallita) in un messaggio leggibile. */
     private ReplicateException toReplicateException(RestClientException e) {
         if (e instanceof RestClientResponseException responseException) {
             String body = responseException.getResponseBodyAsString();
+            int status = responseException.getStatusCode().value();
+            // 429/5xx (e 408) sono riprovabili; gli altri 4xx (token errato, id inesistente...) no.
+            boolean transientStatus = status == 408 || status == 429 || status >= 500;
             return new ReplicateException(messages.get("replicate.error.httpError",
-                    responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e);
+                    responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e, transientStatus);
         }
-        return new ReplicateException(messages.get("replicate.error.connectionFailed", e.getMessage()), e);
+        // Nessuna risposta HTTP: rete/timeout/connessione (riprovabile) oppure corpo non decodificabile (non lo e').
+        boolean network = e instanceof org.springframework.web.client.ResourceAccessException;
+        return new ReplicateException(messages.get("replicate.error.connectionFailed", e.getMessage()), e, network);
     }
 
     private void authHeaders(HttpHeaders headers) {
@@ -116,7 +129,7 @@ public class ReplicateClient {
 
     private void requireToken() {
         if (apiToken == null || apiToken.isBlank()) {
-            throw new ReplicateException(messages.get("replicate.error.tokenMissing"));
+            throw new ReplicateConfigurationException(messages.get("replicate.error.tokenMissing"));
         }
     }
 }

@@ -1,6 +1,7 @@
 package org.dual.replicate.service;
 
 import org.dual.replicate.domain.event.ChatMessagePushEvent;
+import org.dual.replicate.domain.event.ErrorToastEvent;
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import org.slf4j.Logger;
@@ -89,6 +90,15 @@ public class GenerationEventBroadcaster {
     @EventListener
     public void onGenerationImageDeleted(GenerationImageDeletedEvent event) {
         emit("gallery-update", "refresh");
+    }
+
+    /**
+     * Toast d'errore (vedi AppErrorService): pubblicato come ErrorToastEvent, consegnato a
+     * tutte le tab connesse a /events (anche se l'errore nasce in un thread @Async).
+     */
+    @EventListener
+    public void onErrorToast(ErrorToastEvent event) {
+        emit("error-toast", event);
     }
 
     public void broadcastChatMessage(ChatMessagePushEvent payload) {

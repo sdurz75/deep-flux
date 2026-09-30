@@ -51,6 +51,9 @@ class TemplateRenderingTests {
     private MockMvc mockMvc;
 
     @Autowired
+    private org.dual.replicate.repository.AppErrorRepository appErrorRepository;
+
+    @Autowired
     private GenerationRepository repository;
 
     @Autowired
@@ -283,6 +286,81 @@ class TemplateRenderingTests {
         assertThat(gallery).doesNotContainPattern("<img[^>]*/images/9-0.mp4");
         assertThat(list).containsPattern("<video[^>]*/images/9-0.mp4");
         assertThat(list).doesNotContainPattern("<img[^>]*/images/9-0.mp4");
+    }
+
+    /** Star per file + tab Tutte/Preferiti: la tab Preferiti mostra solo i file con la star, senza checkbox di selezione. */
+    @Test
+    @Transactional
+    void favouritesTabListsOnlyStarredFilesAndToggleEndpointSwapsStar() throws Exception {
+        Generation g = new Generation("pred-fav", "owner/model", null, "two files", null);
+        g.setStatus(GenerationStatus.SUCCEEDED);
+        g.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png", "7-1.png")));
+        g.setFavouriteFilenames(new java.util.LinkedHashSet<>(java.util.List.of("7-1.png")));
+        repository.save(g);
+
+        String all = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String favourites = mockMvc.perform(get("/gallery").param("tab", "favourites")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(all).contains("/images/7-0.png").doesNotContain("/images/7-1.png").contains("/favourite?filename=7-0.png");
+        assertThat(favourites).contains("/images/7-1.png").doesNotContain("/images/7-0.png")
+                .doesNotContainPattern("<input[^>]*name=\"ids\"").contains("text-favourite");
+
+        mockMvc.perform(post("/generations/" + g.getId() + "/favourite").param("filename", "7-1.png").param("refresh", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("HX-Trigger", "gallery-update"));
+        String empty = mockMvc.perform(get("/gallery").param("tab", "favourites")).andReturn().getResponse().getContentAsString();
+        assertThat(empty).doesNotContain("/images/7-1.png");
+    }
+
+    /** /errors: pagina intera e frammento htmx, e "Svuota" cancella il registro. */
+    @Test
+    @Transactional
+    void errorsPageListsRecordedErrorsAndClearEmptiesTheLog() throws Exception {
+        appErrorRepository.save(new org.dual.replicate.domain.AppError(org.dual.replicate.domain.AppErrorSource.REPLICATE,
+                "getPrediction", "ReplicateException", "Replicate non risponde", "stack...", 42L, null, java.time.Instant.now()));
+
+        String page = mockMvc.perform(get("/errors")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String fragment = mockMvc.perform(get("/errors").header("HX-Request", "true")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(page).contains("Replicate non risponde").contains("getPrediction").contains("/generations/42");
+        assertThat(fragment).contains("Replicate non risponde").doesNotContain("<html");
+
+        String cleared = mockMvc.perform(post("/errors/clear").header("HX-Request", "true")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(cleared).doesNotContain("Replicate non risponde").contains("Nessun errore registrato");
+        assertThat(appErrorRepository.count()).isZero();
+    }
+
+    /** Ogni pagina porta il contenitore dei toast e il link a /errors nell'header. */
+    @Test
+    void layoutHasToastContainerAndErrorsNavLink() throws Exception {
+        String body = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("@app-error.window").contains("href=\"/errors\"");
+    }
+
+    /**
+     * Eccezione non gestita da un controller: prima un 500 muto (htmx non lo renderizza), ora registrata nel registro
+     * errori e, per una richiesta htmx, accompagnata dall'header HX-Trigger che fa comparire il toast.
+     */
+    @Test
+    @Transactional
+    void unhandledExceptionIsRecordedAndHtmxGetsAToastTrigger() throws Exception {
+        Generation g = new Generation("pred-x", "owner/model", null, "p", null);
+        g.setStatus(GenerationStatus.SUCCEEDED);
+        g.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("8-0.png")));
+        repository.save(g);
+        long before = appErrorRepository.count();
+
+        var result = mockMvc.perform(post("/generations/" + g.getId() + "/favourite")
+                        .param("filename", "nope.png").header("HX-Request", "true"))
+                .andExpect(status().isInternalServerError())
+                .andReturn();
+
+        assertThat(result.getResponse().getHeader("HX-Trigger")).contains("app-error").contains("\"message\"");
+        assertThat(appErrorRepository.count()).isEqualTo(before + 1);
     }
 
     @Test

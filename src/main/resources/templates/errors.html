@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title th:text="#{errors.title}">Errori</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <h1 th:text="#{errors.title}">Errori</h1>
+        <button th:replace="~{fragments/button :: danger(type='button', text=#{errors.button.clear},
+                    hxPost=@{/errors/clear}, hxDelete=null, hxConfirm=#{errors.confirm.clear},
+                    hxSwap='innerHTML', hxTarget='#errors-content',
+                    extraClass='px-3 py-1.5 text-[0.85rem]')}">Svuota</button>
+    </div>
+
+    <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{errors.intro}">Errori delle chiamate remote e interni.</p>
+
+    <div id="errors-content">
+        <div th:replace="~{fragments/errors :: content(${errors}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
+    </div>
+
+    <div th:replace="~{fragments/live-events :: connect}"></div>
+</div>
+</body>
+</html>

@@ -95,7 +95,8 @@ public class DeepChatController {
                 .map(org.dual.replicate.domain.Generation::getId).toList());
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", id);
-        model.addAttribute("contextualGenerations", chatMessageRepository.findSucceededGenerationsByConversationId(id));
+        model.addAttribute("contextualItems", chatMessageRepository.findSucceededGenerationsByConversationId(id).stream()
+                .map(org.dual.replicate.service.GalleryItem::first).toList());
 
         // Solo modelli immagine: il tool di chat genera immagini (i video passano da /generations/new).
         model.addAttribute("models", modelCatalog.models(GenerationKind.IMAGE));
@@ -125,10 +126,11 @@ public class DeepChatController {
      */
     @GetMapping("/deep-chat/{id}/gallery")
     public String gallery(@PathVariable Long id, Model model) {
-        model.addAttribute("contextualGenerations", chatMessageRepository.findSucceededGenerationsByConversationId(id));
+        model.addAttribute("contextualItems", chatMessageRepository.findSucceededGenerationsByConversationId(id).stream()
+                .map(org.dual.replicate.service.GalleryItem::first).toList());
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
         model.addAttribute("conversationId", id);
-        return "fragments/gallery :: gridOrEmpty(generations=${contextualGenerations}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";
+        return "fragments/gallery :: gridOrEmpty(items=${contextualItems}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";
     }
 
     @PostMapping("/deep-chat/new")
@@ -191,10 +193,10 @@ public class DeepChatController {
     private HistoryMessage toHistoryMessage(ChatMessage message) {
         String role = message.getRole() == ChatMessageRole.USER ? "user" : "ai";
         List<DeepChatService.FileRef> files = DeepChatService.toFiles(message.getGeneration());
-        return new HistoryMessage(role, message.getContent(), files);
+        return new HistoryMessage(role, message.getContent(), files, message.isError() ? Boolean.TRUE : null);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private record HistoryMessage(String role, String text, List<DeepChatService.FileRef> files) {
+    private record HistoryMessage(String role, String text, List<DeepChatService.FileRef> files, Boolean error) {
     }
 }

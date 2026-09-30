@@ -19,3 +19,8 @@ spring:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
     username: sa
     password:
+app:
+  recovery:
+    # Niente recupero all'avvio / sweep nei @SpringBootTest: chiamerebbe il ReplicateClient reale
+    # sulle righe di prova inserite dai test.
+    enabled: false

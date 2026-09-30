@@ -3,7 +3,9 @@ package org.dual.replicate.domain;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -82,6 +84,16 @@ public class Generation {
     @OrderColumn(name = "ordinal")
     @Column(name = "filename")
     private List<String> imageFilenames = new ArrayList<>();
+
+    /**
+     * File "star" (preferiti), sottoinsieme di {@link #imageFilenames} (vedi
+     * V16): la star e' per singolo file, non per generazione. EAGER per lo
+     * stesso motivo di imageFilenames (open-in-view disattivato).
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "generation_favourite", joinColumns = @JoinColumn(name = "generation_id"))
+    @Column(name = "filename")
+    private Set<String> favouriteFilenames = new LinkedHashSet<>();
 
     @Lob
     private String errorMessage;
@@ -198,6 +210,14 @@ public class Generation {
 
     public void setImageFilenames(List<String> imageFilenames) {
         this.imageFilenames = imageFilenames;
+    }
+
+    public Set<String> getFavouriteFilenames() {
+        return favouriteFilenames;
+    }
+
+    public void setFavouriteFilenames(Set<String> favouriteFilenames) {
+        this.favouriteFilenames = favouriteFilenames;
     }
 
     public String getErrorMessage() {

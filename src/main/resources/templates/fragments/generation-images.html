@@ -96,6 +96,7 @@
         </th:block>
         <!-- "Scarica" questo file; dopo Modifica e Anima per le immagini, in alto a sinistra per il video (niente "Anima"). -->
         <a th:replace="~{fragments/button :: downloadOverlay(url=@{'/images/' + ${filename}}, filename=${filename}, title=#{gallery.card.download}, extraClass=${generation.video} ? 'top-1 left-1' : 'top-1 left-[4.75rem]')}"></a>
+        <button th:replace="~{fragments/button :: starOverlay(generationId=${generation.id}, filename=${filename}, favourite=${generation.favouriteFilenames.contains(filename)}, refresh=false, variant=${generation.video} ? 'detail-video' : 'detail')}"></button>
         <button th:replace="~{fragments/button :: danger(type='button', text=#{gallery.button.deleteImage},
                     hxPost=null,
                     hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},

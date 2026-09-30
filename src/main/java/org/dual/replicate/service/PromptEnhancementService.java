@@ -63,7 +63,7 @@ public class PromptEnhancementService {
 
     public String enhance(String draftPrompt) {
         String result = chatClient.prompt().user(draftPrompt).call().content();
-        return result == null ? "" : result.trim();
+        return requireText(result);
     }
 
     /**
@@ -92,12 +92,33 @@ public class PromptEnhancementService {
     private String rewriteWithVision(String guide, String text, SourceImage image) {
         if (image == null) {
             String result = chatClient.prompt().system(guide).user(text).call().content();
-            return result == null ? "" : result.trim();
+            return requireText(result);
         }
         SourceImage sized = downscale(image);
-        String result = askVision(guide, visionModel, text, sized);
-        if (isRefusal(result) && !visionFallbackModel.isBlank() && !visionFallbackModel.equals(visionModel)) {
-            result = askVision(guide, visionFallbackModel, text, sized);
+        boolean fallbackAvailable = !visionFallbackModel.isBlank() && !visionFallbackModel.equals(visionModel);
+
+        // Il fallback scatta sia per un rifiuto sia per un ERRORE del modello principale (timeout, 402, modello
+        // non disponibile): prima un errore lo faceva abortire senza nemmeno provare il secondo modello.
+        String result = null;
+        RuntimeException failure = null;
+        try {
+            result = askVision(guide, visionModel, text, sized);
+        } catch (RuntimeException e) {
+            failure = e;
+        }
+        if ((failure != null || isRefusal(result)) && fallbackAvailable) {
+            try {
+                result = askVision(guide, visionFallbackModel, text, sized);
+                failure = null;
+            } catch (RuntimeException e) {
+                if (failure != null) {
+                    e.addSuppressed(failure);
+                }
+                failure = e;
+            }
+        }
+        if (failure != null) {
+            throw failure;
         }
         if (isRefusal(result)) {
             throw new PromptEnhancementRefusedException(result == null ? "" : result.trim());
@@ -111,6 +132,14 @@ public class PromptEnhancementService {
                 .options(OpenAiChatOptions.builder().model(model))
                 .user(u -> u.text(text).media(MimeType.valueOf(image.mimeType()), new ByteArrayResource(image.bytes())))
                 .call().content();
+    }
+
+    /** Una risposta vuota NON deve sovrascrivere la bozza dell'utente: e' trattata come un rifiuto (bozza conservata, errore mostrato). */
+    private static String requireText(String result) {
+        if (result == null || result.isBlank()) {
+            throw new PromptEnhancementRefusedException("");
+        }
+        return result.trim();
     }
 
     static boolean isRefusal(String result) {
@@ -137,7 +166,7 @@ public class PromptEnhancementService {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             ImageIO.write(scaled, "jpg", out);
             return new SourceImage(out.toByteArray(), "image/jpeg");
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             return image;
         }
     }

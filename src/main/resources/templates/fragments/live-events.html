@@ -11,7 +11,8 @@
   specifico, vedi deep-chat.html) senza dover conoscere SSE.
 
   Incluso solo dalle pagine che ne hanno bisogno (gallery.html,
-  deep-chat.html), non da fragments/layout.html: una connessione persistente
+  generations-list.html, deep-chat.html, generation-status.html, errors.html: tutte dove qualcosa
+  arriva in un secondo momento, errori compresi), non da fragments/layout.html: una connessione persistente
   aperta su OGNI pagina saturerebbe le ~6 connessioni HTTP/1.1 per host che
   i browser concedono quando l'utente tiene piu' tab dell'app aperte
   contemporaneamente.
@@ -26,8 +27,25 @@
         (function () {
             var eventsUrl = /*[[@{/events}]]*/ '/events';
             var source = new EventSource(eventsUrl);
+            // EventSource si riconnette da solo ma gli eventi emessi nel frattempo sono persi (nessun replay):
+            // alla riconnessione si chiede un refresh delle viste che si aggiornano da "gallery-update".
+            var dropped = false;
+            source.addEventListener('error', function () { dropped = true; });
+            source.addEventListener('open', function () {
+                if (dropped) {
+                    dropped = false;
+                    document.body.dispatchEvent(new CustomEvent('gallery-update'));
+                }
+            });
             source.addEventListener('gallery-update', function () {
                 document.body.dispatchEvent(new CustomEvent('gallery-update'));
+            });
+            // Toast d'errore (AppErrorService): al contenitore di fragments/toast.html (evento window) e,
+            // come CustomEvent su body, alle liste che si aggiornano da sole (/errors).
+            source.addEventListener('error-toast', function (event) {
+                var detail = JSON.parse(event.data);
+                window.dispatchEvent(new CustomEvent('app-error', {detail: detail}));
+                document.body.dispatchEvent(new CustomEvent('error-toast', {detail: detail}));
             });
             source.addEventListener('chat-message', function (event) {
                 document.body.dispatchEvent(new CustomEvent('chat-message', {detail: JSON.parse(event.data)}));

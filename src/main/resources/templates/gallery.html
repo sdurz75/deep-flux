@@ -10,7 +10,7 @@
 
     <!-- Messaggio "galleria vuota" spostato dentro fragments/gallery :: content, vedi commento li'. -->
     <div id="gallery-content">
-        <div th:replace="~{fragments/gallery :: content(${generations}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
+        <div th:replace="~{fragments/gallery :: content(${items}, ${tab}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
     </div>
 
     <div th:replace="~{fragments/live-events :: connect}"></div>

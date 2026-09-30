@@ -10,6 +10,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
+    /** True se una generazione ha gia' un turno in chat (idempotenza di DeepChatGenerationWatcher#persistOutcome). */
+    boolean existsByGenerationId(Long generationId);
+
     /** Cronologia di una conversazione, in ordine cronologico: usata per ripristinarla al caricamento di /deep-chat/{id}. */
     List<ChatMessage> findByConversationIdOrderByIdAsc(Long conversationId);
 

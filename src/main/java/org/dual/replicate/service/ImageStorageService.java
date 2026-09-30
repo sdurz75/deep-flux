@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,13 +28,24 @@ import org.springframework.web.client.RestClientException;
 @Service
 public class ImageStorageService {
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final Path imagesDir;
     private final Messages messages;
 
-    public ImageStorageService(@Value("${storage.images-dir}") String imagesDir, Messages messages) {
+    /**
+     * Il RestClient.Builder auto-configurato (non {@code RestClient.create()}) porta i timeout globali di
+     * {@code spring.http.clients.*}: senza, un download appeso bloccherebbe il thread per sempre.
+     */
+    @Autowired
+    public ImageStorageService(@Value("${storage.images-dir}") String imagesDir, Messages messages, RestClient.Builder restClientBuilder) {
         this.imagesDir = Path.of(imagesDir);
         this.messages = messages;
+        this.restClient = restClientBuilder.build();
+    }
+
+    /** Per i test unitari: client senza timeout configurati. */
+    public ImageStorageService(String imagesDir, Messages messages) {
+        this(imagesDir, messages, RestClient.builder());
     }
 
     /**
@@ -55,7 +67,10 @@ public class ImageStorageService {
         String extension = extensionFrom(sourceUrl);
         String filename = generationId + "-" + index + "." + extension;
         Path target = imagesDir.resolve(filename);
-        // In streaming direttamente su file: un video puo' pesare decine di MB.
+        // In streaming su un file TEMPORANEO poi spostato sul nome definitivo in modo atomico: un download
+        // interrotto o troncato non lascia mai un file parziale col nome "buono" (che la galleria
+        // servirebbe come immagine rotta), e a fallimento il temporaneo viene rimosso.
+        Path temp = imagesDir.resolve(filename + ".part");
         try {
             restClient.get()
                     .uri(URI.create(sourceUrl))
@@ -63,15 +78,32 @@ public class ImageStorageService {
                         if (response.getStatusCode().isError()) {
                             throw new IOException("HTTP " + response.getStatusCode().value() + " da " + sourceUrl);
                         }
-                        Files.copy(response.getBody(), target, StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(response.getBody(), temp, StandardCopyOption.REPLACE_EXISTING);
                         return null;
                     });
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (RestClientException e) {
             // RestClient incapsula l'IOException dell'exchange (download o scrittura) in ResourceAccessException.
+            deleteQuietly(temp);
             throw new UncheckedIOException(messages.get("imagestorage.error.saveImage", target),
                     e.getCause() instanceof IOException io ? io : new IOException(e));
+        } catch (IOException e) {
+            deleteQuietly(temp);
+            throw new UncheckedIOException(messages.get("imagestorage.error.saveImage", target), e);
+        } catch (IllegalArgumentException e) {
+            // URI.create su un URL di output malformato.
+            deleteQuietly(temp);
+            throw new UncheckedIOException(messages.get("imagestorage.error.saveImage", target), new IOException(e));
         }
         return filename;
+    }
+
+    private static void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // best-effort: e' gia' un percorso di errore
+        }
     }
 
     /** Dimensione massima di un'immagine caricata dall'utente (vedi anche spring.servlet.multipart). */
@@ -96,7 +128,12 @@ public class ImageStorageService {
             }
             Files.createDirectories(imagesDir);
             String filename = "upload-" + UUID.randomUUID() + "." + extension;
-            Files.write(imagesDir.resolve(filename), bytes);
+            try {
+                Files.write(imagesDir.resolve(filename), bytes);
+            } catch (IOException writeFailure) {
+                deleteQuietly(imagesDir.resolve(filename)); // niente file troncato rimasto su disco
+                throw writeFailure;
+            }
             return filename;
         } catch (IOException e) {
             // ReplicateException, non UncheckedIOException: GenerationController#create intercetta solo

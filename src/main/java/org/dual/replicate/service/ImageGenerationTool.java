@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import tools.jackson.databind.ObjectMapper;
+import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.ReplicateModel;
@@ -49,10 +50,13 @@ public class ImageGenerationTool {
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
     private final ObjectMapper objectMapper;
+    private final AppErrorService appErrors;
 
     public ImageGenerationTool(GenerationService generationService,
                                 ReplicateModelCatalog modelCatalog,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                AppErrorService appErrors) {
+        this.appErrors = appErrors;
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
         this.objectMapper = objectMapper;
@@ -76,11 +80,12 @@ public class ImageGenerationTool {
         // che ReplicateClient usi lo shortcut "ultima versione": non tutti
         // i modelli lo supportano, vedi ReplicateModelCatalog.versionOf.
         String version = modelCatalog.versionOf(model).orElse(null);
-        String parametersJson = buildParametersJson(toolContext);
         Generation generation;
         try {
+            String parametersJson = buildParametersJson(toolContext);
             generation = generationService.create(model, version, prompt, parametersJson);
         } catch (ReplicateException e) {
+            appErrors.record(AppErrorSource.REPLICATE, "createPrediction", e);
             // Es. troppe generazioni gia' in corso su Replicate: rifiuto
             // applicativo, non un errore di rete. Restituirlo come testo
             // invece di propagarlo fa si' che diventi la risposta del
@@ -88,6 +93,12 @@ public class ImageGenerationTool {
             // conversazione (a differenza del catch-all di
             // DeepChatApiController, che non persiste nulla).
             return "Impossibile avviare la generazione: " + e.getMessage() + " Non ritentare automaticamente.";
+        } catch (RuntimeException e) {
+            // Errore inatteso (parametri non serializzabili, DB...): stesso trattamento, mai un'eccezione
+            // che attraversi Spring AI con esito non verificato.
+            appErrors.record(AppErrorSource.INTERNAL, "generateImage", e);
+            return "Impossibile avviare la generazione: errore interno (" + AppErrorService.sanitize(e)
+                    + "). Non ritentare automaticamente.";
         }
 
         Object holder = toolContext.getContext().get(GenerationResultHolder.CONTEXT_KEY);

@@ -6,6 +6,7 @@ import java.util.List;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.GenerationRepository;
+import org.dual.replicate.service.GalleryItem;
 import org.dual.replicate.service.GenerationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,6 +35,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 public class GalleryController {
 
     private static final int PAGE_SIZE = 12;
+    private static final String TAB_ALL = "all";
+    private static final String TAB_FAVOURITES = "favourites";
 
     private final GenerationRepository repository;
     private final GenerationService generationService;
@@ -45,10 +48,12 @@ public class GalleryController {
 
     @GetMapping
     public String list(@RequestParam(defaultValue = "1") int page,
+                        @RequestParam(defaultValue = TAB_ALL) String tab,
                         @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                         Model model) {
         int pageIndex = Math.max(0, page - 1);
-        Page<Generation> result = repository.findByStatusOrderByCreatedAtDesc(GenerationStatus.SUCCEEDED, PageRequest.of(pageIndex, PAGE_SIZE));
+        boolean favourites = TAB_FAVOURITES.equals(tab);
+        Page<GalleryItem> result = fetch(favourites, pageIndex);
 
         // Una pagina che esisteva puo' smettere di esistere fra un refresh e
         // l'altro (cancellazione in blocco dell'ultima pagina, vedi
@@ -59,57 +64,35 @@ public class GalleryController {
         // le pagine precedenti hanno ancora contenuto.
         if (result.isEmpty() && result.getTotalPages() > 0 && pageIndex >= result.getTotalPages()) {
             pageIndex = result.getTotalPages() - 1;
-            result = repository.findByStatusOrderByCreatedAtDesc(GenerationStatus.SUCCEEDED, PageRequest.of(pageIndex, PAGE_SIZE));
+            result = fetch(favourites, pageIndex);
         }
         int currentPage = pageIndex + 1;
 
-        model.addAttribute("generations", result.getContent());
+        model.addAttribute("items", result.getContent());
+        model.addAttribute("tab", favourites ? TAB_FAVOURITES : TAB_ALL);
         model.addAttribute("currentPage", currentPage);
         model.addAttribute("totalPages", result.getTotalPages());
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
-        model.addAttribute("pageNumbers", paginationWindow(currentPage, result.getTotalPages()));
+        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.getTotalPages()));
 
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         // Nota: come vista di risposta diretta (non dentro un th:replace inline)
         // Thymeleaf richiede parametri nominati, non posizionali.
         return isHtmxRequest
-                ? "fragments/gallery :: content(generations=${generations}, currentPage=${currentPage}, "
+                ? "fragments/gallery :: content(items=${items}, tab=${tab}, currentPage=${currentPage}, "
                         + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
                 : "gallery";
     }
 
-    /**
-     * Numeri di pagina da mostrare (1-indexed): sempre prima e ultima
-     * pagina, una finestra di una pagina prima/dopo quella corrente, con
-     * {@code null} come segnaposto di ellissi per i buchi in mezzo — cosi'
-     * la paginazione resta leggibile anche quando la galleria cresce molto
-     * invece di elencare centinaia di numeri.
-     */
-    private static List<Integer> paginationWindow(int currentPage, int totalPages) {
-        if (totalPages <= 1) {
-            return List.of();
-        }
-
-        List<Integer> pages = new ArrayList<>();
-        pages.add(1);
-
-        int windowStart = Math.max(2, currentPage - 1);
-        int windowEnd = Math.min(totalPages - 1, currentPage + 1);
-
-        if (windowStart > 2) {
-            pages.add(null);
-        }
-        for (int p = windowStart; p <= windowEnd; p++) {
-            pages.add(p);
-        }
-        if (windowEnd < totalPages - 1) {
-            pages.add(null);
-        }
-        pages.add(totalPages);
-
-        return pages;
+    /** Tab "Tutte": una card per generazione (primo file); tab "Preferiti": una card per file con la star. */
+    private Page<GalleryItem> fetch(boolean favourites, int pageIndex) {
+        PageRequest pageable = PageRequest.of(pageIndex, PAGE_SIZE);
+        return favourites
+                ? repository.findFavouriteItems(pageable)
+                : repository.findByStatusOrderByCreatedAtDesc(GenerationStatus.SUCCEEDED, pageable).map(GalleryItem::first);
     }
+
 
     /**
      * Cancellazione in blocco dalla griglia (checkbox multiple, bottone

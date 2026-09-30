@@ -39,6 +39,16 @@ spring:
   thymeleaf:
     # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
     cache: false
+  http:
+    # Timeout di TUTTI i client HTTP auto-configurati (RestClient.Builder: Replicate, SearXNG, download
+    # immagini/video, e il client di Spring AI verso OpenRouter). Senza, una connessione appesa blocca il
+    # thread per sempre (un poll che non torna non lascia mai lo stato "in corso"). Il read-timeout e' per
+    # singola lettura del socket, non per l'intera risposta: 120s copre anche un turno LLM lento o il
+    # download di un mp4 senza troncarlo. Nomi verificati in spring-boot-http-client 4.1.1
+    # (spring.http.clients.*); SearXNG ha in piu' un timeout piu' stretto proprio (SearxngClient).
+    clients:
+      connect-timeout: 10s
+      read-timeout: 120s
   web:
     # Fallback quando Accept-Language manca o non e' parsabile:
     # altrimenti LocaleContextHolder.getLocale() userebbe
@@ -122,6 +132,13 @@ searxng:
   base-url: ${SEARXNG_BASE_URL:https://sdurz.me/xng/}
   username: ${SEARXNG_USERNAME:}
   password: ${SEARXNG_PASSWORD:}
+
+app:
+  recovery:
+    # Recupero delle generazioni rimaste "in corso" (riavvio a meta' polling, watcher perso): all'avvio e
+    # ogni pochi minuti (GenerationRecoveryService). Disattivato nei test (application-test.yml).
+    enabled: true
+    sweep-interval: 2m
 
 storage:
   # Directory locale dove vengono salvate le immagini scaricate da

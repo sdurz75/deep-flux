@@ -22,6 +22,7 @@ module.exports = {
                 accent:            { DEFAULT: '#0969da', dark: '#58a6ff' },
                 'accent-contrast': { DEFAULT: '#ffffff', dark: '#0d1117' },
                 danger:            { DEFAULT: '#cf222e', dark: '#f85149' },
+                favourite:         { DEFAULT: '#ec4899', dark: '#f472b6' },
                 // scrim/scrim-contrast: overlay del lightbox immagini, sempre
                 // nero/bianco a prescindere dal tema (DEFAULT e dark identici).
                 scrim:             { DEFAULT: '#000000', dark: '#000000' },

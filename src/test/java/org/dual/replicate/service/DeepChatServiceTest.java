@@ -63,11 +63,14 @@ class DeepChatServiceTest {
     @Mock
     private Messages i18n;
 
+    @Mock
+    private AppErrorService appErrors;
+
     @Test
     void replyThrowsWhenConversationNotFound() {
         ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, "guida");
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
         when(chatConversationRepository.findById(1L)).thenReturn(Optional.empty());
         when(i18n.get("deepchat.error.conversationNotFound")).thenReturn("Conversazione non trovata");
 
@@ -87,7 +90,7 @@ class DeepChatServiceTest {
                 .thenReturn(chatResponse);
 
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, "guida");
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
 
         ChatConversation conversation = new ChatConversation();
         Instant createdAt = conversation.getUpdatedAt();
@@ -102,5 +105,36 @@ class DeepChatServiceTest {
         assertThat(conversation.getUpdatedAt()).isAfterOrEqualTo(createdAt);
         verify(chatConversationRepository).save(conversation);
         verify(chatMessageRepository, org.mockito.Mockito.times(2)).save(any());
+    }
+
+    /**
+     * Chiamata LLM fallita: l'errore e' registrato, in cronologia c'e' un turno d'errore (il turno USER non resta
+     * orfano), l'eccezione porta il messaggio per l'utente ed e' segnalata come GIA' registrata.
+     */
+    @Test
+    void replyRecordsFailureWritesAnErrorTurnAndSignalsAlreadyRecorded() {
+        ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
+        RuntimeException outage = new RuntimeException("OpenRouter giu'");
+        when(chatClientBuilder.defaultSystem(anyString()).defaultTools(any(), any()).build()
+                .prompt().messages(anyList()).toolContext(anyMap()).call().chatResponse())
+                .thenThrow(outage);
+        DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
+        ChatConversation conversation = new ChatConversation();
+        when(chatConversationRepository.findById(7L)).thenReturn(Optional.of(conversation));
+        when(chatConversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(i18n.get(org.mockito.ArgumentMatchers.eq("deepchat.error.contactAssistant"), any())).thenReturn("Errore assistente");
+
+        assertThatThrownBy(() -> service.reply(7L, List.of(new DeepChatService.Turn("user", "ciao")), "owner/model", Map.of()))
+                .isInstanceOf(DeepChatFailedException.class)
+                .hasMessage("Errore assistente");
+
+        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.OPENROUTER, "chatTurn", outage, null, conversation.getId());
+        org.mockito.ArgumentCaptor<org.dual.replicate.domain.ChatMessage> saved =
+                org.mockito.ArgumentCaptor.forClass(org.dual.replicate.domain.ChatMessage.class);
+        verify(chatMessageRepository, org.mockito.Mockito.times(2)).save(saved.capture());
+        assertThat(saved.getAllValues().get(0).getRole()).isEqualTo(org.dual.replicate.domain.ChatMessageRole.USER);
+        assertThat(saved.getAllValues().get(1).isError()).isTrue();
+        assertThat(saved.getAllValues().get(1).getContent()).isEqualTo("Errore assistente");
     }
 }

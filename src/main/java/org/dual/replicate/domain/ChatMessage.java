@@ -64,6 +64,15 @@ public class ChatMessage {
     @JoinColumn(name = "generation_id")
     private Generation generation;
 
+    /**
+     * True per il turno ASSISTANT scritto quando la chiamata all'LLM fallisce (vedi V18,
+     * DeepChatService#reply): tiene la cronologia coerente (nessun turno USER senza risposta) e
+     * viene mostrato con stile d'errore. Non entra mai nel contesto inviato all'LLM: il contesto
+     * arriva dal client (history html non e' rimandata al server).
+     */
+    @Column(name = "error", nullable = false)
+    private boolean error;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -77,6 +86,17 @@ public class ChatMessage {
         this.content = content;
         this.generation = generation;
         this.createdAt = Instant.now();
+    }
+
+    /** Turno d'errore ASSISTANT (vedi {@link #isError()}). */
+    public static ChatMessage errorTurn(ChatConversation conversation, String content) {
+        ChatMessage message = new ChatMessage(conversation, ChatMessageRole.AI, content, null);
+        message.error = true;
+        return message;
+    }
+
+    public boolean isError() {
+        return error;
     }
 
     public Long getId() {

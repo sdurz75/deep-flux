@@ -253,7 +253,7 @@
         <div id="contextual-gallery"
              th:hx-get="@{/deep-chat/{id}/gallery(id=${activeConversationId})}"
              hx-trigger="new-message from:#deep-chat-el, gallery-update from:body" hx-swap="innerHTML">
-            <div th:replace="~{fragments/gallery :: gridOrEmpty(${contextualGenerations}, #{deepChat.accordion.gallery.empty}, ${activeConversationId})}"></div>
+            <div th:replace="~{fragments/gallery :: gridOrEmpty(${contextualItems}, #{deepChat.accordion.gallery.empty}, ${activeConversationId})}"></div>
         </div>
     </div>
     </th:block>
@@ -390,10 +390,19 @@
             if (stored && stored.model && stored.model !== select.value && hasModelOption(stored.model)) {
                 select.value = stored.model;
                 fetch(select.getAttribute('hx-get') + '?model=' + encodeURIComponent(stored.model))
-                    .then(function (response) { return response.text(); })
+                    .then(function (response) {
+                        if (!response.ok) { throw new Error('HTTP ' + response.status); }
+                        return response.text();
+                    })
                     .then(function (html) {
                         fieldsContainer.innerHTML = html;
                         applyStoredFields(stored);
+                        sync();
+                    })
+                    .catch(function () {
+                        // Modello salvato non piu' disponibile / server non raggiungibile: si resta sui campi del
+                        // modello di default (gia' renderizzati), senza scrivere un corpo d'errore nel pannello.
+                        select.value = select.options[0] ? select.options[0].value : select.value;
                         sync();
                     });
             } else {
@@ -479,8 +488,11 @@
                     : '<img src="' + escapeHtml(f.src) + '" alt="' + escapeHtml(f.name)
                     + '" style="max-width:100%;border-radius:8px;display:block">').join(''));
             // Cronologia: i turni con immagini tornano come messaggi html (con controllo), non "files".
+            // I turni d'errore (LLM fallito, ChatMessage.error) tornano come html con stile d'errore: cosi' non
+            // vengono rimandati all'LLM come contesto (i messaggi html non sono testo della richiesta).
             deepChat.history = (window.deepChatHistory || []).map((m) =>
-                m.files && m.files.length ? {role: m.role, html: resultHtml(null, m.text, m.files)} : m);
+                m.error ? {role: 'ai', html: '<span style="color:#cf222e">' + escapeHtml(m.text) + '</span>'}
+                : m.files && m.files.length ? {role: m.role, html: resultHtml(null, m.text, m.files)} : m);
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
                 const parameters = {};

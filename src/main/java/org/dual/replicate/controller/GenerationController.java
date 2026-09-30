@@ -7,6 +7,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.GenerationKind;
@@ -16,6 +17,7 @@ import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.GenerationRepository;
+import org.dual.replicate.service.AppErrorService;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
@@ -64,6 +66,7 @@ public class GenerationController {
     private final Messages messages;
     private final PromptEnhancementService promptEnhancementService;
     private final ImageStorageService imageStorageService;
+    private final AppErrorService appErrors;
 
     public GenerationController(GenerationService generationService,
                                  GenerationRepository generationRepository,
@@ -72,7 +75,9 @@ public class GenerationController {
                                  ObjectMapper objectMapper,
                                  Messages messages,
                                  PromptEnhancementService promptEnhancementService,
-                                 ImageStorageService imageStorageService) {
+                                 ImageStorageService imageStorageService,
+                                 AppErrorService appErrors) {
+        this.appErrors = appErrors;
         this.generationService = generationService;
         this.generationRepository = generationRepository;
         this.modelCatalog = modelCatalog;
@@ -151,7 +156,7 @@ public class GenerationController {
                           @RequestParam(required = false) String sourceImage,
                           @RequestParam(required = false) MultipartFile sourceUpload,
                           @RequestParam Map<String, String> allParams,
-                          Model uiModel) {
+                          Model uiModel, HttpServletResponse response) {
         Generation sourceGeneration = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
         if (sourceGeneration != null) {
             uiModel.addAttribute("sourceGeneration", sourceGeneration);
@@ -193,12 +198,27 @@ public class GenerationController {
             uiModel.addAttribute("generationsPage", null);
             return "fragments/generation :: status";
         } catch (ReplicateException e) {
-            uiModel.addAttribute("error", e.getMessage());
-            uiModel.addAttribute("version", version);
-            uiModel.addAttribute("prompt", prompt);
-            populateGenerationParamsModel(uiModel, model, allParams);
-            return "fragments/generate-form :: form";
+            // Validazioni applicative (modello sconosciuto, sorgente mancante, troppe in corso) non hanno una
+            // causa: sono un rifiuto, non un errore di comunicazione, e restano solo nel form. Il resto
+            // (chiamata a Replicate fallita, storage) e' registrato e notificato anche come toast.
+            if (e.getCause() != null || e.isTransient() || e instanceof org.dual.replicate.replicate.ReplicateConfigurationException) {
+                appErrors.addToastHeader(response, appErrors.record(AppErrorSource.REPLICATE, "createGeneration", e));
+            }
+            return createFailed(e.getMessage(), version, prompt, model, allParams, uiModel);
+        } catch (RuntimeException e) {
+            // Errore inatteso (upload illeggibile, DB, serializzazione...): mai un 500 che htmx non renderizza.
+            appErrors.addToastHeader(response, appErrors.record(AppErrorSource.INTERNAL, "createGeneration", e));
+            return createFailed(AppErrorService.sanitize(e), version, prompt, model, allParams, uiModel);
         }
+    }
+
+    private String createFailed(String error, String version, String prompt, String model,
+                                 Map<String, String> allParams, Model uiModel) {
+        uiModel.addAttribute("error", error);
+        uiModel.addAttribute("version", version);
+        uiModel.addAttribute("prompt", prompt);
+        populateGenerationParamsModel(uiModel, model, allParams);
+        return "fragments/generate-form :: form";
     }
 
     private PromptEnhancementService.SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
@@ -261,7 +281,7 @@ public class GenerationController {
                                  @RequestParam(required = false) MultipartFile sourceUpload,
                                  @RequestParam(required = false) Long sourceGenerationId,
                                  @RequestParam(required = false) String sourceImage,
-                                 Model uiModel) {
+                                 Model uiModel, HttpServletResponse response) {
         String draft = prompt == null ? "" : prompt.trim();
         // Flusso video: l'enhancer guarda l'immagine sorgente (upload > "Anima", stessa precedenza
         // di create) e propone il movimento; con l'immagine anche la bozza vuota e' ammessa.
@@ -284,8 +304,9 @@ public class GenerationController {
             uiModel.addAttribute("prompt", prompt);
             uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceRefused"));
         } catch (Exception e) {
+            appErrors.addToastHeader(response, appErrors.record(AppErrorSource.OPENROUTER, "enhancePrompt", e));
             uiModel.addAttribute("prompt", prompt);
-            uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", e.getMessage()));
+            uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", AppErrorService.sanitize(e)));
         }
         return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
     }
@@ -357,7 +378,7 @@ public class GenerationController {
         model.addAttribute("totalPages", result.getTotalPages());
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
-        model.addAttribute("pageNumbers", paginationWindow(currentPage, result.getTotalPages()));
+        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.getTotalPages()));
 
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         return isHtmxRequest
@@ -366,31 +387,6 @@ public class GenerationController {
                 : "generations-list";
     }
 
-    /** Vedi Javadoc di GalleryController#paginationWindow: stessa identica finestra (prima/ultima pagina + un intorno della corrente, null come ellissi). */
-    private static List<Integer> paginationWindow(int currentPage, int totalPages) {
-        if (totalPages <= 1) {
-            return List.of();
-        }
-
-        List<Integer> pages = new ArrayList<>();
-        pages.add(1);
-
-        int windowStart = Math.max(2, currentPage - 1);
-        int windowEnd = Math.min(totalPages - 1, currentPage + 1);
-
-        if (windowStart > 2) {
-            pages.add(null);
-        }
-        for (int p = windowStart; p <= windowEnd; p++) {
-            pages.add(p);
-        }
-        if (windowEnd < totalPages - 1) {
-            pages.add(null);
-        }
-        pages.add(totalPages);
-
-        return pages;
-    }
 
     /**
      * Cancellazione in blocco dal listato (checkbox multiple, vedi
@@ -463,7 +459,12 @@ public class GenerationController {
             // pieno...): se la riga esiste ancora non e' questo il caso, si ripropaga e basta,
             // altrimenti un errore di storage sparirebbe silenziosamente in un redirect.
             if (generationRepository.existsById(id)) {
-                throw e;
+                // Errore VERO su una riga esistente: registrato (la serie evita righe/toast a ogni poll) e la
+                // pagina resta viva con lo stato attuale, invece di un 500 che htmx non renderizza e che il
+                // polling ripeterebbe identico ogni 2s. Il recupero (GenerationRecoveryService) la chiude.
+                appErrors.record(AppErrorSource.INTERNAL, "refreshGeneration", e, id, null);
+                generation = generationRepository.findById(id).orElseThrow(() -> e);
+                return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
             }
             if (isHtmxRequest) {
                 response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
@@ -471,6 +472,11 @@ public class GenerationController {
             }
             return "redirect:" + backPath(conversationId, generationsPage);
         }
+        return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
+    }
+
+    private String renderStatus(Generation generation, Long conversationId, Integer generationsPage,
+                                 Boolean cancelDisabled, boolean isHtmxRequest, Model model) {
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
         model.addAttribute("generationsPage", generationsPage);
@@ -496,17 +502,30 @@ public class GenerationController {
                           @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           HttpServletResponse response, Model model) {
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
-        Generation generation = generationService.get(id);
+        Generation generation = null;
         boolean cancelFailed = false;
         String errorText = null;
         try {
+            generation = generationService.get(id);
             generation = generationService.cancel(id);
         } catch (ReplicateException e) {
             cancelFailed = true;
             errorText = e.getMessage();
             // La generazione puo' essere diventata terminale nel frattempo (es. cancel rifiutato
             // perche' gia' finita): rileggerla, il fragment mostra l'esito vero.
-            generation = generationRepository.findById(id).orElse(generation);
+            Generation fallback = generation;
+            generation = generationRepository.findById(id).orElse(fallback);
+            if (generation == null) {
+                throw e; // id inesistente: nulla da mostrare (404-like), come prima
+            }
+            // Un rifiuto perche' la prediction era gia' terminale non e' un errore da segnalare; se invece la
+            // generazione e' ancora in corso il cancel e' davvero fallito: registrato e notificato.
+            if (!generation.isTerminal()) {
+                AppErrorService.Recorded recorded = appErrors.record(AppErrorSource.REPLICATE, "cancelGeneration", e, id, conversationId);
+                if (isHtmxRequest) {
+                    appErrors.addToastHeader(response, recorded);
+                }
+            }
         }
         if (!isHtmxRequest) {
             if (cancelFailed) {
@@ -570,6 +589,33 @@ public class GenerationController {
         model.addAttribute("conversationId", conversationId);
         model.addAttribute("generationsPage", generationsPage);
         return "fragments/generation-images :: grid(generation=${generation}, conversationId=${conversationId}, generationsPage=${generationsPage})";
+    }
+
+    /**
+     * Inverte la star di un file (vedi GenerationService#toggleFavourite) e
+     * ritorna il solo bottone aggiornato (hx-swap="outerHTML" sul bottone
+     * stesso, fragments/button.html :: starOverlay). variant sceglie la
+     * posizione dell'icona (card di galleria vs griglia del dettaglio).
+     * refresh=true (tab "Preferiti"): la card deve sparire togliendo la
+     * star, quindi si emette "gallery-update" (HX-Trigger), lo stesso
+     * evento che il wrapper di fragments/gallery.html :: content ascolta
+     * gia' per gli aggiornamenti SSE.
+     */
+    @PostMapping("/{id}/favourite")
+    public String toggleFavourite(@PathVariable Long id, @RequestParam String filename,
+                                   @RequestParam(defaultValue = "card") String variant,
+                                   @RequestParam(defaultValue = "false") boolean refresh,
+                                   HttpServletResponse response, Model model) {
+        boolean favourite = generationService.toggleFavourite(id, filename);
+        if (refresh) {
+            response.setHeader("HX-Trigger", "gallery-update");
+        }
+        model.addAttribute("generationId", id);
+        model.addAttribute("filename", filename);
+        model.addAttribute("favourite", favourite);
+        model.addAttribute("refresh", refresh);
+        model.addAttribute("variant", variant);
+        return "fragments/button :: starOverlay(generationId=${generationId}, filename=${filename}, favourite=${favourite}, refresh=${refresh}, variant=${variant})";
     }
 
     /**

@@ -125,4 +125,21 @@ class GenerationEventBroadcasterTest {
 
         assertThat(receivedEventNames).containsExactly("gallery-update");
     }
+
+    @Test
+    void errorToastEventIsBroadcastAsErrorToastSseEvent() {
+        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
+        List<String> names = new CopyOnWriteArrayList<>();
+        List<Object> payloads = new CopyOnWriteArrayList<>();
+        broadcaster.subscribe().subscribe(event -> {
+            names.add(event.event());
+            payloads.add(event.data());
+        });
+
+        org.dual.replicate.domain.event.ErrorToastEvent toast = new org.dual.replicate.domain.event.ErrorToastEvent("e1", "Errore Replicate: rete giu'");
+        broadcaster.onErrorToast(toast);
+
+        assertThat(names).containsExactly("error-toast");
+        assertThat(payloads).containsExactly(toast);
+    }
 }

@@ -34,7 +34,7 @@ class PromptEnhancementServiceTest {
     }
 
     @Test
-    void enhanceReturnsEmptyStringWhenModelReturnsNull() {
+    void enhanceTreatsAnEmptyModelResponseAsARefusalInsteadOfOverwritingTheDraft() {
         ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         when(chatClientBuilder.defaultSystem(anyString()).build()
                 .prompt().user(anyString()).call().content())
@@ -42,7 +42,9 @@ class PromptEnhancementServiceTest {
 
         PromptEnhancementService service = new PromptEnhancementService(chatClientBuilder, "guida", "video", "modifica", "vision", "fallback");
 
-        assertThat(service.enhance("gatto arancione")).isEmpty();
+        // Una risposta vuota non deve sovrascrivere la bozza dell'utente: e' trattata come un rifiuto.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.enhance("gatto arancione"))
+                .isInstanceOf(PromptEnhancementRefusedException.class);
     }
 
     @Test

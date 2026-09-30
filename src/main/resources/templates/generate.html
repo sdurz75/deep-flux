@@ -12,6 +12,9 @@
     <div id="generation-panel">
         <div th:replace="~{fragments/generate-form :: form}"></div>
     </div>
+
+    <!-- Solo per i toast d'errore: il polling della generazione appena creata (sotto, in #generation-panel) non ha altro canale su questa pagina. -->
+    <div th:replace="~{fragments/live-events :: connect}"></div>
 </div>
 </body>
 </html>

@@ -51,10 +51,13 @@ class DeepChatGenerationWatcherTest {
     @Mock
     private Messages i18n;
 
+    @Mock
+    private AppErrorService appErrors;
+
     @Test
     void watchPersistsChatMessageAndBroadcastsOnSuccess() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -86,7 +89,7 @@ class DeepChatGenerationWatcherTest {
     @Test
     void watchPersistsErrorMessageOnFailure() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.FAILED);
@@ -114,7 +117,7 @@ class DeepChatGenerationWatcherTest {
     @Test
     void watchDoesNothingWhenConversationWasDeletedMeanwhile() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -140,7 +143,7 @@ class DeepChatGenerationWatcherTest {
     @Test
     void watchStopsSilentlyWhenGenerationWasDeletedMeanwhile() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
 
         when(generationService.waitUntilTerminal(eq(1L), any(Duration.class)))
                 .thenThrow(new ReplicateException("generazione non trovata"));
@@ -150,5 +153,65 @@ class DeepChatGenerationWatcherTest {
         verify(chatConversationRepository, never()).findById(any());
         verify(chatMessageRepository, never()).save(any());
         verify(broadcaster, never()).broadcastChatMessage(any());
+    }
+
+    private DeepChatGenerationWatcher watcher() {
+        return new DeepChatGenerationWatcher(
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
+    }
+
+    /** Errore inatteso con la riga ancora esistente: NON e' una cancellazione, va registrato (prima veniva ingoiato in silenzio). */
+    @Test
+    void watchRecordsUnexpectedFailureInsteadOfSwallowingIt() {
+        RuntimeException boom = new RuntimeException("db giu'");
+        when(generationService.waitUntilTerminal(eq(1L), any(Duration.class))).thenThrow(boom);
+        when(generationService.exists(1L)).thenReturn(true);
+
+        watcher().watch(1L, 7L, Locale.ITALIAN);
+
+        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.INTERNAL, "watchGeneration", boom, 1L, 7L);
+        verify(chatMessageRepository, never()).save(any());
+        verify(broadcaster, never()).broadcastChatMessage(any());
+    }
+
+    /** Thread interrotto / tetto di sicurezza: generazione ancora in corso, nessun falso turno "fallita". */
+    @Test
+    void watchWritesNoFailedTurnWhenGenerationIsStillRunning() {
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        generation.setStatus(GenerationStatus.PROCESSING);
+        when(generationService.waitUntilTerminal(eq(1L), any(Duration.class))).thenReturn(generation);
+
+        watcher().watch(1L, 7L, Locale.ITALIAN);
+
+        verify(chatMessageRepository, never()).save(any());
+        verify(broadcaster, never()).broadcastChatMessage(any());
+    }
+
+    /** Watcher e recupero possono incrociarsi: un secondo turno di esito per la stessa generazione non va scritto. */
+    @Test
+    void persistOutcomeIsIdempotent() {
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(generation, "id", 1L);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        when(chatMessageRepository.existsByGenerationId(1L)).thenReturn(true);
+
+        assertThat(watcher().persistOutcome(generation, 7L)).isFalse();
+
+        verify(chatMessageRepository, never()).save(any());
+        verify(broadcaster, never()).broadcastChatMessage(any());
+    }
+
+    /** Se scrivere il turno fallisce, l'errore e' registrato e non risale (lo sweep di recupero riprovera'). */
+    @Test
+    void persistOutcomeRecordsPersistenceFailure() {
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(generation, "id", 1L);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        RuntimeException boom = new RuntimeException("db giu'");
+        when(chatConversationRepository.findById(7L)).thenThrow(boom);
+
+        assertThat(watcher().persistOutcome(generation, 7L)).isFalse();
+
+        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.INTERNAL, "persistChatTurn", boom, 1L, 7L);
     }
 }

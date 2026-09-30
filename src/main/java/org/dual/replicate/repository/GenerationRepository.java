@@ -6,14 +6,24 @@ import java.util.List;
 
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.service.GalleryItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface GenerationRepository extends JpaRepository<Generation, Long> {
 
     /** Usata dalla galleria: solo le generazioni completate, piu' recenti prima. */
     Page<Generation> findByStatusOrderByCreatedAtDesc(GenerationStatus status, Pageable pageable);
+
+    /** Tab "Preferiti" della galleria: un item per ogni file con la star, di generazioni SUCCEEDED, piu' recenti prima. */
+    @Query(value = "select new org.dual.replicate.service.GalleryItem(g, f) from Generation g join g.favouriteFilenames f "
+            + "where g.status = org.dual.replicate.domain.GenerationStatus.SUCCEEDED order by g.createdAt desc, f",
+            countQuery = "select count(f) from Generation g join g.favouriteFilenames f "
+            + "where g.status = org.dual.replicate.domain.GenerationStatus.SUCCEEDED")
+    Page<GalleryItem> findFavouriteItems(Pageable pageable);
 
     /** Usata dal listato /generations: tutte le generazioni, qualunque stato, piu' recenti prima. */
     Page<Generation> findAllByOrderByCreatedAtDesc(Pageable pageable);
@@ -33,4 +43,17 @@ public interface GenerationRepository extends JpaRepository<Generation, Long> {
 
     /** Generazioni ancora in corso avviate da una conversazione di /deep-chat, per ripristinarne il placeholder al reload (stesso filtro "after" di sopra). */
     List<Generation> findByConversationIdAndStatusInAndCreatedAtAfterOrderByIdAsc(Long conversationId, Collection<GenerationStatus> statuses, Instant after);
+
+    /** Recupero all'avvio (GenerationRecoveryService): tutte le generazioni in uno degli stati indicati. */
+    List<Generation> findByStatusIn(Collection<GenerationStatus> statuses);
+
+    /**
+     * Generazioni di una conversazione di /deep-chat gia' terminali da prima di {@code before} ma senza alcun
+     * turno in chat (watcher perso/fallito): lo sweep di GenerationRecoveryService scrive il turno mancante.
+     * {@code before} evita di incrociare un watcher che sta scrivendo il proprio turno proprio ora.
+     */
+    @Query("select g from Generation g where g.conversationId is not null and g.status in :statuses "
+            + "and g.completedAt < :before and not exists (select 1 from ChatMessage m where m.generation = g)")
+    List<Generation> findTerminalWithoutChatTurn(@Param("statuses") Collection<GenerationStatus> statuses,
+                                                 @Param("before") Instant before);
 }
