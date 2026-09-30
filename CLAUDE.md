@@ -1,390 +1,167 @@
 # CLAUDE.md
 
-Guida di riferimento per lavorare su questo repository. Leggerla prima di
-aggiungere pagine, endpoint o dipendenze: le scelte qui sotto non sono
-casuali, sono vincoli deliberati per mantenere il progetto snello.
+Guida di riferimento per questo repository. Leggerla prima di aggiungere pagine, endpoint o dipendenze: le scelte
+sono vincoli deliberati per mantenere il progetto snello. Package radice: `org.dual.replicate`. Java 21, Maven.
 
 ## Scopo
 
-L'applicazione serve a:
+L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conversazione):
 
-1. **Generare immagini con l'ausilio di un chatbot** — `/deep-chat`:
-   descrivi cosa vuoi, l'assistente puo' cercare sul web per informarsi
-   (`WebSearchTool`, via SearXNG) e generare l'immagine su Replicate
-   (`ImageGenerationTool`) sempre col modello scelto nel combobox
-   (`ImageGenerationTool.MODEL_CONTEXT_KEY`, via `ToolContext`, non un
-   parametro che l'LLM sceglie componendo la chiamata al tool — per ora
-   la scelta del modello resta interamente lato UI). `/generations/new`
-   resta la via
-   diretta (form, senza chatbot) per chi vuole specificare modello/
-   parametri a mano. `ImageGenerationTool` avvia la generazione e torna
-   subito, senza attenderne l'esito: il polling verso Replicate continua
-   in background (`DeepChatGenerationWatcher`, `@Async`) e il risultato
-   arriva in un secondo momento come nuovo turno della conversazione,
-   pushato via SSE (`GET /events`, `GenerationEventBroadcaster`) a chi ha
-   quella conversazione aperta — nessun polling client-side per la chat.
-   Finche' una generazione e' in corso, sia in chat sia su `/generations/{id}`
-   compare un placeholder (`fragments/generation-placeholder.html`, immagine
-   dummy + bottone "Interrompi", stili INLINE perche' finisce anche nello
-   shadow DOM di `<deep-chat>`) che chiede conferma e interrompe la
-   prediction su Replicate (`POST /generations/{id}/cancel`,
-   `GenerationService#cancel`): esito `FAILED` "annullata"; se il cancel
-   fallisce il bottone si disabilita e si attende la fine naturale. In chat
-   i placeholder viaggiano nella risposta del turno (`generationIds`) e sono
-   ripristinati al reload via `Generation.conversationId` (migrazione V11). A generazione finita il
-   risultato rimpiazza il placeholder nello stesso messaggio `html` (`fragments/generation-result.html`,
-   stili inline) con un bottone Nascondi/Mostra immagine (`button :: galleryToggle`, handler `gen-toggle`
-   in `deep-chat.html`); anche la cronologia ricaricata usa lo stesso markup.
-   `/generations/{id}` (form diretto) resta invece a polling client-side
-   htmx ogni 2s mentre la generazione non e' terminale, invariato; a
-   stato terminale quella stessa pagina (`fragments/generation.html ::
-   status`) *e'* anche il dettaglio della generazione (prompt/modello/
-   seed/parametri, tutte le immagini — anche piu' di una, se
-   `num_outputs > 1` — in una griglia con lightbox (zoom, next/prev),
-   cancellabili singolarmente, vedi `fragments/generation-images.html`,
-   cancellazione dell'intera generazione) — niente pagina di dettaglio
-   separata.
-   **Video (img2video/text2video)** — stessa pipeline, non una feature a
-   parte: una `Generation` ha un `GenerationKind` (`IMAGE`/`VIDEO`, migrazione
-   V12), derivato dal `GenerationFormType` del modello scelto
-   (`GenerationFormType#kind()`); oggi l'unico modello video e'
-   `prunaai/p-video` (`P_VIDEO`, `PVideoParameterHandler`). Il file mp4 resta
-   in `imageFilenames` (un output singolo), archivio/dettaglio/watcher/SSE sono
-   quelli delle immagini; cambiano solo il rendering (`<video>` invece di
-   `<img>` in galleria, listato, dettaglio, cronologia chat; niente lightbox per
-   i video) e il timeout (`GenerationService`, 15 min invece di 5). Il punto
-   d'ingresso e' l'icona overlay "Anima in un video" (`button.html ::
-   animateOverlay`) sul thumbnail di OGNI singola immagine — card di
-   `/gallery` e della galleria contestuale di chat, griglia del dettaglio
-   (`/generations/new?source={id}&sourceImage={filename}`: la sorgente e'
-   quel file preciso, non `imageFilenames[0]`; un filename non appartenente
-   alla generazione rende la sorgente ignorata): preseleziona p-video, porta la
-   sorgente come hidden `sourceGenerationId` + `sourceImage` e `GenerationController#create` la
-   invia a Replicate come data-URI (`ImageStorageService#readAsDataUri`,
-   `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`); senza sorgente
-   p-video funziona da text-to-video. **Upload stand-alone**: il link "Genera video" dell'header
-   (`/generations/new?kind=video`) preseleziona p-video, il cui fragment ha un `<input type=file name=sourceUpload>`
-   (form `hx-encoding=multipart`); `ImageStorageService#storeUpload` valida i magic bytes (png/jpeg/webp, max 10 MB),
-   salva `upload-<uuid>.<ext>` (NON una `Generation`), lo traccia in `Generation.sourceUploadFilename` (V14), ha la
-   precedenza sulla sorgente "Anima" e viene eliminato con la generazione (o se la creazione fallisce). `/deep-chat` propone SOLO modelli immagine
-   (`ReplicateModelCatalog#models(GenerationKind)`): il tool di chat non genera
-   video. `disable_safety_checker` e' forzato solo per le immagini (p-video non
-   lo dichiara). Fuori scope per ora: audio-to-video,
-   video in chat.
-   **Modifica immagine (flux-kontext-dev)** — stessa pipeline, terzo tipo di pagina: e' un
-   modello *edit* (`GenerationFormType#isEdit`, `FLUX_KONTEXT_DEV`, migrazione V15) che prende
-   un'immagine + un'istruzione e produce un'IMMAGINE (`GenerationKind.IMAGE`: rendering, archivio,
-   watcher, SSE, timeout invariati). Ha la sua pagina (`/generations/new?kind=edit`, link "Modifica
-   immagine" dell'header) e NON compare ne' nel combobox delle immagini ne' in `/deep-chat`
-   (`ReplicateModelCatalog#models(kind)` esclude gli edit, `#editModels()` li elenca). L'immagine
-   sorgente e' OBBLIGATORIA e viaggia sotto `GenerationFormType#sourceImageParam()` (`input_image`;
-   p-video usa `image`): o l'upload stand-alone (`sourceUpload`, stesso fragment condiviso
-   `generation-params-source-upload.html`) o l'icona overlay "Modifica immagine"
-   (`button.html :: editOverlay`) sul thumbnail di ogni immagine
-   (`/generations/new?kind=edit&source={id}&sourceImage={filename}`); senza sorgente
-   `GenerationService#create` fallisce prima di chiamare Replicate. L'"AI enhance" usa
-   `PromptEnhancementService#enhanceEdit` (visione sull'immagine sorgente, guida
-   `generateForm.edit-prompt-enhancement-guide`; serve una bozza). Un'immagine modificata e' una
-   normale immagine: ri-modificabile o animabile.
-   **Costo** — il dettaglio riporta il costo *stimato* della generazione
-   (l'API Replicate non lo espone, solo `metrics`): `ReplicatePricing` (funzione
-   statica, una regola per modello censito) lo calcola al completamento da
-   `PredictionResponse.metrics` e `GenerationService#refresh` lo salva in
-   `GENERATION.COST_USD` (V13) come snapshot; assente (nessuna riga nel
-   dettaglio) per generazioni precedenti, fallite o di un modello senza regola.
-   Un nuovo modello censito richiede anche la sua regola li'.
-2. **Indicizzare le immagini generate e renderle reperibili/visualizzabili
-   tramite un archivio** — ogni generazione (chatbot o form diretto)
-   diventa una riga `Generation`. `/gallery` resta l'archivio delle sole
-   generazioni completate con successo (paginato, con cancellazione in
-   blocco dalla griglia), che si aggiorna da solo (SSE, vedi punto 1
-   sopra) quando una qualunque generazione completa; le sue card linkano
-   al dettaglio su `/generations/{id}` (punto 1 sopra), non hanno una
-   pagina di dettaglio propria. `/generations` (senza id) e' invece il
-   listato paginato di TUTTE le generazioni, qualunque stato — selezione
-   multipla (anche via shift-click), cancellazione della selezione o
-   dell'intero archivio in un colpo solo (con conferma testuale
-   rinforzata, vedi `generations-list.html`). La cancellazione di una
-   generazione elimina anche i suoi file immagine; cancellare l'ultima
-   immagine rimasta di una generazione elimina a cascata la generazione
-   stessa (`GenerationService#deleteImage`).
-   **Preferiti (star)** — ogni singolo file (immagine o video) di una
-   generazione puo' avere la star, overlay rosa (token `favourite`,
-   `button.html :: starOverlay`, `POST /generations/{id}/favourite`,
-   `GenerationService#toggleFavourite`, `Generation.favouriteFilenames`,
-   migrazione V16) su card di `/gallery`, galleria contestuale di chat e
-   griglia del dettaglio. `/gallery` ha due tab (`?tab=all|favourites`): Tutte
-   (una card per generazione) e Preferiti (una card per file con la star, via
-   `GalleryItem`, senza checkbox/cancellazione in blocco). `deleteImage` toglie
-   anche la star del file rimosso.
-3. **Mantenere una storia delle conversazioni e poterle riprendere in
-   futuro** — `/deep-chat` supporta piu' conversazioni, ognuna una riga
-   `ChatConversation` (migrazione V5) che raggruppa i propri turni
-   (`ChatMessage`/`ChatMessageRepository`, migrazione V3). Una colonna
-   sinistra a larghezza fissa ospita, sopra un bottone "Nuova
-   conversazione" sempre visibile (`POST /deep-chat/new`,
-   `ChatConversationService`), un rail NON collassabile
-   (`fragments/accordion.html :: staticPanels`) con due sezioni sempre
-   entrambe visibili: la lista delle conversazioni esistenti
-   (`fragments/conversation-list.html`, piu' di recente attiva prima —
-   selezionarne una ricarica la cronologia completa, comprese le
-   immagini; rinomina/cancellazione inline) e il pannello impostazioni
-   di generazione (`fragments/generation-params.html`).
-   Resta non multi-utente (come il resto dell'app: `Generation` non ha
-   un owner), solo multi-conversazione per lo stesso singolo utente.
-   Sotto la chat, un secondo accordion — questo collassabile (Pines UI,
-   `fragments/accordion.html :: panels`) — ospita una galleria
-   "contestuale" (`fragments/gallery.html :: grid`, riusata cosi' com'e')
-   con le sole immagini generate in quella conversazione — la galleria
-   globale in `/gallery` (punto 2 sopra) resta invariata, indipendente
-   dalle conversazioni.
+### 1. Generare immagini con l'ausilio di un chatbot
 
-Ulteriori evoluzioni seguiranno, ma sempre pertinenti a questi tre punti
-(l'output puo' essere anche un video, vedi sopra): non aggiungere feature (pagine demo, integrazioni, pattern) che non
-servono direttamente a generare, archiviare o conversare sulle immagini.
-Se un domani serve dimostrare un pattern htmx/Alpine non ancora coperto
-dal codice reale, farlo aggiungendolo a una feature vera, non con una
-pagina demo isolata (le pagine demo starter — "Load more", "Search",
-chat di rifinitura prompt — sono state rimosse per questo). L'icona
-"AI enhance" di `/generations/new` (vedi punto 1 sopra,
-`PromptEnhancementService`) non e' una riedizione di quella chat di
-rifinitura rimossa: non e' una pagina/conversazione a se stante ma
-un'azione puntuale sulla form reale di generazione, che riscrive il
-prompt gia' inserito senza aprire un'interfaccia propria.
+- `/deep-chat`: l'assistente puo' cercare sul web (`WebSearchTool`, SearXNG) e generare su Replicate
+  (`ImageGenerationTool`) SEMPRE col modello scelto nel combobox UI (`ImageGenerationTool.MODEL_CONTEXT_KEY` via
+  `ToolContext`, non un parametro scelto dall'LLM). `/generations/new` e' la via diretta (form, senza chatbot).
+- `ImageGenerationTool` avvia e torna subito; il polling continua in background (`DeepChatGenerationWatcher`, `@Async`)
+  e il risultato arriva come nuovo turno di chat via SSE (`GET /events`, `GenerationEventBroadcaster`): nessun polling
+  client-side per la chat.
+- **Placeholder** mentre una generazione e' in corso (chat e `/generations/{id}`): `fragments/generation-placeholder.html`
+  (immagine dummy + "Interrompi", stili INLINE perche' finisce anche nello shadow DOM di `<deep-chat>`). Il bottone chiede
+  conferma e fa `POST /generations/{id}/cancel` (`GenerationService#cancel`): esito `FAILED` "annullata"; se il cancel
+  fallisce il bottone si disabilita e si attende la fine naturale. In chat i placeholder viaggiano nella risposta del
+  turno (`generationIds`) e al reload si ripristinano via `Generation.conversationId` (V11). A fine generazione il
+  risultato (`fragments/generation-result.html`, stili inline, toggle `button :: galleryToggle`, handler `gen-toggle` in
+  `deep-chat.html`) rimpiazza il placeholder nello stesso messaggio `html`; la cronologia ricaricata usa lo stesso markup.
+- `/generations/{id}` (form diretto) fa polling htmx ogni 2s finche' non e' terminale; a stato terminale quella stessa
+  pagina (`fragments/generation.html :: status`) e' anche l'UNICO dettaglio: prompt/modello/seed/parametri, tutte le
+  immagini in griglia con lightbox (`fragments/generation-images.html`) cancellabili singolarmente, cancellazione
+  dell'intera generazione.
+- **Video (img2video/text2video)**: stessa pipeline. `Generation.kind` (`GenerationKind` IMAGE/VIDEO, V12) deriva da
+  `GenerationFormType#kind()`; unico modello video `prunaai/p-video` (`P_VIDEO`, `PVideoParameterHandler`). L'mp4 sta in
+  `imageFilenames`; cambiano solo rendering (`<video>`, niente lightbox) e timeout (15 min invece di 5, `GenerationService`).
+  - Ingresso: icona overlay "Anima" (`button.html :: animateOverlay`) su OGNI thumbnail (`/gallery`, galleria di chat,
+    griglia dettaglio) → `/generations/new?source={id}&sourceImage={filename}` (la sorgente e' quel file preciso; filename
+    non della generazione → sorgente ignorata). Preseleziona p-video, hidden `sourceGenerationId`+`sourceImage`;
+    `GenerationController#create` la invia come data-URI (`ImageStorageService#readAsDataUri`,
+    `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`). Senza sorgente p-video e' text-to-video.
+  - **Upload stand-alone**: link "Genera video" (`/generations/new?kind=video`); il fragment p-video ha
+    `<input type=file name=sourceUpload>` (form `hx-encoding=multipart`). `ImageStorageService#storeUpload` valida magic
+    bytes (png/jpeg/webp, max 10 MB), salva `upload-<uuid>.<ext>` (NON una `Generation`), lo traccia in
+    `Generation.sourceUploadFilename` (V14); ha precedenza sulla sorgente "Anima"; eliminato con la generazione (o se la
+    creazione fallisce).
+  - `/deep-chat` propone SOLO modelli immagine (`ReplicateModelCatalog#models(GenerationKind)`). `disable_safety_checker`
+    forzato solo per le immagini. Fuori scope: audio-to-video, video in chat.
+- **Modifica immagine (flux-kontext-dev)**: modello *edit* (`GenerationFormType#isEdit`, `FLUX_KONTEXT_DEV`, V15) che
+  produce un'IMMAGINE (kind IMAGE, pipeline invariata). Pagina propria `/generations/new?kind=edit` (link header); NON
+  compare nel combobox immagini ne' in `/deep-chat` (`ReplicateModelCatalog#models(kind)` esclude gli edit,
+  `#editModels()` li elenca). Sorgente OBBLIGATORIA, sotto `GenerationFormType#sourceImageParam()` (`input_image`;
+  p-video usa `image`): upload stand-alone (`sourceUpload`, fragment `generation-params-source-upload.html`) o overlay
+  "Modifica immagine" (`button.html :: editOverlay`, `?kind=edit&source=..&sourceImage=..`); senza sorgente
+  `GenerationService#create` fallisce prima di chiamare Replicate. "AI enhance" usa
+  `PromptEnhancementService#enhanceEdit` (visione sulla sorgente, guida `generateForm.edit-prompt-enhancement-guide`;
+  serve una bozza). Un'immagine modificata e' una normale immagine (ri-modificabile/animabile).
+- **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, una
+  regola per modello censito — un nuovo modello richiede anche la sua regola) lo calcola da `PredictionResponse.metrics`;
+  `GenerationService#refresh` lo salva in `GENERATION.COST_USD` (V13); assente per generazioni vecchie, fallite o senza regola.
+
+### 2. Indicizzare le immagini in un archivio
+
+- Ogni generazione (chat o form) e' una riga `Generation`. `/gallery` = solo SUCCEEDED, paginata, cancellazione in blocco,
+  si aggiorna via SSE; le card linkano a `/generations/{id}` (nessun dettaglio proprio). `/generations` = listato paginato
+  di TUTTE le generazioni, selezione multipla (shift-click), cancellazione selezione/intero archivio (conferma testuale
+  rinforzata, `generations-list.html`).
+- Cancellare una generazione elimina i file; cancellare l'ultima immagine elimina a cascata la generazione
+  (`GenerationService#deleteImage`).
+- **Preferiti (star)**: ogni file (immagine/video) puo' avere la star (overlay rosa, token `favourite`,
+  `button.html :: starOverlay`, `POST /generations/{id}/favourite`, `GenerationService#toggleFavourite`,
+  `Generation.favouriteFilenames`, V16) su `/gallery`, galleria di chat, dettaglio. `/gallery` ha tab `?tab=all|favourites`:
+  Tutte (una card per generazione) e Preferiti (una card per file, `GalleryItem`, senza checkbox/cancellazione in
+  blocco). `deleteImage` toglie anche la star.
+
+### 3. Storia delle conversazioni
+
+- `/deep-chat` e' multi-conversazione: `ChatConversation` (V5) raggruppa i turni (`ChatMessage`, V3;
+  `ChatConversationService`). Colonna sinistra fissa: bottone "Nuova conversazione" (`POST /deep-chat/new`) + rail NON
+  collassabile (`accordion.html :: staticPanels`) con lista conversazioni (`conversation-list.html`, piu' recente attiva
+  prima, ricarica cronologia completa, rinomina/cancella inline) e impostazioni di generazione (`generation-params.html`).
+- Sotto la chat, accordion collassabile (`accordion.html :: panels`, Pines UI) con la galleria "contestuale"
+  (`gallery.html :: grid` riusata) delle sole immagini di quella conversazione; `/gallery` resta indipendente.
+
+**Perimetro**: non aggiungere feature (pagine demo, integrazioni, pattern) che non servano a generare, archiviare o
+conversare sulle immagini (l'output puo' essere anche un video). Per dimostrare un pattern htmx/Alpine nuovo, aggiungerlo a
+una feature vera. Le pagine demo starter e la chat di rifinitura prompt sono state rimosse; l'icona "AI enhance"
+(`PromptEnhancementService`) non ne e' una riedizione: e' un'azione puntuale sulla form reale che riscrive il prompt.
 
 ## Filosofia
 
-Hypermedia-first, non SPA. Il server resta la fonte di verità dello stato
-dell'applicazione e restituisce HTML, non JSON. Il client arricchisce
-quell'HTML, non lo sostituisce.
+Hypermedia-first, non SPA: il server e' la fonte di verita' e restituisce HTML, non JSON; il client arricchisce.
 
-- **Navigazione** → HTML renderizzato dal server (Spring MVC + Thymeleaf).
-- **Aggiornamenti parziali / navigazione senza reload** → htmx.
-- **Micro-interattività locale** (toggle, dropdown, form state, validazione
-  immediata) → Alpine.js.
-- **Componenti davvero complessi** (editor, diff viewer, grafici) → se e
-  quando servono, un Web Component isolato montato su un singolo `<div>`,
-  non un framework SPA per l'intera app.
-- **Theming** → Tailwind (Play CDN) e' il sistema di stile dell'intero
-  sito, non solo dei componenti Pines UI: nessun `theme.css`, classi
-  utility inline nei template. Il tema chiaro/scuro/auto resta lo stesso
-  toggle Alpine su `data-theme` di sempre (localStorage +
-  `prefers-color-scheme`); a cambiare e' solo il meccanismo CSS che lo
-  consuma — `darkMode: ['selector', '[data-theme="dark"]']` in
-  `tailwind.config`, non `prefers-color-scheme` diretto. Vedi
-  "Convenzione: theming" sotto.
-
-Zero step di build frontend: niente npm/webpack/vite/esbuild. htmx,
-Alpine.js e Tailwind (Play CDN, vedi sotto) sono caricati da CDN in
-`fragments/layout.html`. Se un giorno serve vendorizzarli offline, basta
-scaricare i file JS in `static/js/` e cambiare i `<script src="...">` —
-nessun altro impatto.
+- Navigazione → Spring MVC + Thymeleaf. Aggiornamenti parziali → htmx. Micro-interattivita' locale → Alpine.js.
+- Componenti davvero complessi → Web Component isolato su un singolo `<div>`, mai un framework SPA.
+- Theming → Tailwind (Play CDN) per l'intero sito: nessun `theme.css`, utility inline (vedi "Convenzione: theming").
+- Zero build frontend (niente npm/webpack/vite/esbuild): htmx, Alpine, Tailwind da CDN in `fragments/layout.html`.
 
 ### Cosa NON introdurre senza una ragione concreta
 
-- **Spring WebFlux come modello di programmazione del server** — nessun
-  beneficio reale per una webapp a navigazione prevalentemente
-  server-rendered; aggiunge solo complessità. Restare su Spring MVC
-  classico (`spring-boot-starter-webmvc`), un solo server (Tomcat) per
-  tutta l'app — niente `spring-boot-starter-webflux`, mai (Spring Boot
-  sceglie UN application-type per l'intera app dal classpath: aggiungere
-  quello starter accanto a webmvc non darebbe comunque una singola rotta
-  reattiva "mescolata" alle altre, servirebbe un secondo server embedded
-  su una porta separata, o la migrazione dell'intera app — nessuna delle
-  due è mai stata necessaria finora). Due eccezioni isolate e deliberate,
-  entrambe **tipi Reactor**, non il modello WebFlux:
-  1. lo starter Spring AI (vedi Stack sotto) porta Reactor/WebFlux in
-     classpath per il *client* HTTP verso i provider LLM, non per servire
-     richieste;
-  2. `EventStreamController` (`GET /events`, vedi Scopo punto 1/3) ritorna
-     un `Flux<ServerSentEvent<?>>` (sorgente in `GenerationEventBroadcaster`,
-     un `Sinks.Many`): supportato nativamente da `spring-webmvc` dalla 5.0
-     (`ReactiveTypeHandler`), gira sullo stesso Tomcat/`DispatcherServlet`
-     di ogni altro controller — non introduce ne' un secondo server ne'
-     `spring-boot-starter-webflux`, solo i tipi Reactor (gia' in classpath
-     per il punto 1) al posto di un registro di `SseEmitter` scritto a
-     mano.
-  Nessuna delle due è un'apertura generale a WebFlux nel resto del
-  progetto: un controller che ritorna un tipo reattivo per il gusto di
-  farlo (senza un bisogno concreto di streaming, come qui il push SSE)
-  resta fuori scope.
-- **React/Vue/Angular come framework applicativo** — duplicherebbe la
-  gestione di routing/stato che il server già fa. Se serve un widget
-  isolato, montarlo come Web Component su un `<div>` mirato, non riscrivere
-  la navigazione.
-- **Un build step Tailwind obbligatorio (CLI/PostCSS/npm)** — il default
-  resta il Play CDN (JIT nel browser): `mvn spring-boot:run` e `mvn test`
-  non compilano nulla. Unica eccezione ammessa, opt-in: il profilo Maven
-  `tailwind` (`mvn -Ptailwind clean package`), che scarica via `curl` il
-  binario *standalone* di Tailwind 3.4 (niente Node/npm/PostCSS, cache in
-  `target/tailwind/`, solo macOS/Linux) e compila
-  `target/classes/static/css/tailwind.css` minificato, per produzione.
-  `config/TailwindAssets` rileva la presenza di quell'asset e
-  `fragments/layout.html` serve `<link>` al CSS compilato invece del Play
-  CDN (nessuna property da sincronizzare). La config vive in UN solo file,
-  `src/main/tailwind/tailwind.config.js` (CommonJS): la CLI lo legge da li',
-  il Play CDN lo carica come `/js/tailwind.config.js` (copiato a build via
-  `<resources>` del pom, con uno shim `module` in `layout.html`). Il blocco
-  `@layer base` e' invece duplicato tra `src/main/tailwind/input.css` e
-  `<style type="text/tailwindcss">` di `layout.html`: tenerli allineati.
-  Le classi devono restare stringhe letterali nei template (la CLI le
-  scansiona staticamente, il CDN no): niente classi composte da concatenazione.
+- **Spring WebFlux come modello del server**: restare su `spring-boot-starter-webmvc` (Tomcat), mai
+  `spring-boot-starter-webflux` (Boot sceglie UN application-type; mischiare richiederebbe un secondo server o la
+  migrazione dell'app). Due eccezioni deliberate, solo **tipi Reactor**:
+  1. lo starter Spring AI porta Reactor/WebFlux per il *client* HTTP verso gli LLM;
+  2. `EventStreamController` (`GET /events`) ritorna `Flux<ServerSentEvent<?>>` (sorgente `Sinks.Many` in
+     `GenerationEventBroadcaster`), supportato nativamente da spring-webmvc (`ReactiveTypeHandler`) sullo stesso
+     Tomcat, al posto di un registro di `SseEmitter` a mano.
+  Non sono un'apertura generale: un controller reattivo senza un bisogno concreto di streaming e' fuori scope.
+- **React/Vue/Angular** come framework applicativo: duplicherebbe routing/stato del server.
+- **Un build step Tailwind obbligatorio**: default = Play CDN (`mvn spring-boot:run`/`mvn test` non compilano nulla).
+  Unica eccezione opt-in: profilo `tailwind` (`mvn -Ptailwind clean package`), che scarica via `curl` il binario
+  *standalone* Tailwind 3.4 (niente Node, cache `target/tailwind/`, solo macOS/Linux) e compila
+  `target/classes/static/css/tailwind.css` minificato; `config/TailwindAssets` rileva l'asset e `layout.html` serve
+  `<link>` invece del CDN. Config in UN solo file `src/main/tailwind/tailwind.config.js` (CommonJS; il CDN lo carica come
+  `/js/tailwind.config.js`, copiato via `<resources>` del pom, con uno shim `module` in `layout.html`). Il blocco
+  `@layer base` e' duplicato tra `src/main/tailwind/input.css` e `<style type="text/tailwindcss">` di `layout.html`:
+  tenerli allineati. Le classi devono restare stringhe letterali (la CLI scansiona staticamente): niente concatenazione.
 
 ## Stack
 
-| Livello | Scelta | Perché |
-|---|---|---|
-| Backend | Spring Boot 4.x, Spring MVC | Coerente con lo stack Spring esistente, nessun context-switch |
-| Template engine | Thymeleaf | Fragment nativi, integrazione naturale con Spring MVC |
-| Layout manager | thymeleaf-layout-dialect | `layout:decorate`/`layout:fragment` al posto di fragment parametrizzati scritti a mano: la BOM di Spring Boot ne gestisce la versione, nessuna dipendenza aggiuntiva da tracciare |
-| Navigazione parziale | htmx (via CDN) | Markup dichiarativo via attributi, niente build |
-| Micro-interattività | Alpine.js (via CDN) | Stato dichiarato inline, niente build |
-| Componenti UI pronti | Pines UI (devdojo.com/pines) + Tailwind Play CDN | Componenti Alpine.js gia' scritti (dropdown, modali, tabs...) da copiare cosi' come sono; usano classi Tailwind, che oggi e' il sistema di stile di tutto il sito (non solo di questi componenti, vedi riga Theming) — `preflight` e' quindi attivo, i componenti Pines condividono la stessa base di stile del resto del sito, non piu' isolati da essa |
-| Theming | Tailwind (Play CDN), `theme.extend.colors`/`dark:` variant | Nessun CSS scritto a mano: design token nella config inline di `fragments/layout.html`, cambio tema = cambio attributo `data-theme` (letto da `darkMode` custom selector), zero ricalcolo server |
-| Persistenza | Spring Data JPA + H2 file-based | Metadata delle generazioni (prompt/parametri/stato/file immagine); DB embedded su file locale, zero server esterno |
-| Migrazioni schema DB | Flyway (`spring-boot-starter-flyway`) | Lo schema e' versionato in SQL esplicito, non dedotto da Hibernate (`ddl-auto: validate`): ogni modifica al DB e' una migrazione tracciabile, riproducibile, mai un'alterazione implicita a runtime |
-| Client HTTP verso Replicate | `RestClient` (`spring-boot-starter-restclient`) | Sincrono, nessuna dipendenza WebFlux/reactor per questo client |
-| Assistente chat (OpenRouter) | Spring AI (`spring-ai-starter-model-openai`) via `ChatClient`, `base-url` puntato su `https://openrouter.ai/api/v1` | OpenRouter espone un'API OpenAI-compatibile: nessun client HTTP custom da scrivere/mantenere. Richiede Spring Boot 4.x (Spring AI 2.0.x) — vedi eccezione WebFlux sopra |
-| Build | Maven | — |
-| Java | 21 | LTS |
-
-Il package radice del codice applicativo è `org.dual.replicate`.
+Spring Boot 4.x + Spring MVC; Thymeleaf + thymeleaf-layout-dialect (`layout:decorate`/`layout:fragment`); htmx e
+Alpine.js via CDN; Pines UI (componenti Alpine+Tailwind da copiare, `preflight` attivo, stessa base di stile del sito);
+Spring Data JPA + H2 su file; Flyway (`spring-boot-starter-flyway`, `ddl-auto: validate`); `RestClient`
+(`spring-boot-starter-restclient`) verso Replicate; Spring AI (`spring-ai-starter-model-openai`, `ChatClient`, `base-url`
+`https://openrouter.ai/api/v1`, richiede Boot 4.x / Spring AI 2.0.x); Maven; Java 21.
 
 ## Struttura del progetto
 
-```
-src/main/java/org/dual/replicate/
-  Application.java              # entry point Spring Boot
-  controller/
-    HomeController.java         # pagina intera, esempio minimo
-    GenerationController.java   # crea una generazione, polling htmx dello stato + dettaglio a stato terminale, listato paginato /generations (qualunque stato), cancellazione (singola/selezione/per-immagine/intero archivio), riscrittura del prompt via AI ("AI enhance", POST /generations/enhance-prompt)
-    GalleryController.java      # galleria (load more): SOLO generazioni SUCCEEDED, cancellazione in blocco dalla griglia
-    DeepChatController.java     # pagina <deep-chat> + lista conversazioni + galleria contestuale (tutte le route HTML sotto /deep-chat/*)
-    DeepChatApiController.java  # endpoint JSON per <deep-chat> (non fragment HTML)
-    EventStreamController.java  # GET /events (SSE): unico endpoint di push, vedi GenerationEventBroadcaster
-  domain/
-    Generation.java             # entity JPA: prompt, modello, parametri, seed, stato, file immagine
-    GenerationStatus.java
-    ChatConversation.java       # entity JPA: una conversazione di /deep-chat (titolo, elencabile/rinominabile/eliminabile dalla lista conversazioni)
-    ChatMessage.java            # entity JPA: un turno persistito di /deep-chat, appartiene a una ChatConversation (ruolo, testo, immagine opzionale)
-    ChatMessageRole.java
-    ReplicateModel.java         # entity JPA: un modello Replicate censito (owner/name/version/formType), vedi migrazione V6
-    GenerationFormType.java     # enum: quale form/handler di generazione usa un ReplicateModel (FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO, FLUX_KONTEXT_DEV); kind() = GenerationKind del media prodotto, sourceImageParam()/isEdit() per i modelli con immagine sorgente
-    GenerationKind.java         # enum IMAGE/VIDEO: tipo di media di una Generation (migrazione V12)
-  repository/
-    GenerationRepository.java
-    ChatConversationRepository.java
-    ChatMessageRepository.java
-    ReplicateModelRepository.java
-  replicate/
-    ReplicateClient.java        # wrapper RestClient sulle API Replicate
-    PredictionResponse.java
-    ReplicateException.java
-    TooManyPredictionsException.java # rifiuto applicativo: troppe prediction gia' in corso PER LO STESSO MODELLO (vedi GenerationService#create)
-    ReplicateModelCatalog.java  # legge il catalogo modelli censiti (ReplicateModelRepository) per il combobox di /generations/new e /deep-chat
-  search/
-    SearxngClient.java          # wrapper RestClient su un'istanza SearXNG (Basic Auth)
-    SearxngResponse.java, SearchResult.java, SearxngException.java
-  service/
-    GalleryItem.java            # record (Generation, file): una card di galleria, vedi Scopo punto 2 (Preferiti)
-    AppErrorService.java        # registro errori: log + APP_ERROR (serie) + toast SSE, mai lancia; vedi "Convenzione: errori"
-    GenerationRecoveryService.java # recupero all'avvio + sweep delle generazioni rimaste in corso / senza turno di chat
-    DeepChatFailedException.java # turno di chat fallito e gia' registrato
-    GenerationService.java      # crea la prediction, fa avanzare lo stato, orchestra il download; pubblica GenerationCompletedEvent a ogni transizione terminale
-    GenerationCompletedEvent.java # evento di dominio: una Generation e' diventata terminale (successo o fallimento), qualunque sia il percorso che ce l'ha portata
-    GenerationsDeletedEvent.java # evento di dominio: una o piu' Generation sono state eliminate (GenerationService#delete/#deleteAll/#deleteEverything), singola o in blocco
-    GenerationImageDeletedEvent.java # evento di dominio: una singola immagine e' stata rimossa da una Generation ANCORA esistente (GenerationService#deleteImage, caso non a cascata)
-    GenerationEventBroadcaster.java # sorgente Reactor (Sinks.Many/Flux) di GET /events, broadcast "gallery-update"/"chat-message"
-    GenerationParameterHandler.java # interfaccia: costruisce l'input Replicate per un GenerationFormType a partire dai campi sottomessi, un'implementazione per form-type
-    GenerationParameterHandlers.java # risolve il GenerationParameterHandler di un GenerationFormType (bean auto-raccolte), usato da GenerationController/DeepChatController/DeepChatApiController
-    FluxLoraFf3ParameterHandler.java # GenerationParameterHandler di FLUX_LORA_FF3: i 9 campi tipizzati (width/height/formato/steps/guidance/seed/lora scale/variante flux/num output)
-    Flux2Klein9bParameterHandler.java # GenerationParameterHandler di FLUX_2_KLEIN_9B: aspect_ratio/megapixels/seed/go_fast/formato/qualita' (schema reale del modello, vedi migrazione V7)
-    FluxKreaDevParameterHandler.java # GenerationParameterHandler di FLUX_KREA_DEV: aspect_ratio/megapixels(2 sole opzioni)/seed/go_fast/guidance/num_outputs/formato/qualita'/steps (schema reale del modello, vedi migrazione V10)
-    PVideoParameterHandler.java # GenerationParameterHandler di P_VIDEO: duration/aspect_ratio/resolution/fps/draft/prompt_upsampling/seed (schema reale di prunaai/p-video, vedi migrazione V12); `image` lo aggiunge GenerationController (Anima)
-    FluxKontextDevParameterHandler.java # GenerationParameterHandler di FLUX_KONTEXT_DEV: aspect_ratio (default match_input_image)/steps/guidance/seed/go_fast/formato/qualita' (schema reale, vedi migrazione V15); `input_image` lo aggiunge GenerationService
-    ReplicatePricing.java (in replicate/) # stima del costo USD di una prediction completata da metrics, una regola per modello (vedi Scopo)
-    ImageStorageService.java    # scrive (in streaming) i file immagine/video su storage.images-dir; readAsDataUri() per l'input img2video
-    PromptEnhancementService.java # (anche enhanceVideo: per i video guarda l'immagine sorgente con un modello di visione OpenRouter non moderato, `enhancer.vision-model`/`vision-fallback-model`, guida in prompts.properties `generateForm.video-prompt-enhancement-guide`; un rifiuto del modello e' intercettato e non sovrascrive la textarea) riscrittura one-shot (senza tool ne' cronologia) di una bozza di prompt in un prompt Flux ben formato in inglese, per l'icona "AI enhance" di /generations/new - un ChatClient dedicato, senza defaultTools(...), non l'istanza di DeepChatService
-    ChatConversationService.java # CRUD conversazioni di /deep-chat (crea/rinomina/elimina)
-    DeepChatService.java        # orchestrazione del Web Component <deep-chat>, persiste la cronologia per conversazione; avvia i watch di background dopo ogni turno
-    DeepChatGenerationWatcher.java # @Async: attende in background l'esito di una generazione avviata da /deep-chat, la persiste come nuovo turno e la notifica via SSE
-    WebSearchTool.java          # tool Spring AI: ricerca web via SearxngClient
-    ImageGenerationTool.java    # tool Spring AI: avvia una generazione via GenerationService e torna subito, senza attenderne l'esito
-    GenerationResultHolder.java # canale d'uscita tool->DeepChatService (via ToolContext): gli id delle generazioni avviate nel turno, non piu' un risultato gia' pronto
-  config/
-    StorageConfig.java          # espone storage.images-dir come /images/**
-    TailwindAssets.java         # true se static/css/tailwind.css (profilo Maven "tailwind") e' nel classpath: layout.html sceglie CSS compilato vs Play CDN
+Ricavabile dal repo; qui solo cio' che non e' ovvio.
 
-src/main/tailwind/
-  tailwind.config.js            # config Tailwind UNICA (CLI + Play CDN), vedi "Cosa NON introdurre"
-  input.css                     # input della CLI: direttive + @layer base (duplicato in layout.html)
+- `controller/`: `GenerationController` (crea, polling/dettaglio, listato, cancellazioni, "AI enhance" `POST
+  /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `DeepChatController` (route HTML `/deep-chat/*`),
+  `DeepChatApiController` (JSON per `<deep-chat>`), `EventStreamController` (`GET /events`, unico push), `ErrorController`.
+- `domain/`: `Generation`, `ChatConversation`, `ChatMessage`, `ReplicateModel` (catalogo censito, V6),
+  `GenerationFormType` (form/handler di un modello: FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO,
+  FLUX_KONTEXT_DEV; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`.
+- `replicate/`: `ReplicateClient`, `ReplicateModelCatalog`, `ReplicatePricing`, `TooManyPredictionsException` (troppe
+  prediction in corso PER LO STESSO MODELLO, vedi `GenerationService#create`). `search/`: `SearxngClient` (Basic Auth).
+- `service/`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni
+  transizione terminale; `GenerationsDeletedEvent`/`GenerationImageDeletedEvent` per le cancellazioni),
+  `GenerationParameterHandler` (un'implementazione per form-type, risolte da `GenerationParameterHandlers`; `image` di
+  p-video lo aggiunge `GenerationController`, `input_image` di kontext `GenerationService`), `ImageStorageService`
+  (streaming su `storage.images-dir`), `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient`
+  dedicato senza `defaultTools`; `enhanceVideo`/`enhanceEdit` guardano l'immagine sorgente con un modello di visione
+  OpenRouter non moderato `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del
+  modello e' intercettato e non sovrascrive la textarea), `DeepChatService`, `DeepChatGenerationWatcher`,
+  `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
+  id delle generazioni avviate nel turno), `AppErrorService`, `GenerationRecoveryService`, `DeepChatFailedException`.
+- `config/`: `StorageConfig` (`storage.images-dir` come `/images/**`), `TailwindAssets`.
+- `db/migration/`: V1..V18, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
+  modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
+- `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
+  theme switch in uno slideover Pines, stato Alpine `navOpen`, `button.html :: navToggle`), `button.html` (bottoni +
+  overlay dei thumbnail: `animateOverlay`, `editOverlay`, `starOverlay`, `downloadOverlay`), `alert.html`,
+  `generate-form.html` (`promptField` e' il blocco textarea+"AI enhance", risostituito in outerHTML da `enhance-prompt`),
+  `generation-params.html` (guscio: select modello + campi del form-type, condiviso da form e chat) con un
+  `generation-params-<form-type>.html` per form-type e `generation-params-source-upload.html` (`field(label, required)`),
+  `generation.html`, `generation-placeholder.html`, `generation-result.html`, `generation-images.html`, `gallery.html`,
+  `gallery-card.html`, `generations.html`, `generation-row.html`, `description-list.html`, `pagination.html`,
+  `accordion.html`, `conversation-list.html`, `toast.html`,
+  `live-events.html` (SSE `GET /events` ri-dispatchata come CustomEvent su `document.body`).
 
-src/main/resources/
-  application.yml
-  db/migration/
-    V1__create_initial_schema.sql   # schema Flyway, vedi sezione dedicata sotto
-    V2__drop_chat_tables.sql         # rimossa la persistenza della vecchia chat di rifinitura prompt
-    V3__create_chat_message.sql      # persistenza della cronologia di /deep-chat (vedi Scopo, punto 3)
-    V4__generation_multiple_images.sql # una Generation puo' avere piu' immagini (num_outputs > 1)
-    V5__chat_conversations.sql       # CHAT_CONVERSATION + CONVERSATION_ID su CHAT_MESSAGE (vedi Scopo, punto 3)
-    V6__create_replicate_model.sql   # tabella REPLICATE_MODEL (catalogo censito a mano) + seed di sdurz75/flux-lora-ff3
-    V7__add_flux_2_klein_9b_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-2-klein-9b (VERSION NULL, shortcut "ultima versione")
-    V8__add_generation_seed.sql      # colonna GENERATION.SEED (Long, nullable): il seed usato diventa un campo di prima classe, non piu' solo dentro PARAMETERS_JSON
-    V11__generation_conversation.sql # colonna GENERATION.CONVERSATION_ID (nullable, FK ON DELETE SET NULL): conversazione che ha avviato la generazione, per ripristinare il placeholder al reload di /deep-chat
-    V12__video_generation.sql        # GENERATION.KIND (IMAGE/VIDEO) + SOURCE_GENERATION_ID (FK ON DELETE SET NULL), estende l'ENUM FORM_TYPE + seed di prunaai/p-video (VERSION NULL, SORT_ORDER 3)
-    V13__generation_cost.sql         # colonna GENERATION.COST_USD (DECIMAL, nullable): costo stimato al completamento, vedi ReplicatePricing
-    V14__generation_source_upload.sql # colonna GENERATION.SOURCE_UPLOAD_FILENAME (nullable): immagine caricata dall'utente come sorgente di un img2video stand-alone
-    V16__generation_favourite.sql    # tabella GENERATION_FAVOURITE (file con la star, FK ON DELETE CASCADE)
-    V17__app_error.sql               # tabella APP_ERROR (registro errori, /errors)
-    V18__chat_message_error.sql      # CHAT_MESSAGE.ERROR: turno ASSISTANT d'errore
-    V15__add_flux_kontext_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-kontext-dev (VERSION NULL, SORT_ORDER 4): modello di modifica immagine
-    V10__add_flux_krea_dev_model.sql # estende l'ENUM FORM_TYPE + seed di black-forest-labs/flux-krea-dev (VERSION NULL, shortcut "ultima versione")
-  templates/
-    index.html                   # home
-    generate.html                 # form nuova generazione
-    generation-status.html       # pagina di stato/polling di una generazione + dettaglio a stato terminale (prompt/parametri/immagini/cancellazione, vedi fragments/generation.html :: status)
-    gallery.html                 # galleria (griglia paginata), SOLO generazioni SUCCEEDED
-    generations-list.html        # listato paginato /generations, qualunque stato: selezione multipla (shift-click incluso), cancellazione selezione/intero archivio (modal con conferma testuale)
-    deep-chat.html                # pagina che ospita <deep-chat> + rail sinistro non collassabile (lista conversazioni/impostazioni) + accordion collassabile (galleria contestuale)
-    fragments/
-      layout.html                # shell HTML condivisa (head, footer), decoratore layout-dialect, config Tailwind + @layer base
-      header.html                # header di navigazione + theme switch, incluso da layout.html (sticky; sotto md link/theme switch stanno in uno slideover Pines UI, stato Alpine `navOpen`, bottoni `button.html :: navToggle`)
-      button.html                # fragment parametrici dei bottoni (primary/danger/themeToggle/aiEnhance) e delle icone overlay dei thumbnail (animateOverlay, downloadOverlay: <a download> verso /images/**, su ogni thumbnail di gallery-card e generation-images, video inclusi), vedi "Convenzione: theming"
-      alert.html                 # fragment error(text): box di errore/avviso, riusato da generate-form/generation/generation-params
-      generate-form.html         # fragment del form (riusato anche per mostrare errori); promptField(prompt, enhanceError) e' il blocco label+textarea+icona "AI enhance", risostituito per intero (outerHTML) da POST /generations/enhance-prompt
-      generation-params.html     # guscio: select modello (censiti in DB) + contenitore dei campi del form-type corrente, condiviso da generate-form.html e deep-chat.html
-      generation-params-flux-lora-ff3.html # campi del form-type FLUX_LORA_FF3 (vedi GenerationFormType/FluxLoraFf3ParameterHandler), inclusi dal guscio sopra
-      generation-params-flux-2-klein-9b.html # campi del form-type FLUX_2_KLEIN_9B (vedi GenerationFormType/Flux2Klein9bParameterHandler), incluso dallo stesso guscio
-      generation-params-p-video.html # campi del form-type P_VIDEO (vedi PVideoParameterHandler), incluso dallo stesso guscio
-      generation-params-flux-kontext-dev.html # campi del form-type FLUX_KONTEXT_DEV (modifica immagine), incluso dallo stesso guscio
-      generation-params-source-upload.html # field(label, required): input file dell'immagine sorgente, condiviso da P_VIDEO (opzionale) e FLUX_KONTEXT_DEV (obbligatorio)
-      generation-params-flux-krea-dev.html # campi del form-type FLUX_KREA_DEV (vedi GenerationFormType/FluxKreaDevParameterHandler), incluso dallo stesso guscio
-      generation.html            # fragment status: polling di una generazione + dettaglio completo a stato terminale (prompt/modello/seed/parametri, immagini cancellabili, cancellazione generazione) - unica pagina di dettaglio, vedi CLAUDE.md
-      generation-placeholder.html # placeholder(generationId, conversationId, generationsPage, cancelDisabled): immagine dummy + "Interrompi", stili inline (usato anche in <deep-chat>, vedi deep-chat.html)
-      generation-result.html     # result: risultato di una generazione in /deep-chat (testo + toggle nascondi/mostra + immagini), template clonato dal client come il placeholder
-      generation-images.html     # fragment grid(generation, conversationId, generationsPage): tutte le immagini di una Generation in una griglia con lightbox (zoom, next/prev) e cancellazione per-immagine (cascade sull'ultima), usato da fragments/generation.html
-      gallery.html               # griglia + lightbox della galleria (content/grid), compone gallery-card e pagination; grid(...) riusata anche dalla galleria contestuale di /deep-chat
-      gallery-card.html          # card di una singola generazione (link di dettaglio verso /generations/{id})
-      generations.html           # fragment content/list del listato /generations: paginazione + selezione multipla (seleziona tutte, shift-click), compone generation-row e pagination
-      generation-row.html        # riga di una generazione nel listato /generations (qualunque stato, non solo SUCCEEDED), checkbox di selezione + cancellazione singola
-      description-list.html      # fragment term(text): <dt> di una lista di definizioni, usato dal dettaglio generazione (fragments/generation.html :: status)
-      pagination.html            # paginazione generica (non specifica della galleria), riusata da /gallery e /generations
-      accordion.html             # accordion Pines UI generico a N pannelli (labels/bodies accoppiate per indice): panels(...) collassabile (galleria contestuale di deep-chat.html), staticPanels(...) non collassabile, tutti i pannelli sempre visibili (rail sinistro di deep-chat.html: lista conversazioni + impostazioni)
-      conversation-list.html     # contenuto della lista conversazioni di /deep-chat (elenco, rinomina, cancellazione), sezione del rail sinistro non collassabile
-      live-events.html           # connessione SSE a GET /events, ri-dispatchata come CustomEvent su document.body; incluso solo da gallery.html, generations-list.html e deep-chat.html
-```
+Immagini generate e DB H2 vivono in `./data/` (fuori da git). Nessun CSS in `static/`: `static/css/tailwind.css` esiste
+solo se generato dal profilo `tailwind` (in `target/`, mai committato).
 
-Le immagini generate e il DB H2 vivono in `./data/` (fuori da git, vedi
-`.gitignore`): sono stato applicativo prodotto a runtime, non asset del
-progetto. Nessun CSS scritto a mano in `static/`: lo stile e' interamente Tailwind
-(vedi "Convenzione: theming"); `static/css/tailwind.css` esiste solo se generato
-dal profilo Maven `tailwind` (in `target/`, mai committato).
+## Pattern Thymeleaf: layout manager
 
-## Pattern Thymeleaf: layout manager (thymeleaf-layout-dialect)
-
-`fragments/layout.html` e' un template decoratore: ogni pagina lo applica
-con `layout:decorate` sul proprio `<html>` e marca il blocco da inserire
-con `layout:fragment="content"`:
+Ogni pagina si decora con `layout:decorate="~{fragments/layout}"` sul proprio `<html>` e mette il contenuto in
+`<div layout:fragment="content">`:
 
 ```html
 <!DOCTYPE html>
@@ -401,39 +178,16 @@ con `layout:fragment="content"`:
 </html>
 ```
 
-Niente `lang` letterale sul proprio `<html>`: e' risolto dinamicamente
-dal decoratore (vedi "Convenzione: internazionalizzazione" sopra),
-ripeterlo qui lo vince nel merge del dialect e disattiva il meccanismo.
+- Niente `lang` letterale sul proprio `<html>`: lo risolve il decoratore; ripeterlo lo vince nel merge e disattiva il
+  meccanismo (vedi i18n).
+- `<title>` della pagina sostituisce quello del layout automaticamente; il resto di `<head>` viene *fuso*.
+- Un fragment della pagina sostituisce l'elemento del decoratore, non solo il contenuto: `content` e' un `<div>`, NON un
+  `<main>` e NON porta le classi del contenitore. L'unico `<main>` (con `content` e `breadcrumbs` opzionale) vive in
+  `layout.html`; ripeterlo annida `<main>` e raddoppia il padding.
 
-Comportamento di default del dialect, da tenere a mente:
+## Pattern controller: fragment vs pagina intera
 
-- il `<title>` della pagina **sostituisce** quello di `layout.html`
-  automaticamente — non serve marcarlo con `layout:fragment`;
-- il resto di `<head>` viene **fuso** (unione, non sostituzione): un
-  elemento aggiuntivo in `<head>` nella pagina finisce nell'head finale
-  insieme a quelli di `layout.html`, senza doverlo dichiarare come
-  fragment;
-- un fragment della pagina **sostituisce l'elemento del decoratore tag
-  incluso**, non solo il suo contenuto — per questo il fragment `content`
-  nelle pagine e' un `<div>` come nel decoratore, non un `<main>`: il
-  `<main>` unico che li contiene entrambi (`content` e il fragment
-  opzionale `breadcrumbs`, vuoto se la pagina non lo definisce) vive solo
-  in `layout.html`, con le utility Tailwind del contenitore fluido (vedi
-  "Convenzione: theming"). Ripetere `<main>` nella pagina produrrebbe un
-  `<main>` annidato (HTML non valido) e il padding raddoppiato.
-
-Per creare una nuova pagina: copiare questo scheletro, non serve toccare
-`layout.html`. Attenzione: il fragment `content` della pagina resta un
-semplice `<div>`, **senza** le classi del contenitore — quelle vivono
-solo sul `<main>` di `layout.html` (vedi punto sopra): ripeterle anche
-nella pagina non avrebbe alcun effetto sul markup finale (`<main>` non
-annidabile, quel `<div>` non lo sostituisce) ma
-confonderebbe chi legge il template sull'origine del margine laterale.
-
-## Pattern controller: quando restituire fragment vs pagina intera
-
-Regola: **stessa URL, due risposte**, distinguendo in base all'header
-`HX-Request` che htmx aggiunge automaticamente a ogni sua richiesta.
+**Stessa URL, due risposte**, distinte dall'header `HX-Request`:
 
 ```java
 @GetMapping("/{id}")
@@ -446,347 +200,143 @@ public String status(@PathVariable Long id,
 }
 ```
 
-Attenzione se il fragment prende parametri (es. la paginazione della
-galleria sotto): restituito come **vista di risposta diretta** da un
-controller, Thymeleaf richiede parametri **nominati**, non posizionali
-— `frag(nome=${valore})`, non `frag(${valore})`. La forma posizionale
-funziona solo dentro un `th:replace` inline in un altro template (dove
-la espressione la valuta il parser OGNL/SpringEL, non
-`ThymeleafView.renderFragment`), altrimenti va in 500 con
-`IllegalArgumentException: Parameters in a view specification must be
-named`. Vedi `GalleryController` per l'uso corretto.
-
-Vantaggi di questo pattern rispetto ad avere due endpoint separati:
-
-- un solo URL, condivisibile/bookmarkabile, utilizzabile sia per la
-  navigazione diretta del browser (prima apertura, refresh, link
-  condiviso) sia per lo swap htmx;
-- nessuna duplicazione di markup: il fragment dei risultati è lo stesso
-  sia che venga incorporato nella pagina intera sia che venga restituito
-  da solo.
-
-Esempi già implementati da copiare:
-
-- `GenerationController` — polling di stato, fragment senza parametri.
-- `GalleryController` — paginazione numerata, i link sostituiscono
-  l'intero contenuto con `hx-target="#gallery-content"` +
-  `hx-swap="innerHTML"` (vedi `fragments/gallery.html`); il fragment
-  prende parametri nominati, e' l'esempio da seguire per quel caso.
+Un fragment con parametri restituito come vista di risposta diretta richiede parametri **nominati**
+(`frag(nome=${valore})`); la forma posizionale funziona solo in un `th:replace` dentro un altro template, altrimenti 500
+(`Parameters in a view specification must be named`). Esempi: `GenerationController` (fragment senza parametri),
+`GalleryController` (paginazione, `hx-target="#gallery-content"` + `hx-swap="innerHTML"`, parametri nominati).
 
 ## Convenzione: attributi che portano un URL dell'app
 
-Ogni attributo che porta un URL dell'app — `href`, `src`, `action`,
-`hx-get`/`hx-post`/`hx-put`/`hx-delete`, o un URL passato a un Web
-Component (es. `connect` di `<deep-chat>`, vedi `deep-chat.html`) —
-passa **sempre** da `@{...}`, anche quando il path e' letterale e non
-dipende dal model. L'app puo' girare dietro un reverse proxy su un
-subpath (vedi `server.forward-headers-strategy` in `application.yml`):
-solo `@{...}` tiene conto del prefisso (`X-Forwarded-Prefix`) a
-runtime — una stringa scritta a mano come `"/generations"` lo ignora
-sempre, "statica" o no. Non e' teorico: e' un bug reale che si e'
-presentato appena l'app e' stata montata sotto un subpath (vedi il fix
-su `fragments/generate-form.html` e `deep-chat.html`).
+Ogni attributo con un URL dell'app (`href`, `src`, `action`, `hx-get/post/put/delete`, URL passati a Web Component come
+`connect` di `<deep-chat>`) passa **sempre** da `@{...}`, anche se il path e' letterale: l'app puo' stare dietro un
+reverse proxy su subpath (`server.forward-headers-strategy`) e solo `@{...}` applica `X-Forwarded-Prefix`. Bug reale gia'
+capitato (vedi `generate-form.html`, `deep-chat.html`).
 
-Per un attributo `hx-*` standard basta il prefisso `th:` — Thymeleaf lo
-riconosce come "generic attribute setter" anche per attributi non
-standard come `hx-get` — con `@{...}` dentro, path letterale o con
-parametri dal model:
-
-```html
-<form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
-      th:action="@{/generations}" method="post">
-```
-
-```html
-<a th:hx-get="@{/gallery(page=${p})}" hx-target="#gallery-content" hx-swap="innerHTML">...</a>
-```
-
-Fuori da un attributo htmx (es. `connect` di `<deep-chat>`, letto dal
-componente via JavaScript, non da htmx: non esiste un `th:connect`) non
-c'e' un prefisso `th:` diretto da applicare: serve `th:attr` con
-`@{...}` interpolato dentro una literal substitution Thymeleaf
-(`|...|`), vedi `deep-chat.html`.
-
-**Lato Java** (fuori da un template, quindi senza `@{...}`) lo stesso
-prefisso va rispettato con `request.getContextPath()`: essendo
-`server.forward-headers-strategy: framework` attivo, `ForwardedHeaderFilter`
-riscrive il context path della richiesta a runtime per includere
-`X-Forwarded-Prefix`, quindi `request.getContextPath() + "/gallery"`
-riproduce esattamente cio' che `@{/gallery}` emetterebbe in un template
-— non una stringa letterale `"/gallery"` scritta a mano, per lo stesso
-motivo di sopra. Esempio: `GenerationController#delete`/`#deleteImage`,
-che costruiscono l'header di risposta `HX-Redirect` cosi' (un
-`redirect:"..."` come nome di vista, invece, non ha bisogno di questo:
-Spring lo risolve gia' correttamente rispetto al context path da solo).
+- Per `hx-*` basta il prefisso `th:` con `@{...}` dentro:
+  ```html
+  <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML"
+        th:action="@{/generations}" method="post">
+  <a th:hx-get="@{/gallery(page=${p})}" hx-target="#gallery-content" hx-swap="innerHTML">...</a>
+  ```
+- Fuori da htmx (es. `connect`, letto via JS): `th:attr` con `@{...}` dentro una literal substitution `|...|`
+  (vedi `deep-chat.html`).
+- **Lato Java**: `request.getContextPath() + "/gallery"`, mai `"/gallery"` letterale (`ForwardedHeaderFilter` include il
+  prefisso). Es. `GenerationController#delete`/`#deleteImage` per l'header `HX-Redirect`. `redirect:"..."` come nome di
+  vista non ne ha bisogno.
 
 ## Convenzione: theming
 
-Nessun file CSS: tutto lo stile e' Tailwind (Play CDN, JIT nel browser),
-configurato interamente nello `<script>`/`<style type="text/tailwindcss">`
-inline in `fragments/layout.html`. Nessuna regola deve usare un colore
-hardcoded fuori da quella config: sempre i nomi in `theme.extend.colors`.
+Nessun file CSS: solo Tailwind, config inline in `fragments/layout.html`. Mai colori hardcoded fuori da
+`theme.extend.colors`.
 
-**Design token** — `tailwind.config.theme.extend.colors`, un blocco
-`{ DEFAULT, dark }` per ogni colore (es.
-`canvas: { DEFAULT: '#ffffff', dark: '#0d1117' }`), usato nel markup come
-coppia `bg-canvas dark:bg-canvas-dark`. Il suffisso `-dark` nel nome
-della *shade* e il prefisso `dark:` della *variante* sono due cose
-diverse che solo si assomigliano: il primo e' solo un colore in piu'
-nella palette, il secondo (attivato da `darkMode` sotto) decide quando
-usarlo. Nomi attuali: `canvas`/`surface`/`ink`/`ink-muted`/`line`/
-`accent`/`accent-contrast`/`danger`.
-
-**Dark mode** — `darkMode: ['selector', '[data-theme="dark"]']`: le
-varianti `dark:` si attivano quando `<html>` porta `data-theme="dark"`,
-non da `prefers-color-scheme` direttamente. Il toggle light/dark/auto
-resta quello di sempre (script di boot + Alpine su `<body>` in
-`layout.html`, invariati) — set/legge lo stesso attributo `data-theme`
-via localStorage/`prefers-color-scheme`, semplicemente ora e' Tailwind a
-consumarlo invece di un `[data-theme="dark"] { --color-x: ... }` scritto
-a mano. Il boot dello script inline in `<head>` (prima degli script
-Tailwind) e' li' per evitare il FOUC al primo caricamento: legge
-`localStorage`, risolve `auto` in `light`/`dark`, e setta `data-theme`
-sull'`<html>` PRIMA che Tailwind compili le classi — non spostarlo piu'
-in basso nella pagina.
-
-**Stili trasversali** (`@layer base` in `fragments/layout.html`) — solo
-per elementi "nudi" usati identici e senza classi proprie in piu' punti
-(link, `<code>`, form controls senza wrapper dedicato, `[x-cloak]`
-richiesto da Alpine): meccanismo nativo Tailwind via
-`<style type="text/tailwindcss">`, non un secondo sistema di stile.
-Sicuro per costruzione: un selettore bare-tag li' ha specificita' bassa
-(0,0,1)/(0,0,2), qualunque classe inline nei template vince sempre a
-prescindere dall'ordine. Tutto il resto (bottoni-variante, card,
-pannelli, paginazione...) e' utility Tailwind inline nel template, mai
-una nuova regola `@layer`.
-
-**Bottoni** — non scrivere un `<button>` a mano: usare i fragment
-parametrici in `fragments/button.html` (`primary`/`danger`/
-`themeToggle`), che incapsulano le classi Tailwind di ogni
-variante in un solo posto. Chiamarli sempre con parametri nominati
-(`frag(nome=valore)`, mai posizionali: un fragment con parametri
-opzionali (es. `hxPost` su `danger`, `null` se l'htmx sta sul `<form>`
-contenitore invece che sul bottone) richiede comunque **tutti** i
-parametri dichiarati alla chiamata (anche quelli non usati, passati
-`null` esplicitamente) — a differenza del pattern controller-fragment di
-"Pattern controller: quando restituire fragment vs pagina intera" sopra,
-qui *non* bastano i soli parametri che servono.
-
-**`@click`/`:class`/altri binding Alpine con un valore dinamico per
-istanza** (es. `themeToggle`, che deve scrivere `theme = 'light'` /
-`'dark'` / `'auto'` a seconda del chiamante) non passano da `th:attr`:
-il suo parser di assegnazione non accetta nomi con `@`/`:`. Si passa
-invece il valore via un attributo `data-*` renderizzato da Thymeleaf
-(`th:data-theme-value="${value}"`), letto a runtime con
-`$el.dataset.themeValue` dentro l'espressione Alpine, che resta cosi'
-puro HTML statico mai toccato da Thymeleaf — stesso principio del ponte
-per `:title` sotto.
-
-**Un binding Alpine puro** (`:title`, `:placeholder`...) non passa mai
-da Thymeleaf server-side: `#{...}` su quell'attributo non avrebbe
-effetto. Si ponte con `data-*` attributi server-renderizzati, letti a
-runtime via `$el.dataset` — stesso meccanismo di `themeToggle` sopra,
-applicato a un binding di sola lettura invece che a un'assegnazione.
-
-**Limite del modello binario light/`dark:`**: a differenza del vecchio
-`[data-theme="xxx"]` (un blocco CSS per qualunque nome di tema), le
-varianti Tailwind gestiscono nativamente solo due stati per colore
-(default + `dark:`). Un ipotetico terzo tema (es. "high-contrast") non è
-un'estensione banale — richiederebbe ripensare la struttura dei colori
-in `theme.extend.colors` (es. un colore per stato invece di due), non
-solo aggiungere un blocco come prima. Non è un problema oggi (solo
-light/dark/auto esistono), ma va tenuto presente prima di promettere
-"aggiungere un tema" come un'operazione a costo fisso.
+- **Token**: un blocco `{ DEFAULT, dark }` per colore (`canvas: { DEFAULT: '#ffffff', dark: '#0d1117' }`), usato come
+  `bg-canvas dark:bg-canvas-dark` (il suffisso `-dark` e' solo una shade in piu'; il prefisso `dark:` decide quando usarla).
+  Nomi: `canvas`/`surface`/`ink`/`ink-muted`/`line`/`accent`/`accent-contrast`/`danger` (+ `favourite`).
+- **Dark mode**: `darkMode: ['selector', '[data-theme="dark"]']`, non `prefers-color-scheme`. Il toggle light/dark/auto
+  (Alpine su `<body>` + localStorage/`prefers-color-scheme`) scrive `data-theme`. Lo script di boot inline in `<head>`
+  (prima di Tailwind) risolve `auto` e setta `data-theme` PRIMA della compilazione delle classi (evita il FOUC): non
+  spostarlo piu' in basso.
+- **`@layer base`** (in `layout.html`): solo per elementi "nudi" identici in piu' punti (link, `<code>`, form controls
+  senza wrapper, `[x-cloak]`). Specificita' bassa: le classi inline vincono sempre. Tutto il resto e' utility inline, mai
+  una nuova regola `@layer`.
+- **Bottoni**: mai `<button>` a mano; usare i fragment di `fragments/button.html` (`primary`/`danger`/`themeToggle`/...),
+  sempre con parametri nominati e passando TUTTI i parametri dichiarati (gli inutilizzati a `null`, es. `hxPost` su `danger`
+  se htmx sta sul `<form>`). Se nessuna variante calza, aggiungere un fragment li'.
+- **Binding Alpine** (`@click`, `:class`, `:title`, `:placeholder`...) non passano da `th:attr` ne' da `#{...}`: il
+  valore dinamico si porta in un attributo `data-*` renderizzato da Thymeleaf (`th:data-theme-value="${value}"`) e si
+  legge a runtime con `$el.dataset.themeValue`, lasciando l'espressione Alpine HTML statico. Vale anche per le stringhe
+  i18n client-only (vedi toggle impostazioni in `deep-chat.html`).
+- **Limite**: le varianti Tailwind gestiscono solo due stati per colore (default + `dark:`); un terzo tema (es.
+  "high-contrast") richiederebbe di ripensare `theme.extend.colors`, non e' un costo fisso.
 
 ## Convenzione: migrazioni database (Flyway)
 
-Lo schema del database **non** e' gestito da Hibernate: `spring.jpa.hibernate.ddl-auto`
-e' `validate`, non `update`/`create`. Hibernate all'avvio controlla solo che
-le tabelle create da Flyway corrispondano alle entity JPA — se non
-corrispondono l'app non parte (fail-fast, niente drift silenzioso tra
-codice e schema).
-
-Ogni modifica alla persistenza (nuova entity, nuovo campo, nuovo indice,
-rename di colonna...) va fatta con una **nuova migrazione SQL** in
-`src/main/resources/db/migration/`, mai lasciando che sia
-`ddl-auto: update` a dedurla da solo:
-
-1. Aggiungere/modificare l'entity JPA come al solito.
-2. Creare `V<N+1>__<descrizione>.sql` (numero progressivo, mai riusare
-   uno gia' applicato — Flyway calcola un checksum di ogni file e fallisce
-   l'avvio se un file gia' eseguito viene modificato) con il DDL H2
-   corrispondente (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, ecc.).
-3. Avviare l'app: Flyway applica automaticamente le migrazioni non ancora
-   eseguite (traccia lo stato in `flyway_schema_history`) prima che
-   Hibernate validi lo schema.
-
-In sviluppo, se serve ripartire da zero (schema o dati inconsistenti),
-si puo' cancellare l'intera `./data/db/` (e' stato locale, non versionato,
-vedi sopra): Flyway ricrea tutto dalle migrazioni al prossimo avvio.
+`ddl-auto: validate`: Hibernate controlla solo che lo schema Flyway corrisponda alle entity (altrimenti l'app non parte).
+Ogni modifica alla persistenza (entity, campo, indice, rename...) richiede una **nuova migrazione SQL**
+`V<N+1>__<descrizione>.sql` in `src/main/resources/db/migration/` (DDL H2; mai riusare un numero gia' applicato ne'
+modificare un file gia' eseguito: il checksum fa fallire l'avvio). Flyway le applica all'avvio prima della validazione.
+In sviluppo si puo' ripartire da zero cancellando `./data/db/`.
 
 ## Convenzione: internazionalizzazione (i18n)
 
-Tutto il testo utente-visibile (template e messaggi d'errore Java) passa
-dal meccanismo nativo di Spring/Thymeleaf (`MessageSource` + `#{...}`),
-non da stringhe hardcoded: la lingua cambia **automaticamente** in base
-all'header `Accept-Language` del browser, nessuno switcher manuale,
-nessuna persistenza in cookie/sessione. Il `LocaleResolver` e'
-`AcceptHeaderLocaleResolver`, gia' il default di Spring Boot MVC — nessun
-bean `LocaleResolver`/`WebMvcConfigurer` da scrivere, basta
-`spring.web.locale`/`spring.messages.*` in `application.yml`.
+Tutto il testo utente-visibile (template e messaggi d'errore Java) passa da `MessageSource` + `#{...}`, mai stringhe
+hardcoded. La lingua segue `Accept-Language` (`AcceptHeaderLocaleResolver`, default Boot: nessun bean da scrivere, niente
+switcher/cookie/sessione). Bundle: `messages.properties` (italiano, default/fallback anche per locale non mappate) e
+`messages_en.properties`. Nuova lingua: nuovo `messages_<locale>.properties` con le stesse chiavi e aggiornare
+`TemplateRenderingTests.messageBundlesHaveMatchingKeys`. Chiavi punto-separate `<pagina-o-componente>.<categoria>.<elemento>`
+(`header.nav.home`, `replicate.error.tokenMissing`); bundle piatto unico per template ed errori Java.
 
-Due bundle in `src/main/resources/`: `messages.properties` (italiano,
-default/fallback — usato anche per qualunque locale browser non mappata,
-es. "de") e `messages_en.properties` (inglese). Per aggiungere una
-lingua: nuovo `messages_<locale>.properties` con le stesse chiavi (un
-test, `TemplateRenderingTests.messageBundlesHaveMatchingKeys`, verifica
-che i bundle abbiano lo stesso keyset — aggiornarlo per confrontare
-anche il nuovo file). Convenzione chiavi: punto-separate,
-`<pagina-o-componente>.<categoria>.<elemento>` (es. `header.nav.home`,
-`galleryDetail.title`, `replicate.error.tokenMissing`) — il namespace e'
-solo convenzionale, il bundle resta un unico file piatto sia per le
-stringhe di template sia per i messaggi d'errore Java.
-
-**Regola apostrofi (non ovvia, causa bug silenziosi)**: Spring passa un
-messaggio per `java.text.MessageFormat` **solo** quando la chiamata ha
-argomenti non nulli. `#{key}`/`Messages.get(code)` senza parametri →
-niente `MessageFormat` → apostrofi letterali restano non-escaped
-(`l'app`, `puo'`); `#{key(${arg})}`/`Messages.get(code, args...)` con
-parametri → **sempre** `MessageFormat` → un apostrofo letterale va
-raddoppiato (`''`) o scompare silenziosamente. Stessa attenzione per un
-argomento numerico (id, durata): passa per `NumberFormat` e inserisce
-separatori di migliaia locale-dependent — usare il sotto-pattern
-`{0,number,#}`, non un bare `{0}`.
-
-Lato Java, `org.dual.replicate.i18n.Messages` (wrapper su
-`MessageSourceAccessor`, che risolve implicitamente sulla locale della
-richiesta corrente via `LocaleContextHolder`) va iniettato ovunque un
-messaggio d'errore possa arrivare all'utente — non solo nei controller:
-oggi in `ReplicateClient`, `SearxngClient`, `GenerationService`,
-`ImageStorageService`, `GenerationController`, `DeepChatApiController`,
-`DeepChatService`. La risoluzione avviene sempre al call site, prima di
-costruire l'eccezione (`throw new ReplicateException(messages.get(...))`),
-mai nel costruttore dell'eccezione. Attenzione ai nomi: se la classe usa
-gia' `messages` come variabile locale per qualcos'altro (es.
-`DeepChatService`, dove `messages` e' la lista di turni della
-conversazione), chiamare il campo iniettato diversamente (li' e'
-`i18n`) per evitare lo shadowing.
-
-Un binding Alpine (`:title`, `:placeholder`, ecc.) non passa mai da
-Thymeleaf server-side: `#{...}` su quell'attributo non avrebbe alcun
-effetto. Si ponte con `data-*` attributi renderizzati dal server, letti
-a runtime via `$el.dataset` (vedi il toggle del pannello impostazioni in
-`deep-chat.html`) — pattern riusabile per qualunque altra stringa
-client-only, non il pattern `th:inline="javascript"` gia' in uso altrove
-in quel file per i payload JSON.
-
-`<html lang="...">` e' risolto dal bundle stesso
-(`html.lang=it`/`en` nelle properties, `th:lang="#{html.lang}"` sul
-decoratore `fragments/layout.html`), **non** da `#{#locale.language}`:
-su una locale non mappata il contenuto servito ricade comunque
-sull'italiano, quindi `lang` deve seguire il bundle effettivamente
-usato, non la locale richiesta, altrimenti mentirebbe sulla lingua reale
-del testo. Le pagine (`index.html`, `generate.html`, ecc.) non devono
-avere un `lang` letterale sul proprio `<html>`: per il comportamento di
-merge di thymeleaf-layout-dialect (vedi sezione layout manager sopra),
-un attributo letterale presente su entrambi i lati vince da quello della
-pagina, vanificando il `th:lang` dinamico del decoratore.
-
-Limite noto e accettato: `Generation.errorMessage` (persistito su DB
-quando una generazione fallisce) viene risolto nella locale della
-richiesta che ha generato l'errore e salvato gia' tradotto — se la
-lingua del browser cambia dopo, il testo persistito resta congelato
-nella lingua di scrittura (nessuna migrazione per salvare chiave+
-parametri invece del testo risolto). Allo stesso modo il catch-all di
-`DeepChatApiController` non puo' tradurre messaggi di eccezioni
-arbitrarie di framework terzi (Spring AI, errori di rete): solo il
-prefisso `"Errore nel contattare l'assistente: "` e' tradotto, il resto
-resta quello che la libreria ha restituito.
+- **Apostrofi (bug silenziosi)**: Spring usa `MessageFormat` SOLO con argomenti non nulli. Senza parametri
+  (`#{key}`, `Messages.get(code)`) gli apostrofi restano letterali (`l'app`); con parametri (`#{key(${arg})}`,
+  `Messages.get(code, args...)`) vanno raddoppiati (`''`) o spariscono. Argomenti numerici (id, durate) passano per
+  `NumberFormat` con separatori di migliaia: usare `{0,number,#}`, non `{0}`.
+- **Lato Java**: iniettare `org.dual.replicate.i18n.Messages` (wrapper su `MessageSourceAccessor`, locale della richiesta
+  via `LocaleContextHolder`) ovunque un errore possa arrivare all'utente (oggi `ReplicateClient`, `SearxngClient`,
+  `GenerationService`, `ImageStorageService`, `GenerationController`, `DeepChatApiController`, `DeepChatService`).
+  Risolvere al call site, prima di costruire l'eccezione, mai nel costruttore. Se la classe ha gia' una variabile
+  `messages` (es. `DeepChatService`), chiamare il campo iniettato altrimenti (li' `i18n`).
+- **`<html lang>`** viene dal bundle (`html.lang=it|en`, `th:lang="#{html.lang}"` sul decoratore), non da
+  `#{#locale.language}`: su una locale non mappata il contenuto e' comunque italiano.
+- **Limiti accettati**: `Generation.errorMessage` e' salvato gia' tradotto nella locale di chi ha generato l'errore (resta
+  congelato); il catch-all di `DeepChatApiController` traduce solo il prefisso `"Errore nel contattare l'assistente: "`,
+  non i messaggi di eccezioni di librerie terze.
 
 ## Convenzione: errori delle chiamate remote e stati terminali
 
 Ogni chiamata a Replicate, OpenRouter (Spring AI) o SearXNG, e ogni errore interno non gestito, passa da
-`AppErrorService#record(source, operation, throwable[, generationId, conversationId])`: MAI un `catch` che
-ingoia l'eccezione o la logga soltanto. `record` logga con stack, salva/aggiorna una riga `APP_ERROR` (V17,
-transazione propria, non lancia mai) consultabile da **`/errors`** (`ErrorController`, link "Errori" nell'header)
-e, alla prima occorrenza di una *serie*, pubblica un `ErrorToastEvent` → SSE `error-toast` → toast in tutte le
-tab con `fragments/live-events.html` (gallery, generations, deep-chat, generation-status, errors).
-Una serie = stesso (source, operation, generationId, tipo eccezione) entro 5 minuti: aggiorna
-`occurrences`/`last_seen_at` invece di creare una riga (e un toast) per ogni poll durante un'outage.
+`AppErrorService#record(source, operation, throwable[, generationId, conversationId])`: MAI un `catch` che ingoia o
+soltanto logga. `record` logga con stack, salva/aggiorna una riga `APP_ERROR` (V17, transazione propria, non lancia mai;
+consultabile da `/errors`, `ErrorController`) e alla prima occorrenza di una *serie* pubblica `ErrorToastEvent` → SSE
+`error-toast` → toast in tutte le tab con `live-events.html`. Serie = stesso (source, operation, generationId, tipo
+eccezione) entro 5 minuti: aggiorna `occurrences`/`last_seen_at` invece di creare riga/toast a ogni poll durante un outage.
 
 - **Toast** (`fragments/toast.html`, incluso da `layout.html`): ascolta l'evento window `app-error` ({key, message}),
-  dedupe per `key`. Sorgenti: SSE (sopra); header `HX-Trigger` sulle risposte htmx (`AppErrorService#addToastHeader`,
-  usato da `GenerationController` create/enhance/cancel e da `UnhandledExceptionResolver`); listener globali
-  `htmx:responseError`/`htmx:sendError` (solo se la risposta non portava gia' un toast dal server).
-- **Chi registra**: dove l'eccezione viene *gestita/ingoiata* (servizio in background, tool, watcher), non dove
-  attraversa soltanto: un errore che risale a un controller lo registra il controller (es. `create`, `enhancePrompt`).
-  `UnhandledExceptionResolver` (LOWEST_PRECEDENCE) e `AsyncErrorConfig` sono la rete per il resto.
-- **Nessuno stato indefinito** (tre reti): (a) `GenerationService#refresh` non lascia mai uno stato parziale — download/
+  dedupe per `key`. Sorgenti: SSE; header `HX-Trigger` (`AppErrorService#addToastHeader`, usato da `GenerationController`
+  create/enhance/cancel e `UnhandledExceptionResolver`); listener globali `htmx:responseError`/`htmx:sendError` (solo se
+  la risposta non portava gia' un toast).
+- **Chi registra**: dove l'eccezione e' *gestita/ingoiata* (servizi in background, tool, watcher); se risale a un
+  controller la registra il controller (`create`, `enhancePrompt`). `UnhandledExceptionResolver` (LOWEST_PRECEDENCE) e
+  `AsyncErrorConfig` sono la rete per il resto.
+- **Nessuno stato indefinito**, tre reti: (a) `GenerationService#refresh` non lascia stati parziali: download/
   post-processing in try/catch → `FAILED` + file ripuliti; un errore di poll *transitorio* (`ReplicateException#isTransient`:
-  rete, timeout, 429/5xx) NON fallisce la generazione (la prediction continua su Replicate) ma il timeout di business vale
-  comunque e annulla la prediction; uno *permanente* (4xx) la fallisce subito. (b) `GenerationRecoveryService` all'avvio
-  (`ApplicationReadyEvent`) fa avanzare ogni riga PENDING/PROCESSING e riavvia i watcher persi. (c) lo stesso servizio, a
-  intervalli (`app.recovery.sweep-interval`), chiude le righe oltre il proprio timeout e scrive i turni di chat mancanti
-  (`DeepChatGenerationWatcher#persistOutcome`, idempotente). Disattivabile con `app.recovery.enabled=false` (i test).
-- **Cancellare o far scadere una generazione in corso annulla la prediction** su Replicate (`cancelPredictionQuietly`).
-  Se `create` non riesce a salvare la riga dopo aver creato la prediction, la annulla.
-- **Chat**: se la chiamata LLM fallisce, `DeepChatService#reply` scrive un turno ASSISTANT d'errore
-  (`ChatMessage.error`, V18: mostrato in rosso, mai rimandato all'LLM) cosi' il turno USER non resta orfano, e lancia
-  `DeepChatFailedException` (gia' registrata: `DeepChatApiController` mostra solo il messaggio). I tool
-  (`WebSearchTool`, `ImageGenerationTool`) catturano da se' e rimandano il testo d'errore al modello.
-- **Timeout**: `spring.http.clients.connect-timeout/read-timeout` (application.yml) valgono per tutti i
-  `RestClient.Builder` auto-configurati (Replicate, download, Spring AI); SearXNG ha un timeout piu' stretto proprio.
-  Un nuovo client HTTP deve usare il `RestClient.Builder` iniettato, mai `RestClient.create()`.
+  rete, timeout, 429/5xx) NON fallisce la generazione ma il timeout di business vale comunque e annulla la prediction; uno
+  *permanente* (4xx) la fallisce subito. (b) `GenerationRecoveryService` all'avvio (`ApplicationReadyEvent`) fa avanzare
+  ogni PENDING/PROCESSING e riavvia i watcher persi. (c) lo stesso servizio, ogni `app.recovery.sweep-interval`, chiude le
+  righe oltre timeout e scrive i turni di chat mancanti (`DeepChatGenerationWatcher#persistOutcome`, idempotente).
+  Disattivabile con `app.recovery.enabled=false` (i test).
+- **Cancellare o far scadere** una generazione in corso annulla la prediction (`cancelPredictionQuietly`); se `create`
+  non riesce a salvare la riga dopo aver creato la prediction, la annulla.
+- **Chat**: se l'LLM fallisce, `DeepChatService#reply` scrive un turno ASSISTANT d'errore (`ChatMessage.error`, V18: in
+  rosso, mai rimandato all'LLM) e lancia `DeepChatFailedException` (gia' registrata: `DeepChatApiController` mostra solo il
+  messaggio). I tool (`WebSearchTool`, `ImageGenerationTool`) catturano da soli e rimandano il testo d'errore al modello.
+- **Timeout**: `spring.http.clients.connect-timeout/read-timeout` valgono per tutti i `RestClient.Builder`
+  auto-configurati (Replicate, download, Spring AI); SearXNG ha un timeout piu' stretto proprio. Un nuovo client HTTP
+  usa il `RestClient.Builder` iniettato, mai `RestClient.create()`.
 - **Locale**: `AppErrorService` risolve il toast con la locale del thread; un thread async la imposta prima
-  (vedi `DeepChatGenerationWatcher#watch`), il recupero usa l'italiano.
+  (`DeepChatGenerationWatcher#watch`), il recupero usa l'italiano.
 
 ## Comandi utili
 
-Nessun Maven Wrapper incluso: serve Maven installato sulla macchina
-(`mvn -v` per verificare). Se preferisci il wrapper, generalo con
-`mvn wrapper:wrapper` e committa i file risultanti.
+Nessun Maven Wrapper (serve Maven installato; `mvn wrapper:wrapper` per generarlo).
 
 ```bash
-mvn spring-boot:run        # avvio in sviluppo (Thymeleaf cache=false, reload live)
-mvn test                   # test
-mvn clean package          # build del jar eseguibile (Tailwind via Play CDN)
-mvn -Ptailwind clean package # come sopra + CSS Tailwind compilato/minificato (richiede rete per il binario)
+mvn spring-boot:run          # sviluppo (Thymeleaf cache=false)
+mvn test                     # test
+mvn clean package            # jar eseguibile (Tailwind via Play CDN)
+mvn -Ptailwind clean package # + CSS Tailwind compilato/minificato (richiede rete per il binario)
 ```
 
-`mvn test` non tocca mai `./data/db/` (il DB H2 su file usato da
-`mvn spring-boot:run`): il profilo Spring "test" e' attivato per ogni
-esecuzione di Surefire (`<systemPropertyVariables>` in `pom.xml`, non
-un'annotazione da ricordarsi su ogni classe `@SpringBootTest`), che
-sovrascrive solo il datasource su H2 in-memory
-(`src/test/resources/application-test.yml`). Prima di questo, i
-`@SpringBootTest` (es. `TemplateRenderingTests`) scrivevano righe
-`Generation` di prova vere (prompt "a cat"/"a dog") nello stesso DB su
-file dell'ambiente di sviluppo a ogni run, quasi tutte senza
-`@Transactional` — un problema reale osservato dal vivo, non solo
-teorico.
+`mvn test` non tocca mai `./data/db/`: Surefire attiva il profilo Spring "test" (`<systemPropertyVariables>` in
+`pom.xml`, non un'annotazione per classe) che sposta il datasource su H2 in-memory (`src/test/resources/application-test.yml`).
+Prima i `@SpringBootTest` scrivevano `Generation` di prova nel DB di sviluppo.
 
-## Checklist per aggiungere una nuova pagina/feature
+## Checklist per una nuova pagina/feature
 
-1. Serve solo navigazione? → nuovo controller + nuovo template pagina
-   con il pattern layout manager sopra. Basta.
-2. Serve un aggiornamento parziale (ricerca live, paginazione, form senza
-   reload)? → estrarre la porzione riusabile in `fragments/<nome>.html`,
-   far restituire al controller quel fragment quando `HX-Request` è
-   presente, la pagina intera altrimenti (vedi `GalleryController`).
-3. Serve solo interattività locale, nessuna chiamata al server (aprire/
-   chiudere un pannello, validare un campo)? → `x-data`/`x-show`/`x-on`
-   di Alpine.js, direttamente nel template, senza controller dedicato.
-4. Serve davvero un componente complesso stateful (editor, canvas,
-   grafico)? → valutare un Web Component isolato prima di introdurre un
-   framework SPA per l'intera app.
-5. La feature tocca un'entity JPA (nuovo campo, nuova tabella, nuova
-   relazione)? → nuova migrazione Flyway in `db/migration/` (vedi
-   sezione dedicata sopra), mai affidarsi a `ddl-auto` per crearla.
-6. Introduce testo letterale utente-visibile (label, messaggio
-   d'errore)? → chiave in entrambi i bundle (`messages.properties`,
-   `messages_en.properties`, vedi sezione i18n sopra), mai una stringa
-   hardcoded in un template o nel costruttore di un'eccezione.
-7. Serve un `<button>`? → uno dei fragment in `fragments/button.html`
-   (vedi "Convenzione: theming"), mai scritto a mano nel template. Se
-   nessuna variante esistente calza, aggiungere un nuovo fragment li',
-   non un bottone inline isolato.
+1. Solo navigazione → nuovo controller + template col pattern layout manager.
+2. Aggiornamento parziale (ricerca live, paginazione, form senza reload) → estrarre un fragment in
+   `fragments/<nome>.html`; il controller lo restituisce se `HX-Request`, la pagina intera altrimenti.
+3. Solo interattivita' locale → Alpine (`x-data`/`x-show`/`x-on`) nel template, senza controller.
+4. Componente complesso stateful → valutare prima un Web Component isolato.
+5. Tocca un'entity JPA → nuova migrazione Flyway, mai `ddl-auto`.
+6. Testo utente-visibile → chiave in entrambi i bundle, mai stringa hardcoded (template o eccezione).
+7. Serve un `<button>` → fragment di `button.html` (aggiungerne uno se nessuno calza), mai inline.

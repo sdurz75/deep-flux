@@ -50,15 +50,15 @@
   stile di documentazione delle deviazioni gia' usato in
   fragments/gallery.html), entrambi generici e non legati a un
   chiamante specifico:
-  1. Niente classe "group"/"cursor-pointer" sui wrapper dei pannelli
-     (Pines la mette li' per la sottolineatura all'hover dell'header):
+  1. Niente classe "group" sui wrapper dei pannelli (Pines la mette li'
+     per l'effetto hover dell'header, che qui non c'e': l'header non
+     reagisce al mouse over):
      un corpo pannello puo' contenere elementi con una propria classe
      "group" (es. fragments/gallery-card.html, per l'overlay hover
      sulla singola card) - group-hover: risale al piu' vicino ".group"
      ANTENATO, non necessariamente quello dell'elemento interno, quindi
      un "group" sul wrapper del pannello accenderebbe l'hover di quegli
-     elementi passando sopra l'header/il corpo del pannello. La
-     sottolineatura hover va quindi direttamente sul <button>.
+     elementi passando sopra l'header/il corpo del pannello.
   2. Niente overflow-hidden sulla radice (comune nello snippet Pines,
      per tagliare l'ombra della transizione ai bordi arrotondati): un
      corpo pannello puo' contenere un dropdown position:absolute (es.
@@ -88,7 +88,7 @@
          x-data="{ panelIndex: Number($el.dataset.index) }">
         <button type="button"
                 @click="activeAccordion = (activeAccordion === panelIndex ? null : panelIndex)"
-                class="flex justify-between items-center w-full px-4 py-3 text-left font-medium cursor-pointer hover:text-accent dark:hover:text-accent-dark">
+                class="flex justify-between items-center w-full px-4 py-3 text-left font-medium cursor-pointer">
             <span th:text="${label}">Pannello</span>
             <svg class="w-4 h-4 shrink-0 transition-transform duration-200"
                  :class="{ 'rotate-180': activeAccordion === panelIndex }"
