@@ -412,6 +412,10 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
   rimuove i documenti la cui riga non esiste piu'. Gira in background all'avvio (backfill), ogni `app.search.reindex-interval` e a
   ogni `GenerationCompletedEvent`. Un documento che fallisce e' registrato (`AppErrorService`) e non ferma gli altri.
 - **`ArchiveSearchTool`** (`searchArchive(query, type?)`) e' tra i tool di `DeepChatService` solo se `app.search.enabled`.
+- **Link alle generazioni in chat**: `searchArchive` restituisce al modello path assoluti (`/generations/12`). Dietro un reverse
+  proxy su subpath non funzionerebbero, quindi `deep-chat.html` li riscrive SOLO in visualizzazione (`linkGenerations`, su
+  `responseInterceptor` e sulla cronologia) in link markdown RELATIVI alla pagina corrente (`/deep-chat` -> `generations/12`,
+  `/deep-chat/5` -> `../generations/12`), senza dipendere da `X-Forwarded-Prefix`. Il testo salvato resta l'originale.
 - `app.search.enabled=false` (i test, `application-test.yml`) spegne indice, tool ed `EmbeddingModel` (`spring.ai.model.embedding=none`):
   `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`). Prove reali, opt-in:
   `mvn test -Dtest='E5ModelSmokeTest,SemanticSearchWiringTest' -Dsemantic.model.test=true`.
