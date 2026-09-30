@@ -532,8 +532,10 @@
                 const placeholderIndex = findPlaceholderIndex(event.detail.generationId);
                 const html = resultHtml(event.detail.generationId, event.detail.text, event.detail.files);
                 if (placeholderIndex >= 0) {
-                    // Il risultato prende il posto del placeholder, nello stesso messaggio.
-                    deepChat.updateMessage({role: 'ai', html: html}, placeholderIndex);
+                    // Il risultato prende il posto del placeholder, nello stesso messaggio. Il testo dell'LLM
+                    // dello stesso turno va ripassato: updateMessage senza "text" lo rimuove.
+                    const previous = deepChat.getMessages()[placeholderIndex];
+                    deepChat.updateMessage({role: 'ai', text: previous.text, html: html}, placeholderIndex);
                 } else {
                     deepChat.addMessage({role: 'ai', html: html});
                 }
@@ -544,7 +546,7 @@
             // un messaggio "html" di deep-chat, dentro lo shadow DOM (niente htmx/Tailwind).
             // Il bottone e' pilotato da htmlClassUtilities sulla classe gen-cancel.
             const placeholderTemplate = document.getElementById('generation-placeholder-tpl').innerHTML;
-            const placeholderHtml = (id) => placeholderTemplate.replace(/__ID__/g, String(id));
+            const placeholderHtml = (id) => placeholderTemplate.replace(/GENID/g, String(id));
             const findPlaceholderIndex = (generationId) => {
                 if (generationId === null || generationId === undefined) {
                     return -1;
@@ -609,10 +611,10 @@
     <!--
       Markup del placeholder di generazione, scritto una sola volta
       (fragments/generation-placeholder.html) e clonato dal client con
-      __ID__ -> id reale (vedi lo script module sopra).
+      GENID -> id reale (vedi lo script module sopra).
     -->
     <template id="generation-placeholder-tpl">
-        <div th:replace="~{fragments/generation-placeholder :: placeholder(generationId='__ID__', conversationId=null, generationsPage=null, cancelDisabled=false)}"></div>
+        <div th:replace="~{fragments/generation-placeholder :: placeholder(generationId='GENID', conversationId=null, generationsPage=null, cancelDisabled=false)}"></div>
     </template>
 
     <template id="generation-result-tpl">

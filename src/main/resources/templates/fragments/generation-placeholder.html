@@ -8,7 +8,7 @@
   - fragments/generation.html :: status (generate.html/generation-status.html,
     htmx: il bottone e' il fragment button :: stop con i suoi hx-*);
   - /deep-chat (deep-chat.html): renderizzato una volta in un <template> con
-    generationId='__ID__', clonato dal client dentro un messaggio "html" di
+    generationId='GENID' (non '__ID__': in Thymeleaf e' preprocessing e sparisce), clonato dal client dentro un messaggio "html" di
     <deep-chat>, il cui shadow DOM NON vede le classi Tailwind della pagina:
     per questo qui SOLO stili inline (grigi semi-trasparenti, validi in
     light/dark) e uno spinner SMIL (niente @keyframes). In chat il bottone e'
