@@ -12,6 +12,7 @@ import org.dual.replicate.domain.AppError;
 import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.event.ErrorToastEvent;
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.remote.RemoteServiceException;
 import org.dual.replicate.repository.AppErrorRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +57,7 @@ public class AppErrorService {
     private static final int MAX_DETAILS = 8000;
 
     /** Esito di {@link #record}: {@code key} per la dedupe lato client, {@code firstOfSeries} se ha generato un toast SSE. */
-    public record Recorded(String key, String message, boolean firstOfSeries) {
+    public record Recorded(String key, String message, boolean firstOfSeries, boolean transientFailure) {
     }
 
     private final AppErrorRepository repository;
@@ -75,12 +76,52 @@ public class AppErrorService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Come {@link #record(AppErrorSource, String, Throwable)}, con la source ricavata dall'eccezione
+     * ({@link RemoteServiceException#source()}, anche se incapsulata; {@code INTERNAL} per il resto): il chiamante non
+     * deve conoscere il servizio da cui viene l'errore.
+     */
+    public Recorded record(String operation, Throwable error) {
+        return record(sourceOf(error), operation, error, null, null);
+    }
+
+    public Recorded record(String operation, Throwable error, Long generationId, Long conversationId) {
+        return record(sourceOf(error), operation, error, generationId, conversationId);
+    }
+
+    /** {@link #record(String, Throwable, Long, Long)} + toast nella risposta htmx (il boilerplate dei controller). */
+    public Recorded recordForHtmx(HttpServletResponse response, String operation, Throwable error) {
+        return recordForHtmx(response, operation, error, null, null);
+    }
+
+    public Recorded recordForHtmx(HttpServletResponse response, String operation, Throwable error, Long generationId, Long conversationId) {
+        Recorded recorded = record(operation, error, generationId, conversationId);
+        addToastHeader(response, recorded);
+        return recorded;
+    }
+
+    /** La source dell'eccezione remota (anche nella catena delle cause), {@code INTERNAL} se non lo e'. */
+    public static AppErrorSource sourceOf(Throwable error) {
+        RemoteServiceException remote = remoteCause(error);
+        return remote != null ? remote.source() : AppErrorSource.INTERNAL;
+    }
+
+    private static RemoteServiceException remoteCause(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof RemoteServiceException remote) {
+                return remote;
+            }
+        }
+        return null;
+    }
+
     public Recorded record(AppErrorSource source, String operation, Throwable error) {
         return record(source, operation, error, null, null);
     }
 
     public Recorded record(AppErrorSource source, String operation, Throwable error, Long generationId, Long conversationId) {
         String type = error == null ? "Unknown" : error.getClass().getSimpleName();
+        boolean transientFailure = remoteCause(error) != null && remoteCause(error).isTransient();
         String message = sanitize(error);
         log.warn("Errore [{}] {} (generationId={}, conversationId={}): {}", source, operation, generationId, conversationId, message, error);
 
@@ -112,12 +153,12 @@ public class AppErrorService {
         }
         if (first) {
             try {
-                eventPublisher.publishEvent(new ErrorToastEvent(key, toastMessage));
+                eventPublisher.publishEvent(new ErrorToastEvent(key, toastMessage, transientFailure));
             } catch (RuntimeException publishFailure) {
                 log.error("Impossibile pubblicare il toast d'errore: {}", publishFailure.toString());
             }
         }
-        return new Recorded(key, toastMessage, first);
+        return new Recorded(key, toastMessage, first, transientFailure);
     }
 
     /**
@@ -126,11 +167,38 @@ public class AppErrorService {
      * ripetizione di serie: e' l'utente che ha appena provato un'azione e deve saperne l'esito.
      */
     public void addToastHeader(HttpServletResponse response, Recorded recorded) {
+        Map<String, Object> toast = new java.util.LinkedHashMap<>();
+        toast.put("key", recorded.key());
+        toast.put("message", recorded.message());
+        toast.put("transient", recorded.transientFailure());
+        addHxTrigger(response, "app-error", toast);
+    }
+
+    /**
+     * Aggiunge un evento all'header {@code HX-Trigger} SENZA sovrascrivere quelli gia' presenti (un controller puo'
+     * emettere {@code gallery-update} e, nello stesso giro, un toast). Il valore esistente puo' essere un elenco di nomi
+     * ("a, b") o un oggetto JSON; il risultato e' sempre un unico oggetto JSON {@code {evento: dettaglio}}.
+     */
+    public void addHxTrigger(HttpServletResponse response, String event, Object detail) {
         try {
-            response.setHeader("HX-Trigger", objectMapper.writeValueAsString(
-                    Map.of("app-error", Map.of("key", recorded.key(), "message", recorded.message()))));
+            Map<String, Object> events = new java.util.LinkedHashMap<>();
+            String existing = response.getHeader("HX-Trigger");
+            if (existing != null && !existing.isBlank()) {
+                if (existing.trim().startsWith("{")) {
+                    events.putAll(objectMapper.readValue(existing, new tools.jackson.core.type.TypeReference<Map<String, Object>>() {
+                    }));
+                } else {
+                    for (String name : existing.split(",")) {
+                        if (!name.isBlank()) {
+                            events.put(name.trim(), "");
+                        }
+                    }
+                }
+            }
+            events.put(event, detail);
+            response.setHeader("HX-Trigger", objectMapper.writeValueAsString(events));
         } catch (RuntimeException e) {
-            log.error("Impossibile costruire l'header HX-Trigger del toast: {}", e.toString());
+            log.error("Impossibile costruire l'header HX-Trigger ({}): {}", event, e.toString());
         }
     }
 

@@ -213,7 +213,7 @@ class WebDavImageStorageServiceTest {
         WebDavImageStorageService service = service();
 
         assertThat(service.size("nope.png")).isEmpty();
-        assertThatThrownBy(() -> service.read("nope.png")).isInstanceOf(java.io.UncheckedIOException.class);
+        assertThatThrownBy(() -> service.read("nope.png")).isInstanceOf(StorageException.class);
     }
 
     @Test
@@ -238,12 +238,75 @@ class WebDavImageStorageServiceTest {
     }
 
     @Test
+    void aTransientServerErrorOnWriteIsRetriedAndTheSaveSucceeds() throws IOException {
+        WebDavImageStorageService service = service();
+        dav.failMethod = "PUT";
+        dav.failuresLeft.set(2); // 503 sui primi due tentativi di PUT, il terzo (ultimo ritentativo) riesce
+
+        String filename = service.downloadAndStore(base() + "/src/x.png");
+
+        assertThat(store).containsOnlyKeys("/dav/" + AbstractImageStorageService.shardPath(filename));
+        assertThat(service.read(filename).bytes()).isEqualTo(png);
+        assertThat(dav.requestsOf("PUT")).isEqualTo(3);
+    }
+
+    @Test
+    void aPermanentErrorIsNotRetried() throws IOException {
+        WebDavImageStorageService service = service();
+        service.downloadAndStore(base() + "/src/x.png"); // crea le collezioni
+        int puts = dav.requestsOf("PUT");
+        dav.failureStatus = 403;
+        dav.failuresLeft.set(100);
+
+        assertThatThrownBy(() -> service.storeUpload(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png))).isNotNull();
+
+        assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 1);
+    }
+
+    @Test
+    void retriesAreBoundedThenTheTransientErrorSurfaces() throws IOException {
+        WebDavImageStorageService service = service();
+        service.downloadAndStore(base() + "/src/x.png");
+        int puts = dav.requestsOf("PUT");
+        dav.failuresLeft.set(100);
+
+        assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png"))
+                .isInstanceOf(StorageException.class);
+
+        assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 3); // 1 tentativo + 2 ritentativi
+        assertThat(store).hasSize(1); // niente .part rimasto
+    }
+
+    @Test
+    void aFailedPartCleanupIsRecordedNotSwallowed() throws IOException {
+        WebDavImageStorageService service = service();
+        service.downloadAndStore(base() + "/src/x.png");
+        dav.failureStatus = 403; // permanente: la PUT fallisce e anche il DELETE del .part
+        dav.failuresLeft.set(100);
+
+        assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png")).isNotNull();
+
+        org.mockito.Mockito.verify(appErrors).record(org.mockito.ArgumentMatchers.eq(org.dual.replicate.domain.AppErrorSource.STORAGE),
+                org.mockito.ArgumentMatchers.eq("cleanupPart"), any(Throwable.class));
+    }
+
+    @Test
+    void deletingAMissingFileIsNotAnError() throws IOException {
+        WebDavImageStorageService service = service();
+        service.downloadAndStore(base() + "/src/x.png");
+
+        service.delete("nonexistent.png"); // 404 sul server: tollerato
+
+        org.mockito.Mockito.verify(appErrors, org.mockito.Mockito.never()).record(any(), anyString(), any(Throwable.class));
+    }
+
+    @Test
     void aFailingServerFailsTheSaveWithoutLeavingTempFiles() throws IOException {
         WebDavImageStorageService service = service();
         down.set(true);
 
         assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png"))
-                .isInstanceOf(java.io.UncheckedIOException.class);
+                .isInstanceOf(StorageException.class);
 
         assertThat(store).isEmpty();
         assertThat(tmp.resolve("cache").toFile().list()).isEmpty();

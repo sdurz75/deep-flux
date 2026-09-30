@@ -101,4 +101,51 @@ class AppErrorServiceTest {
         assertThat(row.getMessage().length()).isLessThanOrEqualTo(501);
         assertThat(row.getDetails().length()).isLessThanOrEqualTo(8002);
     }
+
+    @Test
+    void theSourceIsInferredFromTheRemoteExceptionEvenWhenWrapped() {
+        var storage = new org.dual.replicate.service.storage.StorageException("webdav giu'", null,
+                org.dual.replicate.remote.RemoteServiceException.Kind.TRANSIENT);
+
+        service.record("serveImage", new RuntimeException("incapsulata", storage));
+        service.record("qualcosa", new IllegalStateException("bug"));
+
+        assertThat(repository.findAll()).extracting(AppError::getSource)
+                .containsExactlyInAnyOrder(AppErrorSource.STORAGE, AppErrorSource.INTERNAL);
+    }
+
+    @Test
+    void aTransientFailureIsFlaggedInTheToastPayload() {
+        var transientFailure = new org.dual.replicate.service.storage.StorageException("giu'", null,
+                org.dual.replicate.remote.RemoteServiceException.Kind.TRANSIENT);
+        var permanent = new org.dual.replicate.service.storage.StorageException("403", null,
+                org.dual.replicate.remote.RemoteServiceException.Kind.PERMANENT);
+
+        assertThat(service.record("a", transientFailure).transientFailure()).isTrue();
+        assertThat(service.record("b", permanent).transientFailure()).isFalse();
+        assertThat(toasts()).extracting(ErrorToastEvent::transientFailure).containsExactly(true, false);
+    }
+
+    /** L'header HX-Trigger e' uno solo: aggiungere il toast a un evento gia' presente non lo sovrascrive. */
+    @Test
+    void addingAToastKeepsAnExistingHxTriggerEvent() {
+        var response = new org.springframework.mock.web.MockHttpServletResponse();
+        response.setHeader("HX-Trigger", "gallery-update");
+
+        service.recordForHtmx(response, "op", new IllegalStateException("bug"));
+
+        String header = response.getHeader("HX-Trigger");
+        assertThat(header).startsWith("{").contains("\"gallery-update\"").contains("\"app-error\"")
+                .contains("\"message\"").contains("\"transient\":false");
+    }
+
+    @Test
+    void addingAnEventToAJsonHxTriggerMergesBothAndKeepsDetails() {
+        var response = new org.springframework.mock.web.MockHttpServletResponse();
+        response.setHeader("HX-Trigger", "{\"showMessage\":\"ciao\"}");
+
+        service.addHxTrigger(response, "gallery-update", "");
+
+        assertThat(response.getHeader("HX-Trigger")).contains("\"showMessage\":\"ciao\"").contains("\"gallery-update\"");
+    }
 }

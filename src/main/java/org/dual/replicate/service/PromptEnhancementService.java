@@ -62,7 +62,7 @@ public class PromptEnhancementService {
     }
 
     public String enhance(String draftPrompt) {
-        String result = chatClient.prompt().user(draftPrompt).call().content();
+        String result = OpenRouterException.CALLER.call("enhance", () -> chatClient.prompt().user(draftPrompt).call().content());
         return requireText(result);
     }
 
@@ -91,7 +91,7 @@ public class PromptEnhancementService {
 
     private String rewriteWithVision(String guide, String text, SourceImage image) {
         if (image == null) {
-            String result = chatClient.prompt().system(guide).user(text).call().content();
+            String result = OpenRouterException.CALLER.call("enhance", () -> chatClient.prompt().system(guide).user(text).call().content());
             return requireText(result);
         }
         SourceImage sized = downscale(image);
@@ -127,11 +127,11 @@ public class PromptEnhancementService {
     }
 
     private String askVision(String guide, String model, String text, SourceImage image) {
-        return chatClient.prompt()
+        return OpenRouterException.CALLER.call("enhanceVision", () -> chatClient.prompt()
                 .system(guide)
                 .options(OpenAiChatOptions.builder().model(model))
                 .user(u -> u.text(text).media(MimeType.valueOf(image.mimeType()), new ByteArrayResource(image.bytes())))
-                .call().content();
+                .call().content());
     }
 
     /** Una risposta vuota NON deve sovrascrivere la bozza dell'utente: e' trattata come un rifiuto (bozza conservata, errore mostrato). */

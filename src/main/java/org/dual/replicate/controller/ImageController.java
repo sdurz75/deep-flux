@@ -3,7 +3,6 @@ package org.dual.replicate.controller;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.OptionalLong;
 
@@ -12,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.service.AppErrorService;
 import org.dual.replicate.service.storage.IImageStorageService;
+import org.dual.replicate.service.storage.StorageException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
@@ -54,7 +54,7 @@ public class ImageController {
         } catch (IllegalArgumentException e) {
             response.sendError(HttpStatus.NOT_FOUND.value());
             return;
-        } catch (UncheckedIOException e) {
+        } catch (StorageException e) {
             appErrors.record(AppErrorSource.STORAGE, "serveImage", e);
             response.sendError(HttpStatus.BAD_GATEWAY.value());
             return;
@@ -95,7 +95,7 @@ public class ImageController {
         if (length > 0 && !"HEAD".equals(request.getMethod())) {
             try {
                 in = storage.openRange(filename, start, length);
-            } catch (IOException | UncheckedIOException e) {
+            } catch (IOException | StorageException e) {
                 appErrors.record(AppErrorSource.STORAGE, "serveImage", e);
                 response.sendError(HttpStatus.BAD_GATEWAY.value());
                 return;

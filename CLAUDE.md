@@ -142,7 +142,8 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   modello e' intercettato e non sovrascrive la textarea), `DeepChatService`, `DeepChatGenerationWatcher`,
   `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
   id delle generazioni avviate nel turno), `AppErrorService`, `GenerationRecoveryService`, `DeepChatFailedException`.
-- `config/`: `TailwindAssets`.
+- `remote/`: `RemoteServiceException`, `RemoteCaller`, `RetryPolicy`, `RestClientTranslator`, `RestRemoteClient` (vedi
+  "Errori e retry generici"). `config/`: `TailwindAssets`, `UnhandledExceptionResolver`.
 - `db/migration/`: V1..V18, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
   modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
 - `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
@@ -320,8 +321,9 @@ switcher/cookie/sessione). Bundle: `messages.properties` (italiano, default/fall
 ## Convenzione: errori delle chiamate remote e stati terminali
 
 Ogni chiamata a Replicate, OpenRouter (Spring AI) o SearXNG, e ogni errore interno non gestito, passa da
-`AppErrorService#record(source, operation, throwable[, generationId, conversationId])`: MAI un `catch` che ingoia o
-soltanto logga. `record` logga con stack, salva/aggiorna una riga `APP_ERROR` (V17, transazione propria, non lancia mai;
+`AppErrorService#record(operation, throwable[, generationId, conversationId])` (la source si ricava da
+`RemoteServiceException#source()`; la forma `record(source, ...)` resta per gli errori non remoti, `INTERNAL`): MAI un `catch`
+che ingoia o soltanto logga. `record` logga con stack, salva/aggiorna una riga `APP_ERROR` (V17, transazione propria, non lancia mai;
 consultabile da `/errors`, `ErrorController`) e alla prima occorrenza di una *serie* pubblica `ErrorToastEvent` → SSE
 `error-toast` → toast in tutte le tab con `live-events.html`. Serie = stesso (source, operation, generationId, tipo
 eccezione) entro 5 minuti: aggiorna `occurrences`/`last_seen_at` invece di creare riga/toast a ogni poll durante un outage.
@@ -345,11 +347,48 @@ eccezione) entro 5 minuti: aggiorna `occurrences`/`last_seen_at` invece di crear
 - **Chat**: se l'LLM fallisce, `DeepChatService#reply` scrive un turno ASSISTANT d'errore (`ChatMessage.error`, V18: in
   rosso, mai rimandato all'LLM) e lancia `DeepChatFailedException` (gia' registrata: `DeepChatApiController` mostra solo il
   messaggio). I tool (`WebSearchTool`, `ImageGenerationTool`) catturano da soli e rimandano il testo d'errore al modello.
+- **WebDAV** (`WebDavImageStorageService`, via `RemoteCaller` come gli altri): PUT/MOVE/DELETE/MKCOL e gli HEAD della
+  migrazione ritentano (`RetryPolicy.DEFAULT`) i soli transitori; le letture per `/images/**` NO (`RetryPolicy.NONE`: il
+  browser riprova, un retry allungherebbe la richiesta). `NoSuchFileException` (404) e' `passThrough`, non un errore. Un `.part`
+  che non si riesce a ripulire e' registrato (`cleanupPart`); un file che non si riesce a cancellare resta orfano (registrato
+  `deleteFile`, nessun recupero automatico). `IImageStorageService` lancia SOLO `StorageException` (mai `UncheckedIOException`):
+  `REJECTED` per gli esiti attesi (file inesistente, upload troppo grande/di tipo non valido).
 - **Timeout**: `spring.http.clients.connect-timeout/read-timeout` valgono per tutti i `RestClient.Builder`
   auto-configurati (Replicate, download, Spring AI); SearXNG ha un timeout piu' stretto proprio. Un nuovo client HTTP
   usa il `RestClient.Builder` iniettato, mai `RestClient.create()`.
 - **Locale**: `AppErrorService` risolve il toast con la locale del thread; un thread async la imposta prima
   (`DeepChatGenerationWatcher#watch`), il recupero usa l'italiano.
+
+### Errori e retry generici (`remote/`) e checklist "nuovo servizio remoto"
+
+Un solo tipo, un solo esecutore, una sola traduzione HTTP:
+
+- **`RemoteServiceException`** (radice di `ReplicateException`, `SearxngException`, `StorageException`, `OpenRouterException`)
+  porta `source()` e `kind()`: `TRANSIENT` (rete/timeout/408/429/5xx, ritentabile), `PERMANENT` (4xx, 507, risposta illeggibile),
+  `CONFIGURATION` (token/credenziali mancanti), `REJECTED` (rifiuto applicativo ATTESO: validazione, "non trovato", rifiuto del
+  modello). `isReportable()` = tutto tranne `REJECTED`: solo i reportable si registrano/notificano (`GenerationController#create`
+  ne decide cosi' "toast o solo form"); il resolver risponde 502 (guasto di un servizio esterno), 422 (`REJECTED`, senza riga
+  in `APP_ERROR`, con un toast htmx del solo messaggio) o 500 (bug interno). `ReplicateException(String)` = `REJECTED`; con
+  causa = `PERMANENT`: un errore vero senza causa va costruito con `Kind` esplicito.
+- **`RemoteCaller#call(operazione[, RetryPolicy], supplier)`**: traduce qualunque eccezione e ritenta solo i `TRANSIENT`.
+  `RetryPolicy` sempre esplicita per le operazioni NON idempotenti/a pagamento: `RetryPolicy.NONE` (es. `createPrediction`: un
+  ritentativo potrebbe fatturare una seconda prediction). Un errore gia' classificato non viene ritradotto anche se RestClient lo
+  ha incapsulato in una `ResourceAccessException`. OpenRouter/Spring AI ritenta gia' da se' (`spring.ai.retry.*`, a livello HTTP,
+  prima dei tool): `OpenRouterException.CALLER` traduce senza un secondo strato di retry (rieseguire un turno rieseguirebbe i tool).
+- **`RestClientTranslator`**: unica regola stato HTTP -> `Kind`; messaggi da `<prefix>.error.httpError|connectionFailed`.
+
+Per aggiungere un servizio remoto:
+1. Valore in `AppErrorSource` + `errors.source.<X>` nei due bundle.
+2. `class FooException extends RemoteServiceException` (costruttore `(String message, Throwable cause, Kind kind)`).
+3. Client `extends RestRemoteClient` con prefisso `foo` (chiavi `foo.error.httpError|connectionFailed` nei bundle), e ogni
+   chiamata in `remote.call("operazione", () -> ...)` (`RetryPolicy.NONE` se non idempotente). Esempio minimo:
+   `RestRemoteClientTest`.
+4. Chiamante in background: `appErrors.record("operazione", e, ...)`; controller: `appErrors.recordForHtmx(response, "operazione", e)`
+   oppure lasciar risalire (il resolver registra con la source giusta). Niente `catch` che ingoia.
+- **Front end**: nessun codice per servizio. Il toast (`fragments/toast.html`) e' guidato dal payload `{key, message,
+  transient}`; `transient: true` aggiunge "Riprova tra qualche istante". `AppErrorService#addHxTrigger` FONDE gli eventi
+  nell'unico header `HX-Trigger` (un controller puo' emettere `gallery-update` e un toast insieme). Un bottone "Riprova" generico
+  sul toast e' escluso di proposito: rieseguire una POST (`create`) creerebbe una seconda prediction a pagamento.
 
 ## Comandi utili
 

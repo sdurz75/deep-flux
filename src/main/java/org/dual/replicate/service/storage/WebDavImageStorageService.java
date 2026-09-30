@@ -5,7 +5,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -22,6 +21,10 @@ import java.util.OptionalLong;
 import jakarta.annotation.PreDestroy;
 import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.remote.RemoteCaller;
+import org.dual.replicate.remote.RemoteServiceException.Kind;
+import org.dual.replicate.remote.RestClientTranslator;
+import org.dual.replicate.remote.RetryPolicy;
 import org.dual.replicate.service.AppErrorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,9 +35,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.util.unit.DataSize;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriUtils;
 
 /**
@@ -59,6 +60,8 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     private final ChunkedAesGcmCipher cipher;
     private final EncryptedBlobCache cache;
     private final AppErrorService appErrors;
+    private final RestClientTranslator errors;
+    private final RemoteCaller remote;
     private final Set<String> collectionsReady = ConcurrentHashMap.newKeySet();
     /** Un solo thread: il riscaldamento della cache dei video non deve saturare la banda verso WebDAV. */
     private final ExecutorService warmer = Executors.newSingleThreadExecutor(runnable -> {
@@ -84,6 +87,11 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         this.cipher = new ChunkedAesGcmCipher(ChunkedAesGcmCipher.keyFromBase64(encryptionKey));
         this.cache = new EncryptedBlobCache(Path.of(cacheDir), cacheMaxSize.toBytes());
         this.appErrors = appErrors;
+        // Classificazione e retry condivisi con Replicate/SearXNG (vedi remote/). Le letture per /images/** non ritentano
+        // (RetryPolicy.NONE di default): il browser riprova da se' e un retry allungherebbe la richiesta; le scritture,
+        // le cancellazioni e gli HEAD della migrazione passano da retrying(). NoSuchFileException = "non esiste", non un errore.
+        this.errors = new RestClientTranslator("webdav", messages, StorageException::new);
+        this.remote = RemoteCaller.builder(errors).retry(RetryPolicy.NONE).passThrough(NoSuchFileException.class).build();
         RestClient.Builder builder = restClientBuilder.clone();
         if (username != null && !username.isBlank()) {
             builder.defaultHeaders(headers -> headers.setBasicAuth(username, password == null ? "" : password));
@@ -101,7 +109,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         } catch (NoSuchFileException e) {
             return OptionalLong.empty();
         } catch (IOException e) {
-            throw new UncheckedIOException(messages.get("imagestorage.error.readImage", filename), e);
+            throw new StorageException(messages.get("imagestorage.error.readImage", filename), e, Kind.PERMANENT);
         }
     }
 
@@ -122,7 +130,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     boolean existsRemotely(String filename) throws IOException {
         checkFilename(filename);
         try {
-            new WebDavBlobSource(filename).length();
+            retrying(() -> new WebDavBlobSource(filename).length());
             return true;
         } catch (NoSuchFileException e) {
             return false;
@@ -132,7 +140,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     /** Dimensione in chiaro di {@code filename} come risulta dal SERVER (mai dalla cache): verifica di un upload. */
     long remotePlainSize(String filename) throws IOException {
         checkFilename(filename);
-        return cipher.plainSize(new WebDavBlobSource(filename));
+        return retrying(() -> cipher.plainSize(new WebDavBlobSource(filename)));
     }
 
     /** Cifra e carica {@code file} come {@code filename} (come una scrittura normale, cache write-through inclusa). */
@@ -160,8 +168,8 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             ensureCollections(filename);
             String partName = filename + ".part";
             try {
-                remote(() -> dav.put().uri(uri(partName)).body(new FileSystemResource(temp)).retrieve().toBodilessEntity());
-                remote(() -> dav.method(MOVE).uri(uri(partName)).header("Destination", uri(filename).toString())
+                retrying(() -> dav.put().uri(uri(partName)).body(new FileSystemResource(temp)).retrieve().toBodilessEntity());
+                retrying(() -> dav.method(MOVE).uri(uri(partName)).header("Destination", uri(filename).toString())
                         .header("Overwrite", "T").retrieve().toBodilessEntity());
             } catch (IOException | RuntimeException e) {
                 deleteRemoteQuietly(partName);
@@ -183,9 +191,15 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     @Override
     protected void remove(String filename) throws IOException {
         cache.remove(filename);
-        remote(() -> dav.delete().uri(uri(filename)).exchange((request, response) -> {
-            if (response.getStatusCode().isError() && response.getStatusCode().value() != 404) {
-                throw new IOException("HTTP " + response.getStatusCode().value() + " su DELETE " + filename);
+        deleteRemote(filename);
+    }
+
+    /** DELETE con retry; un 404 (gia' assente) non e' un errore. */
+    private void deleteRemote(String name) throws IOException {
+        retrying(() -> dav.delete().uri(uri(name)).exchange((request, response) -> {
+            int status = response.getStatusCode().value();
+            if (response.getStatusCode().isError() && status != 404) {
+                throw httpError(status, "DELETE " + name);
             }
             return null;
         }));
@@ -272,11 +286,11 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
                     throw new NoSuchFileException(filename);
                 }
                 if (response.getStatusCode().isError()) {
-                    throw new IOException("HTTP " + response.getStatusCode().value() + " su HEAD " + filename);
+                    throw httpError(response.getStatusCode().value(), "HEAD " + filename);
                 }
                 long length = response.getHeaders().getContentLength();
                 if (length < 0) {
-                    throw new IOException("WebDAV non ha indicato la dimensione di " + filename);
+                    throw new StorageException(messages.get("imagestorage.error.webdavNoLength", filename), null, Kind.PERMANENT);
                 }
                 return length;
             }));
@@ -290,8 +304,10 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
                         int status = response.getStatusCode().value();
                         if (status == 404 || response.getStatusCode().isError()) {
                             response.close();
-                            throw status == 404 ? new NoSuchFileException(filename)
-                                    : new IOException("HTTP " + status + " su GET " + filename);
+                            if (status == 404) {
+                                throw new NoSuchFileException(filename);
+                            }
+                            throw httpError(status, "GET " + filename);
                         }
                         InputStream body = response.getBody();
                         if (status == 200) {
@@ -324,7 +340,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
                     throw new NoSuchFileException(filename);
                 }
                 if (response.getStatusCode().isError()) {
-                    throw new IOException("HTTP " + response.getStatusCode().value() + " su GET " + filename);
+                    throw httpError(response.getStatusCode().value(), "GET " + filename);
                 }
                 Files.copy(response.getBody(), target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 return null;
@@ -353,7 +369,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             return;
         }
         URI target = URI.create(relative.isEmpty() ? baseUrl : baseUrl + relative + "/");
-        int status = remote(() -> dav.method(MKCOL).uri(target)
+        int status = retrying(() -> dav.method(MKCOL).uri(target)
                 .exchange((request, response) -> response.getStatusCode().value()));
         if (status >= 400 && status != 405) {
             log.debug("MKCOL {} -> HTTP {}: ignorato, la collezione si presume esistente", target, status);
@@ -361,11 +377,12 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         collectionsReady.add(relative);
     }
 
+    /** Best-effort (e' gia' un percorso di errore), ma MAI muto: un {@code .part} orfano resta registrato. */
     private void deleteRemoteQuietly(String name) {
         try {
-            remote(() -> dav.delete().uri(uri(name)).retrieve().toBodilessEntity());
-        } catch (IOException | RuntimeException ignored) {
-            // best-effort: e' gia' un percorso di errore
+            deleteRemote(name);
+        } catch (IOException | RuntimeException e) {
+            appErrors.record(AppErrorSource.STORAGE, "cleanupPart", e);
         }
     }
 
@@ -384,17 +401,17 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         T call() throws IOException;
     }
 
-    /**
-     * RestClient incapsula le IOException dell'exchange in ResourceAccessException e le risposte d'errore in
-     * RestClientResponseException: qui tornano IOException (con la NoSuchFileException originale, per il 404).
-     */
-    private static <T> T remote(RemoteCall<T> call) throws IOException {
-        try {
-            return call.call();
-        } catch (ResourceAccessException e) {
-            throw e.getCause() instanceof IOException io ? io : new IOException(e);
-        } catch (RestClientException e) {
-            throw new IOException(e.getMessage(), e);
-        }
+    /** Chiamata remota senza retry; dichiara IOException perche' la {@code NoSuchFileException} del 404 esce cosi' com'e'. */
+    private <T> T remote(RemoteCall<T> call) throws IOException {
+        return remote.call("webdav", call::call);
+    }
+
+    /** Come {@link #remote}, ma ritenta gli errori transitori (idempotenti: PUT su .part, MOVE, DELETE, MKCOL, HEAD). */
+    private <T> T retrying(RemoteCall<T> call) throws IOException {
+        return remote.call("webdav", RetryPolicy.DEFAULT, call::call);
+    }
+
+    private StorageException httpError(int status, String what) {
+        return (StorageException) errors.httpStatus(status, what);
     }
 }

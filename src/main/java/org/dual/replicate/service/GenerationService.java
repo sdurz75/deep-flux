@@ -25,7 +25,9 @@ import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
 import org.dual.replicate.replicate.ReplicatePricing;
+import org.dual.replicate.remote.RemoteServiceException;
 import org.dual.replicate.replicate.ReplicateException;
+import org.dual.replicate.service.storage.StorageException;
 import org.dual.replicate.replicate.TooManyPredictionsException;
 import org.dual.replicate.repository.GenerationRepository;
 import org.slf4j.Logger;
@@ -55,20 +57,6 @@ public class GenerationService {
 
     /** Soglia PER MODELLO oltre la quale create() rifiuta una nuova generazione, vedi TooManyPredictionsException. */
     private static final int MAX_IN_PROGRESS_PREDICTIONS_PER_MODEL = 4;
-
-    /**
-     * L'API di Replicate risponde occasionalmente con 503 transitori su
-     * GET /predictions/{id} (osservato in pratica, non solo teorico).
-     * Senza un ritentativo qui, il primo di questi blip fa fallire
-     * definitivamente la generazione: {@link #refresh} tratta qualunque
-     * eccezione come terminale, e il polling sincrono del tool di
-     * generazione immagini su /deep-chat (waitUntilTerminal) chiama
-     * refresh() molte piu' volte in rapida sequenza di quanto farebbe
-     * un utente che aggiorna la pagina di stato, aumentando le occasioni
-     * di incapparci.
-     */
-    private static final int GET_PREDICTION_RETRIES = 2;
-    private static final Duration GET_PREDICTION_RETRY_BACKOFF = Duration.ofMillis(500);
 
     /**
      * Best-effort: molti modelli Cog (i Flux inclusi) stampano il seed
@@ -222,7 +210,7 @@ public class GenerationService {
         // prima di propagare l'errore.
         try {
             if (prediction.id() == null || prediction.id().isBlank()) {
-                throw new ReplicateException(messages.get("replicate.error.emptyResponse"));
+                throw new ReplicateException(messages.get("replicate.error.emptyResponse"), null, ReplicateException.Kind.PERMANENT);
             }
             Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
             generation.setKind(kind);
@@ -262,8 +250,11 @@ public class GenerationService {
         }
         try {
             return imageStorageService.readAsDataUri(filename);
-        } catch (java.io.UncheckedIOException e) {
-            throw new ReplicateException(messages.get("generation.error.sourceImageMissing"));
+        } catch (StorageException e) {
+            if (e.kind() == RemoteServiceException.Kind.REJECTED) { // file inesistente: sorgente mancante
+                throw new ReplicateException(messages.get("generation.error.sourceImageMissing"));
+            }
+            throw e; // guasto vero dello storage (WebDAV giu'...): non e' "sorgente mancante", va registrato
         }
     }
 
@@ -320,7 +311,7 @@ public class GenerationService {
 
         PredictionResponse prediction;
         try {
-            prediction = getPredictionWithRetry(generation.getExternalId());
+            prediction = replicateClient.getPrediction(generation.getExternalId()); // il retry dei transitori e' di ReplicateClient
         } catch (RuntimeException e) {
             return handlePollFailure(generation, e);
         }
@@ -403,7 +394,7 @@ public class GenerationService {
      * timeout di business vale comunque, cosi' non esiste attesa infinita.
      */
     private Generation handlePollFailure(Generation generation, RuntimeException e) {
-        appErrors.record(AppErrorSource.REPLICATE, "getPrediction", e, generation.getId(), generation.getConversationId());
+        appErrors.record("getPrediction", e, generation.getId(), generation.getConversationId());
         boolean permanent = e instanceof ReplicateException replicateException && !replicateException.isTransient();
         if (permanent) {
             generation.setStatus(GenerationStatus.FAILED);
@@ -436,7 +427,7 @@ public class GenerationService {
             if (e instanceof ReplicateException r && !r.isTransient()) {
                 log.info("Annullamento della prediction {} non necessario/riuscito: {}", externalId, e.getMessage());
             } else {
-                appErrors.record(AppErrorSource.REPLICATE, "cancelPrediction", e, generationId, conversationId);
+                appErrors.record("cancelPrediction", e, generationId, conversationId);
             }
         }
     }
@@ -536,31 +527,6 @@ public class GenerationService {
             generation = refresh(id);
         }
         return generation;
-    }
-
-    private PredictionResponse getPredictionWithRetry(String externalId) {
-        RuntimeException lastError;
-        int attempt = 0;
-        while (true) {
-            try {
-                return replicateClient.getPrediction(externalId);
-            } catch (RuntimeException e) {
-                if (e instanceof ReplicateException r && !r.isTransient()) {
-                    throw e; // permanente (token errato, 4xx...): ritentare non serve
-                }
-                lastError = e;
-            }
-            attempt++;
-            if (attempt > GET_PREDICTION_RETRIES) {
-                throw lastError;
-            }
-            try {
-                Thread.sleep(GET_PREDICTION_RETRY_BACKOFF.toMillis());
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw lastError;
-            }
-        }
     }
 
     public boolean exists(Long id) {

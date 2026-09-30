@@ -85,7 +85,7 @@ public class ImageGenerationTool {
             String parametersJson = buildParametersJson(toolContext);
             generation = generationService.create(model, version, prompt, parametersJson);
         } catch (ReplicateException e) {
-            appErrors.record(AppErrorSource.REPLICATE, "createPrediction", e);
+            appErrors.record("createPrediction", e);
             // Es. troppe generazioni gia' in corso su Replicate: rifiuto
             // applicativo, non un errore di rete. Restituirlo come testo
             // invece di propagarlo fa si' che diventi la risposta del

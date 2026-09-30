@@ -7,6 +7,6 @@ package org.dual.replicate.replicate;
 public class ReplicateConfigurationException extends ReplicateException {
 
     public ReplicateConfigurationException(String message) {
-        super(message);
+        super(message, null, Kind.CONFIGURATION);
     }
 }

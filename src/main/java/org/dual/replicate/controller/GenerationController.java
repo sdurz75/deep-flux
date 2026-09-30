@@ -197,17 +197,17 @@ public class GenerationController {
             uiModel.addAttribute("conversationId", null);
             uiModel.addAttribute("generationsPage", null);
             return "fragments/generation :: status";
-        } catch (ReplicateException e) {
+        } catch (org.dual.replicate.remote.RemoteServiceException e) {
             // Validazioni applicative (modello sconosciuto, sorgente mancante, troppe in corso) non hanno una
             // causa: sono un rifiuto, non un errore di comunicazione, e restano solo nel form. Il resto
             // (chiamata a Replicate fallita, storage) e' registrato e notificato anche come toast.
-            if (e.getCause() != null || e.isTransient() || e instanceof org.dual.replicate.replicate.ReplicateConfigurationException) {
-                appErrors.addToastHeader(response, appErrors.record(AppErrorSource.REPLICATE, "createGeneration", e));
+            if (e.isReportable()) {
+                appErrors.recordForHtmx(response, "createGeneration", e);
             }
             return createFailed(e.getMessage(), version, prompt, model, allParams, uiModel);
         } catch (RuntimeException e) {
             // Errore inatteso (upload illeggibile, DB, serializzazione...): mai un 500 che htmx non renderizza.
-            appErrors.addToastHeader(response, appErrors.record(AppErrorSource.INTERNAL, "createGeneration", e));
+            appErrors.recordForHtmx(response, "createGeneration", e);
             return createFailed(AppErrorService.sanitize(e), version, prompt, model, allParams, uiModel);
         }
     }
@@ -304,9 +304,14 @@ public class GenerationController {
             uiModel.addAttribute("prompt", prompt);
             uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceRefused"));
         } catch (Exception e) {
-            appErrors.addToastHeader(response, appErrors.record(AppErrorSource.OPENROUTER, "enhancePrompt", e));
             uiModel.addAttribute("prompt", prompt);
-            uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", AppErrorService.sanitize(e)));
+            if (e instanceof org.dual.replicate.remote.RemoteServiceException rejected && !rejected.isReportable()) {
+                // Rifiuto atteso (es. upload sorgente di tipo non valido): solo il messaggio, niente registro/toast.
+                uiModel.addAttribute("enhanceError", rejected.getMessage());
+            } else {
+                appErrors.recordForHtmx(response, "enhancePrompt", e);
+                uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", AppErrorService.sanitize(e)));
+            }
         }
         return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
     }
@@ -521,7 +526,7 @@ public class GenerationController {
             // Un rifiuto perche' la prediction era gia' terminale non e' un errore da segnalare; se invece la
             // generazione e' ancora in corso il cancel e' davvero fallito: registrato e notificato.
             if (!generation.isTerminal()) {
-                AppErrorService.Recorded recorded = appErrors.record(AppErrorSource.REPLICATE, "cancelGeneration", e, id, conversationId);
+                AppErrorService.Recorded recorded = appErrors.record("cancelGeneration", e, id, conversationId);
                 if (isHtmxRequest) {
                     appErrors.addToastHeader(response, recorded);
                 }
@@ -579,7 +584,15 @@ public class GenerationController {
                                @RequestParam(required = false) Long conversationId,
                                @RequestParam(required = false) Integer generationsPage,
                                HttpServletRequest request, HttpServletResponse response, Model model) {
-        boolean cascaded = generationService.deleteImage(id, filename);
+        boolean cascaded;
+        try {
+            cascaded = generationService.deleteImage(id, filename);
+        } catch (org.dual.replicate.service.storage.StorageException e) {
+            // Lo storage non ha cancellato il file: il DB e' rimasto invariato (coerente), la griglia non cambia.
+            // Registrato come STORAGE (non come 500 generico) e notificato con il toast.
+            appErrors.recordForHtmx(response, "deleteFile", e, id, conversationId);
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, null, e);
+        }
         if (cascaded) {
             response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
             return null;

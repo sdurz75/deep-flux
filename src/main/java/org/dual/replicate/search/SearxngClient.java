@@ -3,12 +3,12 @@ package org.dual.replicate.search;
 import java.util.List;
 
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.remote.RestRemoteClient;
+import org.dual.replicate.remote.RetryPolicy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Wrapper sottile sull'API di ricerca di una istanza SearXNG
@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClientResponseException;
  * pattern di ReplicateClient).
  */
 @Component
-public class SearxngClient {
+public class SearxngClient extends RestRemoteClient {
 
     private final RestClient restClient;
     private final String username;
@@ -30,6 +30,8 @@ public class SearxngClient {
                           @Value("${searxng.username}") String username,
                           @Value("${searxng.password}") String password,
                           Messages messages) {
+        // Idempotente ma con timeout stretto (la ricerca gira dentro un turno LLM): un solo ritentativo.
+        super("searxng", messages, SearxngException::new, RetryPolicy.of(1, java.time.Duration.ofMillis(300)));
         // Normalizzato con slash finale: sotto e' risolto come path
         // relativo "search" (mai "/search"), e UriComponentsBuilder
         // concatena senza inserire un separatore - senza lo slash qui,
@@ -56,7 +58,7 @@ public class SearxngClient {
      */
     public List<SearchResult> search(String query) {
         requireCredentials();
-        try {
+        return remote.call("search", () -> {
             SearxngResponse response = restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("search")
                             .queryParam("q", query)
@@ -65,23 +67,8 @@ public class SearxngClient {
                     .headers(this::authHeaders)
                     .retrieve()
                     .body(SearxngResponse.class);
-            return response == null || response.results() == null ? List.of() : response.results();
-        } catch (RestClientException e) {
-            throw toSearxngException(e);
-        } catch (RuntimeException e) {
-            // Risposta non decodificabile (HttpMessageNotReadableException), URI non valido...: qualunque cosa
-            // esca da qui deve essere una SearxngException, l'unico tipo che il chiamante sa gestire.
-            throw new SearxngException(messages.get("searxng.error.connectionFailed", e.getMessage()), e);
-        }
-    }
-
-    private SearxngException toSearxngException(RestClientException e) {
-        if (e instanceof RestClientResponseException responseException) {
-            String body = responseException.getResponseBodyAsString();
-            return new SearxngException(messages.get("searxng.error.httpError",
-                    responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e);
-        }
-        return new SearxngException(messages.get("searxng.error.connectionFailed", e.getMessage()), e);
+            return response == null || response.results() == null ? List.<SearchResult>of() : response.results();
+        });
     }
 
     private void authHeaders(HttpHeaders headers) {

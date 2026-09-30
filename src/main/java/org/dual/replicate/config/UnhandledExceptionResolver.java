@@ -1,10 +1,11 @@
 package org.dual.replicate.config;
 
 import java.io.IOException;
+import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.remote.RemoteServiceException;
 import org.dual.replicate.service.AppErrorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,20 +47,47 @@ public class UnhandledExceptionResolver implements HandlerExceptionResolver, Ord
         if (isClientDisconnect(ex)) {
             return null;
         }
-        AppErrorService.Recorded recorded = appErrors.record(AppErrorSource.INTERNAL,
-                request.getMethod() + " " + request.getRequestURI(), ex);
-        if ("true".equalsIgnoreCase(request.getHeader("HX-Request")) && !response.isCommitted()) {
-            appErrors.addToastHeader(response, recorded);
+        boolean htmx = "true".equalsIgnoreCase(request.getHeader("HX-Request"));
+        String operation = request.getMethod() + " " + request.getRequestURI();
+        RemoteServiceException remote = remoteCause(ex);
+        int status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
+        if (remote != null && remote.kind() == RemoteServiceException.Kind.REJECTED) {
+            // Rifiuto atteso (es. "generazione non trovata" cliccando su una tab vecchia): non e' un guasto, quindi
+            // niente registro errori; all'utente htmx si mostra comunque il messaggio.
+            status = 422;
+            if (htmx && !response.isCommitted()) {
+                appErrors.addHxTrigger(response, "app-error",
+                        Map.of("key", "rejected-" + Math.abs(remote.getMessage().hashCode()), "message", remote.getMessage()));
+            }
+        } else {
+            // La source viene dall'eccezione (Replicate, storage...), non e' piu' sempre INTERNAL; un guasto di un
+            // servizio esterno e' un 502, non un 500 dell'app.
+            AppErrorService.Recorded recorded = appErrors.record(operation, ex);
+            if (remote != null) {
+                status = HttpServletResponse.SC_BAD_GATEWAY;
+            }
+            if (htmx && !response.isCommitted()) {
+                appErrors.addToastHeader(response, recorded);
+            }
         }
         if (response.isCommitted()) {
             return null;
         }
         try {
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.sendError(status);
         } catch (IOException | IllegalStateException e) {
-            log.debug("Impossibile inviare l'errore 500: {}", e.toString());
+            log.debug("Impossibile inviare l'errore {}: {}", status, e.toString());
         }
         return new ModelAndView(); // gestita: niente altri resolver
+    }
+
+    private static RemoteServiceException remoteCause(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof RemoteServiceException remote) {
+                return remote;
+            }
+        }
+        return null;
     }
 
     /** Il client ha chiuso la connessione (tab chiusa, navigazione altrove): non e' un errore dell'app. */

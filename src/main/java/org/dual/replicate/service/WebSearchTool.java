@@ -40,7 +40,7 @@ public class WebSearchTool {
         try {
             results = searxngClient.search(query);
         } catch (RuntimeException e) {
-            appErrors.record(AppErrorSource.SEARXNG, "search", e);
+            appErrors.record("search", e);
             return "Ricerca web non disponibile al momento (" + AppErrorService.sanitize(e)
                     + "). Rispondi senza, dicendo all'utente che la ricerca non e' andata a buon fine.";
         }

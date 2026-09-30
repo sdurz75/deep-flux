@@ -168,11 +168,11 @@ public class DeepChatService {
             try {
                 ChatResponse chatResponse;
                 try {
-                    chatResponse = chatClient.prompt()
+                    chatResponse = OpenRouterException.CALLER.call("chatTurn", () -> chatClient.prompt()
                             .messages(messages)
                             .toolContext(toolContext)
                             .call()
-                            .chatResponse();
+                            .chatResponse());
                 } catch (RuntimeException e) {
                     log.warn("Chiamata al modello LLM remoto (OpenRouter) fallita dopo {} ms: {}",
                             Duration.between(start, Instant.now()).toMillis(), e.getMessage());

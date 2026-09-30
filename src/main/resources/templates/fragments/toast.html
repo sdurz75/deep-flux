@@ -11,6 +11,7 @@
      controller: htmx lo trasforma in un evento "app-error" (con detail = l'oggetto) che risale a window;
   3. listener globali htmx:responseError / htmx:sendError qui sotto (risposta 4xx/5xx o server non
      raggiungibile), SOLO se la risposta non portava gia' un toast dal server (punto 2).
+  Il payload puo' avere `transient: true` (RemoteServiceException.Kind.TRANSIENT): si aggiunge il suggerimento di riprovare.
   Dedupe per `key`: lo stesso errore puo' arrivare da piu' sorgenti (SSE + HX-Trigger), va mostrato una volta.
   Testi client-only dal server via data-* (ponte documentato in CLAUDE.md, "Convenzione: theming").
 -->
@@ -23,7 +24,7 @@
             const key = detail.key || detail.message;
             if (this.seen[key]) { return; }
             this.seen[key] = true;
-            this.toasts.push({ key: key, message: detail.message });
+            this.toasts.push({ key: key, message: detail.message, transient: detail.transient === true });
             setTimeout(() => this.dismiss(key), 10000);
         },
         dismiss(key) { this.toasts = this.toasts.filter((t) => t.key !== key); }
@@ -42,6 +43,7 @@
      @app-error.window="add($event.detail)"
      th:data-http-error="#{toast.error.http('{0}')}"
      th:data-network-error="#{toast.error.network}"
+     th:data-transient-hint="#{toast.error.transientHint}"
      class="fixed bottom-4 right-4 z-[110] flex flex-col gap-2 w-[min(24rem,calc(100vw-2rem))] pointer-events-none">
     <template x-for="t in toasts" :key="t.key">
         <div role="alert"
@@ -49,7 +51,11 @@
              x-transition:enter-start="opacity-0 translate-y-2"
              class="pointer-events-auto flex items-start gap-3 rounded-md border border-danger dark:border-danger-dark
                     bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-lg px-4 py-3 text-[0.9rem]">
-            <span class="flex-1 break-words" x-text="t.message"></span>
+            <div class="flex-1 break-words">
+                <span x-text="t.message"></span>
+                <!-- Errore transitorio (rete, timeout, 5xx: l'app ha gia' ritentato): il servizio tornera' raggiungibile, riprovare piu' tardi. -->
+                <span x-show="t.transient" x-text="$root.dataset.transientHint" class="block text-ink-muted dark:text-ink-muted-dark text-[0.8rem]"></span>
+            </div>
             <button th:replace="~{fragments/button :: toastClose(title=#{toast.close})}">&times;</button>
         </div>
     </template>

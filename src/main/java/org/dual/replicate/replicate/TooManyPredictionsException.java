@@ -10,6 +10,6 @@ package org.dual.replicate.replicate;
 public class TooManyPredictionsException extends ReplicateException {
 
     public TooManyPredictionsException(String message) {
-        super(message);
+        super(message, null, Kind.REJECTED);
     }
 }

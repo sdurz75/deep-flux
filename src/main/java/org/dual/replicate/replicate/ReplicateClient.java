@@ -4,13 +4,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.remote.RestRemoteClient;
+import org.dual.replicate.remote.RetryPolicy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Wrapper sottile sulle API REST di Replicate (https://replicate.com/docs/reference/http).
@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClientResponseException;
  * stack MVC del progetto.
  */
 @Component
-public class ReplicateClient {
+public class ReplicateClient extends RestRemoteClient {
 
     private final RestClient restClient;
     private final String apiToken;
@@ -28,6 +28,7 @@ public class ReplicateClient {
                             @Value("${replicate.api-base-url}") String apiBaseUrl,
                             @Value("${replicate.api-token}") String apiToken,
                             Messages messages) {
+        super("replicate", messages, ReplicateException::new, RetryPolicy.DEFAULT);
         this.restClient = restClientBuilder.baseUrl(apiBaseUrl).build();
         this.apiToken = apiToken;
         this.messages = messages;
@@ -55,30 +56,23 @@ public class ReplicateClient {
         }
         body.put("input", input);
 
-        try {
-            return requireBody(restClient.post()
-                    .uri(path)
-                    .headers(this::authHeaders)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(PredictionResponse.class));
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
+        // NON idempotente e a pagamento: un ritentativo dopo un timeout potrebbe creare una seconda prediction.
+        return remote.call("createPrediction", RetryPolicy.NONE, () -> requireBody(restClient.post()
+                .uri(path)
+                .headers(this::authHeaders)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(PredictionResponse.class)));
     }
 
     public PredictionResponse getPrediction(String externalId) {
         requireToken();
-        try {
-            return requireBody(restClient.get()
-                    .uri("/predictions/{id}", externalId)
-                    .headers(this::authHeaders)
-                    .retrieve()
-                    .body(PredictionResponse.class));
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
+        return remote.call("getPrediction", () -> requireBody(restClient.get()
+                .uri("/predictions/{id}", externalId)
+                .headers(this::authHeaders)
+                .retrieve()
+                .body(PredictionResponse.class)));
     }
 
     /**
@@ -89,15 +83,11 @@ public class ReplicateClient {
      */
     public PredictionResponse cancelPrediction(String externalId) {
         requireToken();
-        try {
-            return requireBody(restClient.post()
-                    .uri("/predictions/{id}/cancel", externalId)
-                    .headers(this::authHeaders)
-                    .retrieve()
-                    .body(PredictionResponse.class));
-        } catch (RestClientException e) {
-            throw toReplicateException(e);
-        }
+        return remote.call("cancelPrediction", () -> requireBody(restClient.post()
+                .uri("/predictions/{id}/cancel", externalId)
+                .headers(this::authHeaders)
+                .retrieve()
+                .body(PredictionResponse.class)));
     }
 
     /** Un 2xx con corpo vuoto non e' una risposta utilizzabile: errore riprovabile, mai un null che poi esplode altrove. */
@@ -106,21 +96,6 @@ public class ReplicateClient {
             throw new ReplicateException(messages.get("replicate.error.emptyResponse"), null, true);
         }
         return response;
-    }
-
-    /** Traduce un errore RestClient (HTTP non-2xx o connessione fallita) in un messaggio leggibile. */
-    private ReplicateException toReplicateException(RestClientException e) {
-        if (e instanceof RestClientResponseException responseException) {
-            String body = responseException.getResponseBodyAsString();
-            int status = responseException.getStatusCode().value();
-            // 429/5xx (e 408) sono riprovabili; gli altri 4xx (token errato, id inesistente...) no.
-            boolean transientStatus = status == 408 || status == 429 || status >= 500;
-            return new ReplicateException(messages.get("replicate.error.httpError",
-                    responseException.getStatusCode(), body.isBlank() ? responseException.getMessage() : body), e, transientStatus);
-        }
-        // Nessuna risposta HTTP: rete/timeout/connessione (riprovabile) oppure corpo non decodificabile (non lo e').
-        boolean network = e instanceof org.springframework.web.client.ResourceAccessException;
-        return new ReplicateException(messages.get("replicate.error.connectionFailed", e.getMessage()), e, network);
     }
 
     private void authHeaders(HttpHeaders headers) {

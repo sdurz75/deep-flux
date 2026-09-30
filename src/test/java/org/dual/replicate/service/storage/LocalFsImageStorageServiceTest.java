@@ -1,7 +1,6 @@
 package org.dual.replicate.service.storage;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -74,7 +73,7 @@ class LocalFsImageStorageServiceTest {
     @Test
     void downloadAndStoreFailsOnHttpErrorWithoutLeavingAFile() throws IOException {
         assertThatThrownBy(() -> service.downloadAndStore(url("/missing.mp4")))
-                .isInstanceOf(UncheckedIOException.class);
+                .isInstanceOf(StorageException.class);
         try (var files = Files.walk(dir)) {
             assertThat(files.filter(Files::isRegularFile)).isEmpty();
         }
@@ -92,7 +91,7 @@ class LocalFsImageStorageServiceTest {
     @Test
     void readAsDataUriRejectsPathTraversalAndMissingFiles() {
         assertThatThrownBy(() -> service.readAsDataUri("../secret.png")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.readAsDataUri("nope.png")).isInstanceOf(UncheckedIOException.class);
+        assertThatThrownBy(() -> service.readAsDataUri("nope.png")).isInstanceOf(StorageException.class);
     }
 
     @Test
@@ -110,7 +109,7 @@ class LocalFsImageStorageServiceTest {
     void storeUploadRejectsNonImagesEvenWithAnImageContentType() {
         var upload = new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", "not an image".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> service.storeUpload(upload)).isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
+        assertThatThrownBy(() -> service.storeUpload(upload)).isInstanceOf(StorageException.class);
         assertThat(dir.toFile().list()).isEmpty();
     }
 

@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -129,7 +130,8 @@ class DeepChatServiceTest {
                 .isInstanceOf(DeepChatFailedException.class)
                 .hasMessage("Errore assistente");
 
-        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.OPENROUTER, "chatTurn", outage, null, conversation.getId());
+        verify(appErrors).record(eq(org.dual.replicate.domain.AppErrorSource.OPENROUTER), eq("chatTurn"),
+                org.mockito.ArgumentMatchers.argThat(e -> e instanceof OpenRouterException && e.getCause() == outage), eq(null), eq(conversation.getId()));
         org.mockito.ArgumentCaptor<org.dual.replicate.domain.ChatMessage> saved =
                 org.mockito.ArgumentCaptor.forClass(org.dual.replicate.domain.ChatMessage.class);
         verify(chatMessageRepository, org.mockito.Mockito.times(2)).save(saved.capture());

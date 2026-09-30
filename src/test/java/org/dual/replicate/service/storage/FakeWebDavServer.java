@@ -25,6 +25,13 @@ final class FakeWebDavServer {
     final AtomicBoolean down = new AtomicBoolean();
     /** Se != 0, stato con cui risponde MKCOL (es. 409 sulla radice, come Yandex). */
     volatile int mkcolStatus;
+    /** Le prossime {@code failuresLeft} richieste (a qualunque metodo) rispondono {@code failureStatus}, poi si torna normali. */
+    final AtomicInteger failuresLeft = new AtomicInteger();
+    volatile int failureStatus = 503;
+    /** Se non null, i fallimenti simulati colpiscono solo questo metodo HTTP. */
+    volatile String failMethod;
+    /** Richieste ricevute per metodo (per contare i tentativi). */
+    final Map<String, AtomicInteger> requests = new ConcurrentHashMap<>();
     private final HttpServer server;
 
     FakeWebDavServer() throws IOException {
@@ -51,12 +58,24 @@ final class FakeWebDavServer {
         return n == null ? 0 : n.get();
     }
 
+    int requestsOf(String method) {
+        AtomicInteger n = requests.get(method);
+        return n == null ? 0 : n.get();
+    }
+
     void stop() {
         server.stop(0);
     }
 
     private void dav(HttpExchange exchange) throws IOException {
         try {
+            requests.computeIfAbsent(exchange.getRequestMethod(), k -> new AtomicInteger()).incrementAndGet();
+            if ((failMethod == null || failMethod.equals(exchange.getRequestMethod()))
+                    && failuresLeft.getAndUpdate(n -> n > 0 ? n - 1 : 0) > 0) {
+                exchange.getRequestBody().readAllBytes(); // come un server vero: il corpo si consuma, altrimenti il client vede un reset
+                exchange.sendResponseHeaders(failureStatus, -1);
+                return;
+            }
             if (down.get()) {
                 exchange.sendResponseHeaders(503, -1);
                 return;

@@ -342,12 +342,13 @@ class TemplateRenderingTests {
     }
 
     /**
-     * Eccezione non gestita da un controller: prima un 500 muto (htmx non lo renderizza), ora registrata nel registro
-     * errori e, per una richiesta htmx, accompagnata dall'header HX-Trigger che fa comparire il toast.
+     * Rifiuto atteso che risale a un controller (qui: la star di un file che non e' della generazione, tab vecchia): NON e'
+     * un guasto, quindi nessuna riga nel registro errori, ma l'utente htmx vede comunque il messaggio (toast) e lo status e' 422.
+     * Il caso dell'errore vero (registrato, source dell'eccezione, 502) e' in UnhandledExceptionResolverTest.
      */
     @Test
     @Transactional
-    void unhandledExceptionIsRecordedAndHtmxGetsAToastTrigger() throws Exception {
+    void aRejectedRequestGetsAToastButIsNotRecorded() throws Exception {
         Generation g = new Generation("pred-x", "owner/model", null, "p", null);
         g.setStatus(GenerationStatus.SUCCEEDED);
         g.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("8-0.png")));
@@ -356,11 +357,11 @@ class TemplateRenderingTests {
 
         var result = mockMvc.perform(post("/generations/" + g.getId() + "/favourite")
                         .param("filename", "nope.png").header("HX-Request", "true"))
-                .andExpect(status().isInternalServerError())
+                .andExpect(status().isUnprocessableEntity())
                 .andReturn();
 
         assertThat(result.getResponse().getHeader("HX-Trigger")).contains("app-error").contains("\"message\"");
-        assertThat(appErrorRepository.count()).isEqualTo(before + 1);
+        assertThat(appErrorRepository.count()).isEqualTo(before);
     }
 
     @Test

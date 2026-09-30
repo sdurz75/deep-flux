@@ -236,7 +236,8 @@ class GenerationServiceTest {
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("gone.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("gone.png"))
-                .thenThrow(new java.io.UncheckedIOException("missing", new java.io.IOException("nope")));
+                .thenThrow(new org.dual.replicate.service.storage.StorageException("missing", new java.io.IOException("nope"),
+                        org.dual.replicate.remote.RemoteServiceException.Kind.REJECTED));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L, null))
@@ -718,7 +719,7 @@ class GenerationServiceTest {
         Generation result = newService().refresh(1L);
 
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.PROCESSING);
-        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.REPLICATE, "getPrediction", outage, 1L, null);
+        verify(appErrors).record("getPrediction", outage, 1L, null);
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
@@ -734,7 +735,7 @@ class GenerationServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.FAILED);
         assertThat(result.getErrorMessage()).isEqualTo("contatto fallito");
-        verify(appErrors).record(eq(org.dual.replicate.domain.AppErrorSource.REPLICATE), eq("getPrediction"), any(), eq(1L), any());
+        verify(appErrors).record(eq("getPrediction"), any(), eq(1L), any());
     }
 
     /** Anche con il poll che continua a fallire, il timeout di business chiude la generazione (e annulla la prediction). */

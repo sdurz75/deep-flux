@@ -1,19 +1,21 @@
 package org.dual.replicate.search;
 
-/**
- * Errore applicativo verso SearXNG (credenziali mancanti, istanza
- * irraggiungibile, formato JSON non abilitato lato server...). Lasciato
- * propagare dal tool di web search: il comportamento di default di
- * Spring AI lo rimanda al modello come messaggio d'errore, che puo'
- * reagire senza rompere la conversazione.
- */
-public class SearxngException extends RuntimeException {
+import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.remote.RemoteServiceException;
 
+/**
+ * Errore applicativo verso SearXNG (credenziali mancanti, istanza irraggiungibile, formato JSON non abilitato lato
+ * server...). Lasciato propagare dal tool di web search: il comportamento di default di Spring AI lo rimanda al modello
+ * come messaggio d'errore, che puo' reagire senza rompere la conversazione.
+ */
+public class SearxngException extends RemoteServiceException {
+
+    /** Credenziali mancanti: configurazione. */
     public SearxngException(String message) {
-        super(message);
+        super(AppErrorSource.SEARXNG, Kind.CONFIGURATION, message, null);
     }
 
-    public SearxngException(String message, Throwable cause) {
-        super(message, cause);
+    public SearxngException(String message, Throwable cause, Kind kind) {
+        super(AppErrorSource.SEARXNG, kind, message, cause);
     }
 }

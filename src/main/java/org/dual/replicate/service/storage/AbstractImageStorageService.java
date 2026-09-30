@@ -3,14 +3,16 @@ package org.dual.replicate.service.storage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.OptionalLong;
 
 import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.replicate.ReplicateException;
+import org.dual.replicate.remote.RemoteServiceException.Kind;
+import org.dual.replicate.remote.RestClientTranslator;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.dual.replicate.service.PromptEnhancementService;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -61,13 +63,19 @@ public abstract class AbstractImageStorageService implements IImageStorageServic
                     });
         } catch (RestClientException e) {
             // RestClient incapsula l'IOException dell'exchange (download o scrittura) in ResourceAccessException.
-            throw new UncheckedIOException(messages.get("imagestorage.error.saveImage", filename),
-                    e.getCause() instanceof IOException io ? io : new IOException(e));
+            throw new StorageException(messages.get("imagestorage.error.saveImage", filename), e, downloadFailureKind(e));
         } catch (IllegalArgumentException e) {
             // URI.create su un URL di output malformato.
-            throw new UncheckedIOException(messages.get("imagestorage.error.saveImage", filename), new IOException(e));
+            throw new StorageException(messages.get("imagestorage.error.saveImage", filename), e, Kind.PERMANENT);
         }
         return filename;
+    }
+
+    private static Kind downloadFailureKind(RestClientException e) {
+        if (e instanceof RestClientResponseException response) {
+            return RestClientTranslator.kindOfStatus(response.getStatusCode().value());
+        }
+        return e instanceof ResourceAccessException ? Kind.TRANSIENT : Kind.PERMANENT;
     }
 
     /**
@@ -82,9 +90,7 @@ public abstract class AbstractImageStorageService implements IImageStorageServic
             write(filename, new ByteArrayInputStream(checked.bytes()));
             return filename;
         } catch (IOException e) {
-            // ReplicateException, non UncheckedIOException: GenerationController#create intercetta solo
-            // quella e la mostra nel form; altrimenti sarebbe un 500 che htmx non renderizza.
-            throw new ReplicateException(messages.get("imagestorage.error.saveImage", upload.getOriginalFilename()), e);
+            throw new StorageException(messages.get("imagestorage.error.saveImage", upload.getOriginalFilename()), e, Kind.PERMANENT);
         }
     }
 
@@ -114,7 +120,7 @@ public abstract class AbstractImageStorageService implements IImageStorageServic
         try {
             remove(filename);
         } catch (IOException e) {
-            throw new UncheckedIOException(messages.get("imagestorage.error.deleteImage", filename), e);
+            throw new StorageException(messages.get("imagestorage.error.deleteImage", filename), e, Kind.PERMANENT);
         }
     }
 
@@ -128,24 +134,27 @@ public abstract class AbstractImageStorageService implements IImageStorageServic
             try (InputStream in = openRange(filename, 0, size.getAsLong())) {
                 return in.readAllBytes();
             }
+        } catch (NoSuchFileException e) {
+            // Atteso (riga senza file, file gia' cancellato): un esito, non un guasto dello storage.
+            throw new StorageException(messages.get("imagestorage.error.readImage", filename), e, Kind.REJECTED);
         } catch (IOException e) {
-            throw new UncheckedIOException(messages.get("imagestorage.error.readImage", filename), e);
+            throw new StorageException(messages.get("imagestorage.error.readImage", filename), e, Kind.PERMANENT);
         }
     }
 
     private SourceUpload checkUpload(MultipartFile upload) {
         if (upload.getSize() > MAX_UPLOAD_BYTES) {
-            throw new ReplicateException(messages.get("imagestorage.error.uploadTooLarge", MAX_UPLOAD_BYTES / (1024 * 1024)));
+            throw new StorageException(messages.get("imagestorage.error.uploadTooLarge", MAX_UPLOAD_BYTES / (1024 * 1024)), null, Kind.REJECTED);
         }
         try {
             byte[] bytes = upload.getBytes();
             String extension = imageExtensionOf(bytes);
             if (extension == null) {
-                throw new ReplicateException(messages.get("imagestorage.error.uploadInvalidType"));
+                throw new StorageException(messages.get("imagestorage.error.uploadInvalidType"), null, Kind.REJECTED);
             }
             return new SourceUpload(bytes, extension);
         } catch (IOException e) {
-            throw new UncheckedIOException(messages.get("imagestorage.error.readImage", upload.getOriginalFilename()), e);
+            throw new StorageException(messages.get("imagestorage.error.readImage", upload.getOriginalFilename()), e, Kind.PERMANENT);
         }
     }
 
