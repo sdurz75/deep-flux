@@ -32,11 +32,11 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   - Ingresso: icona overlay "Anima" (`button.html :: animateOverlay`) su OGNI thumbnail (`/gallery`, galleria di chat,
     griglia dettaglio) → `/generations/new?source={id}&sourceImage={filename}` (la sorgente e' quel file preciso; filename
     non della generazione → sorgente ignorata). Preseleziona p-video, hidden `sourceGenerationId`+`sourceImage`;
-    `GenerationController#create` la invia come data-URI (`ImageStorageService#readAsDataUri`,
+    `GenerationController#create` la invia come data-URI (`IImageStorageService#readAsDataUri`,
     `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`). Senza sorgente p-video e' text-to-video.
   - **Upload stand-alone**: link "Genera video" (`/generations/new?kind=video`); il fragment p-video ha
-    `<input type=file name=sourceUpload>` (form `hx-encoding=multipart`). `ImageStorageService#storeUpload` valida magic
-    bytes (png/jpeg/webp, max 10 MB), salva `upload-<uuid>.<ext>` (NON una `Generation`), lo traccia in
+    `<input type=file name=sourceUpload>` (form `hx-encoding=multipart`). `IImageStorageService#storeUpload` valida magic
+    bytes (png/jpeg/webp, max 10 MB), salva con un nome nuovo (NON una `Generation`), lo traccia in
     `Generation.sourceUploadFilename` (V14); ha precedenza sulla sorgente "Anima"; eliminato con la generazione (o se la
     creazione fallisce).
   - `/deep-chat` propone SOLO modelli immagine (`ReplicateModelCatalog#models(GenerationKind)`). `disable_safety_checker`
@@ -125,7 +125,8 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
 
 - `controller/`: `GenerationController` (crea, polling/dettaglio, listato, cancellazioni, "AI enhance" `POST
   /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `DeepChatController` (route HTML `/deep-chat/*`),
-  `DeepChatApiController` (JSON per `<deep-chat>`), `EventStreamController` (`GET /events`, unico push), `ErrorController`.
+  `DeepChatApiController` (JSON per `<deep-chat>`), `EventStreamController` (`GET /events`, unico push), `ImageController` (`GET /images/{file}`, unico punto da cui
+  escono i binari: dallo storage, con Range per il seek dei video ed ETag), `ErrorController`.
 - `domain/`: `Generation`, `ChatConversation`, `ChatMessage`, `ReplicateModel` (catalogo censito, V6),
   `GenerationFormType` (form/handler di un modello: FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO,
   FLUX_KONTEXT_DEV; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`.
@@ -134,14 +135,14 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
 - `service/`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni
   transizione terminale; `GenerationsDeletedEvent`/`GenerationImageDeletedEvent` per le cancellazioni),
   `GenerationParameterHandler` (un'implementazione per form-type, risolte da `GenerationParameterHandlers`; `image` di
-  p-video lo aggiunge `GenerationController`, `input_image` di kontext `GenerationService`), `ImageStorageService`
-  (streaming su `storage.images-dir`), `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient`
+  p-video lo aggiunge `GenerationController`, `input_image` di kontext `GenerationService`), `storage/`
+  (vedi "Convenzione: interfacce e storage dei binari"), `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient`
   dedicato senza `defaultTools`; `enhanceVideo`/`enhanceEdit` guardano l'immagine sorgente con un modello di visione
   OpenRouter non moderato `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del
   modello e' intercettato e non sovrascrive la textarea), `DeepChatService`, `DeepChatGenerationWatcher`,
   `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
   id delle generazioni avviate nel turno), `AppErrorService`, `GenerationRecoveryService`, `DeepChatFailedException`.
-- `config/`: `StorageConfig` (`storage.images-dir` come `/images/**`), `TailwindAssets`.
+- `config/`: `TailwindAssets`.
 - `db/migration/`: V1..V18, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
   modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
 - `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
@@ -249,6 +250,41 @@ Nessun file CSS: solo Tailwind, config inline in `fragments/layout.html`. Mai co
 - **Limite**: le varianti Tailwind gestiscono solo due stati per colore (default + `dark:`); un terzo tema (es.
   "high-contrast") richiederebbe di ripensare `theme.extend.colors`, non e' un costo fisso.
 
+## Convenzione: interfacce e storage dei binari
+
+- **Interfacce**: il nome inizia SEMPRE con `I` (`IImageStorageService`); le implementazioni no e dicono il backend
+  (`LocalFsImageStorageService`, `WebDavImageStorageService`). Vale per ogni nuova interfaccia.
+- **Storage dei binari** (`service/storage/`): tutto cio' che l'app serve come file (immagini, mp4, upload sorgente)
+  passa da `IImageStorageService`; nessun accesso diretto al filesystem/WebDAV altrove e nessun resource handler statico:
+  `/images/**` lo serve `ImageController` leggendo dallo storage. Un nuovo tipo di binario si aggiunge li', non a parte.
+  Logica comune (download, magic bytes, nomi, confinamento del filename) in `AbstractImageStorageService`; i backend
+  implementano solo `write`/`remove`/`size`/`openRange`. Backend scelto da `storage.type` (`local` default | `webdav`),
+  alternativi (passando a WebDAV i file locali esistenti non sono raggiungibili finche' non si esegue la migrazione).
+- **Nomi dei file**: OGNI binario nuovo (output di una generazione, upload) si chiama `<sha256 di 32 byte casuali,
+  hex>.<ext>` (`AbstractImageStorageService#newFilename`), mai derivato da id, URL o nome originale: niente collisioni
+  nemmeno dopo un reset del DB e nessuna informazione sul contenuto. NON e' un hash del contenuto (nessuna dedup: una riga
+  = un file, cancellare non tocca le altre). L'estensione e' solo un'indicazione (su WebDAV il file e' cifrato). Il
+  filename e' opaco per l'app: i file storici (`<id>-<n>.<ext>`, `upload-<uuid>.<ext>`) restano validi, nessuna migrazione.
+- **Layout fisico annidato** (local e WebDAV): il filename resta piatto (DB, URL `/images/{file}`), ma sul backend vive in
+  `ab/cd/<filename>` con `abcd` = primi 2 byte hex dello SHA-256 del FILENAME (`AbstractImageStorageService#shardPath`:
+  derivabile dal solo filename, nessuna colonna in piu'). Su WebDAV le collezioni `ab` e `ab/cd` si creano con MKCOL alla
+  prima scrittura. Nessuna migrazione dei file preesistenti: i vecchi file piatti non sono piu' serviti.
+- **WebDAV**: contenuti SEMPRE cifrati (AES-256-GCM a chunk da 64 KiB, `ChunkedAesGcmCipher`: autenticato, Range/seek
+  senza decifrare tutto) con la chiave base64 `storage.webdav.encryption-key` (env `STORAGE_WEBDAV_ENCRYPTION_KEY`, mai nel
+  repo; avvio fallisce se manca/non e' 32 byte; persa la chiave i binari sono irrecuperabili). Solo i contenuti sono
+  cifrati, i nomi file no. Client = `RestClient.Builder` iniettato (PUT su `.part` + MOVE, GET con Range, HEAD, DELETE,
+  MKCOL), nessuna libreria WebDAV.
+- **Migrazione locale → WebDAV** (`LocalToWebDavMigrator`): una tantum, opt-in con
+  `storage.migration.from-local.enabled=true` + `storage.type=webdav`; parte all'avvio (`ApplicationReadyEvent`) sui file
+  di `storage.images-dir` (esclusi i `.part`), salta quelli gia' sul server (HEAD: riavviabile, idempotente), un file che
+  fallisce non ferma gli altri (`AppErrorService`, `migrateLocalToWebDav`). I locali restano, salvo
+  `delete-local=true`: ognuno si elimina solo se la dimensione in chiaro riportata dal SERVER coincide. Finche' non ha
+  finito, i file non migrati non sono serviti; a fine giro rimettere `enabled=false`.
+- **Cache locale** (`EncryptedBlobCache`, `storage.webdav.cache.*`, default 2 GB in `./data/cache`, `0` = off): tiene i
+  blob CIFRATI (mai il chiaro), write-through alla scrittura e read-through su miss, eviction LRU, blob oltre il tetto
+  letti a range direttamente da WebDAV. Nomi immutabili e unici: nessuna invalidazione se non su `delete`. Un errore di
+  cache non fa fallire la richiesta (registrato con `AppErrorSource.STORAGE`).
+
 ## Convenzione: migrazioni database (Flyway)
 
 `ddl-auto: validate`: Hibernate controlla solo che lo schema Flyway corrisponda alle entity (altrimenti l'app non parte).
@@ -272,7 +308,7 @@ switcher/cookie/sessione). Bundle: `messages.properties` (italiano, default/fall
   `NumberFormat` con separatori di migliaia: usare `{0,number,#}`, non `{0}`.
 - **Lato Java**: iniettare `org.dual.replicate.i18n.Messages` (wrapper su `MessageSourceAccessor`, locale della richiesta
   via `LocaleContextHolder`) ovunque un errore possa arrivare all'utente (oggi `ReplicateClient`, `SearxngClient`,
-  `GenerationService`, `ImageStorageService`, `GenerationController`, `DeepChatApiController`, `DeepChatService`).
+  `GenerationService`, `IImageStorageService`, `GenerationController`, `DeepChatApiController`, `DeepChatService`).
   Risolvere al call site, prima di costruire l'eccezione, mai nel costruttore. Se la classe ha gia' una variabile
   `messages` (es. `DeepChatService`), chiamare il campo iniettato altrimenti (li' `i18n`).
 - **`<html lang>`** viene dal bundle (`html.lang=it|en`, `th:lang="#{html.lang}"` sul decoratore), non da
@@ -329,6 +365,9 @@ mvn -Ptailwind clean package # + CSS Tailwind compilato/minificato (richiede ret
 `mvn test` non tocca mai `./data/db/`: Surefire attiva il profilo Spring "test" (`<systemPropertyVariables>` in
 `pom.xml`, non un'annotazione per classe) che sposta il datasource su H2 in-memory (`src/test/resources/application-test.yml`).
 Prima i `@SpringBootTest` scrivevano `Generation` di prova nel DB di sviluppo.
+Stesso principio per lo storage: `spring.config.import` carica il `.env` reale anche sotto Surefire, quindi `pom.xml` fissa
+come proprieta' di sistema `storage.type=local` e `storage.migration.from-local.enabled=false` (battono qualunque file);
+un test che vuole WebDAV o la migrazione li sovrascrive con `@SpringBootTest(properties=...)`, mai contro il server vero.
 
 ## Checklist per una nuova pagina/feature
 

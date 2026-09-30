@@ -734,7 +734,7 @@ class TemplateRenderingTests {
      * non viene a sua volta cancellata - prima della migrazione V9 quella
      * FK non aveva un ON DELETE, quindi cancellarla da qui falliva con una
      * violazione del vincolo DOPO che il file immagine era gia' stato
-     * rimosso da storage (ImageStorageService#delete, chiamato prima della
+     * rimosso da storage (IImageStorageService#delete, chiamato prima della
      * riga DB in GenerationService#delete): risultato, un'immagine sparita
      * dal disco ma ancora elencata in galleria con tutti i suoi dettagli.
      * Niente @Transactional qui (a differenza di altri test in questa

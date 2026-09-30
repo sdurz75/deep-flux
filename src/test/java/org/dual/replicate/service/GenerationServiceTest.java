@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
@@ -44,7 +45,7 @@ class GenerationServiceTest {
     private ReplicateClient replicateClient;
 
     @Mock
-    private ImageStorageService imageStorageService;
+    private IImageStorageService imageStorageService;
 
     @Mock
     private Messages messages;
@@ -145,7 +146,7 @@ class GenerationServiceTest {
                 "https://example.com/a.png", null, null, null, Map.of("image_output_count", 2)));
         when(replicateClient.getPrediction("pred-c2")).thenReturn(new PredictionResponse("pred-c2", "succeeded",
                 "https://example.com/b.png", null, null, null));
-        when(imageStorageService.downloadAndStore(any(), org.mockito.ArgumentMatchers.anyInt(), anyString())).thenReturn("x.png");
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("x.png");
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(service.refresh(21L).getCostUsd()).isEqualByComparingTo("0.12");
@@ -342,7 +343,7 @@ class GenerationServiceTest {
         when(repository.existsById(1L)).thenReturn(true);
         when(replicateClient.getPrediction("pred-1"))
                 .thenReturn(new PredictionResponse("pred-1", "succeeded", "https://example.com/out.png", null, null, null));
-        when(imageStorageService.downloadAndStore(any(), anyInt(), anyString())).thenReturn("1-0.png");
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("1-0.png");
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Generation result = service.refresh(1L);
@@ -371,7 +372,7 @@ class GenerationServiceTest {
         when(replicateClient.getPrediction("pred-1"))
                 .thenReturn(new PredictionResponse("pred-1", "succeeded", "https://example.com/out.png", null, null,
                         "Some setup logs...\nUsing seed: 123456\nGenerating..."));
-        when(imageStorageService.downloadAndStore(any(), anyInt(), anyString())).thenReturn("1-0.png");
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("1-0.png");
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Generation result = service.refresh(1L);
@@ -390,7 +391,7 @@ class GenerationServiceTest {
         when(replicateClient.getPrediction("pred-1"))
                 .thenReturn(new PredictionResponse("pred-1", "succeeded", "https://example.com/out.png", null, null,
                         "Using seed: 999999"));
-        when(imageStorageService.downloadAndStore(any(), anyInt(), anyString())).thenReturn("1-0.png");
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("1-0.png");
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Generation result = service.refresh(1L);
@@ -409,8 +410,7 @@ class GenerationServiceTest {
         when(replicateClient.getPrediction("pred-5"))
                 .thenReturn(new PredictionResponse("pred-5", "succeeded",
                         List.of("https://example.com/out-0.png", "https://example.com/out-1.png"), null, null, null));
-        when(imageStorageService.downloadAndStore(any(), eq(0), anyString())).thenReturn("5-0.png");
-        when(imageStorageService.downloadAndStore(any(), eq(1), anyString())).thenReturn("5-1.png");
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("5-0.png", "5-1.png");
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Generation result = service.refresh(5L);
@@ -643,7 +643,7 @@ class GenerationServiceTest {
         when(repository.findById(1L)).thenReturn(Optional.of(generation));
         when(replicateClient.getPrediction("pred-1"))
                 .thenReturn(new PredictionResponse("pred-1", "succeeded", "https://example.com/out.png", null, null, null));
-        when(imageStorageService.downloadAndStore(any(), anyInt(), anyString())).thenReturn("1-0.png");
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("1-0.png");
         when(repository.existsById(1L)).thenReturn(false);
         when(messages.get(eq("generation.error.notFound"), any())).thenReturn("generazione non trovata");
 
@@ -759,8 +759,8 @@ class GenerationServiceTest {
         processing(1L, "pred-1");
         when(replicateClient.getPrediction("pred-1")).thenReturn(new PredictionResponse("pred-1", "succeeded",
                 List.of("https://example.com/a.png", "https://example.com/b.png"), null, null, null));
-        when(imageStorageService.downloadAndStore(1L, 0, "https://example.com/a.png")).thenReturn("1-0.png");
-        when(imageStorageService.downloadAndStore(1L, 1, "https://example.com/b.png"))
+        when(imageStorageService.downloadAndStore("https://example.com/a.png")).thenReturn("1-0.png");
+        when(imageStorageService.downloadAndStore("https://example.com/b.png"))
                 .thenThrow(new java.io.UncheckedIOException(new java.io.IOException("disco pieno")));
         when(messages.get(eq("generation.error.downloadFailed"), any())).thenReturn("download fallito");
 
@@ -844,8 +844,8 @@ class GenerationServiceTest {
         processing(1L, "pred-1");
         when(replicateClient.getPrediction("pred-1")).thenReturn(new PredictionResponse("pred-1", "succeeded",
                 List.of("https://example.com/a.png", "https://example.com/b.png"), null, null, null));
-        when(imageStorageService.downloadAndStore(1L, 0, "https://example.com/a.png")).thenReturn("1-0.png");
-        when(imageStorageService.downloadAndStore(1L, 1, "https://example.com/b.png"))
+        when(imageStorageService.downloadAndStore("https://example.com/a.png")).thenReturn("1-0.png");
+        when(imageStorageService.downloadAndStore("https://example.com/b.png"))
                 .thenThrow(new java.io.UncheckedIOException(new java.io.IOException("disco pieno")));
         org.mockito.Mockito.doThrow(new java.io.UncheckedIOException(new java.io.IOException("non cancellabile")))
                 .when(imageStorageService).delete("1-0.png");

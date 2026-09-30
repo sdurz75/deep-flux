@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * HTTP corrente, risolta da AcceptHeaderLocaleResolver (vedi
  * application.yml, spring.messages/spring.web.locale). Iniettato
  * anche in service/client fuori dai controller (ReplicateClient,
- * SearxngClient, GenerationService, ImageStorageService,
+ * SearxngClient, GenerationService, IImageStorageService,
  * DeepChatService): tutti girano sullo stesso thread servlet della
  * richiesta che li ha invocati, quindi LocaleContextHolder resta
  * valido.

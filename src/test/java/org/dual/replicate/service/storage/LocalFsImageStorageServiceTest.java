@@ -1,4 +1,4 @@
-package org.dual.replicate.service;
+package org.dual.replicate.service.storage;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -22,13 +22,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Nessuna chiamata a Replicate: un HttpServer JDK locale serve i byte da scaricare. */
-class ImageStorageServiceTest {
+class LocalFsImageStorageServiceTest {
 
     @TempDir
     Path dir;
 
     private HttpServer server;
-    private ImageStorageService service;
+    private LocalFsImageStorageService service;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -46,7 +46,7 @@ class ImageStorageServiceTest {
         server.start();
         Messages messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
-        service = new ImageStorageService(dir.toString(), messages);
+        service = new LocalFsImageStorageService(dir.toString(), messages);
     }
 
     @AfterEach
@@ -59,24 +59,31 @@ class ImageStorageServiceTest {
     }
 
     @Test
-    void downloadAndStoreStreamsTheFileUnderGenerationIdAndIndexKeepingTheExtension() throws IOException {
-        String filename = service.downloadAndStore(12L, 0, url("/x.mp4"));
+    void downloadAndStoreStreamsTheFileUnderARandomHashNameKeepingTheExtension() throws IOException {
+        String filename = service.downloadAndStore(url("/x.mp4"));
 
-        assertThat(filename).isEqualTo("12-0.mp4");
-        assertThat(Files.readString(dir.resolve("12-0.mp4"))).isEqualTo("video-bytes");
+        assertThat(filename).matches("[0-9a-f]{64}\\.mp4");
+        assertThat(Files.readString(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo("video-bytes");
     }
 
     @Test
-    void downloadAndStoreFailsOnHttpErrorWithoutLeavingAFile() {
-        assertThatThrownBy(() -> service.downloadAndStore(13L, 0, url("/missing.mp4")))
+    void everyDownloadGetsADistinctName() {
+        assertThat(service.downloadAndStore(url("/x.mp4"))).isNotEqualTo(service.downloadAndStore(url("/x.mp4")));
+    }
+
+    @Test
+    void downloadAndStoreFailsOnHttpErrorWithoutLeavingAFile() throws IOException {
+        assertThatThrownBy(() -> service.downloadAndStore(url("/missing.mp4")))
                 .isInstanceOf(UncheckedIOException.class);
-        assertThat(dir.resolve("13-0.mp4")).doesNotExist();
+        try (var files = Files.walk(dir)) {
+            assertThat(files.filter(Files::isRegularFile)).isEmpty();
+        }
     }
 
     @Test
     void readAsDataUriUsesTheMimeTypeOfTheExtension() throws IOException {
-        Files.writeString(dir.resolve("1-0.png"), "abc");
-        Files.writeString(dir.resolve("2-0.jpg"), "abc");
+        writeSharded("1-0.png");
+        writeSharded("2-0.jpg");
 
         assertThat(service.readAsDataUri("1-0.png")).isEqualTo("data:image/png;base64,YWJj");
         assertThat(service.readAsDataUri("2-0.jpg")).isEqualTo("data:image/jpeg;base64,YWJj");
@@ -95,8 +102,8 @@ class ImageStorageServiceTest {
 
         String filename = service.storeUpload(upload);
 
-        assertThat(filename).startsWith("upload-").endsWith(".png").doesNotContain("evil");
-        assertThat(Files.readAllBytes(dir.resolve(filename))).isEqualTo(png);
+        assertThat(filename).matches("[0-9a-f]{64}\\.png").doesNotContain("evil");
+        assertThat(Files.readAllBytes(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo(png);
     }
 
     @Test
@@ -105,5 +112,19 @@ class ImageStorageServiceTest {
 
         assertThatThrownBy(() -> service.storeUpload(upload)).isInstanceOf(org.dual.replicate.replicate.ReplicateException.class);
         assertThat(dir.toFile().list()).isEmpty();
+    }
+
+    private void writeSharded(String filename) throws IOException {
+        Path file = dir.resolve(AbstractImageStorageService.shardPath(filename));
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "abc");
+    }
+
+    @Test
+    void filesAreNestedByHashOfTheFilenameNotFlat() throws IOException {
+        new LocalFsImageStorageService(dir.toString(), org.mockito.Mockito.mock(org.dual.replicate.i18n.Messages.class));
+        String path = AbstractImageStorageService.shardPath("12-0.png");
+        assertThat(path).matches("[0-9a-f]{2}/[0-9a-f]{2}/12-0\\.png");
+        assertThat(AbstractImageStorageService.shardPath("12-0.png")).isEqualTo(path);
     }
 }

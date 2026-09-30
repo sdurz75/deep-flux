@@ -18,6 +18,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.AppErrorSource;
 import org.dual.replicate.domain.Generation;
+import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.i18n.Messages;
@@ -84,7 +85,7 @@ public class GenerationService {
 
     private final GenerationRepository repository;
     private final ReplicateClient replicateClient;
-    private final ImageStorageService imageStorageService;
+    private final IImageStorageService imageStorageService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
@@ -92,7 +93,7 @@ public class GenerationService {
 
     public GenerationService(GenerationRepository repository,
                               ReplicateClient replicateClient,
-                              ImageStorageService imageStorageService,
+                              IImageStorageService imageStorageService,
                               ObjectMapper objectMapper,
                               Messages messages,
                               ApplicationEventPublisher eventPublisher,
@@ -144,7 +145,7 @@ public class GenerationService {
 
     /**
      * Come sopra, con in piu' {@code sourceUploadFilename}: un'immagine
-     * caricata dall'utente (vedi ImageStorageService#storeUpload) come
+     * caricata dall'utente (vedi IImageStorageService#storeUpload) come
      * sorgente di un img2video stand-alone. Ha la precedenza su
      * {@code sourceGenerationId}. Se la creazione fallisce il file caricato
      * viene eliminato: nessuna Generation lo possiede.
@@ -245,7 +246,7 @@ public class GenerationService {
 
     /**
      * Prima immagine della generazione sorgente di un img2video, come
-     * data-URI (vedi ImageStorageService#readAsDataUri). Va nell'input
+     * data-URI (vedi IImageStorageService#readAsDataUri). Va nell'input
      * Replicate ma MAI in parametersJson: sarebbe un LOB da centinaia di KB
      * persistito e poi stampato nel dettaglio; la sorgente resta tracciata da
      * {@code sourceGenerationId}.
@@ -333,7 +334,7 @@ public class GenerationService {
                     generation.setErrorMessage(messages.get("generation.error.noOutput"));
                 } else {
                     for (int i = 0; i < outputUrls.size(); i++) {
-                        filenames.add(imageStorageService.downloadAndStore(generation.getId(), i, outputUrls.get(i)));
+                        filenames.add(imageStorageService.downloadAndStore(outputUrls.get(i)));
                     }
                     generation.setImageFilenames(filenames);
                     generation.setStatus(GenerationStatus.SUCCEEDED);

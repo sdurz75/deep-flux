@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * generazione immagine su Replicate (riusando GenerationService, la
  * stessa orchestrazione di GenerationController) e torna subito, senza
  * attenderne l'esito. Il file viene sempre salvato tramite
- * GenerationService/ImageStorageService come per il resto dell'app;
+ * GenerationService/IImageStorageService come per il resto dell'app;
  * l'esito arriva in un secondo momento in modo asincrono (poll in
  * background + push SSE, vedi DeepChatGenerationWatcher, avviato da
  * DeepChatService.reply usando gli id raccolti qui in

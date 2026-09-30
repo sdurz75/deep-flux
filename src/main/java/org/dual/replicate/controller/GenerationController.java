@@ -21,7 +21,7 @@ import org.dual.replicate.service.AppErrorService;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
-import org.dual.replicate.service.ImageStorageService;
+import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.service.PromptEnhancementRefusedException;
 import org.dual.replicate.service.PromptEnhancementService;
 import org.springframework.data.domain.Page;
@@ -65,7 +65,7 @@ public class GenerationController {
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final PromptEnhancementService promptEnhancementService;
-    private final ImageStorageService imageStorageService;
+    private final IImageStorageService imageStorageService;
     private final AppErrorService appErrors;
 
     public GenerationController(GenerationService generationService,
@@ -75,7 +75,7 @@ public class GenerationController {
                                  ObjectMapper objectMapper,
                                  Messages messages,
                                  PromptEnhancementService promptEnhancementService,
-                                 ImageStorageService imageStorageService,
+                                 IImageStorageService imageStorageService,
                                  AppErrorService appErrors) {
         this.appErrors = appErrors;
         this.generationService = generationService;
@@ -89,13 +89,13 @@ public class GenerationController {
     }
 
     /**
-     * Limite dell'upload sorgente (ImageStorageService#storeUpload) per il controllo lato client del
+     * Limite dell'upload sorgente (IImageStorageService#storeUpload) per il controllo lato client del
      * campo sourceUpload di P_VIDEO: in ogni vista di questo controller, anche /params, perche' li'
      * Thymeleaf non permette T(...) sugli attributi data-*.
      */
     @ModelAttribute("maxUploadBytes")
     public long maxUploadBytes() {
-        return ImageStorageService.MAX_UPLOAD_BYTES;
+        return IImageStorageService.MAX_UPLOAD_BYTES;
     }
 
     @GetMapping("/new")
@@ -455,7 +455,7 @@ public class GenerationController {
             // trovata"): stesso target "indietro" di una cancellazione riuscita, non un errore
             // generico che il polling ripeterebbe identico ogni 2s all'infinito (htmx non si
             // ferma da solo su una risposta d'errore). Ma ReplicateException la lancia anche
-            // ImageStorageService/ReplicateClient per errori VERI (download fallito, disco
+            // IImageStorageService/ReplicateClient per errori VERI (download fallito, disco
             // pieno...): se la riga esiste ancora non e' questo il caso, si ripropaga e basta,
             // altrimenti un errore di storage sparirebbe silenziosamente in un redirect.
             if (generationRepository.existsById(id)) {

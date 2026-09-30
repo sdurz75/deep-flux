@@ -30,9 +30,9 @@ spring:
     name: deep-flux
   servlet:
     multipart:
-      # Immagine di partenza caricata per un img2video (ImageStorageService#storeUpload):
+      # Immagine di partenza caricata per un img2video (IImageStorageService#storeUpload):
       # il default di 1MB rifiuterebbe quasi ogni foto. Volutamente PIU' ALTI del limite applicativo
-      # (ImageStorageService.MAX_UPLOAD_BYTES, 10 MB): un rifiuto del container arriverebbe a htmx
+      # (IImageStorageService.MAX_UPLOAD_BYTES, 10 MB): un rifiuto del container arriverebbe a htmx
       # come 413 senza swap (nessun messaggio), cosi' invece l'errore tradotto finisce nel form.
       max-file-size: 12MB
       max-request-size: 15MB
@@ -141,9 +141,31 @@ app:
     sweep-interval: 2m
 
 storage:
-  # Directory locale dove vengono salvate le immagini scaricate da
-  # Replicate, servite poi via /images/** (vedi StorageConfig).
+  # Backend dei binari (immagini, video, upload sorgente), serviti sempre via /images/** (ImageController):
+  #   local  = filesystem locale sotto images-dir (default)
+  #   webdav = server WebDAV, contenuti SEMPRE cifrati con chiave simmetrica (AES-256-GCM)
+  type: local
+  # Directory locale (type=local) dove vengono salvate le immagini scaricate da Replicate.
   images-dir: ./data/images
+  webdav:
+    # Collezione WebDAV che contiene i blob (es. https://host/remote.php/dav/files/utente/deep-flux/).
+    url: ${STORAGE_WEBDAV_URL:}
+    username: ${STORAGE_WEBDAV_USERNAME:}
+    password: ${STORAGE_WEBDAV_PASSWORD:}
+    # Chiave AES-256 in base64 (openssl rand -base64 32). Mai nel repo: solo da ambiente. Persa la chiave, i binari
+    # su WebDAV sono irrecuperabili.
+    encryption-key: ${STORAGE_WEBDAV_ENCRYPTION_KEY:}
+    cache:
+      # Cache locale dei blob cifrati (LRU con tetto) per evitare round trip verso WebDAV; max-size 0 = disattivata.
+      dir: ./data/cache
+      max-size: 2GB
+  # Migrazione una tantum da images-dir (locale) a WebDAV: richiede type=webdav, parte all'avvio, salta i file gia'
+  # presenti sul server (riavviabile) e poi va rimessa a false. delete-local elimina ogni originale solo dopo aver
+  # verificato la dimensione sul server. Finche' non ha finito, i file non ancora migrati non sono serviti.
+  migration:
+    from-local:
+      enabled: false
+      delete-local: false
 
 logging:
   level:

@@ -13,7 +13,7 @@
 
     <groupId>org.dual</groupId>
     <artifactId>spring-htmx-starter</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>spring-htmx-starter</name>
@@ -163,6 +163,11 @@
                 <configuration>
                     <systemPropertyVariables>
                         <spring.profiles.active>test</spring.profiles.active>
+                        <!-- I test non leggono mai lo storage/la migrazione del .env reale (spring.config.import lo
+                             carica anche sotto Surefire): le proprieta' di sistema battono qualunque file di
+                             configurazione. I test che ne hanno bisogno le sovrascrivono con @SpringBootTest(properties). -->
+                        <storage.type>local</storage.type>
+                        <storage.migration.from-local.enabled>false</storage.migration.from-local.enabled>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
