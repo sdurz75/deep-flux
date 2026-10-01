@@ -10,7 +10,8 @@
     - data-persist-key        chiave localStorage (chat: deepChat.generationSettings, form: generate.image|video|edit);
     - data-persist-no-restore campi (separati da spazio) NON ripristinati all'avvio ma comunque scritti: sono quelli che il
                               server ha valorizzato da un link esplicito (?prompt=, ?seed=, "Anima"/"Modifica"), che vince
-                              sullo stato salvato e diventa lo stato corrente;
+                              sullo stato salvato e diventa lo stato corrente, SOLO arrivandoci (non su reload/Back) e anche se il
+                              restore deve cambiare modello (il fetch sostituisce i campi: i valori del link si ricatturano);
     - data-persist-ignore     campi (separati da spazio) MAI scritti in localStorage (es. `version`, un hash pinnato che
                               ripristinato di nascosto farebbe partire una prediction a pagamento col modello sbagliato).
   Ad ogni sync il <form> riceve l'evento `generation-settings:sync` con detail = TUTTI i campi (hidden inclusi, valori sempre
@@ -55,6 +56,14 @@
                 return (form.getAttribute(attribute) || '').split(/\s+/).filter(Boolean);
             }
 
+            // Il link esplicito vince solo ARRIVANDOCI (navigate): su reload/Back lo stato salvato contiene gia' i valori del
+            // link piu' le modifiche dell'utente, e l'URL (che ha ancora ?prompt=..) le sovrascriverebbe.
+            function noRestoreNames(form) {
+                var entries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
+                var type = entries.length ? entries[0].type : 'navigate';
+                return type === 'reload' || type === 'back_forward' ? [] : names(form, 'data-persist-no-restore');
+            }
+
             function readStored(key) {
                 try {
                     var raw = localStorage.getItem(key);
@@ -74,7 +83,7 @@
             }
 
             function applyStoredFields(form, stored) {
-                var skip = names(form, 'data-persist-no-restore');
+                var skip = noRestoreNames(form);
                 Object.keys(stored).forEach(function (name) {
                     if (skip.indexOf(name) >= 0) {
                         return;
@@ -95,6 +104,29 @@
                         }
                     } else {
                         field.value = stored[name];
+                    }
+                });
+            }
+
+            // Valori dei campi `data-persist-no-restore` GIA' nel DOM (messi dal server da un link esplicito): il restore con
+            // fetch sostituisce i campi del form-type e li cancellerebbe (es. il seed del link "riusa", dentro il contenitore),
+            // senza che lo stato salvato possa rimetterli perche' proprio questi non si ripristinano.
+            function captureKept(form) {
+                var kept = {};
+                noRestoreNames(form).forEach(function (name) {
+                    var field = form.elements.namedItem(name);
+                    if (field && field.value !== undefined) {
+                        kept[name] = field.value;
+                    }
+                });
+                return kept;
+            }
+
+            function applyKept(form, kept) {
+                Object.keys(kept).forEach(function (name) {
+                    var field = form.elements.namedItem(name);
+                    if (field && field.type !== 'hidden' && !field.readOnly) {
+                        field.value = kept[name];
                     }
                 });
             }
@@ -130,6 +162,7 @@
                 var stored = readStored(form.getAttribute('data-persist-key'));
                 if (stored && select && fieldsContainer && stored.model && stored.model !== select.value
                         && hasModelOption(select, stored.model)) {
+                    var kept = captureKept(form);
                     select.value = stored.model;
                     select.dispatchEvent(new Event('pines-select:sync'));
                     fetch(select.getAttribute('hx-get') + '?model=' + encodeURIComponent(stored.model))
@@ -140,6 +173,7 @@
                         .then(function (html) {
                             fieldsContainer.innerHTML = html;
                             applyStoredFields(form, stored);
+                            applyKept(form, kept);
                             sync(form);
                         })
                         .catch(function () {
