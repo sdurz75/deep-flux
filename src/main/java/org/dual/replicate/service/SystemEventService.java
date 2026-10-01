@@ -9,9 +9,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.event.SystemToastEvent;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException;
@@ -98,7 +99,7 @@ public class SystemEventService {
     }
 
     /**
-     * Come {@link #record(SystemEventSource, String, Throwable)}, con la source ricavata dall'eccezione
+     * Come {@link #record(EventSource, String, Throwable)}, con la source ricavata dall'eccezione
      * ({@link RemoteServiceException#source()}, anche se incapsulata; {@code INTERNAL} per il resto): il chiamante non
      * deve conoscere il servizio da cui viene l'errore.
      */
@@ -122,9 +123,9 @@ public class SystemEventService {
     }
 
     /** La source dell'eccezione remota (anche nella catena delle cause), {@code INTERNAL} se non lo e'. */
-    public static SystemEventSource sourceOf(Throwable error) {
+    public static EventSource sourceOf(Throwable error) {
         RemoteServiceException remote = remoteCause(error);
-        return remote != null ? remote.source() : SystemEventSource.INTERNAL;
+        return remote != null ? remote.source() : CoreEventSource.INTERNAL;
     }
 
     private static RemoteServiceException remoteCause(Throwable error) {
@@ -136,11 +137,11 @@ public class SystemEventService {
         return null;
     }
 
-    public Recorded record(SystemEventSource source, String operation, Throwable error) {
+    public Recorded record(EventSource source, String operation, Throwable error) {
         return record(source, operation, error, null, null);
     }
 
-    public Recorded record(SystemEventSource source, String operation, Throwable error, Long generationId, Long conversationId) {
+    public Recorded record(EventSource source, String operation, Throwable error, Long generationId, Long conversationId) {
         String type = error == null ? "Unknown" : error.getClass().getSimpleName();
         boolean transientFailure = remoteCause(error) != null && remoteCause(error).isTransient();
         String message = sanitize(error);
@@ -155,14 +156,14 @@ public class SystemEventService {
      * le serie fra loro; {@code operation} dice cosa l'ha prodotto (es. {@code tokenExpiring}). Stessa semantica di
      * {@link #record}: non lancia mai, un solo toast per serie (finestra {@code app.events.warning-series-window}).
      */
-    public Recorded warn(SystemEventSource source, String operation, String subject, String message) {
+    public Recorded warn(EventSource source, String operation, String subject, String message) {
         String text = sanitizeText(message);
         log.warn("Avviso [{}] {} ({}): {}", source, operation, subject, text);
         return store(SystemEventSeverity.WARNING, source, operation, "Warning", text, null, null, null, subject,
                 toastWarning(source, text), false);
     }
 
-    private Recorded store(SystemEventSeverity severity, SystemEventSource source, String operation, String type, String message,
+    private Recorded store(SystemEventSeverity severity, EventSource source, String operation, String type, String message,
                            String details, Long generationId, Long conversationId, String subject, String toastMessage,
                            boolean transientFailure) {
         String key = UUID.randomUUID().toString();
@@ -171,7 +172,7 @@ public class SystemEventService {
             Instant now = Instant.now();
             Duration window = severity == SystemEventSeverity.WARNING ? warningSeriesWindow : SERIES_WINDOW;
             Saved saved = transaction.execute(status -> {
-                var open = repository.findOpenSeries(source, operation, type, severity, now.minus(window), generationId, subject,
+                var open = repository.findOpenSeries(source.name(), operation, type, severity, now.minus(window), generationId, subject,
                         Pageable.ofSize(1));
                 if (!open.isEmpty()) {
                     SystemEvent existing = open.get(0);
@@ -270,21 +271,21 @@ public class SystemEventService {
     private record Saved(Long id, boolean first) {
     }
 
-    private String toast(SystemEventSource source, String message) {
+    private String toast(EventSource source, String message) {
         String shortMessage = message.length() > MAX_TOAST ? message.substring(0, MAX_TOAST) + "…" : message;
         try {
             return messages.get("toast.event.message", messages.get("events.source." + source.name()), shortMessage);
         } catch (RuntimeException e) {
-            return source.getLabel() + ": " + shortMessage;
+            return source.name() + ": " + shortMessage;
         }
     }
 
-    private String toastWarning(SystemEventSource source, String message) {
+    private String toastWarning(EventSource source, String message) {
         String shortMessage = message.length() > MAX_TOAST ? message.substring(0, MAX_TOAST) + "…" : message;
         try {
             return messages.get("toast.event.warning", messages.get("events.source." + source.name()), shortMessage);
         } catch (RuntimeException e) {
-            return source.getLabel() + ": " + shortMessage;
+            return source.name() + ": " + shortMessage;
         }
     }
 

@@ -6,7 +6,6 @@ import java.time.Instant;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.repository.SystemEventRepository;
 import org.dual.replicate.service.SystemEventService;
@@ -95,7 +94,7 @@ public class SystemEventController {
     }
 
     /** Riga della campanella: gia' tradotta/formattata, nessuna logica nel template. */
-    public record BellItem(Long id, SystemEventSource source, SystemEventSeverity severity, String message, String ago) {
+    public record BellItem(Long id, String source, SystemEventSeverity severity, String message, String ago) {
     }
 
     private BellItem toBellItem(SystemEvent e, Instant now) {

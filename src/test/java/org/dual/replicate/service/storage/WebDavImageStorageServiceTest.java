@@ -11,6 +11,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.service.SystemEventService;
 import org.junit.jupiter.api.AfterEach;
@@ -287,7 +288,7 @@ class WebDavImageStorageServiceTest {
 
         assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png")).isNotNull();
 
-        org.mockito.Mockito.verify(systemEvents).record(org.mockito.ArgumentMatchers.eq(org.dual.replicate.domain.SystemEventSource.STORAGE),
+        org.mockito.Mockito.verify(systemEvents).record(org.mockito.ArgumentMatchers.eq(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE),
                 org.mockito.ArgumentMatchers.eq("cleanupPart"), any(Throwable.class));
     }
 

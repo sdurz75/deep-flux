@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
@@ -812,7 +813,7 @@ class GenerationServiceTest {
         assertThat(result.getImageFilenames()).isEmpty();
         assertThat(result.getCompletedAt()).isNotNull();
         verify(imageStorageService).delete("1-0.png");
-        verify(systemEvents).record(eq(org.dual.replicate.domain.SystemEventSource.STORAGE), eq("downloadOutput"), any(), eq(1L), any());
+        verify(systemEvents).record(eq(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE), eq("downloadOutput"), any(), eq(1L), any());
         verify(eventPublisher).publishEvent(any(GenerationCompletedEvent.class));
     }
 
@@ -922,6 +923,6 @@ class GenerationServiceTest {
         newService().delete(1L);
 
         verify(repository).deleteAllById(List.of(1L));
-        verify(systemEvents).record(org.dual.replicate.domain.SystemEventSource.STORAGE, "deleteFile", locked, 1L, null);
+        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE, "deleteFile", locked, 1L, null);
     }
 }

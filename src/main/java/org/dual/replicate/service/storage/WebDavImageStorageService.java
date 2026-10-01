@@ -19,7 +19,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.OptionalLong;
 
 import jakarta.annotation.PreDestroy;
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteCaller;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
@@ -183,7 +183,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             cache.adopt(filename, temp);
         } catch (IOException | RuntimeException e) {
             // Il file e' su WebDAV: un problema di cache non deve far fallire il salvataggio.
-            systemEvents.record(SystemEventSource.STORAGE, "cacheBlob", e);
+            systemEvents.record(CoreEventSource.STORAGE, "cacheBlob", e);
             Files.deleteIfExists(temp);
         }
     }
@@ -231,7 +231,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         } catch (NoSuchFileException e) {
             throw e;
         } catch (IOException | RuntimeException e) {
-            systemEvents.record(SystemEventSource.STORAGE, "cacheBlob", e);
+            systemEvents.record(CoreEventSource.STORAGE, "cacheBlob", e);
             return remote;
         }
     }
@@ -252,7 +252,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
                 } catch (NoSuchFileException gone) {
                     // cancellato nel frattempo: niente da riscaldare
                 } catch (IOException | RuntimeException e) {
-                    systemEvents.record(SystemEventSource.STORAGE, "warmCache", e);
+                    systemEvents.record(CoreEventSource.STORAGE, "warmCache", e);
                 } finally {
                     warming.remove(filename);
                 }
@@ -382,7 +382,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         try {
             deleteRemote(name);
         } catch (IOException | RuntimeException e) {
-            systemEvents.record(SystemEventSource.STORAGE, "cleanupPart", e);
+            systemEvents.record(CoreEventSource.STORAGE, "cleanupPart", e);
         }
     }
 

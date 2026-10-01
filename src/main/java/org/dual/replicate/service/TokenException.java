@@ -1,6 +1,6 @@
 package org.dual.replicate.service;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.remote.RemoteServiceException;
 
 /**
@@ -11,7 +11,7 @@ import org.dual.replicate.remote.RemoteServiceException;
 public class TokenException extends RemoteServiceException {
 
     public TokenException(String message, Throwable cause, Kind kind) {
-        super(SystemEventSource.TOKENS, kind, message, cause);
+        super(CoreEventSource.TOKENS, kind, message, cause);
     }
 
     /** Rifiuto applicativo atteso (messaggio gia' tradotto). */

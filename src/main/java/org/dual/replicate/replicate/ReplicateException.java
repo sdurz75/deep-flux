@@ -1,6 +1,6 @@
 package org.dual.replicate.replicate;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.app.AppEventSource;
 import org.dual.replicate.remote.RemoteServiceException;
 
 /**
@@ -29,6 +29,6 @@ public class ReplicateException extends RemoteServiceException {
     }
 
     public ReplicateException(String message, Throwable cause, Kind kind) {
-        super(SystemEventSource.REPLICATE, kind, message, cause);
+        super(AppEventSource.REPLICATE, kind, message, cause);
     }
 }

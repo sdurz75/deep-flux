@@ -1,6 +1,6 @@
 package org.dual.replicate.config;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.service.SystemEventService;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -22,6 +22,6 @@ public class AsyncErrorConfig implements AsyncConfigurer {
     @Override
     public org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         return (throwable, method, params) ->
-                systemEvents.record(SystemEventSource.INTERNAL, "async:" + method.getName(), throwable);
+                systemEvents.record(CoreEventSource.INTERNAL, "async:" + method.getName(), throwable);
     }
 }

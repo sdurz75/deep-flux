@@ -10,7 +10,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
@@ -193,13 +195,13 @@ public class DeepChatService {
                 logChatResponse(chatResponse, elapsed);
                 text = chatResponse.getResult().getOutput().getText();
             } catch (RuntimeException e) {
-                throw failTurn(conversation, SystemEventSource.OPENROUTER, "chatTurn", e);
+                throw failTurn(conversation, AppEventSource.OPENROUTER, "chatTurn", e);
             }
 
             try {
                 chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, null));
             } catch (RuntimeException e) {
-                throw failTurn(conversation, SystemEventSource.INTERNAL, "saveChatTurn", e);
+                throw failTurn(conversation, CoreEventSource.INTERNAL, "saveChatTurn", e);
             }
             return new Reply(text, resultHolder.getStartedGenerationIds());
         } finally {
@@ -218,7 +220,7 @@ public class DeepChatService {
                     generationWatcher.attachToConversation(id, conversation.getId());
                     generationWatcher.watch(id, conversation.getId(), locale);
                 } catch (RuntimeException e) {
-                    systemEvents.record(SystemEventSource.INTERNAL, "watchStart", e, id, conversation.getId());
+                    systemEvents.record(CoreEventSource.INTERNAL, "watchStart", e, id, conversation.getId());
                 }
             }
         }
@@ -229,7 +231,7 @@ public class DeepChatService {
      * ASSISTANT d'errore (il turno USER e' gia' salvato: senza, resterebbe orfano) e ritorna l'eccezione
      * da lanciare, gia' col messaggio per l'utente. Non lancia mai da se'.
      */
-    private DeepChatFailedException failTurn(ChatConversation conversation, SystemEventSource source, String operation, RuntimeException cause) {
+    private DeepChatFailedException failTurn(ChatConversation conversation, EventSource source, String operation, RuntimeException cause) {
         systemEvents.record(source, operation, cause, null, conversation.getId());
         String userMessage = i18n.get("deepchat.error.contactAssistant", SystemEventService.sanitize(cause));
         try {

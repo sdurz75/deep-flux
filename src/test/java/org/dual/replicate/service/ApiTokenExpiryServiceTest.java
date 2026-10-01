@@ -1,6 +1,7 @@
 package org.dual.replicate.service;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.kernel.EventSource;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -21,7 +22,7 @@ class ApiTokenExpiryServiceTest {
         service.sweep();
 
         verify(tokens).checkExpiries();
-        verify(events, never()).record(any(SystemEventSource.class), any(), any(Throwable.class));
+        verify(events, never()).record(any(EventSource.class), any(), any(Throwable.class));
     }
 
     @Test
@@ -31,6 +32,6 @@ class ApiTokenExpiryServiceTest {
 
         service.sweep();
 
-        verify(events).record(eq(SystemEventSource.TOKENS), eq("tokenExpiryCheck"), eq(failure));
+        verify(events).record(eq(CoreEventSource.TOKENS), eq("tokenExpiryCheck"), eq(failure));
     }
 }

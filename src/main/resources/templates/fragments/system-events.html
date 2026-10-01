@@ -50,7 +50,7 @@
                     <span class="font-semibold"
                           th:classappend="${e.severity.name() == 'WARNING'} ? 'text-warning dark:text-warning-dark' : 'text-danger dark:text-danger-dark'"
                           th:text="#{'events.severity.' + ${e.severity.name()}}">Errore</span>
-                    <span class="font-semibold" th:text="#{'events.source.' + ${e.source.name()}}">Replicate</span>
+                    <span class="font-semibold" th:text="#{'events.source.' + ${e.source}}">Replicate</span>
                     <span class="font-mono" th:text="${e.operation}">operazione</span>
                     <span th:if="${e.occurrences > 1}" class="rounded-full px-2 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark"
                           th:text="'×' + ${e.occurrences}">×3</span>
@@ -59,7 +59,7 @@
                        th:text="#{events.link.generation(${e.generationId})}">Generazione #1</a>
                     <a th:if="${e.conversationId != null}" th:href="@{'/deep-chat/' + ${e.conversationId}}"
                        th:text="#{events.link.conversation}">Conversazione</a>
-                    <a th:if="${e.source.name() == 'TOKENS'}" th:href="@{/tokens}" th:text="#{events.link.tokens}">Token</a>
+                    <a th:if="${e.source == 'TOKENS'}" th:href="@{/tokens}" th:text="#{events.link.tokens}">Token</a>
                 </div>
                 <p class="mt-2 mb-0 break-words" th:text="${e.message}">messaggio</p>
                 <details th:if="${e.details != null}" class="mt-2">

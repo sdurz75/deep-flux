@@ -3,7 +3,6 @@ package org.dual.replicate.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.search.SearchResult;
 import org.dual.replicate.search.SearxngClient;
 import org.springframework.ai.tool.annotation.Tool;

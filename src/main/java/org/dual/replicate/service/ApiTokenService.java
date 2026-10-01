@@ -7,9 +7,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
 import org.dual.replicate.domain.ApiTokenProvider;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.service.secret.SecretCipher;
@@ -182,13 +182,13 @@ public class ApiTokenService {
         LocalDate today = today();
         String provider = messages.get("tokens.provider." + token.getProvider().name());
         if (today.isAfter(token.getExpiresAt())) {
-            events.warn(SystemEventSource.TOKENS, "tokenExpired", subject(token),
+            events.warn(CoreEventSource.TOKENS, "tokenExpired", subject(token),
                     messages.get("tokens.warning.expired", token.getName(), provider, token.getExpiresAt().toString()));
             return true;
         }
         long days = ChronoUnit.DAYS.between(today, token.getExpiresAt());
         if (days <= warningDays) {
-            events.warn(SystemEventSource.TOKENS, "tokenExpiring", subject(token),
+            events.warn(CoreEventSource.TOKENS, "tokenExpiring", subject(token),
                     messages.get("tokens.warning.expiring", token.getName(), provider, token.getExpiresAt().toString(), days));
             return true;
         }

@@ -44,7 +44,7 @@
                     <span class="flex items-baseline justify-between gap-2 text-[0.75rem]">
                         <span class="font-semibold"
                               th:classappend="${item.severity.name() == 'WARNING'} ? 'text-warning dark:text-warning-dark' : 'text-danger dark:text-danger-dark'"
-                              th:text="#{'events.severity.' + ${item.severity.name()}} + ' · ' + #{'events.source.' + ${item.source.name()}}">Errore · Replicate</span>
+                              th:text="#{'events.severity.' + ${item.severity.name()}} + ' · ' + #{'events.source.' + ${item.source}}">Errore · Replicate</span>
                         <span class="shrink-0 text-ink-muted dark:text-ink-muted-dark" th:text="${item.ago}">2 min fa</span>
                     </span>
                     <span class="mt-1 block text-[0.85rem] break-words line-clamp-2" th:text="${item.message}">messaggio</span>

@@ -3,7 +3,7 @@ package org.dual.replicate.remote;
 import java.time.Duration;
 import java.util.Map;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class RestRemoteClientTest {
 
     static class FooException extends RemoteServiceException {
         FooException(String message, Throwable cause, Kind kind) {
-            super(SystemEventSource.INTERNAL, kind, message, cause);
+            super(CoreEventSource.INTERNAL, kind, message, cause);
         }
     }
 

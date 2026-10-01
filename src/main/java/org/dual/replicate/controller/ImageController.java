@@ -8,7 +8,7 @@ import java.util.OptionalLong;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.service.storage.StorageException;
@@ -55,7 +55,7 @@ public class ImageController {
             response.sendError(HttpStatus.NOT_FOUND.value());
             return;
         } catch (StorageException e) {
-            systemEvents.record(SystemEventSource.STORAGE, "serveImage", e);
+            systemEvents.record(CoreEventSource.STORAGE, "serveImage", e);
             response.sendError(HttpStatus.BAD_GATEWAY.value());
             return;
         }
@@ -96,7 +96,7 @@ public class ImageController {
             try {
                 in = storage.openRange(filename, start, length);
             } catch (IOException | StorageException e) {
-                systemEvents.record(SystemEventSource.STORAGE, "serveImage", e);
+                systemEvents.record(CoreEventSource.STORAGE, "serveImage", e);
                 response.sendError(HttpStatus.BAD_GATEWAY.value());
                 return;
             }
@@ -132,7 +132,7 @@ public class ImageController {
             try {
                 read = in.read(buffer);
             } catch (IOException e) {
-                systemEvents.record(SystemEventSource.STORAGE, "serveImage", e);
+                systemEvents.record(CoreEventSource.STORAGE, "serveImage", e);
                 return;
             }
             if (read < 0) {

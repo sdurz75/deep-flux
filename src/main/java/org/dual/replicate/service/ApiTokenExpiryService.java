@@ -1,6 +1,6 @@
 package org.dual.replicate.service;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -42,7 +42,7 @@ public class ApiTokenExpiryService {
                 log.info("Controllo scadenza token: {} avvisi", warned);
             }
         } catch (RuntimeException e) {
-            events.record(SystemEventSource.TOKENS, "tokenExpiryCheck", e);
+            events.record(CoreEventSource.TOKENS, "tokenExpiryCheck", e);
         }
     }
 }

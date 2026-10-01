@@ -7,11 +7,11 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
 import org.dual.replicate.domain.ApiTokenProvider;
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException;
 import org.dual.replicate.repository.ApiTokenRepository;
@@ -168,7 +168,7 @@ class ApiTokenServiceTest {
         var rows = eventRepository.findAll();
         assertThat(rows).hasSize(2).allSatisfy(e -> {
             assertThat(e.getSeverity()).isEqualTo(SystemEventSeverity.WARNING);
-            assertThat(e.getSource()).isEqualTo(SystemEventSource.TOKENS);
+            assertThat(e.getSource()).isEqualTo(CoreEventSource.TOKENS.name());
             assertThat(e.getAcknowledgedAt()).isNull();
         });
         assertThat(rows).extracting(SystemEvent::getSubject).containsExactlyInAnyOrder("token:" + expiring.getId(), "token:" + expired.getId());

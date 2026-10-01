@@ -7,7 +7,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.GenerationKind;
@@ -485,7 +485,7 @@ public class GenerationController {
                 // Errore VERO su una riga esistente: registrato (la serie evita righe/toast a ogni poll) e la
                 // pagina resta viva con lo stato attuale, invece di un 500 che htmx non renderizza e che il
                 // polling ripeterebbe identico ogni 2s. Il recupero (GenerationRecoveryService) la chiude.
-                systemEvents.record(SystemEventSource.INTERNAL, "refreshGeneration", e, id, null);
+                systemEvents.record(CoreEventSource.INTERNAL, "refreshGeneration", e, id, null);
                 generation = generationRepository.findById(id).orElseThrow(() -> e);
                 return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
             }

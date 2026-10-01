@@ -2,9 +2,10 @@ package org.dual.replicate.service;
 
 import java.util.List;
 
+import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.event.SystemToastEvent;
 import org.dual.replicate.repository.SystemEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +43,13 @@ class SystemEventServiceTest {
 
     @Test
     void recordPersistsARowAndPublishesOneToast() {
-        SystemEventService.Recorded recorded = service.record(SystemEventSource.REPLICATE, "createPrediction",
+        SystemEventService.Recorded recorded = service.record(AppEventSource.REPLICATE, "createPrediction",
                 new IllegalStateException("rete giu'"), 5L, 7L);
 
         List<SystemEvent> rows = repository.findAll();
         assertThat(rows).hasSize(1);
         SystemEvent row = rows.get(0);
-        assertThat(row.getSource()).isEqualTo(SystemEventSource.REPLICATE);
+        assertThat(row.getSource()).isEqualTo(AppEventSource.REPLICATE.name());
         assertThat(row.getOperation()).isEqualTo("createPrediction");
         assertThat(row.getErrorType()).isEqualTo("IllegalStateException");
         assertThat(row.getMessage()).isEqualTo("rete giu'");
@@ -65,7 +66,7 @@ class SystemEventServiceTest {
     @Test
     void repeatedIdenticalErrorsAreGroupedIntoOneSeriesWithASingleToast() {
         for (int i = 0; i < 5; i++) {
-            service.record(SystemEventSource.REPLICATE, "getPrediction", new RuntimeException("timeout " + i), 5L, null);
+            service.record(AppEventSource.REPLICATE, "getPrediction", new RuntimeException("timeout " + i), 5L, null);
         }
 
         List<SystemEvent> rows = repository.findAll();
@@ -77,9 +78,9 @@ class SystemEventServiceTest {
 
     @Test
     void differentGenerationsOrOperationsAreSeparateSeries() {
-        service.record(SystemEventSource.REPLICATE, "getPrediction", new RuntimeException("x"), 1L, null);
-        service.record(SystemEventSource.REPLICATE, "getPrediction", new RuntimeException("x"), 2L, null);
-        service.record(SystemEventSource.REPLICATE, "cancelPrediction", new RuntimeException("x"), 1L, null);
+        service.record(AppEventSource.REPLICATE, "getPrediction", new RuntimeException("x"), 1L, null);
+        service.record(AppEventSource.REPLICATE, "getPrediction", new RuntimeException("x"), 2L, null);
+        service.record(AppEventSource.REPLICATE, "cancelPrediction", new RuntimeException("x"), 1L, null);
 
         assertThat(repository.findAll()).hasSize(3);
         assertThat(toasts()).hasSize(3);
@@ -88,15 +89,15 @@ class SystemEventServiceTest {
     /** Il registro non deve mai far fallire il chiamante, nemmeno con un'eccezione senza messaggio o null. */
     @Test
     void recordNeverThrowsAndHandlesNullMessageAndNullError() {
-        service.record(SystemEventSource.INTERNAL, "op", new RuntimeException());
-        service.record(SystemEventSource.INTERNAL, "op2", null);
+        service.record(CoreEventSource.INTERNAL, "op", new RuntimeException());
+        service.record(CoreEventSource.INTERNAL, "op2", null);
 
         assertThat(repository.findAll()).hasSize(2);
     }
 
     @Test
     void longMessagesAndStacksAreTruncated() {
-        service.record(SystemEventSource.OPENROUTER, "chatTurn", new RuntimeException("x".repeat(5000)));
+        service.record(AppEventSource.OPENROUTER, "chatTurn", new RuntimeException("x".repeat(5000)));
 
         SystemEvent row = repository.findAll().get(0);
         assertThat(row.getMessage().length()).isLessThanOrEqualTo(501);
@@ -112,7 +113,7 @@ class SystemEventServiceTest {
         service.record("qualcosa", new IllegalStateException("bug"));
 
         assertThat(repository.findAll()).extracting(SystemEvent::getSource)
-                .containsExactlyInAnyOrder(SystemEventSource.STORAGE, SystemEventSource.INTERNAL);
+                .containsExactlyInAnyOrder(CoreEventSource.STORAGE.name(), CoreEventSource.INTERNAL.name());
     }
 
     @Test
@@ -153,8 +154,8 @@ class SystemEventServiceTest {
     /** Un errore senza generazione ne' subject (predicati null-safe della query di serie) raggruppa comunque in una sola riga. */
     @Test
     void errorsWithoutGenerationOrSubjectStillFormOneSeries() {
-        service.record(SystemEventSource.INTERNAL, "op", new RuntimeException("a"));
-        service.record(SystemEventSource.INTERNAL, "op", new RuntimeException("b"));
+        service.record(CoreEventSource.INTERNAL, "op", new RuntimeException("a"));
+        service.record(CoreEventSource.INTERNAL, "op", new RuntimeException("b"));
 
         assertThat(repository.findAll()).hasSize(1);
         assertThat(repository.findAll().get(0).getSeverity()).isEqualTo(SystemEventSeverity.ERROR);
@@ -163,7 +164,7 @@ class SystemEventServiceTest {
 
     @Test
     void warnPersistsAWarningRowAndPublishesOneWarningToast() {
-        SystemEventService.Recorded recorded = service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:12", "Il token scade tra 3 giorni");
+        SystemEventService.Recorded recorded = service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:12", "Il token scade tra 3 giorni");
 
         SystemEvent row = repository.findAll().get(0);
         assertThat(row.getSeverity()).isEqualTo(SystemEventSeverity.WARNING);
@@ -178,9 +179,9 @@ class SystemEventServiceTest {
 
     @Test
     void warningsOfTheSameSubjectGroupAndDifferentSubjectsAreSeparateSeries() {
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:1", "scade");
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:1", "scade ancora");
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:2", "scade");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "scade");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "scade ancora");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "scade");
 
         assertThat(repository.findAll()).hasSize(2);
         assertThat(repository.findAll()).extracting(SystemEvent::getOccurrences).containsExactlyInAnyOrder(2, 1);
@@ -189,8 +190,8 @@ class SystemEventServiceTest {
 
     @Test
     void anErrorAndAWarningWithTheSameKeysAreNotTheSameSeries() {
-        service.warn(SystemEventSource.INTERNAL, "op", null, "x");
-        service.record(SystemEventSource.INTERNAL, "op", new RuntimeException("Warning"));
+        service.warn(CoreEventSource.INTERNAL, "op", null, "x");
+        service.record(CoreEventSource.INTERNAL, "op", new RuntimeException("Warning"));
 
         assertThat(repository.findAll()).hasSize(2);
     }
@@ -198,7 +199,7 @@ class SystemEventServiceTest {
     @Test
     void theToastHeaderCarriesTheSeverity() {
         var response = new org.springframework.mock.web.MockHttpServletResponse();
-        service.addToastHeader(response, service.warn(SystemEventSource.TOKENS, "tokenExpired", "token:3", "scaduto"));
+        service.addToastHeader(response, service.warn(CoreEventSource.TOKENS, "tokenExpired", "token:3", "scaduto"));
 
         assertThat(response.getHeader("HX-Trigger")).contains("\"severity\":\"WARNING\"").contains("\"transient\":false");
     }
@@ -206,8 +207,8 @@ class SystemEventServiceTest {
     /** Campanella: nuovi eventi non letti, "segna come letti", e una ripetizione di una serie gia' letta resta letta. */
     @Test
     void unseenEventsFeedTheBellAndAcknowledgementSticksAcrossRepeats() {
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:1", "a");
-        service.record(SystemEventSource.REPLICATE, "createPrediction", new RuntimeException("x"), 9L, null);
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a");
+        service.record(AppEventSource.REPLICATE, "createPrediction", new RuntimeException("x"), 9L, null);
 
         SystemEventService.Unseen unseen = service.unseen();
         assertThat(unseen.count()).isEqualTo(2);
@@ -218,10 +219,10 @@ class SystemEventServiceTest {
         assertThat(service.unseen().count()).isZero();
 
         // stessa serie, ancora entro la finestra: il contatore sale ma NON torna "non letta"
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:1", "a di nuovo");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a di nuovo");
         assertThat(service.unseen().count()).isZero();
         // una serie nuova (altro subject) si
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:2", "b");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "b");
         SystemEventService.Unseen again = service.unseen();
         assertThat(again.count()).isEqualTo(1);
         assertThat(again.hasError()).isFalse();
@@ -229,9 +230,9 @@ class SystemEventServiceTest {
 
     @Test
     void markSeenAcknowledgesOneEventAndMarkSeenBySubjectClearsATokensWarnings() {
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:1", "a");
-        service.warn(SystemEventSource.TOKENS, "tokenExpired", "token:1", "b");
-        service.warn(SystemEventSource.TOKENS, "tokenExpiring", "token:2", "c");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a");
+        service.warn(CoreEventSource.TOKENS, "tokenExpired", "token:1", "b");
+        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "c");
         Long first = repository.findAll().get(0).getId();
 
         service.markSeen(first);

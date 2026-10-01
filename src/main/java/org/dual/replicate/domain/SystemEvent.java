@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.dual.replicate.core.kernel.EventSource;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -37,9 +38,9 @@ public class SystemEvent {
     @Column(nullable = false)
     private int occurrences = 1;
 
-    @Enumerated(EnumType.STRING)
+    /** {@link EventSource#name()}: stringa, cosi' il core non conosce i valori dell'app. */
     @Column(nullable = false, length = 20)
-    private SystemEventSource source;
+    private String source;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -71,16 +72,16 @@ public class SystemEvent {
     }
 
     /** Un ERROR senza subject (il caso di tutti gli errori registrati finora). */
-    public SystemEvent(SystemEventSource source, String operation, String errorType, String message, String details,
+    public SystemEvent(EventSource source, String operation, String errorType, String message, String details,
                     Long generationId, Long conversationId, Instant now) {
         this(SystemEventSeverity.ERROR, source, operation, errorType, message, details, generationId, conversationId, null, now);
     }
 
-    public SystemEvent(SystemEventSeverity severity, SystemEventSource source, String operation, String errorType, String message,
+    public SystemEvent(SystemEventSeverity severity, EventSource source, String operation, String errorType, String message,
                     String details, Long generationId, Long conversationId, String subject, Instant now) {
         this.severity = severity;
         this.subject = subject;
-        this.source = source;
+        this.source = source.name();
         this.operation = operation;
         this.errorType = errorType;
         this.message = message;
@@ -122,7 +123,7 @@ public class SystemEvent {
         return occurrences;
     }
 
-    public SystemEventSource getSource() {
+    public String getSource() {
         return source;
     }
 

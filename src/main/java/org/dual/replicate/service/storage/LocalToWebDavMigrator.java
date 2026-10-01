@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.service.SystemEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,7 +87,7 @@ public class LocalToWebDavMigrator {
                 }
             } catch (IOException | RuntimeException e) {
                 failed++;
-                systemEvents.record(SystemEventSource.STORAGE, "migrateLocalToWebDav", e);
+                systemEvents.record(CoreEventSource.STORAGE, "migrateLocalToWebDav", e);
             }
         }
         Result result = new Result(migrated, skipped, failed, deleted, bytes);

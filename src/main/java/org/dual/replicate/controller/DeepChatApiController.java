@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.DeepChatFailedException;
 import org.dual.replicate.service.DeepChatService;
@@ -71,7 +71,7 @@ public class DeepChatApiController {
             return new Reply(null, e.getMessage(), null, null);
         } catch (Exception e) {
             // Fallimento prima/fuori dalla chiamata LLM (conversazione inesistente, parametri non validi...).
-            systemEvents.record(SystemEventSource.INTERNAL, "chatRequest", e, null, request.conversationId());
+            systemEvents.record(CoreEventSource.INTERNAL, "chatRequest", e, null, request.conversationId());
             return new Reply(null, messages.get("deepchat.error.contactAssistant", SystemEventService.sanitize(e)), null, null);
         }
     }

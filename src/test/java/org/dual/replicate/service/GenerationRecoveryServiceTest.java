@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.GenerationRepository;
@@ -88,7 +88,7 @@ class GenerationRecoveryServiceTest {
 
         service().recoverOnStartup();
 
-        verify(systemEvents).record(SystemEventSource.INTERNAL, "recoverGeneration", boom, 1L, null);
+        verify(systemEvents).record(CoreEventSource.INTERNAL, "recoverGeneration", boom, 1L, null);
         verify(generationService).refresh(2L);
     }
 

@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.GenerationRepository;
@@ -74,7 +74,7 @@ public class GenerationRecoveryService {
                     .forEach(generation -> recover(generation, false));
             writeMissingChatTurns();
         } catch (RuntimeException e) {
-            systemEvents.record(SystemEventSource.INTERNAL, "recoverySweep", e);
+            systemEvents.record(CoreEventSource.INTERNAL, "recoverySweep", e);
         }
     }
 
@@ -90,7 +90,7 @@ public class GenerationRecoveryService {
             }
         } catch (RuntimeException e) {
             if (generationService.exists(generation.getId())) {
-                systemEvents.record(SystemEventSource.INTERNAL, "recoverGeneration", e, generation.getId(), generation.getConversationId());
+                systemEvents.record(CoreEventSource.INTERNAL, "recoverGeneration", e, generation.getId(), generation.getConversationId());
             }
         }
     }

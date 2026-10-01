@@ -1,6 +1,6 @@
 package org.dual.replicate.config;
 
-import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.storage.StorageException;
@@ -39,7 +39,7 @@ class UnhandledExceptionResolverTest {
         verify(systemEvents).record("DELETE /generations/1/images/x.png", failure);
         verify(systemEvents).addToastHeader(eq(response), any());
         assertThat(response.getStatus()).isEqualTo(502);
-        assertThat(SystemEventService.sourceOf(failure)).isEqualTo(SystemEventSource.STORAGE);
+        assertThat(SystemEventService.sourceOf(failure)).isEqualTo(CoreEventSource.STORAGE);
     }
 
     @Test
@@ -61,6 +61,6 @@ class UnhandledExceptionResolverTest {
 
         verify(systemEvents).record("DELETE /generations/1/images/x.png", bug);
         assertThat(response.getStatus()).isEqualTo(500);
-        assertThat(SystemEventService.sourceOf(bug)).isEqualTo(SystemEventSource.INTERNAL);
+        assertThat(SystemEventService.sourceOf(bug)).isEqualTo(CoreEventSource.INTERNAL);
     }
 }

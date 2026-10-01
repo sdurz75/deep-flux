@@ -12,11 +12,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.domain.GenerationKind;
@@ -353,7 +353,7 @@ public class GenerationService {
                     }
                 }
                 generation.setImageFilenames(new ArrayList<>());
-                systemEvents.record(SystemEventSource.STORAGE, "downloadOutput", e, generation.getId(), generation.getConversationId());
+                systemEvents.record(CoreEventSource.STORAGE, "downloadOutput", e, generation.getId(), generation.getConversationId());
                 generation.setStatus(GenerationStatus.FAILED);
                 generation.setErrorMessage(messages.get("generation.error.downloadFailed", SystemEventService.sanitize(e)));
             }
@@ -568,7 +568,7 @@ public class GenerationService {
                         try {
                             imageStorageService.delete(file);
                         } catch (RuntimeException e) {
-                            systemEvents.record(SystemEventSource.STORAGE, "deleteFile", e, generation.getId(), generation.getConversationId());
+                            systemEvents.record(CoreEventSource.STORAGE, "deleteFile", e, generation.getId(), generation.getConversationId());
                         }
                     });
         });

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
@@ -169,7 +170,7 @@ class DeepChatGenerationWatcherTest {
 
         watcher().watch(1L, 7L, Locale.ITALIAN);
 
-        verify(systemEvents).record(org.dual.replicate.domain.SystemEventSource.INTERNAL, "watchGeneration", boom, 1L, 7L);
+        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.INTERNAL, "watchGeneration", boom, 1L, 7L);
         verify(chatMessageRepository, never()).save(any());
         verify(broadcaster, never()).broadcastChatMessage(any());
     }
@@ -212,6 +213,6 @@ class DeepChatGenerationWatcherTest {
 
         assertThat(watcher().persistOutcome(generation, 7L)).isFalse();
 
-        verify(systemEvents).record(org.dual.replicate.domain.SystemEventSource.INTERNAL, "persistChatTurn", boom, 1L, 7L);
+        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.INTERNAL, "persistChatTurn", boom, 1L, 7L);
     }
 }

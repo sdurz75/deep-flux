@@ -6,7 +6,6 @@ import java.util.List;
 
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.domain.SystemEventSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,7 +29,7 @@ public interface SystemEventRepository extends JpaRepository<SystemEvent, Long> 
               and ((:subject is null and e.subject is null) or e.subject = :subject)
             order by e.id desc
             """)
-    List<SystemEvent> findOpenSeries(@Param("source") SystemEventSource source, @Param("operation") String operation,
+    List<SystemEvent> findOpenSeries(@Param("source") String source, @Param("operation") String operation,
                                      @Param("errorType") String errorType, @Param("severity") SystemEventSeverity severity,
                                      @Param("after") Instant after, @Param("generationId") Long generationId,
                                      @Param("subject") String subject, Pageable pageable);
