@@ -107,7 +107,7 @@
     <form th:hx-post="${noteId == null} ? @{/search/notes} : @{/search/notes/{id}(id=${noteId})}"
           th:hx-target="${noteId == null} ? 'this' : '#doc-' + ${#strings.replace(noteId, ':', '-')}"
           th:hx-swap="${noteId == null} ? 'none' : 'outerHTML'" class="mt-3">
-        <p th:if="${noteError}" th:replace="~{fragments/alert :: error(text=${noteError})}">Errore</p>
+        <th:block th:if="${noteError}"><p th:replace="~{fragments/alert :: error(text=${noteError})}">Errore</p></th:block>
         <label for="note-title" th:text="#{search.note.titleLabel}">Titolo</label>
         <input type="text" id="note-title" name="title" class="w-full" th:value="${noteTitle}">
         <label for="note-text" th:text="#{search.note.textLabel}">Testo</label>
