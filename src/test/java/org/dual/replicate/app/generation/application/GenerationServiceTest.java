@@ -9,7 +9,7 @@ import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.tokens.domain.TokenException;
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
-import org.dual.replicate.service.DeepChatGenerationWatcher;
+import org.dual.replicate.app.chat.application.ChatGenerationWatcher;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
@@ -694,7 +694,7 @@ class GenerationServiceTest {
         when(messages.get(eq("generation.error.notFound"), any())).thenReturn("generazione non trovata");
 
         // Niente "fantasma" ritornato: la riga non esiste piu', il chiamante (status()/
-        // DeepChatGenerationWatcher) deve trattarla come "non trovata", non come un successo.
+        // ChatGenerationWatcher) deve trattarla come "non trovata", non come un successo.
         assertThatThrownBy(() -> service.refresh(1L))
                 .isInstanceOf(ReplicateException.class)
                 .hasMessage("generazione non trovata");

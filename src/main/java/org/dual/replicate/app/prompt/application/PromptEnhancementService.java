@@ -9,8 +9,8 @@ import javax.imageio.ImageIO;
 
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
 import org.dual.replicate.core.storage.domain.SourceImage;
-import org.dual.replicate.service.DeepChatService;
-import org.dual.replicate.service.ImageGenerationTool;
+import org.dual.replicate.app.chat.application.ChatService;
+import org.dual.replicate.app.chat.adapter.ai.ImageGenerationTool;
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
 import org.dual.replicate.app.prompt.port.in.IPromptEnhancer;
 import org.dual.replicate.app.prompt.port.out.IPromptModel;

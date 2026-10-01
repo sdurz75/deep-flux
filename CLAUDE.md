@@ -12,7 +12,7 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
 - `/deep-chat`: l'assistente puo' cercare sul web (`WebSearchTool`, SearXNG) e generare su Replicate
   (`ImageGenerationTool`) SEMPRE col modello scelto nel combobox UI (`ImageGenerationTool.MODEL_CONTEXT_KEY` via
   `ToolContext`, non un parametro scelto dall'LLM). `/generations/new` e' la via diretta (form, senza chatbot).
-- `ImageGenerationTool` avvia e torna subito; il polling continua in background (`DeepChatGenerationWatcher`, `@Async`)
+- `ImageGenerationTool` avvia e torna subito; il polling continua in background (`ChatGenerationWatcher`, `@Async`)
   e il risultato arriva come nuovo turno di chat via SSE (`GET /events`, `GenerationEventBroadcaster`): nessun polling
   client-side per la chat.
 - **Placeholder** mentre una generazione e' in corso (chat e `/generations/{id}`): `fragments/generation-placeholder.html`
@@ -156,8 +156,8 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   (vedi "Convenzione: interfacce e storage dei binari"), `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient`
   dedicato senza `defaultTools`; `enhanceVideo`/`enhanceEdit` guardano l'immagine sorgente con un modello di visione
   OpenRouter non moderato `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del
-  modello e' intercettato e non sovrascrive la textarea), `DeepChatService`, `DeepChatGenerationWatcher`,
-  `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
+  modello e' intercettato e non sovrascrive la textarea), `ChatService`, `ChatGenerationWatcher`,
+  `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`ChatService` via `ToolContext`: gli
   id delle generazioni avviate nel turno), `SystemEventService` (+ `SystemEventController`, campanella), `ApiTokenService`/`ApiTokenExpiryService`/`TokenException`, `secret/SecretCipher`,
   `GenerationRecoveryService`, `DeepChatFailedException`.
 - `search/vector/`: `SemanticSearchConfig` (bean `PgVectorStore` su `vector_store`), `E5PrefixEmbeddingModel` (prefissi e5), `VectorIndexer`
@@ -333,9 +333,9 @@ switcher/cookie/sessione). Bundle: `messages.properties` (italiano, default/fall
   `NumberFormat` con separatori di migliaia: usare `{0,number,#}`, non `{0}`.
 - **Lato Java**: iniettare `org.dual.replicate.core.kernel.i18n.Messages` (wrapper su `MessageSourceAccessor`, locale della richiesta
   via `LocaleContextHolder`) ovunque un errore possa arrivare all'utente (oggi `ReplicateClient`, `SearxngClient`,
-  `GenerationService`, `IImageStorageService`, `GenerationController`, `DeepChatApiController`, `DeepChatService`).
+  `GenerationService`, `IImageStorageService`, `GenerationController`, `DeepChatApiController`, `ChatService`).
   Risolvere al call site, prima di costruire l'eccezione, mai nel costruttore. Se la classe ha gia' una variabile
-  `messages` (es. `DeepChatService`), chiamare il campo iniettato altrimenti (li' `i18n`).
+  `messages` (es. `ChatService`), chiamare il campo iniettato altrimenti (li' `i18n`).
 - **`<html lang>`** viene dal bundle (`html.lang=it|en`, `th:lang="#{html.lang}"` sul decoratore), non da
   `#{#locale.language}`: su una locale non mappata il contenuto e' comunque italiano.
 - **Limiti accettati**: `Generation.errorMessage` e' salvato gia' tradotto nella locale di chi ha generato l'errore (resta
@@ -382,11 +382,11 @@ La query di serie (`SystemEventRepository#findOpenSeries`) ha predicati null-saf
   rete, timeout, 429/5xx) NON fallisce la generazione ma il timeout di business vale comunque e annulla la prediction; uno
   *permanente* (4xx) la fallisce subito. (b) `GenerationRecoveryService` all'avvio (`ApplicationReadyEvent`) fa avanzare
   ogni PENDING/PROCESSING e riavvia i watcher persi. (c) lo stesso servizio, ogni `app.recovery.sweep-interval`, chiude le
-  righe oltre timeout e scrive i turni di chat mancanti (`DeepChatGenerationWatcher#persistOutcome`, idempotente).
+  righe oltre timeout e scrive i turni di chat mancanti (`ChatGenerationWatcher#persistOutcome`, idempotente).
   Disattivabile con `app.recovery.enabled=false` (i test).
 - **Cancellare o far scadere** una generazione in corso annulla la prediction (`cancelPredictionQuietly`); se `create`
   non riesce a salvare la riga dopo aver creato la prediction, la annulla.
-- **Chat**: se l'LLM fallisce, `DeepChatService#reply` scrive un turno ASSISTANT d'errore (`ChatMessage.error`, V18: in
+- **Chat**: se l'LLM fallisce, `ChatService#reply` scrive un turno ASSISTANT d'errore (`ChatMessage.error`, V18: in
   rosso, mai rimandato all'LLM) e lancia `DeepChatFailedException` (gia' registrata: `DeepChatApiController` mostra solo il
   messaggio). I tool (`WebSearchTool`, `ImageGenerationTool`) catturano da soli e rimandano il testo d'errore al modello.
 - **WebDAV** (`WebDavImageStorageService`, via `RemoteCaller` come gli altri): PUT/MOVE/DELETE/MKCOL e gli HEAD della
@@ -399,7 +399,7 @@ La query di serie (`SystemEventRepository#findOpenSeries`) ha predicati null-saf
   auto-configurati (Replicate, download, Spring AI); SearXNG ha un timeout piu' stretto proprio. Un nuovo client HTTP
   usa il `RestClient.Builder` iniettato, mai `RestClient.create()`.
 - **Locale**: `SystemEventService` risolve il toast con la locale del thread; un thread async la imposta prima
-  (`DeepChatGenerationWatcher#watch`), il recupero usa l'italiano.
+  (`ChatGenerationWatcher#watch`), il recupero usa l'italiano.
 
 ### Errori e retry generici (`remote/`) e checklist "nuovo servizio remoto"
 
@@ -501,7 +501,7 @@ Stesso Postgres dei dati, nessun servizio in piu'. Chi vuole cercare per signifi
   SUCCEEDED (`type=generation`), messaggi di chat non d'errore (`chat`), titoli (`conversation`); aggiunge i mancanti/cambiati,
   rimuove i documenti la cui riga non esiste piu'. Gira in background all'avvio (backfill), ogni `app.search.reindex-interval` e a
   ogni `GenerationCompletedEvent`. Un documento che fallisce e' registrato (`SystemEventService`) e non ferma gli altri.
-- **`ArchiveSearchTool`** (`searchArchive(query, type?)`) e' tra i tool di `DeepChatService` solo se `app.search.enabled`.
+- **`ArchiveSearchTool`** (`searchArchive(query, type?)`) e' tra i tool di `ChatService` solo se `app.search.enabled`.
 - **Link alle generazioni in chat**: `searchArchive` restituisce al modello path assoluti (`/generations/12`). Dietro un reverse
   proxy su subpath non funzionerebbero, quindi `deep-chat.html` li riscrive SOLO in visualizzazione (`linkGenerations`, su
   `responseInterceptor` e sulla cronologia) in link markdown RELATIVI alla pagina corrente (`/deep-chat` -> `generations/12`,

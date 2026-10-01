@@ -39,7 +39,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * pochi minuti.
  * <p>
  * Locale: il messaggio del toast e' risolto con la locale del thread corrente (vedi {@link Messages}); i thread async che
- * vogliono la locale della richiesta d'origine la impostano prima (vedi DeepChatGenerationWatcher).
+ * vogliono la locale della richiesta d'origine la impostano prima (vedi ChatGenerationWatcher).
  */
 @Service
 public class SystemEventService implements ISystemEvents {

@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 
 /**
- * Le eccezioni che escono da un metodo {@code @Async void} (DeepChatGenerationWatcher#watch) altrimenti
+ * Le eccezioni che escono da un metodo {@code @Async void} (ChatGenerationWatcher#watch) altrimenti
  * finiscono solo nel log di default di Spring: qui passano dal registro errori (tabella + toast).
  * L'executor resta quello di default di Spring Boot (getAsyncExecutor non sovrascritto).
  */

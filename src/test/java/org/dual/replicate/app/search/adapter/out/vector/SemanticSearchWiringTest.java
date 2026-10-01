@@ -4,7 +4,7 @@ import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.app.search.application.ArchiveIndexService;
-import org.dual.replicate.service.ArchiveSearchTool;
+import org.dual.replicate.app.chat.adapter.ai.ArchiveSearchTool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.ai.embedding.EmbeddingModel;

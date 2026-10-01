@@ -6,19 +6,19 @@ import java.util.stream.Stream;
 import org.dual.replicate.app.search.adapter.out.vector.FakeEmbeddingModel;
 import org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository;
 import org.dual.replicate.app.search.adapter.out.vector.VectorIndexer;
-import org.dual.replicate.domain.ChatConversation;
-import org.dual.replicate.domain.ChatMessage;
-import org.dual.replicate.domain.ChatMessageRole;
+import org.dual.replicate.app.chat.domain.ChatConversation;
+import org.dual.replicate.app.chat.domain.ChatMessage;
+import org.dual.replicate.app.chat.domain.ChatMessageRole;
 import org.dual.replicate.app.generation.adapter.out.search.GenerationSearchSource;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
-import org.dual.replicate.repository.ChatConversationRepository;
-import org.dual.replicate.repository.ChatMessageRepository;
+import org.dual.replicate.app.chat.port.out.IChatConversationStore;
+import org.dual.replicate.app.chat.port.out.IChatMessageStore;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.app.search.application.ArchiveIndexService;
 import org.dual.replicate.app.search.domain.DocumentTypes;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.service.ChatSearchSource;
+import org.dual.replicate.app.chat.adapter.out.search.ChatSearchSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,9 +58,9 @@ class ArchiveIndexServiceTest {
     @Autowired
     private IGenerationStore generations;
     @Autowired
-    private ChatMessageRepository messages;
+    private IChatMessageStore messages;
     @Autowired
-    private ChatConversationRepository conversations;
+    private IChatConversationStore conversations;
 
     private FakeEmbeddingModel embedding;
     private VectorStore vectorStore;
@@ -82,8 +82,8 @@ class ArchiveIndexServiceTest {
 
     @AfterEach
     void clean() {
-        messages.deleteAll();
-        conversations.deleteAll();
+        jdbc.sql("delete from chat_message").update();
+        jdbc.sql("delete from chat_conversation").update();
         generations.deleteAll();
         jdbc.sql("delete from vector_store").update();
     }

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * application.yml, spring.messages/spring.web.locale). Iniettato
  * anche in service/client fuori dai controller (ReplicateClient,
  * SearxngClient, GenerationService, IImageStorageService,
- * DeepChatService): tutti girano sullo stesso thread servlet della
+ * ChatService): tutti girano sullo stesso thread servlet della
  * richiesta che li ha invocati, quindi LocaleContextHolder resta
  * valido.
  */

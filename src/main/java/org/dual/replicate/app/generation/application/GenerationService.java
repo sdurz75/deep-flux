@@ -28,8 +28,8 @@ import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.core.kernel.Paged;
-import org.dual.replicate.service.DeepChatGenerationWatcher;
-import org.dual.replicate.service.ImageGenerationTool;
+import org.dual.replicate.app.chat.application.ChatGenerationWatcher;
+import org.dual.replicate.app.chat.adapter.ai.ImageGenerationTool;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
@@ -539,7 +539,7 @@ public class GenerationService implements IGenerations {
             // scaricate vanno comunque ripulite da disco, altrimenti resterebbero orfane - ma
             // niente da salvare, e SOPRATTUTTO niente ritornato al chiamante: un oggetto
             // "SUCCEEDED" con file gia' cancellati sarebbe un fantasma (GenerationController
-            // #status lo mostrerebbe come se esistesse ancora, DeepChatGenerationWatcher
+            // #status lo mostrerebbe come se esistesse ancora, ChatGenerationWatcher
             // proverebbe a persisterlo come turno di chat verso un id ormai inesistente).
             // Stessa eccezione/messaggio di get(id): per il chiamante e' indistinguibile da
             // "non trovata", che e' esattamente cio' che e' diventata.

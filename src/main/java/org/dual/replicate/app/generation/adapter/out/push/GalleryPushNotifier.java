@@ -25,7 +25,7 @@ public class GalleryPushNotifier {
 
     /**
      * Ascolta GenerationCompletedEvent (pubblicato da GenerationService.saveAndLogIfTerminal): copre sia il polling
-     * client-side di /generations/{id} sia il watch in background di /deep-chat (DeepChatGenerationWatcher), un solo
+     * client-side di /generations/{id} sia il watch in background di /deep-chat (ChatGenerationWatcher), un solo
      * punto d'aggancio per qualunque generazione completata, indipendentemente da come e' stata avviata.
      */
     @EventListener

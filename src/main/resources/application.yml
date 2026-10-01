@@ -9,7 +9,7 @@ spring:
     # .env non esiste (es. in CI, dove i token arrivano da vere
     # variabili d'ambiente). prompts.properties (nessun "optional:": e'
     # nel jar, deve sempre esistere) porta il testo dei system prompt,
-    # vedi DeepChatService.
+    # vedi ChatService.
     import: optional:file:.env[.properties],classpath:core.yml,classpath:prompts.properties
   application:
     name: deep-flux

@@ -5,18 +5,19 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
 
+import org.dual.replicate.app.chat.adapter.in.web.DeepChatController;
 import org.dual.replicate.app.generation.adapter.in.web.GalleryController;
 import org.dual.replicate.app.generation.adapter.in.web.GenerationController;
 import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.domain.ChatConversation;
-import org.dual.replicate.domain.ChatMessage;
-import org.dual.replicate.domain.ChatMessageRole;
+import org.dual.replicate.app.chat.domain.ChatConversation;
+import org.dual.replicate.app.chat.domain.ChatMessage;
+import org.dual.replicate.app.chat.domain.ChatMessageRole;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
-import org.dual.replicate.repository.ChatConversationRepository;
-import org.dual.replicate.repository.ChatMessageRepository;
+import org.dual.replicate.app.chat.port.out.IChatConversationStore;
+import org.dual.replicate.app.chat.port.out.IChatMessageStore;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,10 +62,10 @@ class TemplateRenderingTests {
     private IGenerationStore repository;
 
     @Autowired
-    private ChatConversationRepository chatConversationRepository;
+    private IChatConversationStore chatConversationRepository;
 
     @Autowired
-    private ChatMessageRepository chatMessageRepository;
+    private IChatMessageStore chatMessageRepository;
 
     @Test
     void generationFormRenders() throws Exception {
@@ -974,9 +975,9 @@ class TemplateRenderingTests {
                 .andExpect(header().string("HX-Redirect", "/gallery"));
 
         assertThat(repository.findById(generation.getId())).isEmpty();
-        assertThat(chatMessageRepository.findById(message.getId()))
-                .isPresent()
-                .get()
+        assertThat(chatMessageRepository.findByConversation(conversation.getId()))
+                .filteredOn(m -> m.getId().equals(message.getId()))
+                .singleElement()
                 .extracting(ChatMessage::getGenerationId)
                 .isNull();
     }
