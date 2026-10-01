@@ -1,8 +1,7 @@
-package org.dual.replicate.app.generation.port.in;
+package org.dual.replicate.app.generation.adapter.in.web.form;
 
 import java.util.Map;
 
-import org.dual.replicate.app.generation.application.GenerationFormService;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 
 /**
@@ -13,7 +12,7 @@ import org.dual.replicate.app.generation.domain.GenerationFormType;
  * submit HTML sia il payload JSON della chat, che le converte a stringa
  * prima di passarle qui) e sa quale fragment Thymeleaf renderizza quei
  * campi. Un'implementazione esplicita per form-type (vedi
- * {@link GenerationFormService} per il dispatch): non e' un motore
+ * {@link GenerationFormRegistry} per il dispatch): non e' un motore
  * di schema dinamico, aggiungere una form significa aggiungere una nuova
  * implementazione, non generalizzare questa interfaccia.
  */

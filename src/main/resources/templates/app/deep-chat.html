@@ -275,7 +275,7 @@
       campi in un colpo a ogni cambiamento, non solo quello che ha
       scatenato l'evento. Valori sempre stringa (FormData li restituisce
       sempre cosi'): la conversione al vocabolario/tipi Replicate e'
-      interamente lato server (IGenerationParameterHandler.toParameterMap),
+      interamente lato server (IGenerationForms#parameters, binding dell'adapter web di generation),
       niente lista di campi numerici da mantenere qui per ogni nuovo
       form-type. Script classico (non module/deferred): gia' eseguito
       durante il parsing, il <form> sopra (nel rail sinistro non
@@ -467,7 +467,7 @@
       DeepChatApiController.Request): tutti gli altri campi del form-type
       corrente finiscono sotto "parameters", nidificati, cosi'
       DeepChatApiController puo' delegare la loro interpretazione allo
-      stesso IGenerationParameterHandler del form diretto senza dover
+      stesso binding (IGenerationForms) del form diretto senza dover
       elencare i nomi dei campi nel Request record — un nuovo form-type
       non richiede modifiche qui. I campi vuoti/non impostati (stringa
       vuota, null, undefined) non vengono inclusi: cosi' un modello che

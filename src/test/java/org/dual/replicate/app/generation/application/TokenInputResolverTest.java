@@ -52,13 +52,4 @@ class TokenInputResolverTest {
                 .isInstanceOf(TokenException.class)
                 .extracting(e -> ((RemoteServiceException) e).kind()).isEqualTo(RemoteServiceException.Kind.REJECTED);
     }
-
-    @Test
-    void formOptionsExposeTheSavedTokensPerProvider() {
-        tokens.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null);
-
-        assertThat(resolver.formOptions()).containsOnlyKeys("hfTokens", "civitaiTokens");
-        assertThat(resolver.formOptions().get("hfTokens")).extracting(IApiTokens.TokenView::name).containsExactly("Personale");
-        assertThat(resolver.formOptions().get("civitaiTokens")).isEmpty();
-    }
 }

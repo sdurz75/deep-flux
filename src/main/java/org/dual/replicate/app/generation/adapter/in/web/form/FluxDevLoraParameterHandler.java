@@ -1,4 +1,4 @@
-package org.dual.replicate.app.generation.application;
+package org.dual.replicate.app.generation.adapter.in.web.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -6,7 +6,6 @@ import java.util.Set;
 
 import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,14 +16,14 @@ import org.springframework.stereotype.Component;
  *   <li>{@code lora_weights}/{@code extra_lora} (Replicate {@code owner/name[/version]}, URL HuggingFace/CivitAI o un
  *       .safetensors) con le rispettive scale; vuoti = nessun LoRA (FLUX dev puro);</li>
  *   <li>{@code prompt_strength}, che ha effetto solo con un'immagine di partenza (img2img: l'{@code image} la aggiunge
- *       {@link GenerationService#create} dal {@code sourceUpload}, come per p-video);</li>
+ *       {@code IGenerations#create} dal {@code sourceUpload}, come per p-video);</li>
  *   <li>{@code hf_token_id}/{@code civitai_token_id}: l'ID del token salvato (CRUD {@code /tokens}) scelto per nome nelle
  *       select, per i LoRA privati. Il token in chiaro non attraversa mai form/chat: {@code GenerationService#doCreate}
  *       sostituisce l'ID con {@code hf_api_token}/{@code civitai_api_token} solo nell'input per Replicate
  *       ({@code TokenInputResolver#resolveInto}); nel PARAMETERS_JSON salvato resta l'ID.</li>
  * </ul>
  * {@code aspect_ratio} non ha {@code match_input_image}: con un'immagine il modello usa comunque quella dell'immagine.
- * {@code disable_safety_checker} non e' esposto: lo forza {@link GenerationService#create} per ogni immagine.
+ * {@code disable_safety_checker} non e' esposto: lo forza {@code IGenerations#create} per ogni immagine.
  * {@code go_fast} e' deliberatamente {@code false} per default (non il default Replicate), come krea-dev/klein-9b;
  * essendo una checkbox va letta con {@code containsKey}.
  */

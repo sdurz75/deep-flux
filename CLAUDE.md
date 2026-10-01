@@ -238,7 +238,8 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
 - `app.generation`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni transizione
   terminale; `GenerationsDeletedEvent`/`GenerationImageDeletedEvent` per le cancellazioni), `GenerationController` (crea, polling/dettaglio,
   listato, cancellazioni, "AI enhance" `POST /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `LoraController`,
-  `GenerationFormService` (impl di `IGenerationForms`) + un `IGenerationParameterHandler` per form-type (`FluxLoraFf3ParameterHandler`,
+  `adapter.in.web.form` (la conversione campi di form → parametri sta nell'interface layer, non nell'esagono): `GenerationFormRegistry`
+  (impl di `IGenerationForms`, il contratto che vede la chat) + un `IGenerationParameterHandler` per form-type (`FluxLoraFf3ParameterHandler`,
   `Flux2Klein9bParameterHandler`, `FluxKreaDevParameterHandler`, `PVideoParameterHandler`, `FluxKontextDevParameterHandler`,
   `FluxDevLoraParameterHandler`; `image` di p-video lo aggiunge `GenerationController`, `input_image` di kontext `GenerationService`),
   `ModelCatalogService` (impl di `IModelCatalog`, catalogo censito in `replicate_model`), `TokenInputResolver`, adapter `replicate`
@@ -577,7 +578,7 @@ CRUD in `/tokens` (`core.tokens`: `TokenController`, `IApiTokens`/`ApiTokenServi
 offerti li elenca l'app implementando `ITokenProviderCatalog` (`AppTokenProviders`, valori di `ApiTokenProvider`; etichette `tokens.provider.<NAME>`).
 Il token si salva con un NOME (unico per provider) e una scadenza facoltativa (data inserita a mano:
 nessuno dei due servizi la espone), si sceglie per nome nelle select delle form (`hfTokens`/`civitaiTokens` nel Model, solo dove si
-renderizza il fragment del form-type: `GenerationController`, `DeepChatController`; `TokenInputResolver#formOptions` su `IApiTokens#options`).
+renderizza il fragment del form-type: `GenerationController`, `DeepChatController`; `GenerationFormRegistry#extraFormOptions` su `IApiTokens#options`).
 Dopo il salvataggio non si vede piu': la UI mostra solo gli ultimi 4 caratteri (`token_hint`). Mai il segreto in log, eventi, toast o modello Thymeleaf.
 
 - **Cifratura**: `ISecretCipher` (impl `SecretCipher`, `core.secrets`) usa la STESSA chiave e lo STESSO algoritmo dei binari WebDAV

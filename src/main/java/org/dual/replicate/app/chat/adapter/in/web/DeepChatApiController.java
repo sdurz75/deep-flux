@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  * ingresso ({@code parameters} arriva via requestInterceptor, vedi il
  * template — il pannello impostazioni li invia gia' col nome dei campi
  * del form-type corrente, risolti in "input" Replicate dallo stesso
- * IGenerationParameterHandler usato dal form diretto, vedi
+ * binding del form diretto (IGenerationForms), vedi
  * toGenerationParameters sotto), {"text": "...", "files":[{"src","name","type":"image"}]}
  * o {"error":"..."} in uscita — "files" con type "image" e' il formato
  * che deep-chat riconosce per mostrare un'immagine in chat, non solo
@@ -43,18 +43,18 @@ public class DeepChatApiController {
 
     private final IChat chat;
     private final IModelCatalog modelCatalog;
-    private final IGenerationForms parameterHandlers;
+    private final IGenerationForms forms;
     private final Messages messages;
     private final ISystemEvents systemEvents;
 
     public DeepChatApiController(IChat chat,
                                   IModelCatalog modelCatalog,
-                                  IGenerationForms parameterHandlers,
+                                  IGenerationForms forms,
                                   Messages messages,
                                   ISystemEvents systemEvents) {
         this.chat = chat;
         this.modelCatalog = modelCatalog;
-        this.parameterHandlers = parameterHandlers;
+        this.forms = forms;
         this.messages = messages;
         this.systemEvents = systemEvents;
     }
@@ -81,9 +81,8 @@ public class DeepChatApiController {
     }
 
     /**
-     * Delega al IGenerationParameterHandler del form-type del modello
-     * scelto (stesso condiviso con GenerationController, il form
-     * diretto): se il modello non e' censito nel catalogo (non dovrebbe
+     * Delega alla porta {@link IGenerationForms} per il form-type del
+     * modello scelto (stesso binding del form diretto di GenerationController): se il modello non e' censito nel catalogo (non dovrebbe
      * succedere, la select lato client offre solo modelli censiti)
      * nessun parametro extra viene inviato, il modello riceve solo il
      * prompt. I valori arrivano dal client gia' come stringhe (vedi
@@ -91,8 +90,7 @@ public class DeepChatApiController {
      */
     private Map<String, Object> toGenerationParameters(Request request) {
         return modelCatalog.formTypeOf(request.model())
-                .map(parameterHandlers::get)
-                .map(handler -> handler.toParameterMap(toStringMap(request.parameters())))
+                .map(formType -> forms.parameters(formType, toStringMap(request.parameters())))
                 .orElseGet(Map::of);
     }
 

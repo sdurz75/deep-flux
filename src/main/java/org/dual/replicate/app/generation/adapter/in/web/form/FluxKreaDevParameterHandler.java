@@ -1,10 +1,9 @@
-package org.dual.replicate.app.generation.application;
+package org.dual.replicate.app.generation.adapter.in.web.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,7 +21,7 @@ import org.springframework.stereotype.Component;
  * {@code disable_safety_checker} non sono esposti in UI: il primo per
  * la stessa ragione degli altri due form-type (nessuna UI di upload in
  * questo progetto), il secondo perche' forzato a true incondizionatamente
- * da {@link GenerationService#create}, per ogni modello.
+ * da {@code IGenerations#create}, per ogni modello.
  *
  * {@code go_fast} e' l'unico altro campo booleano/checkbox del progetto
  * insieme a quello di klein-9b: una checkbox HTML non sottomette affatto

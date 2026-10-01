@@ -1,11 +1,10 @@
-package org.dual.replicate.app.generation.application;
+package org.dual.replicate.app.generation.adapter.in.web.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
 import org.springframework.stereotype.Component;
 
 /**

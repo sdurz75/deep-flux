@@ -17,7 +17,6 @@ import java.util.stream.Stream;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Prediction;
 import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.app.generation.port.out.IPredictionGateway;
@@ -123,7 +122,7 @@ public class GenerationService implements IGenerations {
      * generation-params-flux-krea-dev.html),
      * quindi l'unico punto in cui puo' essere garantito per OGNI modello
      * censito, presente e futuro, e' qui - non in ciascun
-     * IGenerationParameterHandler (duplicherebbe la regola una volta per
+     * handler dell'adapter web (duplicherebbe la regola una volta per
      * form-type) ne' nel solo chiamante chatbot (lascerebbe il form
      * diretto scoperto, come accadeva prima). Sovrascrive sempre
      * qualunque valore eventualmente presente in parametersJson, non solo

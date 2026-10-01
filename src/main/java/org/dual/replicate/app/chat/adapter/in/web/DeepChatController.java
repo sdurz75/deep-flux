@@ -15,7 +15,6 @@ import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.springframework.http.HttpStatus;
@@ -43,20 +42,20 @@ import jakarta.servlet.http.HttpServletResponse;
 public class DeepChatController {
 
     private final IModelCatalog modelCatalog;
-    private final IGenerationForms parameterHandlers;
+    private final IGenerationForms forms;
     private final IChatConversations conversations;
     private final IGenerations generationService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
 
     public DeepChatController(IModelCatalog modelCatalog,
-                               IGenerationForms parameterHandlers,
+                               IGenerationForms forms,
                                IChatConversations conversations,
                                IGenerations generationService,
                                ObjectMapper objectMapper,
                                Messages messages) {
         this.modelCatalog = modelCatalog;
-        this.parameterHandlers = parameterHandlers;
+        this.forms = forms;
         this.conversations = conversations;
         this.generationService = generationService;
         this.objectMapper = objectMapper;
@@ -95,15 +94,11 @@ public class DeepChatController {
         model.addAttribute("models", modelCatalog.models(GenerationKind.IMAGE));
         Optional<ReplicateModel> defaultModel = modelCatalog.defaultModel();
         model.addAttribute("model", defaultModel.map(ReplicateModel::getIdentifier).orElse(""));
-        IGenerationParameterHandler handler = defaultModel.map(m -> parameterHandlers.get(m.getFormType())).orElse(null);
-        model.addAttribute("formType", handler == null ? null : handler.formType().name());
-        if (handler != null) {
-            handler.defaultFields().forEach(model::addAttribute);
-            parameterHandlers.extraFormOptions(handler.formType()).forEach(model::addAttribute);
-        }
+        model.addAttribute("formType", defaultModel.map(m -> m.getFormType().name()).orElse(null));
+        defaultModel.ifPresent(m -> forms.formModel(m.getFormType()).forEach(model::addAttribute));
         // Push del seed dal dettaglio di una generazione (vedi fragments/app/generation.html :: status,
-        // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' in
-        // defaultFields(), va impostato a parte.
+        // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' nel
+        // formModel() (default dei campi), va impostato a parte.
         if (seed != null) {
             model.addAttribute("seed", seed);
         }

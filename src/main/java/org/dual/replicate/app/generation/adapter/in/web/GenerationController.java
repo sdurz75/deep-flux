@@ -24,8 +24,8 @@ import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
-import org.dual.replicate.app.generation.port.in.IGenerationForms;
+import org.dual.replicate.app.generation.adapter.in.web.form.GenerationFormRegistry;
+import org.dual.replicate.app.generation.adapter.in.web.form.IGenerationParameterHandler;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
@@ -65,7 +65,7 @@ public class GenerationController {
 
     private final IGenerations generationService;
     private final IModelCatalog modelCatalog;
-    private final IGenerationForms parameterHandlers;
+    private final GenerationFormRegistry parameterHandlers;
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final IPromptEnhancer promptEnhancementService;
@@ -75,7 +75,7 @@ public class GenerationController {
 
     public GenerationController(IGenerations generationService,
                                  IModelCatalog modelCatalog,
-                                 IGenerationForms parameterHandlers,
+                                 GenerationFormRegistry parameterHandlers,
                                  ObjectMapper objectMapper,
                                  Messages messages,
                                  IPromptEnhancer promptEnhancementService,
@@ -172,7 +172,7 @@ public class GenerationController {
             String resolvedVersion = (version == null || version.isBlank())
                     ? modelCatalog.versionOf(model).orElse(null)
                     : version;
-            Map<String, Object> parameters = parameterHandlers.get(formType).toParameterMap(allParams);
+            Map<String, Object> parameters = parameterHandlers.parameters(formType, allParams);
             // img2video / modifica: solo se il modello scelto prende una sorgente (per un text-to-image
             // la sorgente e' ignorata). L'immagine la aggiunge GenerationService#create all'input Replicate (come
             // data-URI, fuori da parametersJson); con un'immagine in input p-video ignora aspect_ratio,
@@ -266,7 +266,7 @@ public class GenerationController {
     public String params(@RequestParam String model, @RequestParam Map<String, String> allParams, Model uiModel) {
         GenerationFormType formType = modelCatalog.formTypeOf(model)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("generateForm.error.unknownModel", model)));
-        IGenerationParameterHandler handler = parameterHandlers.get(formType);
+        IGenerationParameterHandler handler = parameterHandlers.handler(formType);
         populateFormTypeFields(uiModel, handler, allParams);
         addTokenOptions(uiModel, handler);
         return handler.fragmentName();
@@ -347,9 +347,9 @@ public class GenerationController {
         model.addAttribute("editPage", edit);
         model.addAttribute("model", modelValue);
         IGenerationParameterHandler handler = modelCatalog.formTypeOf(modelValue)
-                .map(parameterHandlers::get)
+                .map(parameterHandlers::handler)
                 .orElseGet(() -> pageModels.stream().findFirst()
-                        .map(m -> parameterHandlers.get(m.getFormType()))
+                        .map(m -> parameterHandlers.handler(m.getFormType()))
                         .orElse(null));
         model.addAttribute("formType", handler == null ? null : handler.formType().name());
         if (handler != null) {

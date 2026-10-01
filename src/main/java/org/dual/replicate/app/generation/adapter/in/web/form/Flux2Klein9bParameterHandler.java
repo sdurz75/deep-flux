@@ -1,10 +1,9 @@
-package org.dual.replicate.app.generation.application;
+package org.dual.replicate.app.generation.adapter.in.web.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
-import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
  * scheletro dell'interfaccia. {@code images} (input per image-to-image)
  * non e' esposto in UI. {@code disable_safety_checker} nemmeno: non e'
  * un campo di questo handler, e' forzato a true incondizionatamente da
- * {@link GenerationService#create}, per ogni modello immagine.
+ * {@code IGenerations#create}, per ogni modello immagine.
  *
  * {@code go_fast} e' l'unico campo booleano/checkbox del progetto: una
  * checkbox HTML non sottomette affatto la propria chiave quando e'
