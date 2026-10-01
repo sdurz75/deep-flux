@@ -1,0 +1,133 @@
+# Config del CORE (riusabile da ogni webapp costruita su questo template): web/MVC, i18n, DB+Flyway, eventi di sistema, SSE,
+# secrets/token, storage dei binari. Caricata da application.yml (spring.config.import); le chiavi qui sono disgiunte da quelle
+# dell'app (application.yml: Spring AI, Replicate, SearXNG, enhancer, recupero e indice di ricerca).
+server:
+  port: 8080
+  # Senza questo, dietro un reverse proxy (nginx, Traefik, ...) che
+  # termina TLS e/o inoltra su un path diverso, l'app vede scheme/host
+  # "interni" (es. http://127.0.0.1:8080) invece di quelli pubblici: i
+  # redirect generati con "redirect:..." (vedi GenerationController,
+  # GalleryController) verrebbero assolutizzati dal container Servlet
+  # con l'host sbagliato, mandando il browser fuori strada. "framework"
+  # attiva Spring's ForwardedHeaderFilter, che legge X-Forwarded-Proto/
+  # Host/Port/Prefix e corregge scheme/host/contextPath visti
+  # dall'applicazione (Thymeleaf incluso) di conseguenza. Presuppone che
+  # il proxy sia l'unico punto d'ingresso e sovrascriva/rimuova questi
+  # header se un client li invia direttamente: non esporre mai la porta
+  # 8080 dell'app stessa a Internet.
+  forward-headers-strategy: framework
+
+spring:
+  servlet:
+    multipart:
+      # Immagine di partenza caricata per un img2video (IImageStorageService#storeUpload):
+      # il default di 1MB rifiuterebbe quasi ogni foto. Volutamente PIU' ALTI del limite applicativo
+      # (IImageStorageService.MAX_UPLOAD_BYTES, 10 MB): un rifiuto del container arriverebbe a htmx
+      # come 413 senza swap (nessun messaggio), cosi' invece l'errore tradotto finisce nel form.
+      max-file-size: 12MB
+      max-request-size: 15MB
+  thymeleaf:
+    # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
+    cache: false
+  http:
+    # Timeout di TUTTI i client HTTP auto-configurati (RestClient.Builder: Replicate, SearXNG, download
+    # immagini/video, e il client di Spring AI verso OpenRouter). Senza, una connessione appesa blocca il
+    # thread per sempre (un poll che non torna non lascia mai lo stato "in corso"). Il read-timeout e' per
+    # singola lettura del socket, non per l'intera risposta: 120s copre anche un turno LLM lento o il
+    # download di un mp4 senza troncarlo. Nomi verificati in spring-boot-http-client 4.1.1
+    # (spring.http.clients.*); SearXNG ha in piu' un timeout piu' stretto proprio (SearxngClient).
+    clients:
+      connect-timeout: 10s
+      read-timeout: 120s
+  web:
+    # Fallback quando Accept-Language manca o non e' parsabile:
+    # altrimenti LocaleContextHolder.getLocale() userebbe
+    # Locale.getDefault(), dipendente dall'ambiente di esecuzione. Il
+    # resolver resta AcceptHeaderLocaleResolver (default Boot, non
+    # sovrascritto): legge Accept-Language a ogni richiesta.
+    locale: it
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true
+  # PostgreSQL con l'estensione pgvector (dati relazionali E vector store della ricerca semantica): `docker compose up -d`
+  # avvia quello di sviluppo (compose.yaml). Credenziali dal .env, mai committate.
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:deepflux}
+    username: ${DB_USERNAME:deepflux}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      # Lo schema e' governato da Flyway (vedi resources/db/migration/),
+      # non da Hibernate: "validate" verifica solo che le entity JPA
+      # corrispondano alle tabelle create dalle migrazioni, non le crea
+      # ne' le altera. Ogni modifica al DB va fatta con una nuova
+      # migrazione, mai lasciando che Hibernate la dedurrebbe da solo.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+  # i18n nativo Spring/Thymeleaf (vedi CLAUDE.md, sezione dedicata):
+  # messages.properties (italiano, bundle di default/fallback) +
+  # messages_en.properties. Nessun LocaleResolver/WebMvcConfigurer da
+  # scrivere: AcceptHeaderLocaleResolver e' gia' il default di Spring
+  # Boot MVC (vedi spring.web.locale sopra), legge Accept-Language a
+  # ogni richiesta (incluse le richieste htmx e il polling di
+  # /generations/{id}).
+  messages:
+    basename: messages,messages-core
+    encoding: UTF-8
+    # Una locale non mappata (es. "de") ricade sul bundle di base
+    # (italiano), non sul default della JVM che ospita il processo.
+    fallback-to-system-locale: false
+  # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone
+  # un'API OpenAI-compatibile (https://openrouter.ai/docs): basta puntare lo
+  # starter Spring AI per OpenAI sul suo base-url, nessun client custom.
+  # Da esportare come variabile d'ambiente, mai committato:
+  #   export OPENROUTER_API_TOKEN=sk-or-...
+app:
+  secrets:
+    # Chiave AES-256 (base64) che cifra i token API nel DB (SecretCipher): la STESSA dei binari su WebDAV, nessun segreto nuovo.
+    # A differenza di WebDAV non e' obbligatoria all'avvio: senza, /tokens segnala che manca e non si possono salvare token.
+    encryption-key: ${storage.webdav.encryption-key:}
+  tokens:
+    # Scadenza dei token (TokenExpiryScheduler): controllo all'avvio e periodico; avviso se scade entro expiry-warning-days.
+    # Disattivato nei test (application-test.yml).
+    expiry-check-enabled: true
+    expiry-check-interval: 1h
+    expiry-warning-days: 15
+  events:
+    # Registro eventi di sistema (SystemEventService): gli AVVISI (severita' WARNING, es. token in scadenza) raggruppano le
+    # ripetizioni dello stesso evento in questa finestra (un solo toast per serie); gli errori restano a 5 minuti.
+    warning-series-window: 24h
+
+storage:
+  # Backend dei binari (immagini, video, upload sorgente), serviti sempre via /images/** (ImageController):
+  #   local  = filesystem locale sotto images-dir (default)
+  #   webdav = server WebDAV, contenuti SEMPRE cifrati con chiave simmetrica (AES-256-GCM)
+  type: local
+  # Directory locale (type=local) dove vengono salvate le immagini scaricate da Replicate.
+  images-dir: ./data/images
+  webdav:
+    # Collezione WebDAV che contiene i blob (es. https://host/remote.php/dav/files/utente/deep-flux/).
+    url: ${STORAGE_WEBDAV_URL:}
+    username: ${STORAGE_WEBDAV_USERNAME:}
+    password: ${STORAGE_WEBDAV_PASSWORD:}
+    # Chiave AES-256 in base64 (openssl rand -base64 32). Mai nel repo: solo da ambiente. Persa la chiave, i binari
+    # su WebDAV sono irrecuperabili.
+    encryption-key: ${STORAGE_WEBDAV_ENCRYPTION_KEY:}
+    cache:
+      # Cache locale dei blob cifrati (LRU con tetto) per evitare round trip verso WebDAV; max-size 0 = disattivata.
+      dir: ./data/cache
+      max-size: 2GB
+  # Migrazione una tantum da images-dir (locale) a WebDAV: richiede type=webdav, parte all'avvio, salta i file gia'
+  # presenti sul server (riavviabile) e poi va rimessa a false. delete-local elimina ogni originale solo dopo aver
+  # verificato la dimensione sul server. Finche' non ha finito, i file non ancora migrati non sono serviti.
+  migration:
+    from-local:
+      enabled: false
+      delete-local: false
+
+logging:
+  level:
+    org.springframework.web: INFO
