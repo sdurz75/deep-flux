@@ -160,7 +160,7 @@ public class ApiTokenService implements IApiTokens {
             return false;
         }
         LocalDate today = today();
-        String provider = messages.get("tokens.provider." + token.getProvider());
+        String provider = messages.getOrDefault("tokens.provider." + token.getProvider(), token.getProvider());
         if (today.isAfter(token.getExpiresAt())) {
             events.warn(CoreEventSource.TOKENS, "tokenExpired", subject(token),
                     messages.get("tokens.warning.expired", token.getName(), provider, token.getExpiresAt().toString()));

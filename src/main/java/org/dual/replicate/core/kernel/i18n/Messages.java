@@ -30,4 +30,9 @@ public class Messages {
     public String get(String code, Object... args) {
         return accessor.getMessage(code, args);
     }
+
+    /** Il testo di {@code code}, o {@code fallback} se la chiave non esiste (etichette facoltative, definite da chi estende il core). */
+    public String getOrDefault(String code, String fallback) {
+        return accessor.getMessage(code, fallback);
+    }
 }
