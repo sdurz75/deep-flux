@@ -65,8 +65,6 @@ spring:
       # migrazione, mai lasciando che Hibernate la dedurrebbe da solo.
       ddl-auto: validate
     open-in-view: false
-  flyway:
-    locations: classpath:db/migration
   # i18n nativo Spring/Thymeleaf (vedi CLAUDE.md, sezione dedicata):
   # messages.properties (italiano, bundle di default/fallback) +
   # messages_en.properties. Nessun LocaleResolver/WebMvcConfigurer da

@@ -10,7 +10,7 @@ import org.testcontainers.utility.DockerImageName;
  * Un PostgreSQL+pgvector usa-e-getta per TUTTA la suite: container singleton avviato alla prima richiesta e lasciato a Ryuk, che lo
  * toglie a fine JVM. Registrato in {@code META-INF/spring.factories}, cosi' ogni {@code @SpringBootTest} lo eredita senza
  * annotazioni per classe (come il profilo "test" di Surefire) e nessun test puo' toccare il database di sviluppo. Richiede Docker.
- * Flyway applica lo schema reale (V1, con l'estensione {@code vector}) alla prima partenza di un contesto; i contesti successivi
+ * Flyway applica lo schema reale (core + app, con l'estensione {@code vector}) alla prima partenza di un contesto; i contesti successivi
  * ritrovano lo stesso database gia' migrato.
  */
 public class PostgresTestContainerInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {

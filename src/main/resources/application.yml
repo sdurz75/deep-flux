@@ -13,6 +13,10 @@ spring:
     import: optional:file:.env[.properties],classpath:core.yml,classpath:prompts.properties
   application:
     name: deep-flux
+  flyway:
+    # core (sistemi riusabili) + app: versioni a timestamp, una sola sequenza (vedi db/migration/core/V2026_10_01_1200__core_baseline.sql).
+    # Qui e non in core.yml: una chiave dell'app vince sempre su quella importata, e la lista dipende da quante location ha l'app.
+    locations: classpath:db/migration/core,classpath:db/migration/app
   ai:
     openai:
       api-key: ${OPENROUTER_API_TOKEN:}
