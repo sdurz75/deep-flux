@@ -124,7 +124,7 @@ class SystemEventServiceTest {
 
     @Test
     void theSourceIsInferredFromTheRemoteExceptionEvenWhenWrapped() {
-        var storage = new org.dual.replicate.service.storage.StorageException("webdav giu'", null,
+        var storage = new org.dual.replicate.core.storage.domain.StorageException("webdav giu'", null,
                 org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind.TRANSIENT);
 
         service.record("serveImage", new RuntimeException("incapsulata", storage));
@@ -136,9 +136,9 @@ class SystemEventServiceTest {
 
     @Test
     void aTransientFailureIsFlaggedInTheToastPayload() {
-        var transientFailure = new org.dual.replicate.service.storage.StorageException("giu'", null,
+        var transientFailure = new org.dual.replicate.core.storage.domain.StorageException("giu'", null,
                 org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind.TRANSIENT);
-        var permanent = new org.dual.replicate.service.storage.StorageException("403", null,
+        var permanent = new org.dual.replicate.core.storage.domain.StorageException("403", null,
                 org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind.PERMANENT);
 
         assertThat(service.record("a", transientFailure).transientFailure()).isTrue();

@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.webdav;
 
 import java.io.IOException;
 import java.nio.file.Files;

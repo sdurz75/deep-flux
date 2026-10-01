@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.webdav;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +14,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.storage.adapter.in.web.UploadedFiles;
+import org.dual.replicate.core.storage.adapter.out.http.HttpFileFetcher;
+import org.dual.replicate.core.storage.application.ImageStorageService;
+import org.dual.replicate.core.storage.domain.StorageException;
+import org.dual.replicate.core.storage.domain.StorageNames;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +37,7 @@ import static org.mockito.Mockito.when;
  * Un server WebDAV in memoria (HttpServer JDK: PUT/GET con Range/HEAD/DELETE/MKCOL/MOVE) esercita il client vero.
  * Nessuna chiamata di rete esterna.
  */
-class WebDavImageStorageServiceTest {
+class WebDavBlobBackendTest {
 
     private static final byte[] PNG_HEAD = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
 
@@ -80,30 +85,35 @@ class WebDavImageStorageServiceTest {
         return dav.base();
     }
 
-    private WebDavImageStorageService service(Path cacheDir, DataSize cacheMax) throws IOException {
-        return new WebDavImageStorageService(base() + "/dav/", "user", "secret", key, cacheDir.toString(), cacheMax,
+    /** Lo use case vero sul backend WebDAV: i test passano dall'API pubblica dello storage. */
+    private WebDavBlobBackend backend(Path cacheDir, DataSize cacheMax) throws IOException {
+        return new WebDavBlobBackend(base() + "/dav/", "user", "secret", key, cacheDir.toString(), cacheMax,
                 messages, RestClient.builder(), systemEvents);
     }
 
-    private WebDavImageStorageService service() throws IOException {
+    private ImageStorageService service(Path cacheDir, DataSize cacheMax) throws IOException {
+        return new ImageStorageService(backend(cacheDir, cacheMax), new HttpFileFetcher(messages, RestClient.builder()), messages);
+    }
+
+    private ImageStorageService service() throws IOException {
         return service(tmp.resolve("cache"), DataSize.ofMegabytes(10));
     }
 
     private int getsOf(String name) {
-        return dav.getsOf(AbstractImageStorageService.shardPath(name));
+        return dav.getsOf(StorageNames.shardPath(name));
     }
 
     // --- test -------------------------------------------------------------------------------------------------
 
     @Test
     void storesOnlyEncryptedBytesOnTheServerAndReadsThemBack() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
 
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
         assertThat(filename).matches("[0-9a-f]{64}\\.png");
-        assertThat(store).containsOnlyKeys("/dav/"+AbstractImageStorageService.shardPath(filename)); // niente .part rimasto
-        byte[] remote = store.get("/dav/"+AbstractImageStorageService.shardPath(filename));
+        assertThat(store).containsOnlyKeys("/dav/"+StorageNames.shardPath(filename)); // niente .part rimasto
+        byte[] remote = store.get("/dav/"+StorageNames.shardPath(filename));
         assertThat(new String(remote, StandardCharsets.ISO_8859_1)).doesNotContain("XXXXXXXX");
         assertThat(Arrays.copyOf(remote, PNG_HEAD.length)).isNotEqualTo(PNG_HEAD);
         assertThat(service.read(filename).bytes()).isEqualTo(png);
@@ -113,7 +123,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void writeThroughCacheAvoidsAnyRoundTripOnReads() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
         service.read(filename);
@@ -126,7 +136,7 @@ class WebDavImageStorageServiceTest {
     @Test
     void aCacheMissDownloadsTheBlobOnceThenServesFromCache() throws IOException {
         String filename = service().downloadAndStore(base() + "/src/x.png");
-        WebDavImageStorageService fresh = service(tmp.resolve("other-cache"), DataSize.ofMegabytes(10));
+        ImageStorageService fresh = service(tmp.resolve("other-cache"), DataSize.ofMegabytes(10));
 
         assertThat(fresh.read(filename).bytes()).isEqualTo(png);
         assertThat(fresh.read(filename).bytes()).isEqualTo(png);
@@ -140,8 +150,8 @@ class WebDavImageStorageServiceTest {
         byte[] mp4 = random(300_000, 11);
         Path source = tmp.resolve("clip.mp4");
         java.nio.file.Files.write(source, mp4);
-        service().importFile("12-0.mp4", source);
-        WebDavImageStorageService fresh = service(tmp.resolve("other-cache"), DataSize.ofMegabytes(10));
+        backend(tmp.resolve("cache"), DataSize.ofMegabytes(10)).importFile("12-0.mp4", source);
+        ImageStorageService fresh = service(tmp.resolve("other-cache"), DataSize.ofMegabytes(10));
 
         try (InputStream in = fresh.openRange("12-0.mp4", 0, 1000)) {
             assertThat(in.readAllBytes()).isEqualTo(Arrays.copyOfRange(mp4, 0, 1000));
@@ -157,7 +167,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void cachedBlobsAreStillServedWhenWebDavIsDown() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         String filename = service.downloadAndStore(base() + "/src/x.png");
         down.set(true);
 
@@ -166,7 +176,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void withoutCacheRangesAreReadFromTheServer() throws IOException {
-        WebDavImageStorageService service = service(tmp.resolve("no-cache"), DataSize.ofBytes(0));
+        ImageStorageService service = service(tmp.resolve("no-cache"), DataSize.ofBytes(0));
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
         try (InputStream in = service.openRange(filename, 100_000, 500)) {
@@ -177,7 +187,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void aBlobLargerThanTheCacheLimitIsServedByRangeFromTheServer() throws IOException {
-        WebDavImageStorageService service = service(tmp.resolve("tiny-cache"), DataSize.ofKilobytes(1));
+        ImageStorageService service = service(tmp.resolve("tiny-cache"), DataSize.ofKilobytes(1));
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
         assertThat(service.read(filename).bytes()).isEqualTo(png);
@@ -186,19 +196,19 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void uploadIsEncryptedToo() throws IOException {
-        WebDavImageStorageService service = service();
-        var upload = new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png);
+        ImageStorageService service = service();
+        var upload = UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png));
 
         String filename = service.storeUpload(upload);
 
         assertThat(filename).matches("[0-9a-f]{64}\\.png");
-        assertThat(store.get("/dav/" + AbstractImageStorageService.shardPath(filename))).isNotEqualTo(png);
+        assertThat(store.get("/dav/" + StorageNames.shardPath(filename))).isNotEqualTo(png);
         assertThat(service.read(filename).bytes()).isEqualTo(png);
     }
 
     @Test
     void deleteRemovesFromServerAndCache() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
         service.delete(filename);
@@ -211,7 +221,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void missingFileHasNoSizeAndReadFails() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
 
         assertThat(service.size("nope.png")).isEmpty();
         assertThatThrownBy(() -> service.read("nope.png")).isInstanceOf(StorageException.class);
@@ -219,7 +229,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void theCollectionIsCreatedOnlyOnce() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
 
         service.downloadAndStore(base() + "/src/x.png");
         service.downloadAndStore(base() + "/src/x.png");
@@ -230,43 +240,43 @@ class WebDavImageStorageServiceTest {
     @Test
     void aRejectedMkcolOnAnExistingCollectionDoesNotBlockWrites() throws IOException {
         dav.mkcolStatus = 409; // es. Yandex sulla radice del disco
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
 
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
-        assertThat(store).containsKey("/dav/" + AbstractImageStorageService.shardPath(filename));
+        assertThat(store).containsKey("/dav/" + StorageNames.shardPath(filename));
         assertThat(service.read(filename).bytes()).isEqualTo(png);
     }
 
     @Test
     void aTransientServerErrorOnWriteIsRetriedAndTheSaveSucceeds() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         dav.failMethod = "PUT";
         dav.failuresLeft.set(2); // 503 sui primi due tentativi di PUT, il terzo (ultimo ritentativo) riesce
 
         String filename = service.downloadAndStore(base() + "/src/x.png");
 
-        assertThat(store).containsOnlyKeys("/dav/" + AbstractImageStorageService.shardPath(filename));
+        assertThat(store).containsOnlyKeys("/dav/" + StorageNames.shardPath(filename));
         assertThat(service.read(filename).bytes()).isEqualTo(png);
         assertThat(dav.requestsOf("PUT")).isEqualTo(3);
     }
 
     @Test
     void aPermanentErrorIsNotRetried() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         service.downloadAndStore(base() + "/src/x.png"); // crea le collezioni
         int puts = dav.requestsOf("PUT");
         dav.failureStatus = 403;
         dav.failuresLeft.set(100);
 
-        assertThatThrownBy(() -> service.storeUpload(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png))).isNotNull();
+        assertThatThrownBy(() -> service.storeUpload(UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png)))).isNotNull();
 
         assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 1);
     }
 
     @Test
     void retriesAreBoundedThenTheTransientErrorSurfaces() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         service.downloadAndStore(base() + "/src/x.png");
         int puts = dav.requestsOf("PUT");
         dav.failuresLeft.set(100);
@@ -274,14 +284,14 @@ class WebDavImageStorageServiceTest {
         assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png"))
                 .isInstanceOf(StorageException.class);
 
-        // 3 tentativi WebDAV per ognuno dei 3 tentativi di download (retry nidificati, accettato: vedi AbstractImageStorageService)
+        // 3 tentativi WebDAV per ognuno dei 3 tentativi di download (retry nidificati, accettato: vedi ImageStorageService)
         assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 9);
         assertThat(store).hasSize(1); // niente .part rimasto
     }
 
     @Test
     void aFailedPartCleanupIsRecordedNotSwallowed() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         service.downloadAndStore(base() + "/src/x.png");
         dav.failureStatus = 403; // permanente: la PUT fallisce e anche il DELETE del .part
         dav.failuresLeft.set(100);
@@ -294,7 +304,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void deletingAMissingFileIsNotAnError() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         service.downloadAndStore(base() + "/src/x.png");
 
         service.delete("nonexistent.png"); // 404 sul server: tollerato
@@ -304,7 +314,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void aFailingServerFailsTheSaveWithoutLeavingTempFiles() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
         down.set(true);
 
         assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png"))
@@ -316,7 +326,7 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void rejectsPathTraversal() throws IOException {
-        WebDavImageStorageService service = service();
+        ImageStorageService service = service();
 
         assertThatThrownBy(() -> service.read("../x.png")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.delete("a/b.png")).isInstanceOf(IllegalArgumentException.class);
@@ -324,12 +334,12 @@ class WebDavImageStorageServiceTest {
 
     @Test
     void refusesToStartWithoutUrlOrWithAnInvalidKey() {
-        assertThatThrownBy(() -> new WebDavImageStorageService("", "", "", key, tmp.toString(), DataSize.ofMegabytes(1),
+        assertThatThrownBy(() -> new WebDavBlobBackend("", "", "", key, tmp.toString(), DataSize.ofMegabytes(1),
                 messages, RestClient.builder(), systemEvents)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new WebDavImageStorageService(base(), "", "", "", tmp.toString(),
+        assertThatThrownBy(() -> new WebDavBlobBackend(base(), "", "", "", tmp.toString(),
                 DataSize.ofMegabytes(1), messages, RestClient.builder(), systemEvents))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new WebDavImageStorageService(base(), "", "",
+        assertThatThrownBy(() -> new WebDavBlobBackend(base(), "", "",
                 Base64.getEncoder().encodeToString(new byte[16]), tmp.toString(), DataSize.ofMegabytes(1), messages,
                 RestClient.builder(), systemEvents)).isInstanceOf(IllegalArgumentException.class);
     }

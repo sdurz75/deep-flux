@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.application;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,6 +10,7 @@ import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.dual.replicate.core.storage.port.out.IBlobImportTarget;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,12 +38,12 @@ public class LocalToWebDavMigrator {
     public record Result(int migrated, int skipped, int failed, int deletedLocal, long migratedBytes) {
     }
 
-    private final WebDavImageStorageService target;
+    private final IBlobImportTarget target;
     private final ISystemEvents systemEvents;
     private final Path sourceDir;
     private final boolean deleteLocal;
 
-    public LocalToWebDavMigrator(ObjectProvider<WebDavImageStorageService> target, ISystemEvents systemEvents,
+    public LocalToWebDavMigrator(ObjectProvider<IBlobImportTarget> target, ISystemEvents systemEvents,
                                  @Value("${storage.images-dir}") String imagesDir,
                                  @Value("${storage.migration.from-local.delete-local:false}") boolean deleteLocal) {
         this.target = target.getIfAvailable();

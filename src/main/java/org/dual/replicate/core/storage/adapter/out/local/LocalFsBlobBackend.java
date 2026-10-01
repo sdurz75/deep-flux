@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.local;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,34 +8,27 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.OptionalLong;
 
-import org.dual.replicate.core.kernel.i18n.Messages;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.dual.replicate.core.storage.port.out.IBlobBackend;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import org.springframework.stereotype.Component;
+
+import static org.dual.replicate.core.storage.domain.StorageNames.checkFilename;
+import static org.dual.replicate.core.storage.domain.StorageNames.shardPath;
 
 /**
  * Backend su filesystem locale: i file vivono sotto storage.images-dir, fuori da static/ perche' sono stato
  * applicativo prodotto a runtime, non asset del progetto (li serve ImageController via /images/**). Default
  * ({@code storage.type=local}).
  */
-@Service
+@Component
 @ConditionalOnProperty(name = "storage.type", havingValue = "local", matchIfMissing = true)
-public class LocalFsImageStorageService extends AbstractImageStorageService {
+public class LocalFsBlobBackend implements IBlobBackend {
 
     private final Path imagesDir;
 
-    @Autowired
-    public LocalFsImageStorageService(@Value("${storage.images-dir}") String imagesDir, Messages messages,
-                                      RestClient.Builder restClientBuilder) {
-        super(messages, restClientBuilder);
+    public LocalFsBlobBackend(@Value("${storage.images-dir}") String imagesDir) {
         this.imagesDir = Path.of(imagesDir);
-    }
-
-    /** Per i test unitari: client senza timeout configurati. */
-    public LocalFsImageStorageService(String imagesDir, Messages messages) {
-        this(imagesDir, messages, RestClient.builder());
     }
 
     /**
@@ -44,7 +37,7 @@ public class LocalFsImageStorageService extends AbstractImageStorageService {
      * fallimento il temporaneo viene rimosso.
      */
     @Override
-    protected void write(String filename, InputStream in) throws IOException {
+    public void write(String filename, InputStream in) throws IOException {
         checkFilename(filename);
         Path target = resolve(filename);
         Files.createDirectories(target.getParent());
@@ -59,7 +52,7 @@ public class LocalFsImageStorageService extends AbstractImageStorageService {
     }
 
     @Override
-    protected void remove(String filename) throws IOException {
+    public void remove(String filename) throws IOException {
         Files.deleteIfExists(resolve(filename));
     }
 

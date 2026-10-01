@@ -1,18 +1,17 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.port.in;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.OptionalLong;
 
 import org.dual.replicate.core.storage.domain.SourceImage;
-import org.dual.replicate.service.PromptEnhancementService;
-import org.springframework.web.multipart.MultipartFile;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 
 /**
  * Persistenza dei binari dell'app (immagini, video mp4, upload sorgente): l'unico punto da cui li si scrive, li si
  * legge e li si serve (vedi ImageController per {@code /images/**}). Implementazioni alternative, scelte da
- * {@code storage.type}: {@link LocalFsImageStorageService} (filesystem locale) e {@link WebDavImageStorageService}
- * (WebDAV, contenuti cifrati con chiave simmetrica).
+ * {@code storage.type}: {@code LocalFsBlobBackend} (filesystem locale) e {@code WebDavBlobBackend}
+ * (WebDAV, contenuti cifrati con chiave simmetrica), dietro la porta {@code IBlobBackend}.
  *
  * <p>I filename sono generati dall'app ({@code <sha256-casuale>.<ext>}; i file storici possono avere altri nomi: il filename e' opaco per l'app) e vivono
  * a un solo livello logico (fisicamente annidati per hash dal backend): qualunque implementazione rifiuta separatori e {@code ..} con {@link IllegalArgumentException}.
@@ -33,10 +32,10 @@ public interface IImageStorageService {
      * Salva un'immagine caricata dall'utente con un nome nuovo ({@code "<sha256-casuale>.<ext>"}). Il tipo si deduce dai magic bytes
      * (png/jpeg/webp), mai dal content-type o dal nome originale, che il client controlla.
      */
-    String storeUpload(MultipartFile upload);
+    String storeUpload(UploadedFile upload);
 
     /** Valida un upload SENZA salvarlo (AI enhance): stessi controlli di {@link #storeUpload}. */
-    SourceImage inspectUpload(MultipartFile upload);
+    SourceImage inspectUpload(UploadedFile upload);
 
     /** Legge {@code filename} come immagine sorgente (byte + mime dedotto dall'estensione). */
     SourceImage read(String filename);

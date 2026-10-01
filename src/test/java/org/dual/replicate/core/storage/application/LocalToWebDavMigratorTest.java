@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.application;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -8,6 +8,12 @@ import java.util.Random;
 
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.storage.adapter.out.http.HttpFileFetcher;
+import org.dual.replicate.core.storage.adapter.out.local.LocalFsBlobBackend;
+import org.dual.replicate.core.storage.adapter.out.webdav.FakeWebDavServer;
+import org.dual.replicate.core.storage.adapter.out.webdav.WebDavBlobBackend;
+import org.dual.replicate.core.storage.domain.StorageNames;
+import org.dual.replicate.core.storage.port.out.IBlobImportTarget;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +40,8 @@ class LocalToWebDavMigratorTest {
     Path tmp;
 
     private FakeWebDavServer dav;
-    private WebDavImageStorageService webdav;
+    private WebDavBlobBackend webdav;
+    private ImageStorageService storage;
     private ISystemEvents systemEvents;
     private Path images;
     private final byte[] photo = new byte[150_000];
@@ -49,13 +56,14 @@ class LocalToWebDavMigratorTest {
         byte[] keyBytes = new byte[32];
         new Random(9).nextBytes(keyBytes);
         String key = Base64.getEncoder().encodeToString(keyBytes);
-        webdav = new WebDavImageStorageService(dav.base() + "/dav/", "user", "secret", key,
+        webdav = new WebDavBlobBackend(dav.base() + "/dav/", "user", "secret", key,
                 tmp.resolve("cache").toString(), DataSize.ofMegabytes(10), messages, RestClient.builder(), systemEvents);
+        storage = new ImageStorageService(webdav, new HttpFileFetcher(messages, RestClient.builder()), messages);
         images = Files.createDirectories(tmp.resolve("images"));
         Files.write(images.resolve("1-0.png"), photo);
         Files.write(images.resolve("2-0.mp4"), "video".getBytes());
-        // uno annidato come li scrive LocalFsImageStorageService: il migratore cammina ricorsivamente
-        Path nested = images.resolve(AbstractImageStorageService.shardPath("upload-abc.jpg"));
+        // uno annidato come li scrive LocalFsBlobBackend: il migratore cammina ricorsivamente
+        Path nested = images.resolve(StorageNames.shardPath("upload-abc.jpg"));
         Files.createDirectories(nested.getParent());
         Files.write(nested, "jpg".getBytes());
         Files.write(images.resolve("9-0.png.part"), "partial".getBytes()); // temporaneo: da ignorare
@@ -68,7 +76,7 @@ class LocalToWebDavMigratorTest {
 
     private LocalToWebDavMigrator migrator(boolean deleteLocal) {
         @SuppressWarnings("unchecked")
-        ObjectProvider<WebDavImageStorageService> provider = mock(ObjectProvider.class);
+        ObjectProvider<IBlobImportTarget> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(webdav);
         return new LocalToWebDavMigrator(provider, systemEvents, images.toString(), deleteLocal);
     }
@@ -80,7 +88,7 @@ class LocalToWebDavMigratorTest {
         assertThat(result).isEqualTo(new LocalToWebDavMigrator.Result(3, 0, 0, 0, photo.length + 5 + 3));
         assertThat(dav.store).containsOnlyKeys(dav("1-0.png"), dav("2-0.mp4"), dav("upload-abc.jpg"));
         assertThat(dav.store.get(dav("1-0.png"))).isNotEqualTo(photo);
-        assertThat(webdav.read("1-0.png").bytes()).isEqualTo(photo);
+        assertThat(storage.read("1-0.png").bytes()).isEqualTo(photo);
         assertThat(images.resolve("1-0.png")).exists();
         assertThat(images.resolve("9-0.png.part")).exists();
     }
@@ -115,7 +123,7 @@ class LocalToWebDavMigratorTest {
         assertThat(images.resolve("2-0.mp4")).doesNotExist();
         assertThat(images.resolve("upload-abc.jpg")).doesNotExist();
         assertThat(images.resolve("9-0.png.part")).exists(); // mai toccati i temporanei
-        assertThat(webdav.read("1-0.png").bytes()).isEqualTo(photo);
+        assertThat(storage.read("1-0.png").bytes()).isEqualTo(photo);
     }
 
     @Test
@@ -154,7 +162,7 @@ class LocalToWebDavMigratorTest {
     @Test
     void requiresTheWebDavBackend() {
         @SuppressWarnings("unchecked")
-        ObjectProvider<WebDavImageStorageService> none = mock(ObjectProvider.class);
+        ObjectProvider<IBlobImportTarget> none = mock(ObjectProvider.class);
         when(none.getIfAvailable()).thenReturn(null);
 
         assertThatThrownBy(() -> new LocalToWebDavMigrator(none, systemEvents, images.toString(), false))
@@ -163,12 +171,12 @@ class LocalToWebDavMigratorTest {
 
     private LocalToWebDavMigrator migratorFor(Path dir) {
         @SuppressWarnings("unchecked")
-        ObjectProvider<WebDavImageStorageService> provider = mock(ObjectProvider.class);
+        ObjectProvider<IBlobImportTarget> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(webdav);
         return new LocalToWebDavMigrator(provider, systemEvents, dir.toString(), false);
     }
 
     private static String dav(String filename) {
-        return "/dav/" + AbstractImageStorageService.shardPath(filename);
+        return "/dav/" + StorageNames.shardPath(filename);
     }
 }

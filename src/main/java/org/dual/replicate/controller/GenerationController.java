@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.storage.adapter.in.web.UploadedFiles;
 import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.core.web.PaginationSupport;
@@ -27,7 +28,7 @@ import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
-import org.dual.replicate.service.storage.IImageStorageService;
+import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.service.PromptEnhancementRefusedException;
 import org.dual.replicate.service.PromptEnhancementService;
 import org.springframework.data.domain.Page;
@@ -198,7 +199,7 @@ public class GenerationController {
                 parameters.remove("aspect_ratio");
             }
             String parametersJson = objectMapper.writeValueAsString(parameters);
-            String uploadFilename = upload ? imageStorageService.storeUpload(sourceUpload) : null;
+            String uploadFilename = upload ? imageStorageService.storeUpload(UploadedFiles.of(sourceUpload)) : null;
             boolean fromGeneration = animate && !upload;
             Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
                     formType.kind(), fromGeneration ? sourceGeneration.getId() : null,
@@ -237,7 +238,7 @@ public class GenerationController {
 
     private SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
         if (upload != null && !upload.isEmpty()) {
-            return imageStorageService.inspectUpload(upload);
+            return imageStorageService.inspectUpload(UploadedFiles.of(upload));
         }
         Generation source = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
         return source == null ? null : imageStorageService.read(sourceImage);
@@ -611,7 +612,7 @@ public class GenerationController {
         boolean cascaded;
         try {
             cascaded = generationService.deleteImage(id, filename);
-        } catch (org.dual.replicate.service.storage.StorageException e) {
+        } catch (org.dual.replicate.core.storage.domain.StorageException e) {
             // Lo storage non ha cancellato il file: il DB e' rimasto invariato (coerente), la griglia non cambia.
             // Registrato come STORAGE (non come 500 generico) e notificato con il toast.
             htmx.addToastHeader(response, systemEvents.record("deleteFile", e, AppEventSubjects.of(id, conversationId)));

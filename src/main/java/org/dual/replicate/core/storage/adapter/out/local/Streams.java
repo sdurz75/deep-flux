@@ -1,16 +1,16 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.local;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-final class Streams {
+public final class Streams {
 
     private Streams() {
     }
 
     /** Al piu' {@code max} byte di {@code in}; {@code close} chiude {@code in}. */
-    static InputStream limit(InputStream in, long max) {
+    public static InputStream limit(InputStream in, long max) {
         return new FilterInputStream(in) {
             private long remaining = max;
 

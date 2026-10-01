@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.webdav;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -17,31 +17,31 @@ import com.sun.net.httpserver.HttpServer;
  * Server WebDAV in memoria per i test (HttpServer JDK: PUT/GET con Range/HEAD/DELETE/MKCOL/MOVE, Basic Auth
  * user:secret sotto {@code /dav}). Nessuna rete esterna. {@code store} contiene i blob cosi' come li vede il server.
  */
-final class FakeWebDavServer {
+public final class FakeWebDavServer {
 
-    final Map<String, byte[]> store = new ConcurrentHashMap<>();
-    final Map<String, AtomicInteger> gets = new ConcurrentHashMap<>();
-    final AtomicInteger mkcols = new AtomicInteger();
-    final AtomicBoolean down = new AtomicBoolean();
+    public final Map<String, byte[]> store = new ConcurrentHashMap<>();
+    public final Map<String, AtomicInteger> gets = new ConcurrentHashMap<>();
+    public final AtomicInteger mkcols = new AtomicInteger();
+    public final AtomicBoolean down = new AtomicBoolean();
     /** Se != 0, stato con cui risponde MKCOL (es. 409 sulla radice, come Yandex). */
-    volatile int mkcolStatus;
+    public volatile int mkcolStatus;
     /** Le prossime {@code failuresLeft} richieste (a qualunque metodo) rispondono {@code failureStatus}, poi si torna normali. */
-    final AtomicInteger failuresLeft = new AtomicInteger();
-    volatile int failureStatus = 503;
+    public final AtomicInteger failuresLeft = new AtomicInteger();
+    public volatile int failureStatus = 503;
     /** Se non null, i fallimenti simulati colpiscono solo questo metodo HTTP. */
-    volatile String failMethod;
+    public volatile String failMethod;
     /** Richieste ricevute per metodo (per contare i tentativi). */
-    final Map<String, AtomicInteger> requests = new ConcurrentHashMap<>();
+    public final Map<String, AtomicInteger> requests = new ConcurrentHashMap<>();
     private final HttpServer server;
 
-    FakeWebDavServer() throws IOException {
+    public FakeWebDavServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/dav", this::dav);
         server.start();
     }
 
     /** Serve {@code body} in GET su {@code path} (un'origine "esterna", come un URL di output di Replicate). */
-    void serve(String path, byte[] body) {
+    public void serve(String path, byte[] body) {
         server.createContext(path, exchange -> {
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
@@ -49,21 +49,21 @@ final class FakeWebDavServer {
         });
     }
 
-    String base() {
+    public String base() {
         return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
-    int getsOf(String name) {
+    public int getsOf(String name) {
         AtomicInteger n = gets.get("/dav/" + name);
         return n == null ? 0 : n.get();
     }
 
-    int requestsOf(String method) {
+    public int requestsOf(String method) {
         AtomicInteger n = requests.get(method);
         return n == null ? 0 : n.get();
     }
 
-    void stop() {
+    public void stop() {
         server.stop(0);
     }
 

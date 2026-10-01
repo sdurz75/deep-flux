@@ -1,4 +1,4 @@
-package org.dual.replicate.controller;
+package org.dual.replicate.core.storage.adapter.in.web;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -7,8 +7,10 @@ import java.nio.file.Path;
 
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.service.storage.AbstractImageStorageService;
-import org.dual.replicate.service.storage.LocalFsImageStorageService;
+import org.dual.replicate.core.storage.application.ImageStorageService;
+import org.dual.replicate.core.storage.adapter.out.local.LocalFsBlobBackend;
+import org.dual.replicate.core.storage.domain.StorageNames;
+import org.dual.replicate.core.storage.port.out.IRemoteFileFetcher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,7 +36,7 @@ class ImageControllerTest {
     void setUp() throws IOException {
         put("1-0.mp4", "0123456789");
         put("2-0.jpg", "jpeg-bytes");
-        LocalFsImageStorageService storage = new LocalFsImageStorageService(dir.toString(), mock(Messages.class));
+        ImageStorageService storage = new ImageStorageService(new LocalFsBlobBackend(dir.toString()), mock(IRemoteFileFetcher.class), mock(Messages.class));
         mvc = MockMvcBuilders.standaloneSetup(new ImageController(storage, mock(ISystemEvents.class))).build();
     }
 
@@ -113,7 +115,7 @@ class ImageControllerTest {
     }
 
     private void put(String filename, String content) throws IOException {
-        Path file = dir.resolve(AbstractImageStorageService.shardPath(filename));
+        Path file = dir.resolve(StorageNames.shardPath(filename));
         Files.createDirectories(file.getParent());
         Files.writeString(file, content);
     }

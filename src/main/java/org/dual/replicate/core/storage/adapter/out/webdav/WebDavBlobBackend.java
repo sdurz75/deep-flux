@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.webdav;
 
 import java.io.BufferedOutputStream;
 import java.io.FilterInputStream;
@@ -22,12 +22,25 @@ import jakarta.annotation.PreDestroy;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.crypto.ChunkedAesGcmCipher;
 import org.dual.replicate.core.kernel.crypto.EncryptedBlobSource;
+import org.dual.replicate.core.storage.adapter.out.local.FileBlobSource;
+import org.dual.replicate.core.storage.adapter.out.local.Streams;
+import org.dual.replicate.core.storage.domain.StorageException;
+import org.dual.replicate.core.storage.domain.StorageNames;
+import org.dual.replicate.core.storage.port.out.IBlobBackend;
+import org.dual.replicate.core.storage.port.out.IBlobImportTarget;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteCaller;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
 import org.dual.replicate.core.kernel.remote.RestClientTranslator;
 import org.dual.replicate.core.kernel.remote.RetryPolicy;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.storage.adapter.out.local.FileBlobSource;
+import org.dual.replicate.core.storage.adapter.out.local.Streams;
+import org.dual.replicate.core.storage.application.ImageStorageService;
+import org.dual.replicate.core.storage.application.LocalToWebDavMigrator;
+import org.dual.replicate.core.storage.domain.StorageException;
+import org.dual.replicate.core.storage.domain.StorageNames;
+import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,7 +48,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
+
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriUtils;
@@ -49,14 +63,15 @@ import org.springframework.web.util.UriUtils;
  * <p>Solo {@code PUT}/{@code GET}/{@code HEAD}/{@code DELETE}/{@code MKCOL}/{@code MOVE} con il {@code RestClient} del
  * builder auto-configurato (timeout globali): nessuna libreria WebDAV.
  */
-@Service
+@Component
 @ConditionalOnProperty(name = "storage.type", havingValue = "webdav")
-public class WebDavImageStorageService extends AbstractImageStorageService {
+public class WebDavBlobBackend implements IBlobBackend, IBlobImportTarget {
 
-    private static final Logger log = LoggerFactory.getLogger(WebDavImageStorageService.class);
+    private static final Logger log = LoggerFactory.getLogger(WebDavBlobBackend.class);
     private static final HttpMethod MKCOL = HttpMethod.valueOf("MKCOL");
     private static final HttpMethod MOVE = HttpMethod.valueOf("MOVE");
 
+    private final Messages messages;
     private final RestClient dav;
     private final String baseUrl;
     private final ChunkedAesGcmCipher cipher;
@@ -73,7 +88,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     });
     private final Set<String> warming = ConcurrentHashMap.newKeySet();
 
-    public WebDavImageStorageService(
+    public WebDavBlobBackend(
             @Value("${storage.webdav.url:}") String url,
             @Value("${storage.webdav.username:}") String username,
             @Value("${storage.webdav.password:}") String password,
@@ -81,7 +96,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             @Value("${storage.webdav.cache.dir:./data/cache}") String cacheDir,
             @Value("${storage.webdav.cache.max-size:2GB}") DataSize cacheMaxSize,
             Messages messages, RestClient.Builder restClientBuilder, ISystemEvents systemEvents) throws IOException {
-        super(messages, restClientBuilder);
+        this.messages = messages;
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("storage.type=webdav richiede storage.webdav.url");
         }
@@ -101,11 +116,11 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         this.dav = builder.build();
     }
 
-    // --- IImageStorageService -------------------------------------------------------------------------------------
+    // --- IBlobBackend ------------------------------------------------------------------------------------------
 
     @Override
     public OptionalLong size(String filename) {
-        checkFilename(filename);
+        StorageNames.checkFilename(filename);
         try {
             return OptionalLong.of(cipher.plainSize(source(filename)));
         } catch (NoSuchFileException e) {
@@ -117,7 +132,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
 
     @Override
     public InputStream openRange(String filename, long offset, long length) throws IOException {
-        checkFilename(filename);
+        StorageNames.checkFilename(filename);
         return cipher.decryptRange(source(filename), offset, length);
     }
 
@@ -129,8 +144,9 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     // --- migrazione dal filesystem locale (vedi LocalToWebDavMigrator) ---------------------------------------------
 
     /** {@code true} se {@code filename} esiste SUL SERVER (interroga WebDAV, non la cache: serve all'idempotenza). */
-    boolean existsRemotely(String filename) throws IOException {
-        checkFilename(filename);
+    @Override
+    public boolean existsRemotely(String filename) throws IOException {
+        StorageNames.checkFilename(filename);
         try {
             retrying(() -> new WebDavBlobSource(filename).length());
             return true;
@@ -140,13 +156,15 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     }
 
     /** Dimensione in chiaro di {@code filename} come risulta dal SERVER (mai dalla cache): verifica di un upload. */
-    long remotePlainSize(String filename) throws IOException {
-        checkFilename(filename);
+    @Override
+    public long remotePlainSize(String filename) throws IOException {
+        StorageNames.checkFilename(filename);
         return retrying(() -> cipher.plainSize(new WebDavBlobSource(filename)));
     }
 
     /** Cifra e carica {@code file} come {@code filename} (come una scrittura normale, cache write-through inclusa). */
-    void importFile(String filename, Path file) throws IOException {
+    @Override
+    public void importFile(String filename, Path file) throws IOException {
         try (InputStream in = Files.newInputStream(file)) {
             write(filename, in);
         }
@@ -160,8 +178,8 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
      * diventa la voce di cache (write-through).
      */
     @Override
-    protected void write(String filename, InputStream in) throws IOException {
-        checkFilename(filename);
+    public void write(String filename, InputStream in) throws IOException {
+        StorageNames.checkFilename(filename);
         Path temp = cache.newTempFile();
         try {
             try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(temp))) {
@@ -191,7 +209,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     }
 
     @Override
-    protected void remove(String filename) throws IOException {
+    public void remove(String filename) throws IOException {
         cache.remove(filename);
         deleteRemote(filename);
     }
@@ -360,7 +378,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
      * propaga.
      */
     private void ensureCollections(String filename) throws IOException {
-        String[] parts = shardPath(filename).split("/");
+        String[] parts = StorageNames.shardPath(filename).split("/");
         mkcolOnce("");
         mkcolOnce(parts[0]);
         mkcolOnce(parts[0] + "/" + parts[1]);
@@ -390,7 +408,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
 
     private URI uri(String name) {
         StringBuilder path = new StringBuilder(baseUrl);
-        String[] segments = shardPath(name.endsWith(".part") ? name.substring(0, name.length() - 5) : name).split("/");
+        String[] segments = StorageNames.shardPath(name.endsWith(".part") ? name.substring(0, name.length() - 5) : name).split("/");
         for (int i = 0; i < segments.length; i++) {
             String segment = i == segments.length - 1 ? name : segments[i];
             path.append(i == 0 ? "" : "/").append(UriUtils.encodePathSegment(segment, StandardCharsets.UTF_8));

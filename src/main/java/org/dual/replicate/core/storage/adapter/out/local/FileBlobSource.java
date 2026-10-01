@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.adapter.out.local;
 
 import org.dual.replicate.core.kernel.crypto.EncryptedBlobSource;
 import java.io.IOException;
@@ -7,11 +7,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /** Blob cifrato su un file locale (la cache, o un temporaneo appena prodotto). */
-final class FileBlobSource implements EncryptedBlobSource {
+public final class FileBlobSource implements EncryptedBlobSource {
 
     private final Path file;
 
-    FileBlobSource(Path file) {
+    public FileBlobSource(Path file) {
         this.file = file;
     }
 

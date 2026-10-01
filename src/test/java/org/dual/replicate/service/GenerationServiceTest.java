@@ -10,7 +10,7 @@ import org.dual.replicate.core.tokens.domain.TokenException;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
-import org.dual.replicate.service.storage.IImageStorageService;
+import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -279,7 +279,7 @@ class GenerationServiceTest {
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("gone.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("gone.png"))
-                .thenThrow(new org.dual.replicate.service.storage.StorageException("missing", new java.io.IOException("nope"),
+                .thenThrow(new org.dual.replicate.core.storage.domain.StorageException("missing", new java.io.IOException("nope"),
                         org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind.REJECTED));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(

@@ -1,5 +1,9 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.application;
 
+import org.dual.replicate.core.storage.adapter.out.webdav.WebDavBlobBackend;
+import org.dual.replicate.core.storage.port.in.IImageStorageService;
+import org.dual.replicate.core.storage.adapter.out.webdav.WebDavBlobBackend;
+import org.dual.replicate.core.storage.port.out.IBlobBackend;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,10 +20,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StorageBackendSelectionTest {
 
     @Autowired
-    private IImageStorageService storage;
+    private IBlobBackend backend;
 
     @Test
     void webdavTypeSelectsTheWebDavBackend() {
-        assertThat(storage).isInstanceOf(WebDavImageStorageService.class);
+        assertThat(backend).isInstanceOf(WebDavBlobBackend.class);
     }
 }

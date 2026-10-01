@@ -1,4 +1,4 @@
-package org.dual.replicate.controller;
+package org.dual.replicate.core.storage.adapter.in.web;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,8 +10,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.service.storage.IImageStorageService;
-import org.dual.replicate.service.storage.StorageException;
+import org.dual.replicate.core.storage.port.in.IImageStorageService;
+import org.dual.replicate.core.storage.domain.StorageException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;

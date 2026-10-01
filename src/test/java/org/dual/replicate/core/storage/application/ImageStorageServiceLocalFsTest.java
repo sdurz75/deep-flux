@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.storage.application;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,10 +8,16 @@ import java.nio.file.Path;
 
 import com.sun.net.httpserver.HttpServer;
 import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.storage.adapter.in.web.UploadedFiles;
+import org.dual.replicate.core.storage.adapter.out.http.HttpFileFetcher;
+import org.dual.replicate.core.storage.adapter.out.local.LocalFsBlobBackend;
+import org.dual.replicate.core.storage.domain.StorageException;
+import org.dual.replicate.core.storage.domain.StorageNames;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,13 +27,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Nessuna chiamata a Replicate: un HttpServer JDK locale serve i byte da scaricare. */
-class LocalFsImageStorageServiceTest {
+class ImageStorageServiceLocalFsTest {
 
     @TempDir
     Path dir;
 
     private HttpServer server;
-    private LocalFsImageStorageService service;
+    private ImageStorageService service;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -56,7 +62,7 @@ class LocalFsImageStorageServiceTest {
         server.start();
         Messages messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
-        service = new LocalFsImageStorageService(dir.toString(), messages);
+        service = new ImageStorageService(new LocalFsBlobBackend(dir.toString()), new HttpFileFetcher(messages, RestClient.builder()), messages);
     }
 
     @AfterEach
@@ -73,7 +79,7 @@ class LocalFsImageStorageServiceTest {
         String filename = service.downloadAndStore(url("/x.mp4"));
 
         assertThat(filename).matches("[0-9a-f]{64}\\.mp4");
-        assertThat(Files.readString(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo("video-bytes");
+        assertThat(Files.readString(dir.resolve(StorageNames.shardPath(filename)))).isEqualTo("video-bytes");
     }
 
     /** Un blip transitorio non deve far fallire una prediction riuscita (gli URL di output scadono); un 404 invece no. */
@@ -81,7 +87,7 @@ class LocalFsImageStorageServiceTest {
     void aTransientDownloadErrorIsRetried() throws IOException {
         String filename = service.downloadAndStore(url("/flaky.mp4"));
 
-        assertThat(Files.readString(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo("video-bytes");
+        assertThat(Files.readString(dir.resolve(StorageNames.shardPath(filename)))).isEqualTo("video-bytes");
     }
 
     @Test
@@ -116,33 +122,33 @@ class LocalFsImageStorageServiceTest {
     @Test
     void storeUploadSavesUnderGeneratedNameDetectingTypeFromMagicBytes() throws IOException {
         byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1};
-        var upload = new org.springframework.mock.web.MockMultipartFile("sourceUpload", "../../evil.jpg", "image/jpeg", png);
+        var upload = UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "../../evil.jpg", "image/jpeg", png));
 
         String filename = service.storeUpload(upload);
 
         assertThat(filename).matches("[0-9a-f]{64}\\.png").doesNotContain("evil");
-        assertThat(Files.readAllBytes(dir.resolve(AbstractImageStorageService.shardPath(filename)))).isEqualTo(png);
+        assertThat(Files.readAllBytes(dir.resolve(StorageNames.shardPath(filename)))).isEqualTo(png);
     }
 
     @Test
     void storeUploadRejectsNonImagesEvenWithAnImageContentType() {
-        var upload = new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", "not an image".getBytes(StandardCharsets.UTF_8));
+        var upload = UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", "not an image".getBytes(StandardCharsets.UTF_8)));
 
         assertThatThrownBy(() -> service.storeUpload(upload)).isInstanceOf(StorageException.class);
         assertThat(dir.toFile().list()).isEmpty();
     }
 
     private void writeSharded(String filename) throws IOException {
-        Path file = dir.resolve(AbstractImageStorageService.shardPath(filename));
+        Path file = dir.resolve(StorageNames.shardPath(filename));
         Files.createDirectories(file.getParent());
         Files.writeString(file, "abc");
     }
 
     @Test
     void filesAreNestedByHashOfTheFilenameNotFlat() throws IOException {
-        new LocalFsImageStorageService(dir.toString(), org.mockito.Mockito.mock(org.dual.replicate.core.kernel.i18n.Messages.class));
-        String path = AbstractImageStorageService.shardPath("12-0.png");
+        new LocalFsBlobBackend(dir.toString());
+        String path = StorageNames.shardPath("12-0.png");
         assertThat(path).matches("[0-9a-f]{2}/[0-9a-f]{2}/12-0\\.png");
-        assertThat(AbstractImageStorageService.shardPath("12-0.png")).isEqualTo(path);
+        assertThat(StorageNames.shardPath("12-0.png")).isEqualTo(path);
     }
 }

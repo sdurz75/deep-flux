@@ -4,7 +4,7 @@ import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.web.HtmxEvents;
-import org.dual.replicate.service.storage.StorageException;
+import org.dual.replicate.core.storage.domain.StorageException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
