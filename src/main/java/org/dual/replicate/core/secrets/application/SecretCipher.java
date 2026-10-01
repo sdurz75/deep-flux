@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Cifratura dei segreti salvati nel DB (oggi i token CivitAI/HuggingFace, {@code ApiTokenService}) con la STESSA chiave e lo
+ * Cifratura dei segreti salvati nel DB (oggi i token CivitAI/HuggingFace, {@code IApiTokens}) con la STESSA chiave e lo
  * STESSO algoritmo dei binari su WebDAV ({@link ChunkedAesGcmCipher}, AES-256-GCM): {@code app.secrets.encryption-key}
  * vale {@code ${STORAGE_WEBDAV_ENCRYPTION_KEY}}, nessun segreto nuovo da gestire.
  *

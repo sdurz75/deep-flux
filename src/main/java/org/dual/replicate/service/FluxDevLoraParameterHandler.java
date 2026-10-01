@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  *   <li>{@code hf_token_id}/{@code civitai_token_id}: l'ID del token salvato (CRUD {@code /tokens}) scelto per nome nelle
  *       select, per i LoRA privati. Il token in chiaro non attraversa mai form/chat: {@code GenerationService#doCreate}
  *       sostituisce l'ID con {@code hf_api_token}/{@code civitai_api_token} solo nell'input per Replicate
- *       ({@code ApiTokenService#resolveInto}); nel PARAMETERS_JSON salvato resta l'ID.</li>
+ *       ({@code TokenInputResolver#resolveInto}); nel PARAMETERS_JSON salvato resta l'ID.</li>
  * </ul>
  * {@code aspect_ratio} non ha {@code match_input_image}: con un'immagine il modello usa comunque quella dell'immagine.
  * {@code disable_safety_checker} non e' esposto: lo forza {@link GenerationService#create} per ogni immagine.

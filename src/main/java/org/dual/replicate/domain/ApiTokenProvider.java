@@ -1,5 +1,7 @@
 package org.dual.replicate.domain;
 
+import org.dual.replicate.core.tokens.domain.ApiToken;
+
 /**
  * Servizio a cui appartiene un token API salvato ({@link ApiToken}). {@code replicateParam} e' la chiave dell'input Replicate
  * che porta il token in chiaro (flux-dev-lora); {@code idParam} e' il campo del form/chat che porta invece l'ID del token

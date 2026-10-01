@@ -1,4 +1,4 @@
-package org.dual.replicate.service;
+package org.dual.replicate.core.tokens.application;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -8,10 +8,13 @@ import java.util.List;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.domain.ApiToken;
+import org.dual.replicate.core.tokens.adapter.in.scheduling.TokenExpiryScheduler;
+import org.dual.replicate.core.tokens.domain.ApiToken;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.core.secrets.port.in.ISecretCipher;
+import org.dual.replicate.core.tokens.domain.TokenException;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
+import org.dual.replicate.core.tokens.port.out.IApiTokenStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,19 +30,9 @@ import org.springframework.stereotype.Service;
  * {@code ApiTokenExpiryService} per l'esecuzione periodica.
  */
 @Service
-public class ApiTokenService {
+public class ApiTokenService implements IApiTokens {
 
-    public static final int MAX_NAME = 60;
-    public static final int MAX_TOKEN = 500;
-
-    /** Stato rispetto alla scadenza: OK (nessuna o lontana), EXPIRING (entro la soglia), EXPIRED (superata). */
-    public enum Status { OK, EXPIRING, EXPIRED }
-
-    /** Vista per la UI: niente segreto, solo il suffisso per riconoscerlo. */
-    public record TokenView(Long id, String provider, String name, String hint, LocalDate expiresAt, Status status) {
-    }
-
-    private final ApiTokenRepository repository;
+    private final IApiTokenStore repository;
     private final ISecretCipher cipher;
     private final ISystemEvents events;
     private final Messages messages;
@@ -47,12 +40,12 @@ public class ApiTokenService {
     private final Clock clock;
 
     @Autowired
-    public ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
+    public ApiTokenService(IApiTokenStore repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
                            @Value("${app.tokens.expiry-warning-days:15}") int warningDays) {
         this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone());
     }
 
-    ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
+    ApiTokenService(IApiTokenStore repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
                     int warningDays, Clock clock) {
         this.repository = repository;
         this.cipher = cipher;
@@ -63,33 +56,39 @@ public class ApiTokenService {
     }
 
     /** {@code false} se manca la chiave di cifratura: la pagina /tokens lo segnala e creare/modificare e' rifiutato. */
+    @Override
     public boolean isConfigured() {
         return cipher.isConfigured();
     }
 
+    @Override
     public int warningDays() {
         return warningDays;
     }
 
+    @Override
     public List<TokenView> list() {
-        return repository.findAllByOrderByProviderAscNameAsc().stream().map(this::view).toList();
+        return repository.findAllOrdered().stream().map(this::view).toList();
     }
 
     /** Token del provider, per le select delle form di generazione (nome + scadenza, mai il segreto). */
+    @Override
     public List<TokenView> options(String provider) {
-        return repository.findAllByProviderOrderByNameAsc(provider).stream().map(this::view).toList();
+        return repository.findByProvider(provider).stream().map(this::view).toList();
     }
 
+    @Override
     public TokenView get(Long id) {
         return view(find(id));
     }
 
+    @Override
     public TokenView create(String provider, String name, String token, LocalDate expiresAt) {
         String cleanName = validName(name);
         if (provider == null || provider.isBlank()) {
             throw new TokenException(messages.get("tokens.error.providerRequired"));
         }
-        if (repository.existsByProviderAndNameIgnoreCase(provider, cleanName)) {
+        if (repository.existsByProviderAndName(provider, cleanName)) {
             throw new TokenException(messages.get("tokens.error.nameDuplicate", cleanName));
         }
         String cleanToken = validToken(token, true);
@@ -104,10 +103,11 @@ public class ApiTokenService {
     }
 
     /** {@code token} vuoto/null = lascia il token com'e'. Rinnovare la scadenza toglie dalla campanella gli avvisi di questo token. */
+    @Override
     public TokenView update(Long id, String name, String token, LocalDate expiresAt) {
         ApiToken existing = find(id);
         String cleanName = validName(name);
-        if (repository.existsByProviderAndNameIgnoreCaseAndIdNot(existing.getProvider(), cleanName, id)) {
+        if (repository.existsByProviderAndNameExcluding(existing.getProvider(), cleanName, id)) {
             throw new TokenException(messages.get("tokens.error.nameDuplicate", cleanName));
         }
         String cleanToken = validToken(token, false);
@@ -123,6 +123,7 @@ public class ApiTokenService {
         return view(saved);
     }
 
+    @Override
     public void delete(Long id) {
         ApiToken existing = find(id);
         repository.delete(existing);
@@ -130,6 +131,7 @@ public class ApiTokenService {
     }
 
     /** Plaintext del token scelto, per Replicate. Inesistente o scaduto: rifiuto atteso (nessuna prediction a pagamento parte). */
+    @Override
     public String resolve(Long id, String provider) {
         ApiToken token = repository.findById(id)
                 .filter(t -> t.getProvider().equals(provider))
@@ -141,6 +143,7 @@ public class ApiTokenService {
     }
 
     /** Controllo di scadenza di tutti i token (job periodico, avvio): un avviso per ogni token scaduto o in scadenza. */
+    @Override
     public int checkExpiries() {
         int warned = 0;
         for (ApiToken token : repository.findAll()) {

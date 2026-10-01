@@ -1,4 +1,4 @@
-package org.dual.replicate.service;
+package org.dual.replicate.core.tokens.domain;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;

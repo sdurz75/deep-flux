@@ -1,8 +1,8 @@
-package org.dual.replicate.controller;
+package org.dual.replicate.core.tokens.adapter.in.web;
 
-import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.core.events.port.out.ISystemEventStore;
-import org.dual.replicate.service.ApiTokenService;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
+import org.dual.replicate.core.tokens.port.out.IApiTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,11 +27,11 @@ class TokenControllerTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private ApiTokenRepository repository;
+    private IApiTokenStore repository;
     @Autowired
     private ISystemEventStore eventRepository;
     @Autowired
-    private ApiTokenService service;
+    private IApiTokens service;
 
     @BeforeEach
     void clean() {

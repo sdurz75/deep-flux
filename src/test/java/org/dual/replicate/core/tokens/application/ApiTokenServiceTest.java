@@ -1,4 +1,4 @@
-package org.dual.replicate.service;
+package org.dual.replicate.core.tokens.application;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -9,14 +9,16 @@ import java.util.Map;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.domain.ApiToken;
+import org.dual.replicate.core.tokens.domain.ApiToken;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
-import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.core.events.port.out.ISystemEventStore;
 import org.dual.replicate.core.secrets.application.SecretCipher;
+import org.dual.replicate.core.tokens.domain.TokenException;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
+import org.dual.replicate.core.tokens.port.out.IApiTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +37,7 @@ class ApiTokenServiceTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 1);
 
     @Autowired
-    private ApiTokenRepository repository;
+    private IApiTokenStore repository;
     @Autowired
     private ISystemEventStore eventRepository;
     @Autowired
@@ -81,10 +83,10 @@ class ApiTokenServiceTest {
         service.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null);
 
         assertRejected(() -> service.create("HUGGINGFACE", "  ", "x1234", null));
-        assertRejected(() -> service.create("HUGGINGFACE", "x".repeat(ApiTokenService.MAX_NAME + 1), "x1234", null));
+        assertRejected(() -> service.create("HUGGINGFACE", "x".repeat(IApiTokens.MAX_NAME + 1), "x1234", null));
         assertRejected(() -> service.create("HUGGINGFACE", "personale", "x1234", null)); // maiuscole/minuscole
         assertRejected(() -> service.create("HUGGINGFACE", "Altro", "", null));
-        assertRejected(() -> service.create("HUGGINGFACE", "Altro", "t".repeat(ApiTokenService.MAX_TOKEN + 1), null));
+        assertRejected(() -> service.create("HUGGINGFACE", "Altro", "t".repeat(IApiTokens.MAX_TOKEN + 1), null));
         assertRejected(() -> service.create(null, "Altro", "x1234", null));
         assertRejected(() -> service.create("HUGGINGFACE", "Altro", "x1234", TODAY.minusDays(1)));
         assertThat(service.create("CIVITAI", "Personale", "cv_secret_wxyz", null).id()).isNotNull();
@@ -129,9 +131,9 @@ class ApiTokenServiceTest {
         saved("HUGGINGFACE", "d-oggi", "hf_d_secret_0004", TODAY);
         saved("HUGGINGFACE", "e-scaduto", "hf_e_secret_0005", TODAY.minusDays(1));
 
-        assertThat(service.list()).extracting(ApiTokenService.TokenView::status).containsExactly(
-                ApiTokenService.Status.OK, ApiTokenService.Status.OK, ApiTokenService.Status.EXPIRING,
-                ApiTokenService.Status.EXPIRING, ApiTokenService.Status.EXPIRED);
+        assertThat(service.list()).extracting(IApiTokens.TokenView::status).containsExactly(
+                IApiTokens.Status.OK, IApiTokens.Status.OK, IApiTokens.Status.EXPIRING,
+                IApiTokens.Status.EXPIRING, IApiTokens.Status.EXPIRED);
     }
 
     /** Un avviso per token scaduto o in scadenza (WARNING, source TOKENS, subject token:<id>); niente per gli altri. */

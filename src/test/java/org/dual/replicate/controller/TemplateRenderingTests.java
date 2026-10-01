@@ -540,10 +540,10 @@ class TemplateRenderingTests {
     }
 
     @Autowired
-    private org.dual.replicate.service.ApiTokenService apiTokenService;
+    private org.dual.replicate.core.tokens.port.in.IApiTokens apiTokenService;
 
     @Autowired
-    private org.dual.replicate.repository.ApiTokenRepository apiTokenRepository;
+    private org.dual.replicate.core.tokens.port.out.IApiTokenStore apiTokenRepository;
 
     @Autowired
     private org.dual.replicate.core.secrets.application.SecretCipher secretCipher;
@@ -565,7 +565,7 @@ class TemplateRenderingTests {
         var hf = apiTokenService.create("HUGGINGFACE", "Personale", "hf_super_secret_1234", null);
         var civitai = apiTokenService.create("CIVITAI", "Civitai lavoro", "cv_other_secret_5678",
                 java.time.LocalDate.now().plusDays(400));
-        apiTokenRepository.save(new org.dual.replicate.domain.ApiToken("CIVITAI", "Vecchio",
+        apiTokenRepository.save(new org.dual.replicate.core.tokens.domain.ApiToken("CIVITAI", "Vecchio",
                 secretCipher.encrypt("cv_old_secret_0000"), "0000", java.time.LocalDate.now().minusDays(1), java.time.Instant.now()));
 
         String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-dev-lora")

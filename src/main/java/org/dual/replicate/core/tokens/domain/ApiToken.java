@@ -1,4 +1,4 @@
-package org.dual.replicate.domain;
+package org.dual.replicate.core.tokens.domain;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -13,7 +13,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * Token API con nome (CivitAI/HuggingFace), vedi V23 e {@code ApiTokenService}. Il token e' SEMPRE cifrato
+ * Token API con nome (CivitAI/HuggingFace), vedi V23 e {@code IApiTokens}. Il token e' SEMPRE cifrato
  * ({@code tokenEncrypted}); {@code hint} sono gli ultimi caratteri in chiaro per riconoscerlo. {@code toString} non
  * contiene mai il segreto, neanche cifrato.
  */

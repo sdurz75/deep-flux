@@ -1,17 +1,18 @@
-package org.dual.replicate.controller;
+package org.dual.replicate.core.tokens.adapter.in.web;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.time.format.DateTimeParseException;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.controller.SemanticSearchController;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.web.HtmxEvents;
-import org.dual.replicate.service.ApiTokenService;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.service.TokenException;
+import org.dual.replicate.core.tokens.domain.TokenException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * CRUD dei token API (CivitAI/HuggingFace, {@link ApiTokenService}): pagina {@code /tokens} con l'elenco e un dialog Pines
+ * CRUD dei token API (CivitAI/HuggingFace, {@link IApiTokens}): pagina {@code /tokens} con l'elenco e un dialog Pines
  * per creare/modificare (stessa meccanica del dialog note di {@link SemanticSearchController}: al salvataggio riuscito
  * {@code HX-Trigger: token-saved} chiude il dialog; con un errore il form si rimpiazza da se' ({@code HX-Retarget}) e il
  * dialog resta aperto). Il token in chiaro non esce MAI da qui: ne' nel modello, ne' nelle risposte.
@@ -32,13 +33,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequestMapping("/tokens")
 public class TokenController {
 
-    private final ApiTokenService tokens;
+    private final IApiTokens tokens;
     private final ObjectProvider<ITokenProviderCatalog> providerCatalog;
     private final ISystemEvents systemEvents;
     private final HtmxEvents htmx;
     private final Messages messages;
 
-    public TokenController(ApiTokenService tokens, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages,
+    public TokenController(IApiTokens tokens, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages,
                            ObjectProvider<ITokenProviderCatalog> providerCatalog) {
         this.tokens = tokens;
         this.systemEvents = systemEvents;
@@ -64,7 +65,7 @@ public class TokenController {
     /** Form precompilato (mai il token: si lascia vuoto per non cambiarlo). */
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        ApiTokenService.TokenView token = tokens.get(id);
+        IApiTokens.TokenView token = tokens.get(id);
         return formView(model, id, token.provider(), token.name(), token.expiresAt() == null ? "" : token.expiresAt().toString(), null);
     }
 

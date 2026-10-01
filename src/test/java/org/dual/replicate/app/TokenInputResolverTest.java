@@ -7,9 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
-import org.dual.replicate.repository.ApiTokenRepository;
-import org.dual.replicate.service.ApiTokenService;
-import org.dual.replicate.service.TokenException;
+import org.dual.replicate.core.tokens.domain.TokenException;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
+import org.dual.replicate.core.tokens.port.out.IApiTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,9 +19,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 class TokenInputResolverTest {
 
     @Autowired
-    private ApiTokenService tokens;
+    private IApiTokens tokens;
     @Autowired
-    private ApiTokenRepository repository;
+    private IApiTokenStore repository;
     @Autowired
     private TokenInputResolver resolver;
 
@@ -58,7 +58,7 @@ class TokenInputResolverTest {
         tokens.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null);
 
         assertThat(resolver.formOptions()).containsOnlyKeys("hfTokens", "civitaiTokens");
-        assertThat(resolver.formOptions().get("hfTokens")).extracting(ApiTokenService.TokenView::name).containsExactly("Personale");
+        assertThat(resolver.formOptions().get("hfTokens")).extracting(IApiTokens.TokenView::name).containsExactly("Personale");
         assertThat(resolver.formOptions().get("civitaiTokens")).isEmpty();
     }
 }

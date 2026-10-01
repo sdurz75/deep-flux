@@ -7,7 +7,7 @@
   schema reale di black-forest-labs/flux-dev-lora, escluso "disable_safety_checker" (forzato da
   GenerationService#create). Legge i valori correnti dal Model (nomi = chiave Replicate del campo).
 
-  Token HF/Civitai: select dei token salvati (CRUD /tokens, ApiTokenService) per NOME; al server arriva l'ID
+  Token HF/Civitai: select dei token salvati (CRUD /tokens, IApiTokens) per NOME; al server arriva l'ID
   (hf_token_id/civitai_token_id), che GenerationService#doCreate trasforma nel token in chiaro solo verso Replicate.
   hfTokens/civitaiTokens (senza segreti) li mette nel Model GenerationController/DeepChatController solo per questo form-type.
 

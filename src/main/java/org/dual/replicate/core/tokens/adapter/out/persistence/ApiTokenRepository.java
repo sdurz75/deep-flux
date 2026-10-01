@@ -1,11 +1,12 @@
-package org.dual.replicate.repository;
+package org.dual.replicate.core.tokens.adapter.out.persistence;
 
 import java.util.List;
 
-import org.dual.replicate.domain.ApiToken;
+import org.dual.replicate.core.tokens.domain.ApiToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ApiTokenRepository extends JpaRepository<ApiToken, Long> {
+/** Dettaglio di persistenza: fuori dall'adapter si usa solo {@code IApiTokenStore}. */
+interface ApiTokenRepository extends JpaRepository<ApiToken, Long> {
 
     List<ApiToken> findAllByOrderByProviderAscNameAsc();
 

@@ -1,8 +1,9 @@
-package org.dual.replicate.service;
+package org.dual.replicate.core.tokens.adapter.in.scheduling;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.EventSource;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -12,11 +13,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ApiTokenExpiryServiceTest {
+class TokenExpirySchedulerTest {
 
-    private final ApiTokenService tokens = mock(ApiTokenService.class);
+    private final IApiTokens tokens = mock(IApiTokens.class);
     private final ISystemEvents events = mock(ISystemEvents.class);
-    private final ApiTokenExpiryService service = new ApiTokenExpiryService(tokens, events);
+    private final TokenExpiryScheduler service = new TokenExpiryScheduler(tokens, events);
 
     @Test
     void sweepRunsTheExpiryCheck() {
