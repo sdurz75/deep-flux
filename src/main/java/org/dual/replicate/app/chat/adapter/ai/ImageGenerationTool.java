@@ -6,7 +6,6 @@ import java.util.Map;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
@@ -51,17 +50,14 @@ public class ImageGenerationTool {
 
     private final IGenerations generationService;
     private final IModelCatalog modelCatalog;
-    private final ObjectMapper objectMapper;
     private final ISystemEvents systemEvents;
 
     public ImageGenerationTool(IGenerations generationService,
                                 IModelCatalog modelCatalog,
-                                ObjectMapper objectMapper,
                                 ISystemEvents systemEvents) {
         this.systemEvents = systemEvents;
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
-        this.objectMapper = objectMapper;
     }
 
     @Tool(description = "Generate an image from a text prompt using Replicate. This starts the generation and "
@@ -84,8 +80,7 @@ public class ImageGenerationTool {
         String version = modelCatalog.versionOf(model).orElse(null);
         Generation generation;
         try {
-            String parametersJson = buildParametersJson(toolContext);
-            generation = generationService.create(model, version, prompt, parametersJson);
+            generation = generationService.create(IGenerations.CreateCommand.of(model, version, prompt, parameters(toolContext)));
         } catch (ReplicateException e) {
             systemEvents.record("createPrediction", e);
             // Es. troppe generazioni gia' in corso su Replicate: rifiuto
@@ -128,25 +123,16 @@ public class ImageGenerationTool {
     }
 
     /**
-     * Serializza i parametri impostati nel pannello UI (se presenti nel
-     * ToolContext). disable_safety_checker NON va forzato qui: lo fa
-     * IGenerations#create per ogni chiamante, form diretto incluso -
-     * duplicarlo qui varrebbe solo per questo tool, lasciando scoperto
-     * l'altro percorso.
-     *
-     * {@code null}, non "{}", quando non c'e' nessun parametro: una
-     * mappa vuota serializzata resterebbe comunque una stringa non
-     * bianca, che IGenerations#create (blankToNull) non scarterebbe
-     * - finirebbe persistita e mostrata nel dettaglio generazione
-     * (fragments/app/generation.html :: status, th:if su parametersJson) come
-     * un vuoto "Parametri: {}" invece di essere omessa del tutto.
+     * I parametri impostati nel pannello UI (se presenti nel ToolContext), gia' convertiti da DeepChatApiController.
+     * disable_safety_checker NON va forzato qui: lo fa IGenerations#create per ogni chiamante, form diretto incluso -
+     * duplicarlo qui varrebbe solo per questo tool, lasciando scoperto l'altro percorso.
      */
-    private String buildParametersJson(ToolContext toolContext) {
+    private Map<String, Object> parameters(ToolContext toolContext) {
         Map<String, Object> params = new LinkedHashMap<>();
         Object fromContext = toolContext.getContext().get(PARAMETERS_CONTEXT_KEY);
         if (fromContext instanceof Map<?, ?> map) {
             map.forEach((key, value) -> params.put(String.valueOf(key), value));
         }
-        return params.isEmpty() ? null : objectMapper.writeValueAsString(params);
+        return params;
     }
 }

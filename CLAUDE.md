@@ -241,7 +241,9 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `adapter.in.web.form` (la conversione campi di form → parametri sta nell'interface layer, non nell'esagono): `GenerationFormRegistry`
   (impl di `IGenerationForms`, il contratto che vede la chat) + un `IGenerationParameterHandler` per form-type (`FluxLoraFf3ParameterHandler`,
   `Flux2Klein9bParameterHandler`, `FluxKreaDevParameterHandler`, `PVideoParameterHandler`, `FluxKontextDevParameterHandler`,
-  `FluxDevLoraParameterHandler`; `image` di p-video lo aggiunge `GenerationController`, `input_image` di kontext `GenerationService`),
+  `FluxDevLoraParameterHandler`; `image` di p-video e `input_image` di kontext le aggiunge `GenerationService`). L'esagono riceve la
+  conversione gia' fatta: `IGenerations#create(CreateCommand)` prende una `Map<String,Object>` tipizzata (vocabolario Replicate), mai JSON o campi di form;
+  kind, chiave della sorgente e `aspect_ratio` dei video con sorgente li decide `GenerationService` dal form-type,
   `ModelCatalogService` (impl di `IModelCatalog`, catalogo censito in `replicate_model`), `TokenInputResolver`, adapter `replicate`
   (`ReplicateClient`, `ReplicatePredictionGateway`, `PredictionResponse`), `GalleryPushNotifier`, `AppTokenProviders`,
   `GenerationRecoveryService` (adapter in scheduling). Domain: `Generation`, `GenerationKind`/`Status`/`FormType`, `ReplicateModel`,

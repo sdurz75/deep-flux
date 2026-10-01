@@ -45,7 +45,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * Creazione di una generazione, listato paginato (qualunque stato) e
@@ -66,7 +65,6 @@ public class GenerationController {
     private final IGenerations generationService;
     private final IModelCatalog modelCatalog;
     private final GenerationFormRegistry parameterHandlers;
-    private final ObjectMapper objectMapper;
     private final Messages messages;
     private final IPromptEnhancer promptEnhancementService;
     private final IImageStorageService imageStorageService;
@@ -76,7 +74,6 @@ public class GenerationController {
     public GenerationController(IGenerations generationService,
                                  IModelCatalog modelCatalog,
                                  GenerationFormRegistry parameterHandlers,
-                                 ObjectMapper objectMapper,
                                  Messages messages,
                                  IPromptEnhancer promptEnhancementService,
                                  IImageStorageService imageStorageService,
@@ -86,7 +83,6 @@ public class GenerationController {
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
-        this.objectMapper = objectMapper;
         this.messages = messages;
         this.promptEnhancementService = promptEnhancementService;
         this.imageStorageService = imageStorageService;
@@ -173,27 +169,15 @@ public class GenerationController {
                     ? modelCatalog.versionOf(model).orElse(null)
                     : version;
             Map<String, Object> parameters = parameterHandlers.parameters(formType, allParams);
-            // img2video / modifica: solo se il modello scelto prende una sorgente (per un text-to-image
-            // la sorgente e' ignorata). L'immagine la aggiunge GenerationService#create all'input Replicate (come
-            // data-URI, fuori da parametersJson); con un'immagine in input p-video ignora aspect_ratio,
-            // quindi non lo si invia.
-            boolean animate = sourceGeneration != null && formType.takesSourceImage();
-            // Immagine caricata dall'utente: ha la precedenza sulla sorgente "Anima"/"Modifica", solo per
-            // i modelli con sorgente (per un text-to-image e' ignorata, come la sorgente). Salvata per ultima, subito prima
-            // di create: il file lo elimina GenerationService#create se la creazione fallisce.
+            // img2video / modifica: la sorgente la usa solo un modello che ne prende una (GenerationService la ignora per un
+            // text-to-image). Un'immagine caricata dall'utente ha la precedenza sulla sorgente "Anima"/"Modifica": si salva
+            // qui (e solo per i modelli con sorgente) subito prima di create, che elimina il file se la creazione fallisce.
             boolean upload = formType.takesSourceImage() && sourceUpload != null && !sourceUpload.isEmpty();
-            // Solo p-video ignora aspect_ratio con un'immagine in input: kontext-dev lo onora
-            // (default match_input_image).
-            if ((animate || upload) && formType.kind() == GenerationKind.VIDEO) {
-                parameters.remove("aspect_ratio");
-            }
-            String parametersJson = objectMapper.writeValueAsString(parameters);
+            boolean fromGeneration = sourceGeneration != null && !upload;
             String uploadFilename = upload ? imageStorageService.storeUpload(uploaded(sourceUpload)) : null;
-            boolean fromGeneration = animate && !upload;
-            Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
-                    formType.kind(), fromGeneration ? sourceGeneration.getId() : null,
-                    fromGeneration ? sourceImage : null, uploadFilename,
-                    formType.takesSourceImage() ? formType.sourceImageParam() : "image", formType.isEdit());
+            Generation generation = generationService.create(new IGenerations.CreateCommand(model, resolvedVersion, prompt,
+                    parameters, fromGeneration ? sourceGeneration.getId() : null,
+                    fromGeneration ? sourceImage : null, uploadFilename));
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si

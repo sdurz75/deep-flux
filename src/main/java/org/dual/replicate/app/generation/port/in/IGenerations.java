@@ -4,11 +4,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Generation;
-import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.core.kernel.Paged;
 
 /**
@@ -17,17 +17,26 @@ import org.dual.replicate.core.kernel.Paged;
  */
 public interface IGenerations {
 
-    /** Avvia una generazione di immagine senza sorgente (il tool della chat). */
-    Generation create(String model, String version, String prompt, String parametersJson);
+    /**
+     * Richiesta di una nuova generazione. {@code parameters} sono i parametri del modello gia' tipizzati (Long/Double/Boolean/
+     * String), nel vocabolario del provider; i campi di una form HTML li converte l'interface layer, non questa porta.
+     * {@code sourceGenerationId}+{@code sourceImage} o {@code sourceUploadFilename} (upload, ha la precedenza) sono
+     * l'immagine sorgente, ignorata dai modelli che non ne prendono una.
+     */
+    record CreateCommand(String model, String version, String prompt, Map<String, Object> parameters,
+                         Long sourceGenerationId, String sourceImage, String sourceUploadFilename) {
+
+        /** Generazione senza sorgente (il tool della chat). */
+        public static CreateCommand of(String model, String version, String prompt, Map<String, Object> parameters) {
+            return new CreateCommand(model, version, prompt, parameters, null, null, null);
+        }
+    }
 
     /**
-     * Avvia una generazione. {@code sourceGenerationId}+{@code sourceImage} o {@code sourceUploadFilename} (upload, ha la precedenza)
-     * sono l'immagine sorgente, inviata sotto {@code sourceImageParam}; con {@code sourceRequired} (modelli di modifica) una
-     * sorgente assente e' un errore prima di chiamare il provider. {@code parametersJson}, se presente, e' un oggetto JSON valido.
+     * Avvia una generazione. Kind, chiave dell'immagine sorgente e obbligo della sorgente (modelli di modifica: una sorgente
+     * assente e' un errore prima di chiamare il provider) li decide il form-type del modello, non il chiamante.
      */
-    Generation create(String model, String version, String prompt, String parametersJson, GenerationKind kind,
-                      Long sourceGenerationId, String sourceImage, String sourceUploadFilename,
-                      String sourceImageParam, boolean sourceRequired);
+    Generation create(CreateCommand command);
 
     /** Fa avanzare lo stato interrogando il provider (scarica se pronta, fallisce se scaduta o cancellata). */
     Generation refresh(Long id);

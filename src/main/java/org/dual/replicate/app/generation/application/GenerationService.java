@@ -18,6 +18,7 @@ import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Prediction;
 import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
 import org.dual.replicate.app.generation.port.in.IGenerations;
+import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.app.generation.port.out.IPredictionGateway;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
@@ -33,6 +34,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
+import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -90,6 +92,7 @@ public class GenerationService implements IGenerations {
     private final ApplicationEventPublisher eventPublisher;
     private final ISystemEvents systemEvents;
     private final TokenInputResolver apiTokens;
+    private final IModelCatalog modelCatalog;
 
     public GenerationService(IGenerationStore repository,
                               IPredictionGateway replicateClient,
@@ -98,8 +101,10 @@ public class GenerationService implements IGenerations {
                               Messages messages,
                               ApplicationEventPublisher eventPublisher,
                               ISystemEvents systemEvents,
-                              TokenInputResolver apiTokens) {
+                              TokenInputResolver apiTokens,
+                              IModelCatalog modelCatalog) {
         this.apiTokens = apiTokens;
+        this.modelCatalog = modelCatalog;
         this.repository = repository;
         this.replicateClient = replicateClient;
         this.imageStorageService = imageStorageService;
@@ -110,73 +115,29 @@ public class GenerationService implements IGenerations {
     }
 
     /**
-     * Avvia una nuova generazione. {@code parametersJson}, se presente,
-     * deve essere un oggetto JSON valido: i suoi campi vengono uniti al
-     * prompt per formare l'input della prediction.
+     * Avvia una nuova generazione. {@code command.parameters()} (valori tipizzati, vocabolario del provider) vengono uniti al
+     * prompt per formare l'input della prediction; kind, chiave dell'immagine sorgente e obbligo della sorgente li ricava il
+     * form-type del modello (catalogo), non il chiamante.
      *
-     * Per le immagini {@code disable_safety_checker} e' sempre forzato a true qui (per i video no, vedi l'overload sotto),
-     * qualunque sia il modello o il chiamante (form diretto via
-     * GenerationController, tool via ImageGenerationTool): nessuno dei
-     * form-type censiti lo espone come campo (vedi
-     * generation-params-flux-lora-ff3.html/generation-params-flux-2-klein-9b.html/
-     * generation-params-flux-krea-dev.html),
-     * quindi l'unico punto in cui puo' essere garantito per OGNI modello
-     * censito, presente e futuro, e' qui - non in ciascun
-     * handler dell'adapter web (duplicherebbe la regola una volta per
-     * form-type) ne' nel solo chiamante chatbot (lascerebbe il form
-     * diretto scoperto, come accadeva prima). Sovrascrive sempre
-     * qualunque valore eventualmente presente in parametersJson, non solo
-     * quando assente: "sempre true" non e' un default, e' un vincolo.
+     * Per le immagini {@code disable_safety_checker} e' sempre forzato a true qui (per i video no: p-video non lo dichiara, ha un
+     * suo {@code disable_safety_filter} gia' true di default), qualunque sia il modello o il chiamante (form diretto via
+     * GenerationController, tool via ImageGenerationTool): nessuno dei form-type censiti lo espone come campo, quindi l'unico
+     * punto in cui puo' essere garantito per OGNI modello censito, presente e futuro, e' qui - non in ciascun handler
+     * dell'adapter web (duplicherebbe la regola una volta per form-type) ne' nel solo chiamante chatbot (lascerebbe il form
+     * diretto scoperto). Sovrascrive sempre qualunque valore presente nei parametri, non solo quando assente: "sempre true"
+     * non e' un default, e' un vincolo.
+     *
+     * Un'immagine sorgente (upload, che ha la precedenza, o una generazione) conta solo per i modelli che ne prendono una
+     * ({@link GenerationFormType#takesSourceImage()}): per gli altri e' ignorata (un upload si elimina, nessuna
+     * {@code Generation} lo possiede). Se la creazione fallisce il file caricato viene eliminato.
      */
     @Override
-    public Generation create(String model, String version, String prompt, String parametersJson) {
-        return create(model, version, prompt, parametersJson, GenerationKind.IMAGE, null, null);
-    }
-
-    /**
-     * Come {@link #create(String, String, String, String)} ma per un
-     * {@code kind} esplicito (vedi {@link GenerationKind}) e con l'eventuale
-     * generazione sorgente di un img2video. {@code disable_safety_checker}
-     * e' un input dei soli modelli immagine censiti: p-video non lo
-     * dichiara (ha un suo {@code disable_safety_filter}, gia' true di
-     * default), quindi per i video non viene aggiunto.
-     */
-    public Generation create(String model, String version, String prompt, String parametersJson,
-                             GenerationKind kind, Long sourceGenerationId, String sourceImage) {
-        return create(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage, null);
-    }
-
-    /**
-     * Come sopra, con in piu' {@code sourceUploadFilename}: un'immagine
-     * caricata dall'utente (vedi IImageStorageService#storeUpload) come
-     * sorgente di un img2video stand-alone. Ha la precedenza su
-     * {@code sourceGenerationId}. Se la creazione fallisce il file caricato
-     * viene eliminato: nessuna Generation lo possiede.
-     */
-    public Generation create(String model, String version, String prompt, String parametersJson,
-                             GenerationKind kind, Long sourceGenerationId, String sourceImage,
-                             String sourceUploadFilename) {
-        return create(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage,
-                sourceUploadFilename, DEFAULT_SOURCE_IMAGE_PARAM, false);
-    }
-
-    /**
-     * Come sopra, con in piu' la chiave Replicate dell'immagine sorgente
-     * ({@link org.dual.replicate.app.generation.domain.GenerationFormType#sourceImageParam()}:
-     * "image" per p-video, "input_image" per kontext-dev) e
-     * {@code sourceRequired}: per i modelli di modifica una sorgente assente
-     * e' un errore (nessuna prediction, nessun costo), non un text-to-image.
-     */
-    @Override
-    public Generation create(String model, String version, String prompt, String parametersJson,
-                             GenerationKind kind, Long sourceGenerationId, String sourceImage,
-                             String sourceUploadFilename, String sourceImageParam, boolean sourceRequired) {
+    public Generation create(CreateCommand command) {
         try {
-            return doCreate(model, version, prompt, parametersJson, kind, sourceGenerationId, sourceImage,
-                    sourceUploadFilename, sourceImageParam, sourceRequired);
+            return doCreate(command);
         } catch (RuntimeException e) {
             try {
-                imageStorageService.delete(sourceUploadFilename);
+                imageStorageService.delete(command.sourceUploadFilename());
             } catch (RuntimeException cleanupFailure) {
                 // Un file da ripulire che non si lascia cancellare NON deve mascherare l'errore vero della creazione.
                 e.addSuppressed(cleanupFailure);
@@ -185,14 +146,26 @@ public class GenerationService implements IGenerations {
         }
     }
 
-    private Generation doCreate(String model, String version, String prompt, String parametersJson,
-                                GenerationKind kind, Long sourceGenerationId, String sourceImage,
-                                String sourceUploadFilename, String sourceImageParam, boolean sourceRequired) {
+    private Generation doCreate(CreateCommand command) {
+        String model = command.model();
+        String prompt = command.prompt();
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
         // a null, altrimenti "" viene persistita e i th:if dei template (per cui una
         // stringa vuota e' "vera" in Thymeleaf) la mostrerebbero come fosse valorizzata.
-        version = blankToNull(version);
-        parametersJson = blankToNull(parametersJson);
+        String version = blankToNull(command.version());
+
+        // Modello non censito (non dovrebbe succedere: i chiamanti lo scelgono dal catalogo): immagine text-to-image.
+        GenerationFormType formType = modelCatalog.formTypeOf(model).orElse(null);
+        GenerationKind kind = formType == null ? GenerationKind.IMAGE : formType.kind();
+        boolean takesSource = formType != null && formType.takesSourceImage();
+        String sourceImageParam = takesSource ? formType.sourceImageParam() : DEFAULT_SOURCE_IMAGE_PARAM;
+        boolean sourceRequired = formType != null && formType.isEdit();
+        String sourceUploadFilename = takesSource ? command.sourceUploadFilename() : null;
+        Long sourceGenerationId = takesSource ? command.sourceGenerationId() : null;
+        String sourceImage = takesSource ? command.sourceImage() : null;
+        if (!takesSource && command.sourceUploadFilename() != null) {
+            deleteIgnoredUpload(command.sourceUploadFilename());
+        }
 
         long inProgress = repository.countByModelAndStatusInAndCreatedAtAfter(
                 model, List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING), Instant.now().minus(timeoutFor(kind)));
@@ -200,7 +173,14 @@ public class GenerationService implements IGenerations {
             throw new TooManyPredictionsException(messages.get("generation.error.tooManyInProgress", inProgress));
         }
 
-        Map<String, Object> input = parseParameters(parametersJson);
+        Map<String, Object> parameters = new LinkedHashMap<>(command.parameters() == null ? Map.of() : command.parameters());
+        // Con un'immagine in input p-video ignora aspect_ratio: non lo si invia (ne' lo si salva). kontext-dev lo onora.
+        if (kind == GenerationKind.VIDEO && (sourceUploadFilename != null || sourceGenerationId != null)) {
+            parameters.remove("aspect_ratio");
+        }
+        // Salvato PRIMA di risolvere i token: in DB restano gli ID scelti, mai il token in chiaro. Vuoto = null (niente "Parametri: {}").
+        String parametersJson = parameters.isEmpty() ? null : toJson(parameters);
+        Map<String, Object> input = new LinkedHashMap<>(parameters);
         // Gli ID dei token scelti (hf_token_id/civitai_token_id) diventano il token in chiaro SOLO nell'input per Replicate:
         // parametersJson (salvato sotto) conserva gli ID. Un token inesistente/scaduto lancia un rifiuto PRIMA di spendere nulla.
         apiTokens.resolveInto(input);
@@ -209,7 +189,7 @@ public class GenerationService implements IGenerations {
             input.put("disable_safety_checker", true);
         }
         // Sorgente: un'immagine caricata ha la precedenza su quella di una generazione. I modelli
-        // text-to-image la ignorano (il controller non la passa), i video la usano se presente, i
+        // text-to-image la ignorano (gia' azzerata sopra), i video la usano se presente, i
         // modelli di modifica la pretendono.
         if (sourceUploadFilename != null) {
             input.put(sourceImageParam, imageStorageService.readAsDataUri(sourceUploadFilename));
@@ -749,14 +729,18 @@ public class GenerationService implements IGenerations {
         return nowFavourite;
     }
 
-    private Map<String, Object> parseParameters(String parametersJson) {
-        if (parametersJson == null || parametersJson.isBlank()) {
-            return new LinkedHashMap<>();
-        }
+    /** Upload ricevuto per un modello che non prende sorgenti: nessuna Generation lo possiede, un errore nel ripulirlo e' registrato. */
+    private void deleteIgnoredUpload(String filename) {
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> parsed = objectMapper.readValue(parametersJson, Map.class);
-            return parsed == null ? new LinkedHashMap<>() : new LinkedHashMap<>(parsed);
+            imageStorageService.delete(filename);
+        } catch (RuntimeException e) {
+            systemEvents.record("deleteIgnoredUpload", e);
+        }
+    }
+
+    private String toJson(Map<String, Object> parameters) {
+        try {
+            return objectMapper.writeValueAsString(parameters);
         } catch (JacksonException e) {
             throw new ReplicateException(messages.get("generation.error.invalidParameters", e.getOriginalMessage()));
         }
