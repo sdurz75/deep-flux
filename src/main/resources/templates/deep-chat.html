@@ -132,7 +132,7 @@
                     <form id="generation-settings-form" onsubmit="return false;">
                         <div th:replace="~{fragments/generation-params :: fields}"></div>
                     </form>
-                    <button th:replace="~{fragments/button :: resetToDefaults(text=#{deepChat.button.resetSettings}, hxGet=@{/generations/params(model=${model})}, defaultModel=${model}, extraClass='w-full text-[0.85rem] py-1.5 mt-2')}">Reimposta ai default</button>
+                    <button th:replace="~{fragments/app/button-gen :: resetToDefaults(text=#{deepChat.button.resetSettings}, hxGet=@{/generations/params(model=${model})}, defaultModel=${model}, extraClass='w-full text-[0.85rem] py-1.5 mt-2')}">Reimposta ai default</button>
                 </div>
             </div>
             </th:block>

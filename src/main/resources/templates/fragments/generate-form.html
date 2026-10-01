@@ -58,7 +58,7 @@
     <label for="prompt" th:text="#{generateForm.label.prompt}">Prompt</label>
     <div class="relative">
         <textarea id="prompt" name="prompt" rows="3" required class="w-full pr-10" th:text="${prompt}"></textarea>
-        <button th:replace="~{fragments/button :: aiEnhance(title=#{generateForm.button.enhance})}">AI enhance</button>
+        <button th:replace="~{fragments/app/button-gen :: aiEnhance(title=#{generateForm.button.enhance})}">AI enhance</button>
     </div>
     <th:block th:if="${enhanceError}">
         <p th:replace="~{fragments/alert :: error(text=${enhanceError})}">Errore</p>

@@ -3,7 +3,8 @@
 <body>
 
 <!--
-  Header di navigazione, incluso da fragments/layout.html. Usa la
+  Header di navigazione, incluso da fragments/layout.html. Le voci di menu NON sono qui: le fornisce l'app con
+  fragments/app/nav.html :: links(inline) (punto di estensione del template), il nome dell'app e' la chiave app.brand. Usa la
   variabile Alpine "theme" dichiarata con x-data sul <body> del layout:
   th:replace inserisce questo markup come figlio diretto di quel <body>,
   quindi lo scope Alpine (basato sulla struttura del DOM risultante, non
@@ -14,7 +15,7 @@
       sticky top-0: la barra resta visibile durante lo scroll (z-40, sotto lo
       z-[99] di lightbox/modal). navOpen: stato dello slideover mobile
       (scope Alpine annidato: "theme" del <body> resta ereditato).
-      Le voci sono raggruppate in menu a tendina Pines (navMenu): Crea, Archivio, Deep Chat (link diretto), Sistema.
+      Le voci (fornite dall'app) sono raggruppate in menu a tendina Pines (navMenu) e link diretti (navLink).
       Gli STESSI fragment alimentano la barra (inline=false: pannello assoluto) e lo slideover sotto md (inline=true:
       gruppo che si espande sul posto), cosi' i menu funzionano anche a barra nascosta.
     -->
@@ -23,9 +24,9 @@
         <!-- px-4 fisso (non il clamp fluido di <main>/<footer>, vedi fragments/layout.html). -->
         <nav class="max-w-[1200px] mx-auto px-4 py-4 flex items-center justify-between gap-4">
             <button th:replace="~{fragments/button :: navToggle(open='true', content='☰', title=#{header.nav.open})}">☰</button>
-            <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-md:flex-1">deep-flux</a>
+            <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-md:flex-1" th:text="#{app.brand}">App</a>
             <div class="flex items-center gap-4 flex-1 max-md:hidden"
-                 th:insert="~{fragments/header :: navLinks(inline=false)}"></div>
+                 th:insert="~{fragments/app/nav :: links(inline=false)}"></div>
             <!-- Campanella degli eventi di sistema: fuori dallo slideover, sempre visibile (vedi fragments/notification-bell.html). -->
             <div th:replace="~{fragments/notification-bell :: container}"></div>
         </nav>
@@ -45,39 +46,22 @@
                 </div>
                 <!-- Chiude lo slideover solo cliccando un link, non i toggle dei menu. -->
                 <div class="flex flex-col gap-4 mt-4" @click="if ($event.target.closest('a')) navOpen = false"
-                     th:insert="~{fragments/header :: navLinks(inline=true)}"></div>
+                     th:insert="~{fragments/app/nav :: links(inline=true)}"></div>
             </aside>
         </div>
     </header>
 </th:block>
 
-<!-- Voci di primo livello: tre menu semantici + Deep Chat (link diretto, l'azione principale). -->
-<th:block th:fragment="navLinks(inline)">
-    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.create}, items=~{fragments/header :: navCreate}, inline=${inline})}"></div>
-    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.archive}, items=~{fragments/header :: navArchive}, inline=${inline})}"></div>
-    <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
-    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.system}, items=~{fragments/header :: navSystem}, inline=${inline})}"></div>
-</th:block>
-
-<th:block th:fragment="navCreate">
-    <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
-</th:block>
-
-<th:block th:fragment="navArchive">
-    <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
-    <!-- Solo con la ricerca semantica attiva (app.search.enabled): senza, /search non esiste. -->
-    <th:block th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}">
-        <a th:replace="~{fragments/header :: navLink(path='/search', text=#{header.nav.search})}">Ricerca</a>
-    </th:block>
-</th:block>
-
-<th:block th:fragment="navSystem">
+<!--
+  Voci di sistema del core (registro eventi, token) e riga del tema: l'app le include nel proprio menu Sistema
+  (fragments/app/nav.html), cosi' ne decide l'ordine e vi aggiunge le sue voci.
+-->
+<th:block th:fragment="navSystemCore">
     <a th:replace="~{fragments/header :: navLink(path='/system/events', text=#{header.nav.events})}">Eventi</a>
     <a th:replace="~{fragments/header :: navLink(path='/tokens', text=#{header.nav.tokens})}">Token</a>
-    <a th:replace="~{fragments/header :: navLink(path='/loras', text=#{header.nav.loras})}">LoRA</a>
+</th:block>
+
+<th:block th:fragment="navTheme">
     <div class="flex items-center gap-1 px-2 py-1.5">
         <span class="mr-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{header.menu.theme}">Tema</span>
         <th:block th:insert="~{fragments/header :: themeSwitch}"></th:block>

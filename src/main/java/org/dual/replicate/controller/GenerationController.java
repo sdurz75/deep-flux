@@ -648,7 +648,7 @@ public class GenerationController {
         model.addAttribute("favourite", favourite);
         model.addAttribute("refresh", refresh);
         model.addAttribute("variant", variant);
-        return "fragments/button :: starOverlay(generationId=${generationId}, filename=${filename}, favourite=${favourite}, refresh=${refresh}, variant=${variant})";
+        return "fragments/app/button-gen :: starOverlay(generationId=${generationId}, filename=${filename}, favourite=${favourite}, refresh=${refresh}, variant=${variant})";
     }
 
     /**

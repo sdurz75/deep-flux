@@ -26,7 +26,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>App</title>
+    <title th:text="#{app.title}">App</title>
 
     <!--
       Boot sincrono del tema PRIMA del CSS: evita il flash bianco/nero
@@ -161,7 +161,7 @@
 </main>
 
 <footer class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] border-t border-line dark:border-line-dark py-6 text-ink-muted dark:text-ink-muted-dark">
-    <small>Spring Boot &middot; Thymeleaf &middot; htmx &middot; Alpine.js</small>
+    <small th:text="#{app.footer}">Spring Boot &middot; Thymeleaf &middot; htmx &middot; Alpine.js</small>
 </footer>
 
 <div th:replace="~{fragments/toast :: container}"></div>
