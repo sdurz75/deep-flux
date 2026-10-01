@@ -1,11 +1,11 @@
-package org.dual.replicate.repository;
+package org.dual.replicate.core.events.adapter.out.persistence;
 
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
-import org.dual.replicate.domain.SystemEvent;
-import org.dual.replicate.domain.SystemEventSeverity;
+import org.dual.replicate.core.events.domain.SystemEvent;
+import org.dual.replicate.core.events.domain.SystemEventSeverity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,12 +14,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
-public interface SystemEventRepository extends JpaRepository<SystemEvent, Long> {
+/** Dettaglio di persistenza: fuori dall'adapter si usa solo {@code ISystemEventStore}. */
+interface SystemEventRepository extends JpaRepository<SystemEvent, Long> {
 
     /**
      * Serie "aperta" dello stesso evento (piu' recente prima; passare {@code Pageable.ofSize(1)}). Il predicato su
-     * {@code subject} e' null-safe A MANO: un JPQL {@code e.x = :x} con :x null non combacia mai, e
-     * ogni evento senza subject creerebbe una riga e un toast nuovi (il metodo derivato dal nome lo faceva da se').
+     * {@code subject} e' null-safe A MANO: un JPQL {@code e.x = :x} con :x null non combacia mai, e ogni evento senza subject
+     * creerebbe una riga e un toast nuovi (il metodo derivato dal nome lo faceva da se').
      */
     @Query("""
             select e from SystemEvent e
@@ -42,7 +43,8 @@ public interface SystemEventRepository extends JpaRepository<SystemEvent, Long> 
 
     long countBySeverityAndAcknowledgedAtIsNull(SystemEventSeverity severity);
 
-    List<SystemEvent> findTop5BySeverityInAndAcknowledgedAtIsNullOrderByLastSeenAtDesc(Collection<SystemEventSeverity> severities);
+    List<SystemEvent> findBySeverityInAndAcknowledgedAtIsNullOrderByLastSeenAtDesc(Collection<SystemEventSeverity> severities,
+                                                                                   Pageable pageable);
 
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)

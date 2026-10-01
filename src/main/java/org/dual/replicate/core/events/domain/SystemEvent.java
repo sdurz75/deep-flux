@@ -1,4 +1,4 @@
-package org.dual.replicate.domain;
+package org.dual.replicate.core.events.domain;
 
 import java.time.Instant;
 
@@ -15,7 +15,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * Riga del registro eventi di sistema (vedi V17/V21/V22, SystemEventService, pagina /system/events).
+ * Riga del registro eventi di sistema (vedi V17/V21/V22, ISystemEvents, pagina /system/events).
  * Una "serie" di eventi identici ravvicinati e' una sola riga con
  * {@link #getOccurrences()} incrementato. {@code subject} (es. "token:12") dice a cosa si riferisce
  * l'evento ed entra nella chiave di serie; {@code acknowledgedAt} valorizzato = visualizzato (campanella).

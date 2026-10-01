@@ -8,8 +8,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
+import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.service.ApiTokenService;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.TokenException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Controller;
@@ -33,13 +34,15 @@ public class TokenController {
 
     private final ApiTokenService tokens;
     private final ObjectProvider<ITokenProviderCatalog> providerCatalog;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
+    private final HtmxEvents htmx;
     private final Messages messages;
 
-    public TokenController(ApiTokenService tokens, SystemEventService systemEvents, Messages messages,
+    public TokenController(ApiTokenService tokens, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages,
                            ObjectProvider<ITokenProviderCatalog> providerCatalog) {
         this.tokens = tokens;
         this.systemEvents = systemEvents;
+        this.htmx = htmx;
         this.messages = messages;
         this.providerCatalog = providerCatalog;
     }
@@ -101,7 +104,7 @@ public class TokenController {
 
     private String saved(HttpServletResponse response, Model model) {
         // Chiude il dialog (tokens.html): con un errore di validazione l'evento NON parte e il dialog resta aperto.
-        systemEvents.addHxTrigger(response, "token-saved", "");
+        htmx.addHxTrigger(response, "token-saved", "");
         populateList(model);
         return listView();
     }
@@ -110,7 +113,7 @@ public class TokenController {
     private String failed(RemoteServiceException e, HttpServletResponse response, Model model, Long id, String provider,
                           String name, String expiresAt) {
         if (e.isReportable()) {
-            systemEvents.recordForHtmx(response, id == null ? "createToken" : "updateToken", e);
+            htmx.addToastHeader(response, systemEvents.record(id == null ? "createToken" : "updateToken", e));
         }
         response.setHeader("HX-Retarget", "#token-form");
         response.setHeader("HX-Reswap", "outerHTML");

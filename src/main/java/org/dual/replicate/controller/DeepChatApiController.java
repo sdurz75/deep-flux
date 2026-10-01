@@ -9,7 +9,7 @@ import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.DeepChatFailedException;
 import org.dual.replicate.service.DeepChatService;
 import org.dual.replicate.service.GenerationParameterHandlers;
@@ -42,13 +42,13 @@ public class DeepChatApiController {
     private final ReplicateModelCatalog modelCatalog;
     private final GenerationParameterHandlers parameterHandlers;
     private final Messages messages;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
     public DeepChatApiController(DeepChatService deepChatService,
                                   ReplicateModelCatalog modelCatalog,
                                   GenerationParameterHandlers parameterHandlers,
                                   Messages messages,
-                                  SystemEventService systemEvents) {
+                                  ISystemEvents systemEvents) {
         this.deepChatService = deepChatService;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
@@ -73,7 +73,7 @@ public class DeepChatApiController {
         } catch (Exception e) {
             // Fallimento prima/fuori dalla chiamata LLM (conversazione inesistente, parametri non validi...).
             systemEvents.record(CoreEventSource.INTERNAL, "chatRequest", e, AppEventSubjects.of(null, request.conversationId()));
-            return new Reply(null, messages.get("deepchat.error.contactAssistant", SystemEventService.sanitize(e)), null, null);
+            return new Reply(null, messages.get("deepchat.error.contactAssistant", ISystemEvents.sanitize(e)), null, null);
         }
     }
 

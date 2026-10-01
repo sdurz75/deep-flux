@@ -11,6 +11,8 @@ import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.storage.domain.SourceImage;
+import org.dual.replicate.core.web.HtmxEvents;
+import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.GenerationKind;
@@ -21,7 +23,7 @@ import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.GenerationRepository;
 import org.dual.replicate.service.LoraPresetService;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
@@ -70,7 +72,8 @@ public class GenerationController {
     private final Messages messages;
     private final PromptEnhancementService promptEnhancementService;
     private final IImageStorageService imageStorageService;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
+    private final HtmxEvents htmx;
     private final TokenInputResolver apiTokens;
     private final LoraPresetService loraPresets;
 
@@ -82,10 +85,11 @@ public class GenerationController {
                                  Messages messages,
                                  PromptEnhancementService promptEnhancementService,
                                  IImageStorageService imageStorageService,
-                                 SystemEventService systemEvents,
+                                 ISystemEvents systemEvents, HtmxEvents htmx,
                                  TokenInputResolver apiTokens,
                                  LoraPresetService loraPresets) {
         this.systemEvents = systemEvents;
+        this.htmx = htmx;
         this.apiTokens = apiTokens;
         this.loraPresets = loraPresets;
         this.generationService = generationService;
@@ -212,13 +216,13 @@ public class GenerationController {
             // causa: sono un rifiuto, non un errore di comunicazione, e restano solo nel form. Il resto
             // (chiamata a Replicate fallita, storage) e' registrato e notificato anche come toast.
             if (e.isReportable()) {
-                systemEvents.recordForHtmx(response, "createGeneration", e);
+                htmx.addToastHeader(response, systemEvents.record("createGeneration", e));
             }
             return createFailed(e.getMessage(), version, prompt, model, allParams, uiModel);
         } catch (RuntimeException e) {
             // Errore inatteso (upload illeggibile, DB, serializzazione...): mai un 500 che htmx non renderizza.
-            systemEvents.recordForHtmx(response, "createGeneration", e);
-            return createFailed(SystemEventService.sanitize(e), version, prompt, model, allParams, uiModel);
+            htmx.addToastHeader(response, systemEvents.record("createGeneration", e));
+            return createFailed(ISystemEvents.sanitize(e), version, prompt, model, allParams, uiModel);
         }
     }
 
@@ -320,8 +324,8 @@ public class GenerationController {
                 // Rifiuto atteso (es. upload sorgente di tipo non valido): solo il messaggio, niente registro/toast.
                 uiModel.addAttribute("enhanceError", rejected.getMessage());
             } else {
-                systemEvents.recordForHtmx(response, "enhancePrompt", e);
-                uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", SystemEventService.sanitize(e)));
+                htmx.addToastHeader(response, systemEvents.record("enhancePrompt", e));
+                uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", ISystemEvents.sanitize(e)));
             }
         }
         return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
@@ -546,9 +550,9 @@ public class GenerationController {
             // Un rifiuto perche' la prediction era gia' terminale non e' un errore da segnalare; se invece la
             // generazione e' ancora in corso il cancel e' davvero fallito: registrato e notificato.
             if (!generation.isTerminal()) {
-                SystemEventService.Recorded recorded = systemEvents.record("cancelGeneration", e, AppEventSubjects.of(id, conversationId));
+                ISystemEvents.Recorded recorded = systemEvents.record("cancelGeneration", e, AppEventSubjects.of(id, conversationId));
                 if (isHtmxRequest) {
-                    systemEvents.addToastHeader(response, recorded);
+                    htmx.addToastHeader(response, recorded);
                 }
             }
         }
@@ -610,7 +614,7 @@ public class GenerationController {
         } catch (org.dual.replicate.service.storage.StorageException e) {
             // Lo storage non ha cancellato il file: il DB e' rimasto invariato (coerente), la griglia non cambia.
             // Registrato come STORAGE (non come 500 generico) e notificato con il toast.
-            systemEvents.recordForHtmx(response, "deleteFile", e, AppEventSubjects.of(id, conversationId));
+            htmx.addToastHeader(response, systemEvents.record("deleteFile", e, AppEventSubjects.of(id, conversationId)));
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, null, e);
         }
         if (cascaded) {

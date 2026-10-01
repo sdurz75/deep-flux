@@ -1,17 +1,23 @@
-package org.dual.replicate.service;
+package org.dual.replicate.core.events.application;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.dual.replicate.app.AppEventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.domain.SystemEvent;
-import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.domain.event.SystemToastEvent;
-import org.dual.replicate.repository.SystemEventRepository;
+import org.dual.replicate.core.events.domain.SystemEvent;
+import org.dual.replicate.core.events.domain.SystemEventSeverity;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.events.port.out.ISystemEventStore;
+import org.dual.replicate.core.push.port.in.IClientPushStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+
+import reactor.core.Disposable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,30 +26,43 @@ import static org.assertj.core.api.Assertions.assertThat;
  * quindi si ripulisce a mano).
  */
 @SpringBootTest
-@org.springframework.test.context.event.RecordApplicationEvents
 class SystemEventServiceTest {
 
     @Autowired
-    private SystemEventService service;
+    private ISystemEvents service;
 
     @Autowired
-    private SystemEventRepository repository;
+    private ISystemEventStore repository;
 
     @Autowired
-    private org.springframework.test.context.event.ApplicationEvents events;
+    private IClientPushStream pushStream;
 
-    private List<SystemToastEvent> toasts() {
-        return events.stream(SystemToastEvent.class).toList();
+    /** I toast arrivano alle tab come evento SSE "system-event": ci si abbona come farebbe una tab. */
+    private final List<Map<String, Object>> toasts = new CopyOnWriteArrayList<>();
+    private Disposable subscription;
+
+    private List<Map<String, Object>> toasts() {
+        return toasts;
     }
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void clean() {
         repository.deleteAll();
+        toasts.clear();
+        subscription = pushStream.subscribe()
+                .filter(m -> "system-event".equals(m.event()))
+                .subscribe(m -> toasts.add((Map<String, Object>) m.data()));
+    }
+
+    @AfterEach
+    void unsubscribe() {
+        subscription.dispose();
     }
 
     @Test
     void recordPersistsARowAndPublishesOneToast() {
-        SystemEventService.Recorded recorded = service.record(AppEventSource.REPLICATE, "createPrediction",
+        ISystemEvents.Recorded recorded = service.record(AppEventSource.REPLICATE, "createPrediction",
                 new IllegalStateException("rete giu'"), "generation:5");
 
         List<SystemEvent> rows = repository.findAll();
@@ -58,7 +77,7 @@ class SystemEventServiceTest {
         assertThat(row.getOccurrences()).isEqualTo(1);
         assertThat(recorded.firstOfSeries()).isTrue();
         assertThat(toasts()).hasSize(1);
-        assertThat(toasts().get(0).message()).contains("rete giu'");
+        assertThat((String) toasts().get(0).get("message")).contains("rete giu'");
     }
 
     /** Un'outage con polling ogni 2s non deve produrre una riga/un toast per poll. */
@@ -124,30 +143,7 @@ class SystemEventServiceTest {
 
         assertThat(service.record("a", transientFailure).transientFailure()).isTrue();
         assertThat(service.record("b", permanent).transientFailure()).isFalse();
-        assertThat(toasts()).extracting(SystemToastEvent::transientFailure).containsExactly(true, false);
-    }
-
-    /** L'header HX-Trigger e' uno solo: aggiungere il toast a un evento gia' presente non lo sovrascrive. */
-    @Test
-    void addingAToastKeepsAnExistingHxTriggerEvent() {
-        var response = new org.springframework.mock.web.MockHttpServletResponse();
-        response.setHeader("HX-Trigger", "gallery-update");
-
-        service.recordForHtmx(response, "op", new IllegalStateException("bug"));
-
-        String header = response.getHeader("HX-Trigger");
-        assertThat(header).startsWith("{").contains("\"gallery-update\"").contains("\"system-toast\"")
-                .contains("\"message\"").contains("\"transient\":false");
-    }
-
-    @Test
-    void addingAnEventToAJsonHxTriggerMergesBothAndKeepsDetails() {
-        var response = new org.springframework.mock.web.MockHttpServletResponse();
-        response.setHeader("HX-Trigger", "{\"showMessage\":\"ciao\"}");
-
-        service.addHxTrigger(response, "gallery-update", "");
-
-        assertThat(response.getHeader("HX-Trigger")).contains("\"showMessage\":\"ciao\"").contains("\"gallery-update\"");
+        assertThat(toasts()).extracting(t -> t.get("transient")).containsExactly(true, false);
     }
 
     /** Un errore senza generazione ne' subject (predicati null-safe della query di serie) raggruppa comunque in una sola riga. */
@@ -163,7 +159,7 @@ class SystemEventServiceTest {
 
     @Test
     void warnPersistsAWarningRowAndPublishesOneWarningToast() {
-        SystemEventService.Recorded recorded = service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:12", "Il token scade tra 3 giorni");
+        ISystemEvents.Recorded recorded = service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:12", "Il token scade tra 3 giorni");
 
         SystemEvent row = repository.findAll().get(0);
         assertThat(row.getSeverity()).isEqualTo(SystemEventSeverity.WARNING);
@@ -172,8 +168,8 @@ class SystemEventServiceTest {
         assertThat(recorded.severity()).isEqualTo(SystemEventSeverity.WARNING);
         assertThat(recorded.firstOfSeries()).isTrue();
         assertThat(toasts()).hasSize(1);
-        assertThat(toasts().get(0).severity()).isEqualTo(SystemEventSeverity.WARNING);
-        assertThat(toasts().get(0).message()).contains("scade tra 3 giorni");
+        assertThat(toasts().get(0).get("severity")).isEqualTo("WARNING");
+        assertThat((String) toasts().get(0).get("message")).contains("scade tra 3 giorni");
     }
 
     @Test
@@ -195,21 +191,13 @@ class SystemEventServiceTest {
         assertThat(repository.findAll()).hasSize(2);
     }
 
-    @Test
-    void theToastHeaderCarriesTheSeverity() {
-        var response = new org.springframework.mock.web.MockHttpServletResponse();
-        service.addToastHeader(response, service.warn(CoreEventSource.TOKENS, "tokenExpired", "token:3", "scaduto"));
-
-        assertThat(response.getHeader("HX-Trigger")).contains("\"severity\":\"WARNING\"").contains("\"transient\":false");
-    }
-
     /** Campanella: nuovi eventi non letti, "segna come letti", e una ripetizione di una serie gia' letta resta letta. */
     @Test
     void unseenEventsFeedTheBellAndAcknowledgementSticksAcrossRepeats() {
         service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a");
         service.record(AppEventSource.REPLICATE, "createPrediction", new RuntimeException("x"), "generation:9");
 
-        SystemEventService.Unseen unseen = service.unseen();
+        ISystemEvents.Unseen unseen = service.unseen();
         assertThat(unseen.count()).isEqualTo(2);
         assertThat(unseen.hasError()).isTrue();
         assertThat(unseen.latest()).hasSize(2);
@@ -222,7 +210,7 @@ class SystemEventServiceTest {
         assertThat(service.unseen().count()).isZero();
         // una serie nuova (altro subject) si
         service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "b");
-        SystemEventService.Unseen again = service.unseen();
+        ISystemEvents.Unseen again = service.unseen();
         assertThat(again.count()).isEqualTo(1);
         assertThat(again.hasError()).isFalse();
     }

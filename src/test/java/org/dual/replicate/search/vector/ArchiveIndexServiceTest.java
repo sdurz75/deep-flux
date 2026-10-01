@@ -11,7 +11,7 @@ import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.repository.GenerationRepository;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +58,7 @@ class ArchiveIndexServiceTest {
     private VectorStore vectorStore;
     private VectorDocumentRepository documents;
     private VectorIndexer indexer;
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
     private ArchiveIndexService service;
 
     @BeforeEach
@@ -68,7 +68,7 @@ class ArchiveIndexServiceTest {
         vectorStore = SemanticSearchConfig.pgVectorStore(jdbcTemplate, embedding);
         documents = new VectorDocumentRepository(jdbc, objectMapper);
         indexer = new VectorIndexer(vectorStore, documents, "modello-a");
-        systemEvents = mock(SystemEventService.class);
+        systemEvents = mock(ISystemEvents.class);
         service = new ArchiveIndexService(indexer, documents, generations, messages, conversations, systemEvents, transactionManager);
     }
 

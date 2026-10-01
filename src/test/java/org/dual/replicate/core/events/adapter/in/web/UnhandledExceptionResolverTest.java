@@ -1,8 +1,9 @@
-package org.dual.replicate.config;
+package org.dual.replicate.core.events.adapter.in.web;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.service.storage.StorageException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -19,15 +20,16 @@ import static org.mockito.Mockito.when;
 
 class UnhandledExceptionResolverTest {
 
-    private final SystemEventService systemEvents = mock(SystemEventService.class);
-    private final UnhandledExceptionResolver resolver = new UnhandledExceptionResolver(systemEvents);
+    private final ISystemEvents systemEvents = mock(ISystemEvents.class);
+    private final HtmxEvents htmx = mock(HtmxEvents.class);
+    private final UnhandledExceptionResolver resolver = new UnhandledExceptionResolver(systemEvents, htmx);
     private final MockHttpServletRequest request = new MockHttpServletRequest("DELETE", "/generations/1/images/x.png");
     private final MockHttpServletResponse response = new MockHttpServletResponse();
 
     UnhandledExceptionResolverTest() {
         request.addHeader("HX-Request", "true");
         when(systemEvents.record(anyString(), any(Throwable.class)))
-                .thenReturn(new SystemEventService.Recorded("k", "msg", true, false));
+                .thenReturn(new ISystemEvents.Recorded("k", "msg", true, false));
     }
 
     @Test
@@ -37,9 +39,9 @@ class UnhandledExceptionResolverTest {
         resolver.resolveException(request, response, null, failure);
 
         verify(systemEvents).record("DELETE /generations/1/images/x.png", failure);
-        verify(systemEvents).addToastHeader(eq(response), any());
+        verify(htmx).addToastHeader(eq(response), any());
         assertThat(response.getStatus()).isEqualTo(502);
-        assertThat(SystemEventService.sourceOf(failure)).isEqualTo(CoreEventSource.STORAGE);
+        assertThat(ISystemEvents.sourceOf(failure)).isEqualTo(CoreEventSource.STORAGE);
     }
 
     @Test
@@ -49,7 +51,7 @@ class UnhandledExceptionResolverTest {
         resolver.resolveException(request, response, null, rejected);
 
         verify(systemEvents, never()).record(anyString(), any(Throwable.class));
-        verify(systemEvents).addHxTrigger(eq(response), eq("system-toast"), any());
+        verify(htmx).addHxTrigger(eq(response), eq("system-toast"), any());
         assertThat(response.getStatus()).isEqualTo(422);
     }
 
@@ -61,6 +63,6 @@ class UnhandledExceptionResolverTest {
 
         verify(systemEvents).record("DELETE /generations/1/images/x.png", bug);
         assertThat(response.getStatus()).isEqualTo(500);
-        assertThat(SystemEventService.sourceOf(bug)).isEqualTo(CoreEventSource.INTERNAL);
+        assertThat(ISystemEvents.sourceOf(bug)).isEqualTo(CoreEventSource.INTERNAL);
     }
 }

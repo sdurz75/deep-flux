@@ -1,7 +1,7 @@
 package org.dual.replicate.controller;
 
 import org.dual.replicate.repository.ApiTokenRepository;
-import org.dual.replicate.repository.SystemEventRepository;
+import org.dual.replicate.core.events.port.out.ISystemEventStore;
 import org.dual.replicate.service.ApiTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class TokenControllerTest {
     @Autowired
     private ApiTokenRepository repository;
     @Autowired
-    private SystemEventRepository eventRepository;
+    private ISystemEventStore eventRepository;
     @Autowired
     private ApiTokenService service;
 

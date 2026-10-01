@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
@@ -33,7 +34,7 @@ class GenerationRecoveryServiceTest {
     private DeepChatGenerationWatcher watcher;
 
     @Mock
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
 
     private GenerationRecoveryService service() {
         return new GenerationRecoveryService(repository, generationService, watcher, systemEvents);

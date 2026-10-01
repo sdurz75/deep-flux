@@ -1,7 +1,7 @@
-package org.dual.replicate.config;
+package org.dual.replicate.core.events.adapter.in.async;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 
@@ -13,9 +13,9 @@ import org.springframework.scheduling.annotation.AsyncConfigurer;
 @Configuration
 public class AsyncErrorConfig implements AsyncConfigurer {
 
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
-    public AsyncErrorConfig(@org.springframework.context.annotation.Lazy SystemEventService systemEvents) {
+    public AsyncErrorConfig(@org.springframework.context.annotation.Lazy ISystemEvents systemEvents) {
         this.systemEvents = systemEvents;
     }
 

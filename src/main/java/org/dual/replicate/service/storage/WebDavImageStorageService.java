@@ -27,7 +27,7 @@ import org.dual.replicate.core.kernel.remote.RemoteCaller;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
 import org.dual.replicate.core.kernel.remote.RestClientTranslator;
 import org.dual.replicate.core.kernel.remote.RetryPolicy;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,7 +61,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     private final String baseUrl;
     private final ChunkedAesGcmCipher cipher;
     private final EncryptedBlobCache cache;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
     private final RestClientTranslator errors;
     private final RemoteCaller remote;
     private final Set<String> collectionsReady = ConcurrentHashMap.newKeySet();
@@ -80,7 +80,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             @Value("${storage.webdav.encryption-key:}") String encryptionKey,
             @Value("${storage.webdav.cache.dir:./data/cache}") String cacheDir,
             @Value("${storage.webdav.cache.max-size:2GB}") DataSize cacheMaxSize,
-            Messages messages, RestClient.Builder restClientBuilder, SystemEventService systemEvents) throws IOException {
+            Messages messages, RestClient.Builder restClientBuilder, ISystemEvents systemEvents) throws IOException {
         super(messages, restClientBuilder);
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("storage.type=webdav richiede storage.webdav.url");

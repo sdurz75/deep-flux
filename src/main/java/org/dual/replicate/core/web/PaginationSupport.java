@@ -1,10 +1,10 @@
-package org.dual.replicate.controller;
+package org.dual.replicate.core.web;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /** Finestra di numeri di pagina condivisa dai listati paginati (fragments/pagination.html). */
-final class PaginationSupport {
+public final class PaginationSupport {
 
     private PaginationSupport() {
     }
@@ -16,7 +16,7 @@ final class PaginationSupport {
      * la paginazione resta leggibile anche quando il listato cresce molto
      * invece di elencare centinaia di numeri.
      */
-    static List<Integer> window(int currentPage, int totalPages) {
+    public static List<Integer> window(int currentPage, int totalPages) {
         if (totalPages <= 1) {
             return List.of();
         }

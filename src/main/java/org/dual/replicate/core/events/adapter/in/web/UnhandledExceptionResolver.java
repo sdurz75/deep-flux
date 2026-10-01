@@ -1,4 +1,4 @@
-package org.dual.replicate.config;
+package org.dual.replicate.core.events.adapter.in.web;
 
 import java.io.IOException;
 import java.util.Map;
@@ -6,7 +6,8 @@ import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.web.HtmxEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -19,7 +20,7 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
  * Ultima rete per le eccezioni che nessun catch del controller ne' i resolver standard di Spring MVC
  * (ExceptionHandler, ResponseStatus, DefaultHandlerExceptionResolver: 404, 400, 405...) hanno gestito: prima
  * finivano in un 500 senza traccia utile, che htmx non renderizza (l'utente non vedeva nulla). Ora sono
- * registrate (SystemEventService) e, per una richiesta htmx, accompagnate dall'header HX-Trigger del toast.
+ * registrate (ISystemEvents) e, per una richiesta htmx, accompagnate dall'header HX-Trigger del toast.
  * <p>
  * Ordine LOWEST_PRECEDENCE: vede solo cio' che gli altri resolver hanno lasciato passare. Un resolver e non
  * un {@code @ControllerAdvice(Exception)} proprio per non intercettare (e trasformare) gli errori "normali"
@@ -31,10 +32,12 @@ public class UnhandledExceptionResolver implements HandlerExceptionResolver, Ord
 
     private static final Logger log = LoggerFactory.getLogger(UnhandledExceptionResolver.class);
 
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
+    private final HtmxEvents htmx;
 
-    public UnhandledExceptionResolver(SystemEventService systemEvents) {
+    public UnhandledExceptionResolver(ISystemEvents systemEvents, HtmxEvents htmx) {
         this.systemEvents = systemEvents;
+        this.htmx = htmx;
     }
 
     @Override
@@ -47,7 +50,7 @@ public class UnhandledExceptionResolver implements HandlerExceptionResolver, Ord
         if (isClientDisconnect(ex)) {
             return null;
         }
-        boolean htmx = "true".equalsIgnoreCase(request.getHeader("HX-Request"));
+        boolean isHtmx = "true".equalsIgnoreCase(request.getHeader("HX-Request"));
         String operation = request.getMethod() + " " + request.getRequestURI();
         RemoteServiceException remote = remoteCause(ex);
         int status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
@@ -55,19 +58,19 @@ public class UnhandledExceptionResolver implements HandlerExceptionResolver, Ord
             // Rifiuto atteso (es. "generazione non trovata" cliccando su una tab vecchia): non e' un guasto, quindi
             // niente registro errori; all'utente htmx si mostra comunque il messaggio.
             status = 422;
-            if (htmx && !response.isCommitted()) {
-                systemEvents.addHxTrigger(response, "system-toast",
+            if (isHtmx && !response.isCommitted()) {
+                htmx.addHxTrigger(response, "system-toast",
                         Map.of("key", "rejected-" + Math.abs(remote.getMessage().hashCode()), "message", remote.getMessage()));
             }
         } else {
             // La source viene dall'eccezione (Replicate, storage...), non e' piu' sempre INTERNAL; un guasto di un
             // servizio esterno e' un 502, non un 500 dell'app.
-            SystemEventService.Recorded recorded = systemEvents.record(operation, ex);
+            ISystemEvents.Recorded recorded = systemEvents.record(operation, ex);
             if (remote != null) {
                 status = HttpServletResponse.SC_BAD_GATEWAY;
             }
-            if (htmx && !response.isCommitted()) {
-                systemEvents.addToastHeader(response, recorded);
+            if (isHtmx && !response.isCommitted()) {
+                htmx.addToastHeader(response, recorded);
             }
         }
         if (response.isCommitted()) {

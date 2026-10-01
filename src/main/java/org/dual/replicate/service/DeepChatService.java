@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import org.dual.replicate.app.AppEventSource;
 import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.domain.ChatConversation;
@@ -71,7 +72,7 @@ public class DeepChatService {
     // reply()/buildMessages()), collisione con Messages se chiamato
     // uguale.
     private final Messages i18n;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
@@ -81,7 +82,7 @@ public class DeepChatService {
                             ChatMessageRepository chatMessageRepository,
                             DeepChatGenerationWatcher generationWatcher,
                             Messages i18n,
-                            SystemEventService systemEvents,
+                            ISystemEvents systemEvents,
                             @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
@@ -234,7 +235,7 @@ public class DeepChatService {
      */
     private DeepChatFailedException failTurn(ChatConversation conversation, EventSource source, String operation, RuntimeException cause) {
         systemEvents.record(source, operation, cause, AppEventSubjects.of(null, conversation.getId()));
-        String userMessage = i18n.get("deepchat.error.contactAssistant", SystemEventService.sanitize(cause));
+        String userMessage = i18n.get("deepchat.error.contactAssistant", ISystemEvents.sanitize(cause));
         try {
             chatMessageRepository.save(ChatMessage.errorTurn(conversation, userMessage));
         } catch (RuntimeException e) {

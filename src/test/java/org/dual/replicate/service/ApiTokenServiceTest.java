@@ -7,14 +7,15 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
-import org.dual.replicate.domain.SystemEvent;
-import org.dual.replicate.domain.SystemEventSeverity;
+import org.dual.replicate.core.events.domain.SystemEvent;
+import org.dual.replicate.core.events.domain.SystemEventSeverity;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.repository.ApiTokenRepository;
-import org.dual.replicate.repository.SystemEventRepository;
+import org.dual.replicate.core.events.port.out.ISystemEventStore;
 import org.dual.replicate.core.secrets.application.SecretCipher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,11 +37,11 @@ class ApiTokenServiceTest {
     @Autowired
     private ApiTokenRepository repository;
     @Autowired
-    private SystemEventRepository eventRepository;
+    private ISystemEventStore eventRepository;
     @Autowired
     private SecretCipher cipher;
     @Autowired
-    private SystemEventService events;
+    private ISystemEvents events;
     @Autowired
     private Messages messages;
 

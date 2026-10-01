@@ -9,7 +9,7 @@ import java.util.OptionalLong;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.service.storage.StorageException;
 import org.springframework.http.HttpHeaders;
@@ -33,9 +33,9 @@ public class ImageController {
     private static final String CACHE_CONTROL = "private, max-age=31536000, immutable";
 
     private final IImageStorageService storage;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
-    public ImageController(IImageStorageService storage, SystemEventService systemEvents) {
+    public ImageController(IImageStorageService storage, ISystemEvents systemEvents) {
         this.storage = storage;
         this.systemEvents = systemEvents;
     }

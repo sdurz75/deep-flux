@@ -1,4 +1,4 @@
-package org.dual.replicate.controller;
+package org.dual.replicate.core.events.adapter.in.web;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -9,14 +9,14 @@ import java.util.Map;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.port.out.IEventLinkResolver;
-import org.dual.replicate.domain.SystemEvent;
-import org.dual.replicate.domain.SystemEventSeverity;
+import org.dual.replicate.core.events.domain.EventPage;
+import org.dual.replicate.core.events.domain.SystemEvent;
+import org.dual.replicate.core.events.domain.SystemEventSeverity;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.repository.SystemEventRepository;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.web.HtmxEvents;
+import org.dual.replicate.core.web.PaginationSupport;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * Registro degli eventi di sistema (SystemEventService: errori delle chiamate remote e interni, avvisi come la
+ * Registro degli eventi di sistema (ISystemEvents: errori delle chiamate remote e interni, avvisi come la
  * scadenza dei token): listato paginato, piu' recente prima, filtrabile per severita', con svuotamento; e la campanella
  * della toolbar (eventi non visualizzati). Stesso pattern pagina/fragment di GalleryController.
  */
@@ -34,15 +34,15 @@ public class SystemEventController {
 
     private static final int PAGE_SIZE = 20;
 
-    private final SystemEventRepository repository;
-    private final SystemEventService events;
+    private final ISystemEvents events;
+    private final HtmxEvents htmx;
     private final Messages messages;
     private final ObjectProvider<IEventLinkResolver> linkResolver;
 
-    public SystemEventController(SystemEventRepository repository, SystemEventService events, Messages messages,
+    public SystemEventController(ISystemEvents events, HtmxEvents htmx, Messages messages,
                                  ObjectProvider<IEventLinkResolver> linkResolver) {
-        this.repository = repository;
         this.events = events;
+        this.htmx = htmx;
         this.messages = messages;
         this.linkResolver = linkResolver;
     }
@@ -73,7 +73,7 @@ public class SystemEventController {
     /** Svuota il registro e ritorna il contenuto aggiornato (target #events-content). */
     @PostMapping("/system/events/clear")
     public String clear(Model model) {
-        repository.deleteAllInBatch();
+        events.clear();
         populate(1, null, null, model);
         return contentView();
     }
@@ -89,13 +89,13 @@ public class SystemEventController {
     @PostMapping("/system/events/seen")
     public String markAllSeen(HttpServletResponse response, Model model) {
         events.markAllSeen();
-        events.addHxTrigger(response, "system-event", "");
+        htmx.addHxTrigger(response, "system-event", "");
         populateBell(model);
         return bellView();
     }
 
     private void populateBell(Model model) {
-        SystemEventService.Unseen unseen = events.unseen();
+        ISystemEvents.Unseen unseen = events.unseen();
         Instant now = Instant.now();
         model.addAttribute("bellCount", unseen.count());
         model.addAttribute("bellHasError", unseen.hasError());
@@ -127,23 +127,23 @@ public class SystemEventController {
     private void populate(int page, String severityParam, Long highlightId, Model model) {
         SystemEventSeverity severity = parseSeverity(severityParam);
         int pageIndex = Math.max(0, page - 1);
-        Page<SystemEvent> result = find(severity, pageIndex);
+        EventPage result = events.list(severity, pageIndex, PAGE_SIZE);
         // Come GalleryController: una pagina che non esiste piu' (dopo un refresh) ricade sull'ultima esistente.
-        if (result.isEmpty() && result.getTotalPages() > 0 && pageIndex >= result.getTotalPages()) {
-            pageIndex = result.getTotalPages() - 1;
-            result = find(severity, pageIndex);
+        if (result.isEmpty() && result.totalPages() > 0 && pageIndex >= result.totalPages()) {
+            pageIndex = result.totalPages() - 1;
+            result = events.list(severity, pageIndex, PAGE_SIZE);
         }
         int currentPage = pageIndex + 1;
-        model.addAttribute("events", result.getContent());
-        model.addAttribute("eventLinks", linksOf(result.getContent()));
+        model.addAttribute("events", result.content());
+        model.addAttribute("eventLinks", linksOf(result.content()));
         model.addAttribute("severity", severity == null ? null : severity.name());
         model.addAttribute("highlightId", highlightId);
         model.addAttribute("unseenCount", events.unseen().count());
         model.addAttribute("currentPage", currentPage);
-        model.addAttribute("totalPages", result.getTotalPages());
+        model.addAttribute("totalPages", result.totalPages());
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
-        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.getTotalPages()));
+        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));
     }
 
     /** I link "apri" per evento (id -> link), risolti dall'app tramite {@link IEventLinkResolver}; nessuna implementazione = nessun link. */
@@ -154,13 +154,6 @@ public class SystemEventController {
             content.forEach(e -> links.put(e.getId(), resolver.resolve(e.getSubject())));
         }
         return links;
-    }
-
-    private Page<SystemEvent> find(SystemEventSeverity severity, int pageIndex) {
-        PageRequest pageable = PageRequest.of(pageIndex, PAGE_SIZE);
-        return severity == null
-                ? repository.findAllByOrderByLastSeenAtDesc(pageable)
-                : repository.findAllBySeverityOrderByLastSeenAtDesc(severity, pageable);
     }
 
     /** Un valore sconosciuto equivale a "nessun filtro" (mai un 400 per un link vecchio). */

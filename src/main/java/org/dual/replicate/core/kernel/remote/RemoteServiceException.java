@@ -4,7 +4,7 @@ import org.dual.replicate.core.kernel.EventSource;
 
 /**
  * Radice di ogni errore legato a un servizio esterno (Replicate, OpenRouter, SearXNG, storage): un solo tipo che porta
- * con se' DA DOVE viene ({@link #source()}, cosi' {@code SystemEventService} non ha bisogno che gliela si passi a mano) e
+ * con se' DA DOVE viene ({@link #source()}, cosi' {@code ISystemEvents} non ha bisogno che gliela si passi a mano) e
  * CHE COSA farne ({@link #kind()}). Vedi "Convenzione: errori delle chiamate remote" in CLAUDE.md e {@link RemoteCaller}.
  */
 public class RemoteServiceException extends RuntimeException {

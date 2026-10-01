@@ -1,5 +1,6 @@
 package org.dual.replicate.service;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.EventSource;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,7 @@ import static org.mockito.Mockito.when;
 class ApiTokenExpiryServiceTest {
 
     private final ApiTokenService tokens = mock(ApiTokenService.class);
-    private final SystemEventService events = mock(SystemEventService.class);
+    private final ISystemEvents events = mock(ISystemEvents.class);
     private final ApiTokenExpiryService service = new ApiTokenExpiryService(tokens, events);
 
     @Test

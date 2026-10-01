@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.Locale;
 
 import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
@@ -42,14 +43,14 @@ public class DeepChatGenerationWatcher {
     private final ChatMessageRepository chatMessageRepository;
     private final GenerationEventBroadcaster broadcaster;
     private final Messages i18n;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
     public DeepChatGenerationWatcher(GenerationService generationService,
                                       ChatConversationRepository chatConversationRepository,
                                       ChatMessageRepository chatMessageRepository,
                                       GenerationEventBroadcaster broadcaster,
                                       Messages i18n,
-                                      SystemEventService systemEvents) {
+                                      ISystemEvents systemEvents) {
         this.generationService = generationService;
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;

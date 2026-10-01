@@ -1,4 +1,4 @@
-package org.dual.replicate.domain;
+package org.dual.replicate.core.events.domain;
 
 import java.util.Arrays;
 import java.util.Set;

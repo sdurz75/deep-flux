@@ -3,6 +3,7 @@ package org.dual.replicate.service;
 import java.util.List;
 import java.util.Set;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.search.vector.ArchiveIndexService;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
@@ -28,10 +29,10 @@ public class ArchiveSearchTool {
     private static final int SNIPPET = 300;
 
     private final VectorStore vectorStore;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
     private final int topK;
 
-    public ArchiveSearchTool(VectorStore vectorStore, SystemEventService systemEvents, @Value("${app.search.top-k:5}") int topK) {
+    public ArchiveSearchTool(VectorStore vectorStore, ISystemEvents systemEvents, @Value("${app.search.top-k:5}") int topK) {
         this.vectorStore = vectorStore;
         this.systemEvents = systemEvents;
         this.topK = topK;
@@ -61,7 +62,7 @@ public class ArchiveSearchTool {
             return found.stream().map(ArchiveSearchTool::describe).collect(java.util.stream.Collectors.joining("\n"));
         } catch (RuntimeException e) {
             systemEvents.record("searchArchive", e);
-            return "Ricerca nell'archivio non disponibile al momento (" + SystemEventService.sanitize(e)
+            return "Ricerca nell'archivio non disponibile al momento (" + ISystemEvents.sanitize(e)
                     + "). Rispondi senza, dicendo all'utente che la ricerca non e' andata a buon fine.";
         }
     }

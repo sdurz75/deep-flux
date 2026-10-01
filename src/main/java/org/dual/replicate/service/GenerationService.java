@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.app.TokenInputResolver;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
@@ -79,7 +80,7 @@ public class GenerationService {
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
     private final TokenInputResolver apiTokens;
 
     public GenerationService(GenerationRepository repository,
@@ -88,7 +89,7 @@ public class GenerationService {
                               ObjectMapper objectMapper,
                               Messages messages,
                               ApplicationEventPublisher eventPublisher,
-                              SystemEventService systemEvents,
+                              ISystemEvents systemEvents,
                               TokenInputResolver apiTokens) {
         this.apiTokens = apiTokens;
         this.repository = repository;
@@ -357,7 +358,7 @@ public class GenerationService {
                 generation.setImageFilenames(new ArrayList<>());
                 systemEvents.record(CoreEventSource.STORAGE, "downloadOutput", e, AppEventSubjects.of(generation.getId(), generation.getConversationId()));
                 generation.setStatus(GenerationStatus.FAILED);
-                generation.setErrorMessage(messages.get("generation.error.downloadFailed", SystemEventService.sanitize(e)));
+                generation.setErrorMessage(messages.get("generation.error.downloadFailed", ISystemEvents.sanitize(e)));
             }
             generation.setCompletedAt(Instant.now());
         } else if (prediction.canceled()) {
@@ -395,7 +396,7 @@ public class GenerationService {
     }
 
     /**
-     * Il poll verso Replicate e' fallito (dopo i ritentativi). Sempre registrato ({@link SystemEventService}: la serie
+     * Il poll verso Replicate e' fallito (dopo i ritentativi). Sempre registrato ({@link ISystemEvents}: la serie
      * evita righe/toast a ogni poll). Un errore PERMANENTE (token errato, 4xx, risposta illeggibile) fa fallire la
      * generazione subito; uno TRANSITORIO (rete, timeout, 5xx) la lascia in corso e riprova al prossimo poll — la
      * prediction su Replicate continua e il suo esito non va perso per un'interruzione di pochi secondi — ma il
@@ -406,7 +407,7 @@ public class GenerationService {
         boolean permanent = e instanceof ReplicateException replicateException && !replicateException.isTransient();
         if (permanent) {
             generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage(messages.get("generation.error.contactFailed", SystemEventService.sanitize(e)));
+            generation.setErrorMessage(messages.get("generation.error.contactFailed", ISystemEvents.sanitize(e)));
             generation.setCompletedAt(Instant.now());
             // La riga diventa terminale e non verra' piu' interrogata: se la prediction gira ancora (risposta
             // illeggibile, non un 401/404) va fermata, altrimenti continua e costa.

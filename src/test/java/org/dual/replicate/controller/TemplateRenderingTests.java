@@ -53,7 +53,7 @@ class TemplateRenderingTests {
     private MockMvc mockMvc;
 
     @Autowired
-    private org.dual.replicate.repository.SystemEventRepository systemEventRepository;
+    private org.dual.replicate.core.events.port.out.ISystemEventStore systemEventRepository;
 
     @Autowired
     private GenerationRepository repository;
@@ -333,7 +333,7 @@ class TemplateRenderingTests {
     @Test
     @Transactional
     void errorsPageListsRecordedErrorsAndClearEmptiesTheLog() throws Exception {
-        systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(org.dual.replicate.domain.SystemEventSeverity.ERROR,
+        systemEventRepository.save(new org.dual.replicate.core.events.domain.SystemEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.ERROR,
                 org.dual.replicate.app.AppEventSource.REPLICATE, "getPrediction", "ReplicateException", "Replicate non risponde", "stack...",
                 "generation:42", java.time.Instant.now()));
 
@@ -350,9 +350,9 @@ class TemplateRenderingTests {
         assertThat(systemEventRepository.count()).isZero();
     }
 
-    private org.dual.replicate.domain.SystemEvent savedEvent(org.dual.replicate.domain.SystemEventSeverity severity, String message,
+    private org.dual.replicate.core.events.domain.SystemEvent savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity severity, String message,
                                                               String subject) {
-        return systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(severity,
+        return systemEventRepository.save(new org.dual.replicate.core.events.domain.SystemEvent(severity,
                 org.dual.replicate.core.events.domain.CoreEventSource.TOKENS, "op", "T", message, null, subject,
                 java.time.Instant.now().minusSeconds(300)));
     }
@@ -383,14 +383,14 @@ class TemplateRenderingTests {
     @Transactional
     void bellShowsUnseenCountSeverityColourAndLinksToTheEvent() throws Exception {
         systemEventRepository.deleteAll();
-        var warning = savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "Il token scade tra 3 giorni", "token:1");
+        var warning = savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.WARNING, "Il token scade tra 3 giorni", "token:1");
 
         String onlyWarning = mockMvc.perform(get("/system/events/bell")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertThat(onlyWarning).contains("bg-warning").doesNotContain("bg-danger").contains("Il token scade tra 3 giorni")
                 .contains("href=\"/system/events?event=" + warning.getId() + "\"").contains("Avviso");
 
-        var error = savedEvent(org.dual.replicate.domain.SystemEventSeverity.ERROR, "Replicate non risponde", null);
+        var error = savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.ERROR, "Replicate non risponde", null);
         String withError = mockMvc.perform(get("/system/events/bell")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertThat(withError).contains("bg-danger").contains(">2</span>").contains("Replicate non risponde")
@@ -401,8 +401,8 @@ class TemplateRenderingTests {
     @Transactional
     void openingAnEventMarksOnlyThatOneAsSeenAndHighlightsIt() throws Exception {
         systemEventRepository.deleteAll();
-        var a = savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "evento a", "token:1");
-        var b = savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "evento b", "token:2");
+        var a = savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.WARNING, "evento a", "token:1");
+        var b = savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.WARNING, "evento b", "token:2");
 
         String page = mockMvc.perform(get("/system/events").param("event", String.valueOf(a.getId())))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -416,7 +416,7 @@ class TemplateRenderingTests {
     @Transactional
     void markAllSeenClearsTheBellAndTellsTheListToRefresh() throws Exception {
         systemEventRepository.deleteAll();
-        savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "evento", "token:1");
+        savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.WARNING, "evento", "token:1");
 
         var result = mockMvc.perform(post("/system/events/seen").header("HX-Request", "true")).andExpect(status().isOk()).andReturn();
 
@@ -428,8 +428,8 @@ class TemplateRenderingTests {
     @Transactional
     void eventsPageFiltersBySeverityAndMarksUnreadRows() throws Exception {
         systemEventRepository.deleteAll();
-        savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "solo avviso", "token:1");
-        savedEvent(org.dual.replicate.domain.SystemEventSeverity.ERROR, "solo errore", null);
+        savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.WARNING, "solo avviso", "token:1");
+        savedEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.ERROR, "solo errore", null);
 
         String warnings = mockMvc.perform(get("/system/events").param("severity", "WARNING")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();

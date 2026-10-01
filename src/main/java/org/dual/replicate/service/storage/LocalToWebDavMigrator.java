@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -38,11 +38,11 @@ public class LocalToWebDavMigrator {
     }
 
     private final WebDavImageStorageService target;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
     private final Path sourceDir;
     private final boolean deleteLocal;
 
-    public LocalToWebDavMigrator(ObjectProvider<WebDavImageStorageService> target, SystemEventService systemEvents,
+    public LocalToWebDavMigrator(ObjectProvider<WebDavImageStorageService> target, ISystemEvents systemEvents,
                                  @Value("${storage.images-dir}") String imagesDir,
                                  @Value("${storage.migration.from-local.delete-local:false}") boolean deleteLocal) {
         this.target = target.getIfAvailable();
@@ -60,7 +60,7 @@ public class LocalToWebDavMigrator {
         migrate();
     }
 
-    /** Un giro completo; un file che fallisce non ferma gli altri (registrato con {@link SystemEventService}). */
+    /** Un giro completo; un file che fallisce non ferma gli altri (registrato con {@link ISystemEvents}). */
     public Result migrate() {
         List<Path> files = localFiles();
         log.info("Migrazione storage locale -> WebDAV: {} file in {} (delete-local={})", files.size(), sourceDir,

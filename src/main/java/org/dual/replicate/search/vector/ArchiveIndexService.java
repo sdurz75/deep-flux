@@ -18,7 +18,7 @@ import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.repository.GenerationRepository;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.GenerationCompletedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +37,7 @@ import jakarta.annotation.PreDestroy;
  * Tiene l'indice semantico allineato ai dati, con una RICONCILIAZIONE idempotente invece di ganci su ogni {@code save}:
  * aggiunge i documenti mancanti o cambiati ({@link VectorIndexer} salta gli invariati per hash del testo e modello), rimuove quelli la
  * cui riga sorgente non esiste piu'. Gira in background all'avvio (backfill), ogni {@code app.search.reindex-interval} e
- * dopo ogni generazione completata. Un documento che non si riesce a indicizzare e' registrato ({@link SystemEventService}) e
+ * dopo ogni generazione completata. Un documento che non si riesce a indicizzare e' registrato ({@link ISystemEvents}) e
  * non ferma gli altri.
  *
  * <p>Cosa si indicizza: il prompt delle generazioni riuscite ({@code type=generation}), i messaggi delle chat non di errore
@@ -62,7 +62,7 @@ public class ArchiveIndexService {
     private final GenerationRepository generations;
     private final ChatMessageRepository messages;
     private final ChatConversationRepository conversations;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
     /** Solo la LETTURA delle sorgenti JPA e' in transazione (read-only): le scritture sull'indice vanno fuori, vedi {@link #reconcile()}. */
     private final TransactionTemplate readOnly;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
@@ -75,7 +75,7 @@ public class ArchiveIndexService {
 
     public ArchiveIndexService(VectorIndexer indexer, VectorDocumentRepository documents, GenerationRepository generations,
                                ChatMessageRepository messages, ChatConversationRepository conversations,
-                               SystemEventService systemEvents, PlatformTransactionManager transactionManager) {
+                               ISystemEvents systemEvents, PlatformTransactionManager transactionManager) {
         this.readOnly = new TransactionTemplate(transactionManager);
         this.readOnly.setReadOnly(true);
         this.indexer = indexer;

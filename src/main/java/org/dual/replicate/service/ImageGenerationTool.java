@@ -3,6 +3,7 @@ package org.dual.replicate.service;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.Generation;
@@ -50,12 +51,12 @@ public class ImageGenerationTool {
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
     private final ObjectMapper objectMapper;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
     public ImageGenerationTool(GenerationService generationService,
                                 ReplicateModelCatalog modelCatalog,
                                 ObjectMapper objectMapper,
-                                SystemEventService systemEvents) {
+                                ISystemEvents systemEvents) {
         this.systemEvents = systemEvents;
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
@@ -97,7 +98,7 @@ public class ImageGenerationTool {
             // Errore inatteso (parametri non serializzabili, DB...): stesso trattamento, mai un'eccezione
             // che attraversi Spring AI con esito non verificato.
             systemEvents.record(CoreEventSource.INTERNAL, "generateImage", e);
-            return "Impossibile avviare la generazione: errore interno (" + SystemEventService.sanitize(e)
+            return "Impossibile avviare la generazione: errore interno (" + ISystemEvents.sanitize(e)
                     + "). Non ritentare automaticamente.";
         }
 

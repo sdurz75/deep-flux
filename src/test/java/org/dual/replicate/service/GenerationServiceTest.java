@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.databind.ObjectMapper;
@@ -55,7 +56,7 @@ class GenerationServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
 
     @Mock
     private org.dual.replicate.app.TokenInputResolver apiTokens;

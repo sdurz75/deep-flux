@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ChatConversationRepository;
@@ -66,7 +67,7 @@ class DeepChatServiceTest {
     private Messages i18n;
 
     @Mock
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
 
     /** Con la ricerca semantica attiva il modello riceve anche searchArchive; senza, solo i due tool storici. */
     @Test

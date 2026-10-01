@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class WebDavImageStorageServiceTest {
     private AtomicBoolean down;
     private final String key = Base64.getEncoder().encodeToString(random(32, 7));
     private Messages messages;
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
     private byte[] png;
 
     private static byte[] random(int length, long seed) {
@@ -68,7 +68,7 @@ class WebDavImageStorageServiceTest {
         down = dav.down;
         messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
-        systemEvents = mock(SystemEventService.class);
+        systemEvents = mock(ISystemEvents.class);
     }
 
     @AfterEach

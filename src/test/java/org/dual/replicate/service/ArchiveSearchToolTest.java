@@ -3,6 +3,7 @@ package org.dual.replicate.service;
 import java.util.List;
 import java.util.Map;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.document.Document;
@@ -19,7 +20,7 @@ import static org.mockito.Mockito.when;
 class ArchiveSearchToolTest {
 
     private final VectorStore store = mock(VectorStore.class);
-    private final SystemEventService systemEvents = mock(SystemEventService.class);
+    private final ISystemEvents systemEvents = mock(ISystemEvents.class);
     private final ArchiveSearchTool tool = new ArchiveSearchTool(store, systemEvents, 3);
 
     private static Document hit(String id, String text, Map<String, Object> metadata) {

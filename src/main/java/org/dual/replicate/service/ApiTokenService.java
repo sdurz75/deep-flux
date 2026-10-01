@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Service;
  * per ID e l'app lo risolve col plaintext con {@link #resolve} (vedi {@code TokenInputResolver}), mai nel PARAMETERS_JSON salvato.
  * Mai il segreto in log, eventi, toast o modello Thymeleaf.
  * <p>
- * Scadenza (data inserita a mano): {@link #checkExpiries} registra un AVVISO (SystemEventService#warn, source TOKENS,
+ * Scadenza (data inserita a mano): {@link #checkExpiries} registra un AVVISO (ISystemEvents#warn, source TOKENS,
  * subject {@code token:<id>}) per i token scaduti o in scadenza entro {@code app.tokens.expiry-warning-days}; vedi
  * {@code ApiTokenExpiryService} per l'esecuzione periodica.
  */
@@ -40,18 +41,18 @@ public class ApiTokenService {
 
     private final ApiTokenRepository repository;
     private final ISecretCipher cipher;
-    private final SystemEventService events;
+    private final ISystemEvents events;
     private final Messages messages;
     private final int warningDays;
     private final Clock clock;
 
     @Autowired
-    public ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, SystemEventService events, Messages messages,
+    public ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
                            @Value("${app.tokens.expiry-warning-days:15}") int warningDays) {
         this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone());
     }
 
-    ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, SystemEventService events, Messages messages,
+    ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
                     int warningDays, Clock clock) {
         this.repository = repository;
         this.cipher = cipher;

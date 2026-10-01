@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
@@ -53,7 +54,7 @@ class DeepChatGenerationWatcherTest {
     private Messages i18n;
 
     @Mock
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
 
     @Test
     void watchPersistsChatMessageAndBroadcastsOnSuccess() {

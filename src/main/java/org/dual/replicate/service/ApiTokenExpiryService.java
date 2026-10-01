@@ -1,5 +1,6 @@
 package org.dual.replicate.service;
 
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,9 +23,9 @@ public class ApiTokenExpiryService {
     private static final Logger log = LoggerFactory.getLogger(ApiTokenExpiryService.class);
 
     private final ApiTokenService tokens;
-    private final SystemEventService events;
+    private final ISystemEvents events;
 
-    public ApiTokenExpiryService(ApiTokenService tokens, SystemEventService events) {
+    public ApiTokenExpiryService(ApiTokenService tokens, ISystemEvents events) {
         this.tokens = tokens;
         this.events = events;
     }

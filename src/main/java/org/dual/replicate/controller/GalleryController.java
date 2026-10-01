@@ -3,6 +3,7 @@ package org.dual.replicate.controller;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.GenerationRepository;

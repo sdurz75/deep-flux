@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 
 import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
@@ -47,10 +48,10 @@ public class GenerationRecoveryService {
     private final GenerationRepository repository;
     private final GenerationService generationService;
     private final DeepChatGenerationWatcher watcher;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
 
     public GenerationRecoveryService(GenerationRepository repository, GenerationService generationService,
-                                      DeepChatGenerationWatcher watcher, SystemEventService systemEvents) {
+                                      DeepChatGenerationWatcher watcher, ISystemEvents systemEvents) {
         this.repository = repository;
         this.generationService = generationService;
         this.watcher = watcher;

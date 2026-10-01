@@ -3,9 +3,10 @@ package org.dual.replicate.controller;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
+import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.service.LoraException;
 import org.dual.replicate.service.LoraPresetService;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,12 +26,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class LoraController {
 
     private final LoraPresetService loras;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
+    private final HtmxEvents htmx;
     private final Messages messages;
 
-    public LoraController(LoraPresetService loras, SystemEventService systemEvents, Messages messages) {
+    public LoraController(LoraPresetService loras, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages) {
         this.loras = loras;
         this.systemEvents = systemEvents;
+        this.htmx = htmx;
         this.messages = messages;
     }
 
@@ -89,7 +92,7 @@ public class LoraController {
 
     private String saved(HttpServletResponse response, Model model) {
         // Chiude il dialog (loras.html): con un errore di validazione l'evento NON parte e il dialog resta aperto.
-        systemEvents.addHxTrigger(response, "lora-saved", "");
+        htmx.addHxTrigger(response, "lora-saved", "");
         populateList(model);
         return listView();
     }
@@ -97,7 +100,7 @@ public class LoraController {
     private String failed(RemoteServiceException e, HttpServletResponse response, Model model, Long id, String name, String source,
                           String scale, String triggerWords, String note) {
         if (e.isReportable()) {
-            systemEvents.recordForHtmx(response, id == null ? "createLora" : "updateLora", e);
+            htmx.addToastHeader(response, systemEvents.record(id == null ? "createLora" : "updateLora", e));
         }
         response.setHeader("HX-Retarget", "#lora-form");
         response.setHeader("HX-Reswap", "outerHTML");

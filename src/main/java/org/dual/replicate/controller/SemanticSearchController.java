@@ -10,8 +10,10 @@ import java.util.UUID;
 
 import org.dual.replicate.core.kernel.i18n.Messages;
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.core.web.HtmxEvents;
+import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.search.vector.ArchiveIndexService;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.search.vector.VectorDocumentRepository;
 import org.dual.replicate.search.vector.VectorDocumentRepository.Listing;
 import org.dual.replicate.search.vector.VectorDocumentRepository.StoredDocument;
@@ -63,11 +65,12 @@ public class SemanticSearchController {
     private final VectorDocumentRepository documents;
     private final ArchiveIndexService indexService;
     private final Messages messages;
-    private final SystemEventService systemEvents;
+    private final ISystemEvents systemEvents;
+    private final HtmxEvents htmx;
     private final int defaultThresholdPercent;
 
     public SemanticSearchController(VectorStore vectorStore, VectorIndexer indexer, VectorDocumentRepository documents,
-                                    ArchiveIndexService indexService, Messages messages, SystemEventService systemEvents,
+                                    ArchiveIndexService indexService, Messages messages, ISystemEvents systemEvents, HtmxEvents htmx,
                                     @Value("${app.search.similarity-threshold-percent:0}") int defaultThresholdPercent) {
         this.vectorStore = vectorStore;
         this.indexer = indexer;
@@ -75,6 +78,7 @@ public class SemanticSearchController {
         this.indexService = indexService;
         this.messages = messages;
         this.systemEvents = systemEvents;
+        this.htmx = htmx;
         this.defaultThresholdPercent = defaultThresholdPercent;
     }
 
@@ -129,7 +133,7 @@ public class SemanticSearchController {
         indexer.upsertIfChanged(List.of(note("note:" + UUID.randomUUID(), now, now, text.strip(), title.strip())));
         // Chiude il dialog note (search.html) e fa ricaricare la lista col form corrente (search-form ascolta note-saved); con un
         // errore di validazione, sopra, l'evento NON parte e il dialog resta aperto.
-        systemEvents.addHxTrigger(response, "note-saved", "");
+        htmx.addHxTrigger(response, "note-saved", "");
         model.addAttribute("stats", stats());
         return "fragments/search :: deleted(stats=${stats})";
     }
@@ -159,7 +163,7 @@ public class SemanticSearchController {
         }
         // La data di creazione non cambia con la modifica (le note piu' vecchie non l'hanno ancora: refId e' lo stesso istante).
         indexer.upsertIfChanged(List.of(note(existing.id(), existing.refId(), existing.createdAt().toEpochMilli(), text.strip(), title.strip())));
-        systemEvents.addHxTrigger(response, "note-saved", "");
+        htmx.addHxTrigger(response, "note-saved", "");
         model.addAttribute("hit", new Hit(documents.find(id).orElseThrow(), null));
         return "fragments/search :: row(hit=${hit})";
     }

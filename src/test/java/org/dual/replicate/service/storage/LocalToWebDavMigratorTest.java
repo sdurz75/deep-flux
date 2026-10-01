@@ -7,7 +7,7 @@ import java.util.Base64;
 import java.util.Random;
 
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.service.SystemEventService;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ class LocalToWebDavMigratorTest {
 
     private FakeWebDavServer dav;
     private WebDavImageStorageService webdav;
-    private SystemEventService systemEvents;
+    private ISystemEvents systemEvents;
     private Path images;
     private final byte[] photo = new byte[150_000];
 
@@ -45,7 +45,7 @@ class LocalToWebDavMigratorTest {
         dav = new FakeWebDavServer();
         Messages messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
-        systemEvents = mock(SystemEventService.class);
+        systemEvents = mock(ISystemEvents.class);
         byte[] keyBytes = new byte[32];
         new Random(9).nextBytes(keyBytes);
         String key = Base64.getEncoder().encodeToString(keyBytes);
