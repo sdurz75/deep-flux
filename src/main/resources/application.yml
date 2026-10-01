@@ -85,7 +85,7 @@ spring:
   # ogni richiesta (incluse le richieste htmx e il polling di
   # /generations/{id}).
   messages:
-    basename: messages
+    basename: messages,messages-core
     encoding: UTF-8
     # Una locale non mappata (es. "de") ricade sul bundle di base
     # (italiano), non sul default della JVM che ospita il processo.

@@ -1345,10 +1345,21 @@ class TemplateRenderingTests {
      */
     @Test
     void messageBundlesHaveMatchingKeys() throws IOException {
-        Properties it = loadProperties("/messages.properties");
-        Properties en = loadProperties("/messages_en.properties");
+        for (String basename : new String[]{"messages", "messages-core"}) {
+            Properties it = loadProperties("/" + basename + ".properties");
+            Properties en = loadProperties("/" + basename + "_en.properties");
 
-        assertThat(it.keySet()).containsExactlyInAnyOrderElementsOf(en.keySet());
+            assertThat(it.keySet()).as(basename).containsExactlyInAnyOrderElementsOf(en.keySet());
+        }
+    }
+
+    /** Core e app non definiscono la stessa chiave: niente shadowing silenzioso (chi sostituisce l'app non cambia il core). */
+    @Test
+    void coreAndAppBundlesDefineDisjointKeys() throws IOException {
+        Properties app = loadProperties("/messages.properties");
+        Properties core = loadProperties("/messages-core.properties");
+
+        assertThat(app.keySet()).doesNotContainAnyElementsOf(core.keySet());
     }
 
     private static Properties loadProperties(String classpathResource) throws IOException {
