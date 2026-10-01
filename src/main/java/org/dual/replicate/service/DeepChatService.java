@@ -19,7 +19,7 @@ import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
-import org.dual.replicate.domain.Generation;
+import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;

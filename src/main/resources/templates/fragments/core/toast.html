@@ -5,7 +5,7 @@
 <!--
   Contenitore dei toast degli eventi di sistema (errori e avvisi), incluso una volta da fragments/core/layout.html. Ascolta l'evento window
   "system-toast" ({key, message}), che arriva da tre sorgenti:
-  1. SSE "system-event" (GenerationEventBroadcaster) ri-dispatchato da fragments/core/live-events.html: errori
+  1. SSE "system-event" (GalleryPushNotifier) ri-dispatchato da fragments/core/live-events.html: errori
      nati in thread async/watcher e nella chat, su ogni pagina che include live-events;
   2. header HX-Trigger {"system-toast": {...}} (SystemEventService#addToastHeader) sulle risposte htmx dei
      controller: htmx lo trasforma in un evento "system-toast" (con detail = l'oggetto) che risale a window;

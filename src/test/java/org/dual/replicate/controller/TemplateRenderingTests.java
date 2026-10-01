@@ -5,17 +5,19 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
 
+import org.dual.replicate.app.generation.adapter.in.web.GalleryController;
+import org.dual.replicate.app.generation.adapter.in.web.GenerationController;
 import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationKind;
-import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
-import org.dual.replicate.repository.GenerationRepository;
+import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -56,7 +58,7 @@ class TemplateRenderingTests {
     private org.dual.replicate.core.events.port.out.ISystemEventStore systemEventRepository;
 
     @Autowired
-    private GenerationRepository repository;
+    private IGenerationStore repository;
 
     @Autowired
     private ChatConversationRepository chatConversationRepository;
@@ -549,10 +551,10 @@ class TemplateRenderingTests {
     private org.dual.replicate.core.secrets.application.SecretCipher secretCipher;
 
     @Autowired
-    private org.dual.replicate.service.LoraPresetService loraPresetService;
+    private org.dual.replicate.app.generation.port.in.ILoraPresets loraPresetService;
 
     @Autowired
-    private org.dual.replicate.repository.LoraPresetRepository loraPresetRepository;
+    private org.dual.replicate.app.generation.port.out.ILoraPresetStore loraPresetRepository;
 
     /**
      * Form-type FLUX_DEV_LORA (migrazione V20/FluxDevLoraParameterHandler): campi LoRA, upload img2img opzionale, solo i propri
@@ -782,7 +784,7 @@ class TemplateRenderingTests {
 
     /**
      * Il seed deve essere sempre chiaramente visibile nel dettaglio (vedi
-     * Generation.seed/GenerationService#create), non solo sepolto nel
+     * Generation.seed/IGenerations#create), non solo sepolto nel
      * blob "Parametri": una riga dedicata, con un placeholder esplicito
      * quando non e' noto (mai una riga che sparisce, a differenza di
      * version/parametri).
@@ -945,7 +947,7 @@ class TemplateRenderingTests {
      * FK non aveva un ON DELETE, quindi cancellarla da qui falliva con una
      * violazione del vincolo DOPO che il file immagine era gia' stato
      * rimosso da storage (IImageStorageService#delete, chiamato prima della
-     * riga DB in GenerationService#delete): risultato, un'immagine sparita
+     * riga DB in IGenerations#delete): risultato, un'immagine sparita
      * dal disco ma ancora elencata in galleria con tutti i suoi dettagli.
      * Niente @Transactional qui (a differenza di altri test in questa
      * classe, ma come i suoi vicini deleteSetsHxRedirectHeader/
@@ -998,7 +1000,7 @@ class TemplateRenderingTests {
         Generation htmxGeneration = new Generation("pred-race-htmx", "owner/model", null, "a wolf", null);
         htmxGeneration.setStatus(GenerationStatus.PROCESSING);
         htmxGeneration = repository.save(htmxGeneration);
-        repository.deleteById(htmxGeneration.getId());
+        repository.deleteAllById(List.of(htmxGeneration.getId()));
 
         mockMvc.perform(get("/generations/" + htmxGeneration.getId())
                         .param("generationsPage", "3")
@@ -1008,7 +1010,7 @@ class TemplateRenderingTests {
         Generation browserGeneration = new Generation("pred-race-browser", "owner/model", null, "a wolf", null);
         browserGeneration.setStatus(GenerationStatus.PROCESSING);
         browserGeneration = repository.save(browserGeneration);
-        repository.deleteById(browserGeneration.getId());
+        repository.deleteAllById(List.of(browserGeneration.getId()));
 
         mockMvc.perform(get("/generations/" + browserGeneration.getId()))
                 .andExpect(status().is3xxRedirection())
@@ -1090,7 +1092,7 @@ class TemplateRenderingTests {
 
     /**
      * L'endpoint di cancellazione in blocco cancella davvero righe e file
-     * (vedi GenerationService#deleteAll), a differenza del bottone lato
+     * (vedi IGenerations#deleteAll), a differenza del bottone lato
      * client (disabilitato quando la selezione e' vuota, mai testabile
      * qui: MockMvc non esegue JS/Alpine).
      */
@@ -1118,8 +1120,8 @@ class TemplateRenderingTests {
      * La galleria contestuale di /deep-chat ascolta anche l'evento SSE
      * generico "gallery-update" (non solo "new-message"): una
      * cancellazione dalla griglia globale (o da un'altra conversazione)
-     * deve riflettersi anche qui, vedi GenerationService#delete/#deleteAll
-     * e GenerationEventBroadcaster#onGenerationsDeleted.
+     * deve riflettersi anche qui, vedi IGenerations#delete/#deleteAll
+     * e GalleryPushNotifier#onGenerationsDeleted.
      */
     @Test
     @Transactional

@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.dual.replicate.app.generation.domain.Generation;
 
 /**
  * Una conversazione di /deep-chat: raggruppa i turni (ChatMessage) che

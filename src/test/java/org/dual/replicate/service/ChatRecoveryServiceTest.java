@@ -4,9 +4,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
+import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.when;
 class ChatRecoveryServiceTest {
 
     @Mock
-    private GenerationService generationService;
+    private IGenerations generationService;
 
     @Mock
     private ChatMessageRepository chatMessageRepository;

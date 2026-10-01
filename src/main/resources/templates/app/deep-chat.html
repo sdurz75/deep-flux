@@ -37,7 +37,7 @@
       String" invece di doversi affidare a come Thymeleaf serializzerebbe
       un elenco di ChatMessage — chatHistoryJson arriva gia' come JSON
       dal controller (DeepChatController), qui solo JSON.parse. I
-      modelli censiti (vedi ReplicateModelCatalog) non passano piu' da
+      modelli censiti (vedi ModelCatalogService) non passano piu' da
       qui: sono letti direttamente dal Model in
       fragments/app/generation-params.html (una select Pines (con la <select> nativa nascosta come fonte di verita') su una vera
       entity JPA, niente piu' bridge JSON/data-*).
@@ -246,7 +246,7 @@
           "gallery-update from:body": stesso evento SSE gia' ascoltato
           dalla galleria globale (fragments/app/gallery.html :: content),
           ora pubblicato anche da GenerationService#delete/#deleteAll
-          (vedi GenerationEventBroadcaster) - cosi' una cancellazione
+          (vedi GalleryPushNotifier) - cosi' una cancellazione
           dalla griglia globale (o da un'altra conversazione) si riflette
           anche qui, e viceversa.
         -->
@@ -275,7 +275,7 @@
       campi in un colpo a ogni cambiamento, non solo quello che ha
       scatenato l'evento. Valori sempre stringa (FormData li restituisce
       sempre cosi'): la conversione al vocabolario/tipi Replicate e'
-      interamente lato server (GenerationParameterHandler.toParameterMap),
+      interamente lato server (IGenerationParameterHandler.toParameterMap),
       niente lista di campi numerici da mantenere qui per ogni nuovo
       form-type. Script classico (non module/deferred): gia' eseguito
       durante il parsing, il <form> sopra (nel rail sinistro non
@@ -467,7 +467,7 @@
       DeepChatApiController.Request): tutti gli altri campi del form-type
       corrente finiscono sotto "parameters", nidificati, cosi'
       DeepChatApiController puo' delegare la loro interpretazione allo
-      stesso GenerationParameterHandler del form diretto senza dover
+      stesso IGenerationParameterHandler del form diretto senza dover
       elencare i nomi dei campi nel Request record — un nuovo form-type
       non richiede modifiche qui. I campi vuoti/non impostati (stringa
       vuota, null, undefined) non vengono inclusi: cosi' un modello che

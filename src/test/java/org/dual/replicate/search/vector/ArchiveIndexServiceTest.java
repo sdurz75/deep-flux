@@ -6,11 +6,11 @@ import java.util.stream.Stream;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
-import org.dual.replicate.repository.GenerationRepository;
+import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +48,7 @@ class ArchiveIndexServiceTest {
     @Autowired
     private ObjectMapper objectMapper;
     @Autowired
-    private GenerationRepository generations;
+    private IGenerationStore generations;
     @Autowired
     private ChatMessageRepository messages;
     @Autowired
@@ -69,7 +69,7 @@ class ArchiveIndexServiceTest {
         documents = new VectorDocumentRepository(jdbc, objectMapper);
         indexer = new VectorIndexer(vectorStore, documents, "modello-a");
         systemEvents = mock(ISystemEvents.class);
-        service = new ArchiveIndexService(indexer, documents, generations, messages, conversations, systemEvents, transactionManager);
+        service = new ArchiveIndexService(indexer, documents, generationsPort(), messages, conversations, systemEvents, transactionManager);
     }
 
     @AfterEach
@@ -152,7 +152,7 @@ class ArchiveIndexServiceTest {
         service.reconcile();
         assertThat(documents.count()).isEqualTo(1);
 
-        generations.deleteById(g.getId());
+        generations.deleteAllById(List.of(g.getId()));
         service.reconcile();
 
         assertThat(documents.count()).isZero();
@@ -170,7 +170,7 @@ class ArchiveIndexServiceTest {
             }
         };
         VectorIndexer fragile = new VectorIndexer(SemanticSearchConfig.pgVectorStore(jdbcTemplate, failingOnPoison), documents, "modello-a");
-        ArchiveIndexService fragileService = new ArchiveIndexService(fragile, documents, generations, messages, conversations, systemEvents, transactionManager);
+        ArchiveIndexService fragileService = new ArchiveIndexService(fragile, documents, generationsPort(), messages, conversations, systemEvents, transactionManager);
         generation("veleno", GenerationStatus.SUCCEEDED);
         Generation fine = generation("gatto", GenerationStatus.SUCCEEDED);
 
@@ -190,5 +190,13 @@ class ArchiveIndexServiceTest {
         assertThat(found).allSatisfy(d -> assertThat(d.getText().length()).isLessThanOrEqualTo(ArchiveIndexService.MAX_CHARS));
         assertThat(documents.idsOfType("conversation")).doesNotContain("conversation:" + conversation.getId());
         assertThat(Stream.of(documents.idsOfType("generation")).count()).isEqualTo(1);
+    }
+
+    /** La porta delle generazioni vista dall'indice: solo le riuscite, lette dallo store di test. */
+    private org.dual.replicate.app.generation.port.in.IGenerations generationsPort() {
+        var port = org.mockito.Mockito.mock(org.dual.replicate.app.generation.port.in.IGenerations.class);
+        org.mockito.Mockito.when(port.succeeded()).thenAnswer(invocation -> generations.findByStatusIn(
+                List.of(org.dual.replicate.app.generation.domain.GenerationStatus.SUCCEEDED)));
+        return port;
     }
 }

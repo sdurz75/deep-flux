@@ -5,14 +5,15 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.dual.replicate.app.generation.adapter.in.web.GenerationController;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.replicate.ReplicateModelCatalog;
+import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.service.DeepChatFailedException;
 import org.dual.replicate.service.DeepChatService;
-import org.dual.replicate.service.GenerationParameterHandlers;
+import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * ingresso ({@code parameters} arriva via requestInterceptor, vedi il
  * template — il pannello impostazioni li invia gia' col nome dei campi
  * del form-type corrente, risolti in "input" Replicate dallo stesso
- * GenerationParameterHandler usato dal form diretto, vedi
+ * IGenerationParameterHandler usato dal form diretto, vedi
  * toGenerationParameters sotto), {"text": "...", "files":[{"src","name","type":"image"}]}
  * o {"error":"..."} in uscita — "files" con type "image" e' il formato
  * che deep-chat riconosce per mostrare un'immagine in chat, non solo
@@ -39,14 +40,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeepChatApiController {
 
     private final DeepChatService deepChatService;
-    private final ReplicateModelCatalog modelCatalog;
-    private final GenerationParameterHandlers parameterHandlers;
+    private final IModelCatalog modelCatalog;
+    private final IGenerationForms parameterHandlers;
     private final Messages messages;
     private final ISystemEvents systemEvents;
 
     public DeepChatApiController(DeepChatService deepChatService,
-                                  ReplicateModelCatalog modelCatalog,
-                                  GenerationParameterHandlers parameterHandlers,
+                                  IModelCatalog modelCatalog,
+                                  IGenerationForms parameterHandlers,
                                   Messages messages,
                                   ISystemEvents systemEvents) {
         this.deepChatService = deepChatService;
@@ -78,7 +79,7 @@ public class DeepChatApiController {
     }
 
     /**
-     * Delega al GenerationParameterHandler del form-type del modello
+     * Delega al IGenerationParameterHandler del form-type del modello
      * scelto (stesso condiviso con GenerationController, il form
      * diretto): se il modello non e' censito nel catalogo (non dovrebbe
      * succedere, la select lato client offre solo modelli censiti)

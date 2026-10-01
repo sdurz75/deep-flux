@@ -4,22 +4,23 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.dual.replicate.app.generation.adapter.in.web.GenerationController;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationKind;
-import org.dual.replicate.domain.ReplicateModel;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.replicate.ReplicateModelCatalog;
+import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.service.ChatConversationService;
 import org.dual.replicate.service.DeepChatService;
-import org.dual.replicate.service.GenerationParameterHandler;
-import org.dual.replicate.service.GenerationService;
-import org.dual.replicate.service.GenerationParameterHandlers;
+import org.dual.replicate.app.generation.port.in.IGenerationParameterHandler;
+import org.dual.replicate.app.generation.port.in.IGenerations;
+import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -44,29 +45,23 @@ import jakarta.servlet.http.HttpServletResponse;
 @Controller
 public class DeepChatController {
 
-    private final ReplicateModelCatalog modelCatalog;
-    private final GenerationParameterHandlers parameterHandlers;
+    private final IModelCatalog modelCatalog;
+    private final IGenerationForms parameterHandlers;
     private final ChatConversationRepository chatConversationRepository;
     private final ChatConversationService chatConversationService;
     private final ChatMessageRepository chatMessageRepository;
-    private final GenerationService generationService;
+    private final IGenerations generationService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
-    private final org.dual.replicate.app.TokenInputResolver apiTokens;
-    private final org.dual.replicate.service.LoraPresetService loraPresets;
 
-    public DeepChatController(ReplicateModelCatalog modelCatalog,
-                               GenerationParameterHandlers parameterHandlers,
+    public DeepChatController(IModelCatalog modelCatalog,
+                               IGenerationForms parameterHandlers,
                                ChatConversationRepository chatConversationRepository,
                                ChatConversationService chatConversationService,
                                ChatMessageRepository chatMessageRepository,
-                               GenerationService generationService,
+                               IGenerations generationService,
                                ObjectMapper objectMapper,
-                               Messages messages,
-                               org.dual.replicate.app.TokenInputResolver apiTokens,
-                               org.dual.replicate.service.LoraPresetService loraPresets) {
-        this.apiTokens = apiTokens;
-        this.loraPresets = loraPresets;
+                               Messages messages) {
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
         this.chatConversationRepository = chatConversationRepository;
@@ -99,24 +94,21 @@ public class DeepChatController {
         model.addAttribute("chatHistoryJson", objectMapper.writeValueAsString(loadHistory(id)));
         // Placeholder da ripristinare: generazioni di QUESTA conversazione ancora in corso (vedi deep-chat.html).
         model.addAttribute("pendingGenerationIds", generationService.inProgressForConversation(id).stream()
-                .map(org.dual.replicate.domain.Generation::getId).toList());
+                .map(org.dual.replicate.app.generation.domain.Generation::getId).toList());
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", id);
         model.addAttribute("contextualItems", generationService.succeededForConversation(id).stream()
-                .map(org.dual.replicate.service.GalleryItem::first).toList());
+                .map(org.dual.replicate.app.generation.domain.GalleryItem::first).toList());
 
         // Solo modelli immagine: il tool di chat genera immagini (i video passano da /generations/new).
         model.addAttribute("models", modelCatalog.models(GenerationKind.IMAGE));
         Optional<ReplicateModel> defaultModel = modelCatalog.defaultModel();
         model.addAttribute("model", defaultModel.map(ReplicateModel::getIdentifier).orElse(""));
-        GenerationParameterHandler handler = defaultModel.map(m -> parameterHandlers.get(m.getFormType())).orElse(null);
+        IGenerationParameterHandler handler = defaultModel.map(m -> parameterHandlers.get(m.getFormType())).orElse(null);
         model.addAttribute("formType", handler == null ? null : handler.formType().name());
         if (handler != null) {
             handler.defaultFields().forEach(model::addAttribute);
-            if (handler.formType() == org.dual.replicate.domain.GenerationFormType.FLUX_DEV_LORA) {
-                apiTokens.formOptions().forEach(model::addAttribute);
-                loraPresets.formOptions().forEach(model::addAttribute);
-            }
+            parameterHandlers.extraFormOptions(handler.formType()).forEach(model::addAttribute);
         }
         // Push del seed dal dettaglio di una generazione (vedi fragments/app/generation.html :: status,
         // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' in
@@ -138,7 +130,7 @@ public class DeepChatController {
     @GetMapping("/deep-chat/{id}/gallery")
     public String gallery(@PathVariable Long id, Model model) {
         model.addAttribute("contextualItems", generationService.succeededForConversation(id).stream()
-                .map(org.dual.replicate.service.GalleryItem::first).toList());
+                .map(org.dual.replicate.app.generation.domain.GalleryItem::first).toList());
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
         model.addAttribute("conversationId", id);
         return "fragments/app/gallery :: gridOrEmpty(items=${contextualItems}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";

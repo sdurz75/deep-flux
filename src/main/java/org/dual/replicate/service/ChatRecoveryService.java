@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import org.dual.replicate.app.generation.port.in.IGenerations;
+import org.dual.replicate.app.AppStartupOrder;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.domain.Generation;
+import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -34,12 +36,12 @@ public class ChatRecoveryService {
     private static final Duration TURN_GRACE = Duration.ofMinutes(2);
     private static final int SWEEP_WINDOW = 500;
 
-    private final GenerationService generationService;
+    private final IGenerations generationService;
     private final ChatMessageRepository chatMessageRepository;
     private final DeepChatGenerationWatcher watcher;
     private final ISystemEvents systemEvents;
 
-    public ChatRecoveryService(GenerationService generationService, ChatMessageRepository chatMessageRepository,
+    public ChatRecoveryService(IGenerations generationService, ChatMessageRepository chatMessageRepository,
                                DeepChatGenerationWatcher watcher, ISystemEvents systemEvents) {
         this.generationService = generationService;
         this.chatMessageRepository = chatMessageRepository;
@@ -48,7 +50,7 @@ public class ChatRecoveryService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    @Order(GenerationRecoveryService.STARTUP_ORDER + 1)
+    @Order(AppStartupOrder.CHAT_RECOVERY)
     public void recoverOnStartup() {
         try {
             // Nessuna concorrenza all'avvio (i watcher sono spariti col processo): niente grace period.

@@ -3,14 +3,15 @@ package org.dual.replicate.service;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import tools.jackson.databind.ObjectMapper;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationKind;
-import org.dual.replicate.domain.ReplicateModel;
-import org.dual.replicate.replicate.ReplicateException;
-import org.dual.replicate.replicate.ReplicateModelCatalog;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.ReplicateModel;
+import org.dual.replicate.app.generation.domain.ReplicateException;
+import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -18,10 +19,10 @@ import org.springframework.stereotype.Component;
 
 /**
  * Tool Spring AI registrato sul ChatClient di DeepChatService: avvia una
- * generazione immagine su Replicate (riusando GenerationService, la
+ * generazione immagine su Replicate (riusando IGenerations, la
  * stessa orchestrazione di GenerationController) e torna subito, senza
  * attenderne l'esito. Il file viene sempre salvato tramite
- * GenerationService/IImageStorageService come per il resto dell'app;
+ * IGenerations/IImageStorageService come per il resto dell'app;
  * l'esito arriva in un secondo momento in modo asincrono (poll in
  * background + push SSE, vedi DeepChatGenerationWatcher, avviato da
  * DeepChatService.reply usando gli id raccolti qui in
@@ -48,13 +49,13 @@ public class ImageGenerationTool {
      */
     public static final String MODEL_CONTEXT_KEY = "selectedModel";
 
-    private final GenerationService generationService;
-    private final ReplicateModelCatalog modelCatalog;
+    private final IGenerations generationService;
+    private final IModelCatalog modelCatalog;
     private final ObjectMapper objectMapper;
     private final ISystemEvents systemEvents;
 
-    public ImageGenerationTool(GenerationService generationService,
-                                ReplicateModelCatalog modelCatalog,
+    public ImageGenerationTool(IGenerations generationService,
+                                IModelCatalog modelCatalog,
                                 ObjectMapper objectMapper,
                                 ISystemEvents systemEvents) {
         this.systemEvents = systemEvents;
@@ -79,7 +80,7 @@ public class ImageGenerationTool {
 
         // Passare esplicitamente la versione (se nota) invece di lasciare
         // che ReplicateClient usi lo shortcut "ultima versione": non tutti
-        // i modelli lo supportano, vedi ReplicateModelCatalog.versionOf.
+        // i modelli lo supportano, vedi IModelCatalog.versionOf.
         String version = modelCatalog.versionOf(model).orElse(null);
         Generation generation;
         try {
@@ -129,13 +130,13 @@ public class ImageGenerationTool {
     /**
      * Serializza i parametri impostati nel pannello UI (se presenti nel
      * ToolContext). disable_safety_checker NON va forzato qui: lo fa
-     * GenerationService#create per ogni chiamante, form diretto incluso -
+     * IGenerations#create per ogni chiamante, form diretto incluso -
      * duplicarlo qui varrebbe solo per questo tool, lasciando scoperto
      * l'altro percorso.
      *
      * {@code null}, non "{}", quando non c'e' nessun parametro: una
      * mappa vuota serializzata resterebbe comunque una stringa non
-     * bianca, che GenerationService#create (blankToNull) non scarterebbe
+     * bianca, che IGenerations#create (blankToNull) non scarterebbe
      * - finirebbe persistita e mostrata nel dettaglio generazione
      * (fragments/app/generation.html :: status, th:if su parametersJson) come
      * un vuoto "Parametri: {}" invece di essere omessa del tutto.

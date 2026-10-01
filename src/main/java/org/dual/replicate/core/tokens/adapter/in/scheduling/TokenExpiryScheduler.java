@@ -2,7 +2,6 @@ package org.dual.replicate.core.tokens.adapter.in.scheduling;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.core.tokens.application.ApiTokenService;
 import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -5,16 +5,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.domain.event.ChatMessagePushEvent;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.replicate.ReplicateException;
+import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.when;
 class DeepChatGenerationWatcherTest {
 
     @Mock
-    private GenerationService generationService;
+    private IGenerations generationService;
 
     @Mock
     private ChatConversationRepository chatConversationRepository;
@@ -48,7 +49,7 @@ class DeepChatGenerationWatcherTest {
     private ChatMessageRepository chatMessageRepository;
 
     @Mock
-    private GenerationEventBroadcaster broadcaster;
+    private ChatPushNotifier broadcaster;
 
     @Mock
     private Messages i18n;
@@ -137,7 +138,7 @@ class DeepChatGenerationWatcherTest {
      * generazioni non terminali (vedi CLAUDE.md), una generazione avviata
      * da /deep-chat puo' sparire mentre questo watcher la sta ancora
      * aspettando (waitUntilTerminal -> refresh -> ReplicateException,
-     * vedi GenerationService#saveAndLogIfTerminal/#get). Deve fermarsi
+     * vedi IGenerations#saveAndLogIfTerminal/#get). Deve fermarsi
      * silenziosamente, senza scrivere un turno "fallita"/notificare SSE
      * per un id ormai inesistente - stesso trattamento della conversazione
      * cancellata sopra, non un errore da propagare.

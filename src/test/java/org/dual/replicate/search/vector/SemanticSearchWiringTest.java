@@ -1,8 +1,8 @@
 package org.dual.replicate.search.vector;
 
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
-import org.dual.replicate.repository.GenerationRepository;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationStatus;
+import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.service.ArchiveSearchTool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -31,7 +31,7 @@ class SemanticSearchWiringTest {
     @Autowired
     private ArchiveSearchTool tool;
     @Autowired
-    private GenerationRepository generations;
+    private IGenerationStore generations;
     @Autowired
     private JdbcClient jdbc;
 

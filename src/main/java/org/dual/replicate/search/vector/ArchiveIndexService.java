@@ -13,13 +13,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
-import org.dual.replicate.repository.GenerationRepository;
+import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.service.GenerationCompletedEvent;
+import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -59,7 +58,7 @@ public class ArchiveIndexService {
 
     private final VectorIndexer indexer;
     private final VectorDocumentRepository documents;
-    private final GenerationRepository generations;
+    private final IGenerations generations;
     private final ChatMessageRepository messages;
     private final ChatConversationRepository conversations;
     private final ISystemEvents systemEvents;
@@ -73,7 +72,7 @@ public class ArchiveIndexService {
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicBoolean rerun = new AtomicBoolean();
 
-    public ArchiveIndexService(VectorIndexer indexer, VectorDocumentRepository documents, GenerationRepository generations,
+    public ArchiveIndexService(VectorIndexer indexer, VectorDocumentRepository documents, IGenerations generations,
                                ChatMessageRepository messages, ChatConversationRepository conversations,
                                ISystemEvents systemEvents, PlatformTransactionManager transactionManager) {
         this.readOnly = new TransactionTemplate(transactionManager);
@@ -187,7 +186,7 @@ public class ArchiveIndexService {
 
     private Map<String, Document> wantedDocuments() {
         Map<String, Document> wanted = new HashMap<>();
-        for (Generation generation : generations.findByStatusIn(List.of(GenerationStatus.SUCCEEDED))) {
+        for (Generation generation : generations.succeeded()) {
             put(wanted, "generation:" + generation.getId(), generation.getPrompt(),
                     metadata(TYPE_GENERATION, generation.getId(), generation.getConversationId(), generation.getCreatedAt(),
                             "kind", String.valueOf(generation.getKind())));

@@ -3,14 +3,16 @@ package org.dual.replicate.service;
 import java.time.Duration;
 import java.util.Locale;
 
+import org.dual.replicate.app.generation.adapter.in.scheduling.GenerationRecoveryService;
+import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
-import org.dual.replicate.domain.Generation;
-import org.dual.replicate.domain.GenerationStatus;
+import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.domain.event.ChatMessagePushEvent;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ChatConversationRepository;
@@ -23,7 +25,7 @@ import org.springframework.stereotype.Service;
  * Attende in background (fuori dal thread della richiesta HTTP di
  * /api/deep-chat) l'esito di una generazione avviata da
  * ImageGenerationTool, poi lo persiste come nuovo turno della
- * conversazione e lo notifica via SSE (GenerationEventBroadcaster) a chi
+ * conversazione e lo notifica via SSE (ChatPushNotifier) a chi
  * ha quella conversazione aperta. Avviato da DeepChatService.reply, uno
  * per ogni generazione avviata nel turno (vedi GenerationResultHolder).
  */
@@ -31,24 +33,24 @@ import org.springframework.stereotype.Service;
 public class DeepChatGenerationWatcher {
 
     /**
-     * Margine sopra il timeout interno di GenerationService.refresh
+     * Margine sopra il timeout interno di IGenerations.refresh
      * (5 minuti): a quel punto la generazione e' comunque gia' terminale
      * (marcata FAILED per timeout), quindi waitUntilTerminal ritorna
      * prima di arrivare qui. Questo e' solo un tetto di sicurezza.
      */
     private static final Duration WATCH_TIMEOUT = Duration.ofMinutes(6);
 
-    private final GenerationService generationService;
+    private final IGenerations generationService;
     private final ChatConversationRepository chatConversationRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final GenerationEventBroadcaster broadcaster;
+    private final ChatPushNotifier broadcaster;
     private final Messages i18n;
     private final ISystemEvents systemEvents;
 
-    public DeepChatGenerationWatcher(GenerationService generationService,
+    public DeepChatGenerationWatcher(IGenerations generationService,
                                       ChatConversationRepository chatConversationRepository,
                                       ChatMessageRepository chatMessageRepository,
-                                      GenerationEventBroadcaster broadcaster,
+                                      ChatPushNotifier broadcaster,
                                       Messages i18n,
                                       ISystemEvents systemEvents) {
         this.generationService = generationService;
