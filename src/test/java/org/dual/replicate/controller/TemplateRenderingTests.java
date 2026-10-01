@@ -471,6 +471,7 @@ class TemplateRenderingTests {
         assertThat(body.split("href=\"/generations/new\\?kind=video\"", -1)).hasSize(3); // barra + slideover
         assertThat(body.split("href=\"/gallery\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/system/events\"", -1)).hasSize(3);
+        assertThat(body.split("href=\"/tokens\"", -1)).hasSize(3); // da navSystemCore, composto dal nav dell'app
         assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(7); // 3 menu x 2 contenitori
     }
 

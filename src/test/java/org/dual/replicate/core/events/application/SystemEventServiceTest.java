@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.dual.replicate.app.shared.domain.AppEventSource;
+import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;
@@ -27,6 +27,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 class SystemEventServiceTest {
+
+    /** Una sorgente "dell'app" qualunque: il core non conosce quelle dell'app, basta l'interfaccia {@link EventSource}. */
+    enum TestSource implements EventSource {
+        REPLICATE, OPENROUTER
+    }
+
 
     @Autowired
     private ISystemEvents service;
@@ -62,13 +68,13 @@ class SystemEventServiceTest {
 
     @Test
     void recordPersistsARowAndPublishesOneToast() {
-        ISystemEvents.Recorded recorded = service.record(AppEventSource.REPLICATE, "createPrediction",
+        ISystemEvents.Recorded recorded = service.record(TestSource.REPLICATE, "createPrediction",
                 new IllegalStateException("rete giu'"), "generation:5");
 
         List<SystemEvent> rows = repository.findAll();
         assertThat(rows).hasSize(1);
         SystemEvent row = rows.get(0);
-        assertThat(row.getSource()).isEqualTo(AppEventSource.REPLICATE.name());
+        assertThat(row.getSource()).isEqualTo(TestSource.REPLICATE.name());
         assertThat(row.getOperation()).isEqualTo("createPrediction");
         assertThat(row.getErrorType()).isEqualTo("IllegalStateException");
         assertThat(row.getMessage()).isEqualTo("rete giu'");
@@ -84,7 +90,7 @@ class SystemEventServiceTest {
     @Test
     void repeatedIdenticalErrorsAreGroupedIntoOneSeriesWithASingleToast() {
         for (int i = 0; i < 5; i++) {
-            service.record(AppEventSource.REPLICATE, "getPrediction", new RuntimeException("timeout " + i), "generation:5");
+            service.record(TestSource.REPLICATE, "getPrediction", new RuntimeException("timeout " + i), "generation:5");
         }
 
         List<SystemEvent> rows = repository.findAll();
@@ -96,9 +102,9 @@ class SystemEventServiceTest {
 
     @Test
     void differentGenerationsOrOperationsAreSeparateSeries() {
-        service.record(AppEventSource.REPLICATE, "getPrediction", new RuntimeException("x"), "generation:1");
-        service.record(AppEventSource.REPLICATE, "getPrediction", new RuntimeException("x"), "generation:2");
-        service.record(AppEventSource.REPLICATE, "cancelPrediction", new RuntimeException("x"), "generation:1");
+        service.record(TestSource.REPLICATE, "getPrediction", new RuntimeException("x"), "generation:1");
+        service.record(TestSource.REPLICATE, "getPrediction", new RuntimeException("x"), "generation:2");
+        service.record(TestSource.REPLICATE, "cancelPrediction", new RuntimeException("x"), "generation:1");
 
         assertThat(repository.findAll()).hasSize(3);
         assertThat(toasts()).hasSize(3);
@@ -115,7 +121,7 @@ class SystemEventServiceTest {
 
     @Test
     void longMessagesAndStacksAreTruncated() {
-        service.record(AppEventSource.OPENROUTER, "chatTurn", new RuntimeException("x".repeat(5000)));
+        service.record(TestSource.OPENROUTER, "chatTurn", new RuntimeException("x".repeat(5000)));
 
         SystemEvent row = repository.findAll().get(0);
         assertThat(row.getMessage().length()).isLessThanOrEqualTo(501);
@@ -195,7 +201,7 @@ class SystemEventServiceTest {
     @Test
     void unseenEventsFeedTheBellAndAcknowledgementSticksAcrossRepeats() {
         service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a");
-        service.record(AppEventSource.REPLICATE, "createPrediction", new RuntimeException("x"), "generation:9");
+        service.record(TestSource.REPLICATE, "createPrediction", new RuntimeException("x"), "generation:9");
 
         ISystemEvents.Unseen unseen = service.unseen();
         assertThat(unseen.count()).isEqualTo(2);

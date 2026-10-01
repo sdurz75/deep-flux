@@ -3,11 +3,18 @@ package org.dual.replicate.core.tokens.adapter.in.web;
 import org.dual.replicate.core.events.port.out.ISystemEventStore;
 import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.dual.replicate.core.tokens.port.out.IApiTokenStore;
+import java.util.List;
+
+import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -20,7 +27,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** CRUD /tokens: pagina, dialog, validazione col retarget del form, e il token in chiaro non compare in NESSUNA risposta. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(TokenControllerTest.Providers.class)
 class TokenControllerTest {
+
+    /** Il catalogo dei provider e' un punto di estensione dell'app: il core si prova con il suo (primario, vince su quello dell'app). */
+    @TestConfiguration
+    static class Providers {
+        @Bean
+        @Primary
+        ITokenProviderCatalog testProviders() {
+            return () -> List.of("HUGGINGFACE", "CIVITAI");
+        }
+    }
 
     private static final String SECRET = "hf_super_secret_value_ABCD";
 
@@ -46,11 +64,11 @@ class TokenControllerTest {
     }
 
     @Test
-    void pageRendersTheEmptyListTheDialogAndTheNavLink() throws Exception {
+    void pageRendersTheEmptyListAndTheDialog() throws Exception {
         String page = mockMvc.perform(get("/tokens")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("Nessun token salvato").contains("id=\"token-form\"").contains("id=\"token-list\"")
-                .contains("hx-get=\"/tokens/new\"").contains("href=\"/tokens\"");
+                .contains("hx-get=\"/tokens/new\"");
         assertThat(page).doesNotContain("Chiave di cifratura mancante"); // la chiave di test e' configurata (pom.xml)
     }
 
@@ -77,7 +95,7 @@ class TokenControllerTest {
                         .param("token", SECRET).param("expiresAt", "")).andExpect(status().isOk()).andReturn().getResponse();
         assertThat(ok.getHeader("HX-Trigger")).contains("token-saved");
         assertThat(ok.getHeader("HX-Retarget")).isNull();
-        assertThat(ok.getContentAsString()).contains("Personale").contains("…ABCD").contains("HuggingFace").contains("Nessuna scadenza")
+        assertThat(ok.getContentAsString()).contains("Personale").contains("…ABCD").containsIgnoringCase("huggingface").contains("Nessuna scadenza")
                 .doesNotContain(SECRET);
         assertThat(repository.count()).isEqualTo(1);
     }

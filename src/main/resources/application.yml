@@ -55,8 +55,8 @@ replicate:
   api-base-url: https://api.replicate.com/v1
   # Il catalogo dei modelli proposti nel combobox di /generations/new e
   # /deep-chat non e' piu' configurato qui: e' censito nella tabella
-  # REPLICATE_MODEL (vedi migrazione V6__create_replicate_model.sql e
-  # ModelCatalogService), niente piu' fetch dal vivo di una collection
+  # REPLICATE_MODEL (vedi db/migration/app e
+  # IModelCatalog), niente piu' fetch dal vivo di una collection
   # Replicate o di un elenco di modelli personali ad ogni avvio.
 
 # Istanza SearXNG usata dal tool di web search del modello su /deep-chat

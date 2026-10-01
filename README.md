@@ -4,10 +4,22 @@ Webapp snella: navigazione via HTML renderizzato dal server, arricchita
 da htmx dove serve un aggiornamento parziale e da Alpine.js dove serve
 stato locale. Nessuno step di build frontend.
 
-Oltre alle demo dello starter, l'app genera immagini via
-[Replicate](https://replicate.com), le scarica e le salva localmente, e
-offre una galleria consultabile con prompt e parametri usati per ogni
-immagine.
+L'app genera immagini (e video) via [Replicate](https://replicate.com),
+le scarica e le salva (in locale o su WebDAV cifrato), offre una galleria
+consultabile con prompt e parametri usati per ogni immagine, una chat
+(`/deep-chat`) che puo' cercare sul web e generare, e una ricerca
+semantica sull'archivio.
+
+## Architettura e riuso come template
+
+Il codice e' diviso in `core` (generico e riusabile: layout e componenti
+UI, errori/retry remoti, eventi di sistema con campanella e toast, SSE,
+token cifrati, storage dei binari) e `app` (specifico: generazione,
+galleria, chat, LoRA, ricerca). Ogni sottosistema e' un esagono (domain,
+application, port.in/out, adapter.in/out), con le regole imposte da
+`ArchitectureTest`. Per le convenzioni vedi [`CLAUDE.md`](./CLAUDE.md); per
+costruire un'altra webapp tenendo il core e sostituendo l'app vedi
+[`docs/TEMPLATE.md`](./docs/TEMPLATE.md).
 
 ## Avvio
 
@@ -80,7 +92,7 @@ aspetta piu' che un'immagine sia pronta: `ImageGenerationTool` avvia la
 generazione e torna subito, il risultato arriva dopo via push (vedi
 sotto) — nessun timeout esplicito da alzare per questa rotta.
 
-`GET /events` (SSE, vedi `EventStreamController`/`GenerationEventBroadcaster`)
+`GET /events` (SSE, vedi `EventStreamController`/`PushService`)
 e' invece una connessione tenuta aperta apposta, verso cui `/gallery` e
 `/deep-chat` si registrano per ricevere il risultato di una generazione
 non appena pronto. Il proxy davanti all'app deve:
