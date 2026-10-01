@@ -481,6 +481,11 @@ public class GenerationService implements IGenerations {
         });
     }
 
+    @Override
+    public void detachFromConversation(Long conversationId) {
+        repository.clearConversation(conversationId);
+    }
+
     /** Generazioni ancora in corso (non scadute) avviate dalla conversazione indicata. */
     @Override
     public List<Generation> inProgressForConversation(Long conversationId) {

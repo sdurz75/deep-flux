@@ -8,6 +8,7 @@ import org.dual.replicate.app.chat.domain.ChatMessage;
 import org.dual.replicate.app.chat.port.in.IChatConversations;
 import org.dual.replicate.app.chat.port.out.IChatConversationStore;
 import org.dual.replicate.app.chat.port.out.IChatMessageStore;
+import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +33,14 @@ public class ChatConversationService implements IChatConversations {
 
     private final IChatConversationStore conversationRepository;
     private final IChatMessageStore chatMessageRepository;
+    private final IGenerations generations;
     private final Messages messages;
 
     public ChatConversationService(IChatConversationStore conversationRepository,
                                     IChatMessageStore chatMessageRepository,
+                                    IGenerations generations,
                                     Messages messages) {
+        this.generations = generations;
         this.conversationRepository = conversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.messages = messages;
@@ -103,15 +107,17 @@ public class ChatConversationService implements IChatConversations {
 
     /**
      * Cancella prima i turni della conversazione (vincolo FK_CHAT_MESSAGE_CONVERSATION),
-     * poi la riga stessa. Non tocca le Generation referenziate da quei
-     * turni: appartengono al registro globale della galleria, ciclo di
-     * vita indipendente da quello della conversazione (vedi CLAUDE.md,
-     * Scopo).
+     * poi la riga stessa. Le Generation non si cancellano: appartengono
+     * al registro globale della galleria, ciclo di vita indipendente da
+     * quello della conversazione (vedi CLAUDE.md, Scopo); si scollegano
+     * soltanto (IGenerations#detachFromConversation: lo schema di
+     * generation non ha FK verso la chat).
      */
     @Override
     public void delete(Long id) {
         ChatConversation conversation = getOrThrow(id);
         chatMessageRepository.deleteAll(chatMessageRepository.findByConversation(id));
+        generations.detachFromConversation(id);
         conversationRepository.delete(conversation);
     }
 

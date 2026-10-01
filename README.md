@@ -58,17 +58,20 @@ la ricerca semantica). Per lo sviluppo basta `docker compose up -d`
 
 ### Generare un'immagine
 
-1. Vai su **Genera immagine** in nav, o direttamente `/generations/new`.
-2. Inserisci un modello Replicate nella forma `owner/nome` (es.
-   `black-forest-labs/flux-schnell`), il prompt, ed eventuali parametri
-   extra come JSON (es. `{"aspect_ratio": "1:1", "num_outputs": 1}`).
-   Per pinnare una versione specifica del modello, compila anche
-   "Version" con l'hash.
-3. La pagina mostra lo stato aggiornandosi da sola (polling htmx ogni
-   2s) finché l'immagine non è pronta.
-4. Le immagini completate compaiono in **Galleria** (`/gallery`), con
-   una pagina di dettaglio per ciascuna che mostra prompt, modello e
-   parametri usati.
+1. Vai su **Genera immagine** (menu *Crea*), o direttamente `/generations/new`. Per un video c'e' **Genera video**
+   (`/generations/new?kind=video`), per ritoccare un'immagine **Modifica immagine** (`/generations/new?kind=edit`).
+2. Scegli il modello dalla select (sono quelli censiti nel catalogo, tabella `replicate_model`): il form mostra i campi
+   propri di quel modello (proporzioni, numero di immagini, seed, LoRA per `flux-dev-lora`, immagine sorgente per video/modifica...).
+   Scrivi il prompt, se vuoi con **AI enhance** (riscrive la bozza con un LLM). "Version" e' facoltativa: per pinnare una
+   versione specifica del modello, incolla l'hash.
+3. Alla conferma compare il dettaglio `/generations/{id}` con un segnaposto ("Interrompi" per annullare); la pagina si
+   aggiorna da sola (polling htmx ogni 2s) finche' la generazione non e' terminata.
+4. A generazione riuscita il dettaglio mostra prompt, modello, parametri e costo stimato, con tutte le immagini in griglia
+   (cancellabili una a una, con la stella dei preferiti e le azioni "Anima"/"Modifica"). Le generazioni riuscite stanno
+   anche in **Galleria** (`/gallery`, tab Tutte/Preferiti) e tutte, anche quelle fallite, in **Generazioni** (`/generations`).
+
+In alternativa, la stessa cosa si fa conversando in **Deep Chat** (`/deep-chat`): l'assistente genera sempre col modello
+scelto nel pannello impostazioni e l'esito arriva in chat via SSE.
 
 ## Dietro un reverse proxy
 

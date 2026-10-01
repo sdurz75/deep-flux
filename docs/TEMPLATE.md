@@ -82,8 +82,9 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/replic
 - `src/test/resources/application-test.yml` imposta `app.recovery.enabled`, `app.search.enabled` (chiavi dell'app; innocue se mancano
   i bean) e `spring.ai.model.embedding: none`. `app.tokens.expiry-check-enabled: false` e' del core.
 
-**Variabili `.env`** (vedi `.env.example`): dell'app sono `REPLICATE_API_TOKEN`, `OPENROUTER_API_TOKEN`, `SEARXNG_*` (e, non elencate
-nell'esempio, `OPENROUTER_CHAT_MODEL`, `OPENROUTER_VISION_MODEL`, `OPENROUTER_VISION_FALLBACK_MODEL`, `SEARXNG_BASE_URL`). Del core: `DB_*`,
+**Variabili `.env`** (vedi `.env.example`): dell'app sono `REPLICATE_API_TOKEN`, `OPENROUTER_API_TOKEN`, `OPENROUTER_CHAT_MODEL`,
+`OPENROUTER_VISION_MODEL`, `OPENROUTER_VISION_FALLBACK_MODEL`, `SEARXNG_*` (compreso `SEARXNG_BASE_URL`; i modelli e l'URL sono override
+commentati nell'esempio). Del core: `DB_*`,
 `STORAGE_WEBDAV_*`.
 
 **`pom.xml`** (OBBLIGATORIO, verificato): togliere le dipendenze `spring-ai-starter-model-openai`, `spring-ai-vector-store`,

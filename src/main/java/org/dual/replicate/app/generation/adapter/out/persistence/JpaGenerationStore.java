@@ -13,6 +13,7 @@ import org.dual.replicate.core.kernel.Paged;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /** {@link IGenerationStore} su Spring Data JPA (tabella {@code generation} e collegate). */
 @Component
@@ -98,6 +99,12 @@ class JpaGenerationStore implements IGenerationStore {
     @Override
     public List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status) {
         return repository.findByConversationIdAndStatusOrderByIdAsc(conversationId, status);
+    }
+
+    @Override
+    @Transactional
+    public void clearConversation(Long conversationId) {
+        repository.clearConversation(conversationId);
     }
 
     private static <T> Paged<T> paged(Page<T> page) {

@@ -422,7 +422,9 @@ Due location, una per lato: `src/main/resources/db/migration/core/` (tabelle del
   checksum fa fallire l'avvio. Una migrazione nuova ha SEMPRE un timestamp successivo a tutte le esistenti (di entrambe le location).
 - **Nessuna FK dal core all'app** (il core deve funzionare senza `db/migration/app`); le tabelle dell'app possono riferire il core solo se serve davvero.
   Le colonne di collegamento fra feature (es. `chat_message.generation_id`, `generation.conversation_id`) sono `Long` nelle entity (mai un
-  `@ManyToOne` verso l'entity di un altro esagono); nello schema `app` hanno una FK `ON DELETE SET NULL` perche' la riga puntata puo' sparire.
+  `@ManyToOne` verso l'entity di un altro esagono). La FK nello schema c'e' solo nella direzione delle dipendenze (`chat_message.generation_id`
+  -> `generation`, `ON DELETE SET NULL`: chat -> generation); `generation.conversation_id` NON ha FK (generation non conosce chat): chi cancella una
+  conversazione scollega le sue generazioni con `IGenerations#detachFromConversation` (`ChatConversationService#delete`).
 - Regole del dialetto: identificatori **minuscoli non quotati** (Hibernate non quota), testo lungo `text` (nelle entity
   `@JdbcTypeCode(SqlTypes.LONGVARCHAR)`, MAI `@Lob`: su PG sarebbe `oid`), `timestamptz`, `bytea`, enum Java = `varchar` senza
   ENUM/CHECK di DB. Un modello nuovo si censisce con un `INSERT` in `replicate_model` (`version` NULL = "ultima versione"): `form_type` e' un

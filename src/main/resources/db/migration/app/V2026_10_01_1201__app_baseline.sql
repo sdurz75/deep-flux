@@ -34,7 +34,6 @@ CREATE TABLE generation (
     created_at             timestamptz NOT NULL,
     completed_at           timestamptz,
     CONSTRAINT pk_generation PRIMARY KEY (id),
-    CONSTRAINT fk_generation_conversation FOREIGN KEY (conversation_id) REFERENCES chat_conversation (id) ON DELETE SET NULL,
     CONSTRAINT fk_generation_source FOREIGN KEY (source_generation_id) REFERENCES generation (id) ON DELETE SET NULL
 );
 

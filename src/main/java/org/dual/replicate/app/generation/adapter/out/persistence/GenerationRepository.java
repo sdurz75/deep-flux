@@ -10,6 +10,7 @@ import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -61,4 +62,8 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
 
     /** Galleria contestuale di /deep-chat: le generazioni riuscite di una conversazione, in ordine cronologico. */
     List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Generation g set g.conversationId = null where g.conversationId = :conversationId")
+    int clearConversation(@Param("conversationId") Long conversationId);
 }

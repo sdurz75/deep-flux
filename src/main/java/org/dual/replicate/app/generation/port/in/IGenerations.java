@@ -44,6 +44,9 @@ public interface IGenerations {
     /** Associa una generazione avviata da una conversazione alla conversazione (ripristino del placeholder al reload). */
     void attachToConversation(Long id, Long conversationId);
 
+    /** Scollega dalla conversazione cancellata tutte le sue generazioni (che restano in archivio): niente FK verso la chat nello schema. */
+    void detachFromConversation(Long conversationId);
+
     boolean exists(Long id);
 
     /** @throws org.dual.replicate.app.generation.domain.ReplicateException REJECTED se non esiste */
