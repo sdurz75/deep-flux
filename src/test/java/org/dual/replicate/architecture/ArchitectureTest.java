@@ -7,7 +7,6 @@ import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
-import com.tngtech.archunit.junit.ArchIgnore;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
@@ -23,8 +22,8 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
  * {@code app} (specifico). Vedi "Architettura" in CLAUDE.md.
  * <p>
  * Ogni regola e' limitata ai package NUOVI ({@code ..core..}, {@code ..app..}) e ammette l'insieme vuoto: fa rispettare solo
- * cio' che e' gia' stato migrato dai vecchi package per layer. A migrazione finita la regola di chiusura
- * ({@link #nothingOutsideCoreAndApp}) va attivata (togliere {@code @ArchIgnore}).
+ * cio' che sta in quei package; la regola di chiusura ({@link #nothingOutsideCoreAndApp}) vieta che ne esistano altri
+ * (niente package per layer).
  */
 @AnalyzeClasses(packages = "org.dual.replicate", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
@@ -117,8 +116,7 @@ class ArchitectureTest {
             .matching(ROOT + ".app.(*)..").should().beFreeOfCycles()
             .allowEmptyShould(true);
 
-    /** Regola di chiusura ("fatto"): i vecchi package per layer sono vuoti. Si attiva a fine Fase 5. */
-    @ArchIgnore
+    /** Regola di chiusura: nessuna classe fuori da {@code core}, {@code app}, {@code support} e {@code Application} (niente package per layer). */
     @ArchTest
     static final ArchRule nothingOutsideCoreAndApp = classes()
             .that().resideInAPackage(ROOT + "..")

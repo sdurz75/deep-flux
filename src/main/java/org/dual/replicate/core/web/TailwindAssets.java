@@ -1,4 +1,4 @@
-package org.dual.replicate.config;
+package org.dual.replicate.core.web;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
