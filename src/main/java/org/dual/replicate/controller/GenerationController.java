@@ -8,6 +8,7 @@ import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.domain.Generation;
@@ -19,7 +20,6 @@ import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.GenerationRepository;
-import org.dual.replicate.service.ApiTokenService;
 import org.dual.replicate.service.LoraPresetService;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.GenerationParameterHandler;
@@ -71,7 +71,7 @@ public class GenerationController {
     private final PromptEnhancementService promptEnhancementService;
     private final IImageStorageService imageStorageService;
     private final SystemEventService systemEvents;
-    private final ApiTokenService apiTokens;
+    private final TokenInputResolver apiTokens;
     private final LoraPresetService loraPresets;
 
     public GenerationController(GenerationService generationService,
@@ -83,7 +83,7 @@ public class GenerationController {
                                  PromptEnhancementService promptEnhancementService,
                                  IImageStorageService imageStorageService,
                                  SystemEventService systemEvents,
-                                 ApiTokenService apiTokens,
+                                 TokenInputResolver apiTokens,
                                  LoraPresetService loraPresets) {
         this.systemEvents = systemEvents;
         this.apiTokens = apiTokens;

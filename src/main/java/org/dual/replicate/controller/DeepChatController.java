@@ -51,7 +51,7 @@ public class DeepChatController {
     private final GenerationService generationService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
-    private final org.dual.replicate.service.ApiTokenService apiTokens;
+    private final org.dual.replicate.app.TokenInputResolver apiTokens;
     private final org.dual.replicate.service.LoraPresetService loraPresets;
 
     public DeepChatController(ReplicateModelCatalog modelCatalog,
@@ -62,7 +62,7 @@ public class DeepChatController {
                                GenerationService generationService,
                                ObjectMapper objectMapper,
                                Messages messages,
-                               org.dual.replicate.service.ApiTokenService apiTokens,
+                               org.dual.replicate.app.TokenInputResolver apiTokens,
                                org.dual.replicate.service.LoraPresetService loraPresets) {
         this.apiTokens = apiTokens;
         this.loraPresets = loraPresets;

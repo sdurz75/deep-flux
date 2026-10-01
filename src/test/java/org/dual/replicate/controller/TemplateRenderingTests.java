@@ -548,10 +548,10 @@ class TemplateRenderingTests {
     @Transactional
     void paramsEndpointRendersFieldsForFluxDevLoraWithNamedTokenSelects() throws Exception {
         apiTokenRepository.deleteAll();
-        var hf = apiTokenService.create(org.dual.replicate.domain.ApiTokenProvider.HUGGINGFACE, "Personale", "hf_super_secret_1234", null);
-        var civitai = apiTokenService.create(org.dual.replicate.domain.ApiTokenProvider.CIVITAI, "Civitai lavoro", "cv_other_secret_5678",
+        var hf = apiTokenService.create("HUGGINGFACE", "Personale", "hf_super_secret_1234", null);
+        var civitai = apiTokenService.create("CIVITAI", "Civitai lavoro", "cv_other_secret_5678",
                 java.time.LocalDate.now().plusDays(400));
-        apiTokenRepository.save(new org.dual.replicate.domain.ApiToken(org.dual.replicate.domain.ApiTokenProvider.CIVITAI, "Vecchio",
+        apiTokenRepository.save(new org.dual.replicate.domain.ApiToken("CIVITAI", "Vecchio",
                 secretCipher.encrypt("cv_old_secret_0000"), "0000", java.time.LocalDate.now().minusDays(1), java.time.Instant.now()));
 
         String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-dev-lora")

@@ -19,7 +19,7 @@
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.9rem]">
                 <strong th:text="${t.name}">nome</strong>
                 <span class="rounded-full border border-line dark:border-line-dark px-2 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark"
-                      th:text="#{'tokens.provider.' + ${t.provider.name()}}">HuggingFace</span>
+                      th:text="#{'tokens.provider.' + ${t.provider}}">HuggingFace</span>
                 <code th:text="'…' + ${t.hint}">…ab12</code>
                 <span th:if="${t.expiresAt == null}" class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{tokens.noExpiry}">Nessuna scadenza</span>
                 <span th:if="${t.expiresAt != null}" class="text-[0.85rem]"
@@ -61,8 +61,8 @@
             <label for="token-provider" th:text="#{tokens.form.provider}">Servizio</label>
             <div class="relative" x-data="pinesSelect" x-bind="root">
                 <select id="token-provider" name="provider" class="sr-only" tabindex="-1" aria-hidden="true">
-                    <option th:each="p : ${providers}" th:value="${p.name()}" th:text="#{'tokens.provider.' + ${p.name()}}"
-                            th:selected="${p.name() == tokenProvider}">HuggingFace</option>
+                    <option th:each="p : ${providers}" th:value="${p}" th:text="#{'tokens.provider.' + ${p}}"
+                            th:selected="${p == tokenProvider}">HuggingFace</option>
                 </select>
                 <div th:replace="~{fragments/select :: ui}"></div>
             </div>

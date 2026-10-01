@@ -1,15 +1,17 @@
 package org.dual.replicate.controller;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.time.format.DateTimeParseException;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.ApiTokenProvider;
+import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException;
 import org.dual.replicate.service.ApiTokenService;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.TokenException;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,27 +32,30 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class TokenController {
 
     private final ApiTokenService tokens;
+    private final ObjectProvider<ITokenProviderCatalog> providerCatalog;
     private final SystemEventService systemEvents;
     private final Messages messages;
 
-    public TokenController(ApiTokenService tokens, SystemEventService systemEvents, Messages messages) {
+    public TokenController(ApiTokenService tokens, SystemEventService systemEvents, Messages messages,
+                           ObjectProvider<ITokenProviderCatalog> providerCatalog) {
         this.tokens = tokens;
         this.systemEvents = systemEvents;
         this.messages = messages;
+        this.providerCatalog = providerCatalog;
     }
 
     @GetMapping
     public String page(Model model) {
         populateList(model);
-        model.addAttribute("providers", ApiTokenProvider.values());
-        formAttributes(model, null, ApiTokenProvider.HUGGINGFACE, "", "", null);
+        model.addAttribute("providers", providers());
+        formAttributes(model, null, defaultProvider(), "", "", null);
         return "tokens";
     }
 
     /** Form vuoto per il dialog (caricato a ogni apertura). */
     @GetMapping("/new")
     public String newForm(Model model) {
-        return formView(model, null, ApiTokenProvider.HUGGINGFACE, "", "", null);
+        return formView(model, null, defaultProvider(), "", "", null);
     }
 
     /** Form precompilato (mai il token: si lascia vuoto per non cambiarlo). */
@@ -64,11 +69,11 @@ public class TokenController {
     public String create(@RequestParam(required = false) String provider, @RequestParam(defaultValue = "") String name,
                          @RequestParam(defaultValue = "") String token, @RequestParam(defaultValue = "") String expiresAt,
                          HttpServletResponse response, Model model) {
-        ApiTokenProvider parsed = parseProvider(provider);
+        String parsed = parseProvider(provider);
         try {
             tokens.create(parsed, name, token, parseDate(expiresAt));
         } catch (RemoteServiceException e) {
-            return failed(e, response, model, null, parsed == null ? ApiTokenProvider.HUGGINGFACE : parsed, name, expiresAt);
+            return failed(e, response, model, null, parsed == null ? defaultProvider() : parsed, name, expiresAt);
         }
         return saved(response, model);
     }
@@ -102,7 +107,7 @@ public class TokenController {
     }
 
     /** Rifiuto atteso: solo messaggio nel form. Guasto vero (es. chiave di cifratura mancante): registrato e notificato anche come toast. */
-    private String failed(RemoteServiceException e, HttpServletResponse response, Model model, Long id, ApiTokenProvider provider,
+    private String failed(RemoteServiceException e, HttpServletResponse response, Model model, Long id, String provider,
                           String name, String expiresAt) {
         if (e.isReportable()) {
             systemEvents.recordForHtmx(response, id == null ? "createToken" : "updateToken", e);
@@ -118,17 +123,17 @@ public class TokenController {
         model.addAttribute("warningDays", tokens.warningDays());
     }
 
-    private static void formAttributes(Model model, Long id, ApiTokenProvider provider, String name, String expiresAt, String error) {
+    private static void formAttributes(Model model, Long id, String provider, String name, String expiresAt, String error) {
         model.addAttribute("tokenId", id);
-        model.addAttribute("tokenProvider", provider.name());
+        model.addAttribute("tokenProvider", provider);
         model.addAttribute("tokenName", name);
         model.addAttribute("tokenExpires", expiresAt);
         model.addAttribute("tokenError", error);
     }
 
-    private String formView(Model model, Long id, ApiTokenProvider provider, String name, String expiresAt, String error) {
+    private String formView(Model model, Long id, String provider, String name, String expiresAt, String error) {
         formAttributes(model, id, provider, name, expiresAt, error);
-        model.addAttribute("providers", ApiTokenProvider.values());
+        model.addAttribute("providers", providers());
         model.addAttribute("configured", tokens.isConfigured());
         return "fragments/tokens :: tokenForm(tokenId=${tokenId}, tokenProvider=${tokenProvider}, tokenName=${tokenName}, "
                 + "tokenExpires=${tokenExpires}, tokenError=${tokenError}, providers=${providers}, configured=${configured})";
@@ -138,15 +143,23 @@ public class TokenController {
         return "fragments/tokens :: list(tokens=${tokens}, configured=${configured}, warningDays=${warningDays})";
     }
 
-    private static ApiTokenProvider parseProvider(String value) {
+    /** I provider offerti dall'app ({@link ITokenProviderCatalog}); nessuna implementazione = nessuno. */
+    private List<String> providers() {
+        ITokenProviderCatalog catalog = providerCatalog.getIfAvailable();
+        return catalog == null ? List.of() : catalog.providers();
+    }
+
+    private String defaultProvider() {
+        return providers().stream().findFirst().orElse("");
+    }
+
+    /** Un provider sconosciuto equivale a "non scelto" (il servizio lo rifiuta con un messaggio). */
+    private String parseProvider(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
-        try {
-            return ApiTokenProvider.valueOf(value.strip().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        String upper = value.strip().toUpperCase();
+        return providers().contains(upper) ? upper : null;
     }
 
     /** Vuoto = nessuna scadenza; una data non valida e' un rifiuto con messaggio, non un 400. */

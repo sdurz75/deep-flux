@@ -5,8 +5,6 @@ import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -27,9 +25,9 @@ public class ApiToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
+    /** Nome del provider ({@code ITokenProviderCatalog}): stringa, cosi' il core non conosce i servizi dell'app. */
     @Column(nullable = false, length = 20)
-    private ApiTokenProvider provider;
+    private String provider;
 
     @Column(nullable = false, length = 60)
     private String name;
@@ -53,7 +51,7 @@ public class ApiToken {
         // richiesto da JPA
     }
 
-    public ApiToken(ApiTokenProvider provider, String name, byte[] tokenEncrypted, String tokenHint, LocalDate expiresAt, Instant now) {
+    public ApiToken(String provider, String name, byte[] tokenEncrypted, String tokenHint, LocalDate expiresAt, Instant now) {
         this.provider = provider;
         this.name = name;
         this.tokenEncrypted = tokenEncrypted;
@@ -79,7 +77,7 @@ public class ApiToken {
         return id;
     }
 
-    public ApiTokenProvider getProvider() {
+    public String getProvider() {
         return provider;
     }
 

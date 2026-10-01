@@ -1,6 +1,5 @@
 package org.dual.replicate.controller;
 
-import org.dual.replicate.domain.ApiTokenProvider;
 import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.repository.SystemEventRepository;
 import org.dual.replicate.service.ApiTokenService;
@@ -85,7 +84,7 @@ class TokenControllerTest {
 
     @Test
     void duplicateNameAndInvalidDateAreFormErrors() throws Exception {
-        service.create(ApiTokenProvider.HUGGINGFACE, "Personale", SECRET, null);
+        service.create("HUGGINGFACE", "Personale", SECRET, null);
 
         var duplicate = mockMvc.perform(post("/tokens").header("HX-Request", "true").param("provider", "HUGGINGFACE")
                 .param("name", "personale").param("token", "x")).andExpect(status().isOk()).andReturn().getResponse();
@@ -101,7 +100,7 @@ class TokenControllerTest {
 
     @Test
     void editFormIsPrefilledWithoutTheTokenAndUpdateKeepsItWhenLeftBlank() throws Exception {
-        var created = service.create(ApiTokenProvider.HUGGINGFACE, "Personale", SECRET, java.time.LocalDate.now().plusDays(200));
+        var created = service.create("HUGGINGFACE", "Personale", SECRET, java.time.LocalDate.now().plusDays(200));
 
         String form = body(get("/tokens/" + created.id() + "/edit"));
         assertThat(form).contains("value=\"Personale\"").contains("value=\"" + created.expiresAt() + "\"").doesNotContain("name=\"provider\"");
@@ -109,12 +108,12 @@ class TokenControllerTest {
 
         String list = body(post("/tokens/" + created.id()).param("name", "Rinominato").param("token", "").param("expiresAt", ""));
         assertThat(list).contains("Rinominato");
-        assertThat(service.resolve(created.id(), ApiTokenProvider.HUGGINGFACE)).isEqualTo(SECRET);
+        assertThat(service.resolve(created.id(), "HUGGINGFACE")).isEqualTo(SECRET);
     }
 
     @Test
     void deleteRemovesTheTokenAndReturnsTheList() throws Exception {
-        var created = service.create(ApiTokenProvider.HUGGINGFACE, "Personale", SECRET, null);
+        var created = service.create("HUGGINGFACE", "Personale", SECRET, null);
 
         String list = body(delete("/tokens/" + created.id()));
 
@@ -124,7 +123,7 @@ class TokenControllerTest {
 
     @Test
     void anExpiringTokenIsBadgedInTheList() throws Exception {
-        service.create(ApiTokenProvider.CIVITAI, "Presto", SECRET, java.time.LocalDate.now().plusDays(3));
+        service.create("CIVITAI", "Presto", SECRET, java.time.LocalDate.now().plusDays(3));
 
         String list = body(get("/tokens"));
 

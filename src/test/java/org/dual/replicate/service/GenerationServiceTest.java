@@ -58,7 +58,7 @@ class GenerationServiceTest {
     private SystemEventService systemEvents;
 
     @Mock
-    private ApiTokenService apiTokens;
+    private org.dual.replicate.app.TokenInputResolver apiTokens;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

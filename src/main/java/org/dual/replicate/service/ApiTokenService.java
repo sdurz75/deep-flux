@@ -5,11 +5,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
-import org.dual.replicate.domain.ApiTokenProvider;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.service.secret.SecretCipher;
@@ -20,7 +18,7 @@ import org.springframework.stereotype.Service;
 /**
  * CRUD dei token API (CivitAI/HuggingFace) e loro uso nelle generazioni. Il token e' cifrato nel DB ({@link SecretCipher}) e il
  * plaintext vive solo qui: la UI vede {@link TokenView} (nome, suffisso, scadenza, stato), le form/la chat scelgono il token
- * per ID e {@link #resolveInto} lo sostituisce col plaintext nell'input per Replicate, mai nel PARAMETERS_JSON salvato.
+ * per ID e l'app lo risolve col plaintext con {@link #resolve} (vedi {@code TokenInputResolver}), mai nel PARAMETERS_JSON salvato.
  * Mai il segreto in log, eventi, toast o modello Thymeleaf.
  * <p>
  * Scadenza (data inserita a mano): {@link #checkExpiries} registra un AVVISO (SystemEventService#warn, source TOKENS,
@@ -37,7 +35,7 @@ public class ApiTokenService {
     public enum Status { OK, EXPIRING, EXPIRED }
 
     /** Vista per la UI: niente segreto, solo il suffisso per riconoscerlo. */
-    public record TokenView(Long id, ApiTokenProvider provider, String name, String hint, LocalDate expiresAt, Status status) {
+    public record TokenView(Long id, String provider, String name, String hint, LocalDate expiresAt, Status status) {
     }
 
     private final ApiTokenRepository repository;
@@ -77,25 +75,17 @@ public class ApiTokenService {
     }
 
     /** Token del provider, per le select delle form di generazione (nome + scadenza, mai il segreto). */
-    public List<TokenView> options(ApiTokenProvider provider) {
+    public List<TokenView> options(String provider) {
         return repository.findAllByProviderOrderByNameAsc(provider).stream().map(this::view).toList();
-    }
-
-    /**
-     * Attributi di Model per le select di token delle form di generazione ({@code hfTokens}, {@code civitaiTokens}): solo
-     * dove si renderizza il fragment dei parametri di un modello che li usa (FLUX_DEV_LORA), mai a ogni richiesta.
-     */
-    public Map<String, List<TokenView>> formOptions() {
-        return Map.of("hfTokens", options(ApiTokenProvider.HUGGINGFACE), "civitaiTokens", options(ApiTokenProvider.CIVITAI));
     }
 
     public TokenView get(Long id) {
         return view(find(id));
     }
 
-    public TokenView create(ApiTokenProvider provider, String name, String token, LocalDate expiresAt) {
+    public TokenView create(String provider, String name, String token, LocalDate expiresAt) {
         String cleanName = validName(name);
-        if (provider == null) {
+        if (provider == null || provider.isBlank()) {
             throw new TokenException(messages.get("tokens.error.providerRequired"));
         }
         if (repository.existsByProviderAndNameIgnoreCase(provider, cleanName)) {
@@ -139,28 +129,14 @@ public class ApiTokenService {
     }
 
     /** Plaintext del token scelto, per Replicate. Inesistente o scaduto: rifiuto atteso (nessuna prediction a pagamento parte). */
-    public String resolve(Long id, ApiTokenProvider provider) {
+    public String resolve(Long id, String provider) {
         ApiToken token = repository.findById(id)
-                .filter(t -> t.getProvider() == provider)
-                .orElseThrow(() -> new TokenException(messages.get("generation.error.tokenMissing", provider.name())));
+                .filter(t -> t.getProvider().equals(provider))
+                .orElseThrow(() -> new TokenException(messages.get("tokens.error.missing", provider)));
         if (isExpired(token)) {
-            throw new TokenException(messages.get("generation.error.tokenExpired", token.getName()));
+            throw new TokenException(messages.get("tokens.error.expired", token.getName()));
         }
         return cipher.decrypt(token.getTokenEncrypted());
-    }
-
-    /**
-     * Sostituisce in {@code input} gli ID scelti ({@link ApiTokenProvider#idParam}) col token in chiaro sotto la chiave
-     * Replicate ({@link ApiTokenProvider#replicateParam}). Gli ID vengono sempre tolti dall'input (Replicate non li conosce).
-     */
-    public void resolveInto(Map<String, Object> input) {
-        for (ApiTokenProvider provider : ApiTokenProvider.values()) {
-            Object chosen = input.remove(provider.idParam());
-            Long id = asId(chosen);
-            if (id != null) {
-                input.put(provider.replicateParam(), resolve(id, provider));
-            }
-        }
     }
 
     /** Controllo di scadenza di tutti i token (job periodico, avvio): un avviso per ogni token scaduto o in scadenza. */
@@ -180,7 +156,7 @@ public class ApiTokenService {
             return false;
         }
         LocalDate today = today();
-        String provider = messages.get("tokens.provider." + token.getProvider().name());
+        String provider = messages.get("tokens.provider." + token.getProvider());
         if (today.isAfter(token.getExpiresAt())) {
             events.warn(CoreEventSource.TOKENS, "tokenExpired", subject(token),
                     messages.get("tokens.warning.expired", token.getName(), provider, token.getExpiresAt().toString()));
@@ -253,20 +229,5 @@ public class ApiTokenService {
 
     private static String hint(String token) {
         return token.length() <= 4 ? token : token.substring(token.length() - 4);
-    }
-
-    /** L'ID arriva da JSON (numero) o da una form (stringa): vuoto/non valido = nessun token scelto. */
-    private static Long asId(Object value) {
-        if (value instanceof Number n) {
-            return n.longValue();
-        }
-        if (value instanceof String s && !s.isBlank()) {
-            try {
-                return Long.valueOf(s.strip());
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
     }
 }

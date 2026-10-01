@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
@@ -79,7 +80,7 @@ public class GenerationService {
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
     private final SystemEventService systemEvents;
-    private final ApiTokenService apiTokens;
+    private final TokenInputResolver apiTokens;
 
     public GenerationService(GenerationRepository repository,
                               ReplicateClient replicateClient,
@@ -88,7 +89,7 @@ public class GenerationService {
                               Messages messages,
                               ApplicationEventPublisher eventPublisher,
                               SystemEventService systemEvents,
-                              ApiTokenService apiTokens) {
+                              TokenInputResolver apiTokens) {
         this.apiTokens = apiTokens;
         this.repository = repository;
         this.replicateClient = replicateClient;
