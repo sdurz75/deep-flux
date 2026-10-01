@@ -10,8 +10,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Verifica il catalogo DB-backed (migrazione V6) contro il DB reale
- * dell'app (H2 file-based, stesso usato da TemplateRenderingTests):
+ * Verifica il catalogo DB-backed (seed del baseline V1) contro il Postgres
+ * di test (Testcontainers, schema Flyway V1 con il seed del catalogo):
  * niente mock di ReplicateModelRepository, ReplicateModel e' un'entity
  * JPA senza un costruttore pubblico adatto a costruire fixture a mano
  * (censita solo via migrazione, mai dall'applicazione), quindi il modo

@@ -9,8 +9,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Riga del registro eventi di sistema (vedi V17/V21/V22, SystemEventService, pagina /system/events).
@@ -53,7 +54,7 @@ public class SystemEvent {
     @Column(nullable = false, length = 2000)
     private String message;
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String details;
 
     private Long generationId;

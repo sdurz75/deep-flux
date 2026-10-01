@@ -7,6 +7,7 @@ public enum SystemEventSource {
     SEARXNG("SearXNG"),
     STORAGE("Storage"),
     TOKENS("Token"),
+    LORAS("LoRA"),
     INTERNAL("Interno");
 
     private final String label;

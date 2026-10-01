@@ -52,6 +52,7 @@ public class DeepChatController {
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final org.dual.replicate.service.ApiTokenService apiTokens;
+    private final org.dual.replicate.service.LoraPresetService loraPresets;
 
     public DeepChatController(ReplicateModelCatalog modelCatalog,
                                GenerationParameterHandlers parameterHandlers,
@@ -61,8 +62,10 @@ public class DeepChatController {
                                GenerationService generationService,
                                ObjectMapper objectMapper,
                                Messages messages,
-                               org.dual.replicate.service.ApiTokenService apiTokens) {
+                               org.dual.replicate.service.ApiTokenService apiTokens,
+                               org.dual.replicate.service.LoraPresetService loraPresets) {
         this.apiTokens = apiTokens;
+        this.loraPresets = loraPresets;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
         this.chatConversationRepository = chatConversationRepository;
@@ -111,6 +114,7 @@ public class DeepChatController {
             handler.defaultFields().forEach(model::addAttribute);
             if (handler.formType() == org.dual.replicate.domain.GenerationFormType.FLUX_DEV_LORA) {
                 apiTokens.formOptions().forEach(model::addAttribute);
+                loraPresets.formOptions().forEach(model::addAttribute);
             }
         }
         // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,

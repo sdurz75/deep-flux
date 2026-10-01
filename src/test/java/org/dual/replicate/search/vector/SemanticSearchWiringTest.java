@@ -15,7 +15,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Cablaggio REALE come in produzione (config di application.yml: modello ONNX locale, VectorStore su H2, tool): opt-in con
+ * Cablaggio REALE come in produzione (config di application.yml: modello ONNX locale, VectorStore su pgvector, tool): opt-in con
  * {@code -Dsemantic.model.test=true} (usa il modello gia' in ./data/models, o lo scarica).
  */
 @EnabledIfSystemProperty(named = "semantic.model.test", matches = "true")
@@ -36,12 +36,12 @@ class SemanticSearchWiringTest {
     private JdbcClient jdbc;
 
     @Test
-    void wiresTheLocalModelTheH2StoreAndTheToolAndFindsBySynonym() {
+    void wiresTheLocalModelThePgVectorStoreAndTheToolAndFindsBySynonym() {
         assertThat(embeddingModel.dimensions()).isEqualTo(384);
-        assertThat(vectorStore).isInstanceOf(H2VectorStore.class);
+        assertThat(vectorStore).isInstanceOf(org.springframework.ai.vectorstore.pgvector.PgVectorStore.class);
 
         generations.deleteAll();
-        jdbc.sql("delete from VECTOR_DOC").update();
+        jdbc.sql("delete from vector_store").update();
         for (String prompt : new String[] {"un felino domestico che dorme sul divano", "una macchina sportiva rossa in montagna",
                 "ritratto di una donna al tramonto"}) {
             Generation g = new Generation("pred-" + prompt.hashCode(), "owner/model", null, prompt, null);
@@ -57,7 +57,7 @@ class SemanticSearchWiringTest {
             assertThat(result.lines().findFirst().orElseThrow()).contains("felino domestico");
         } finally {
             generations.deleteAll();
-            jdbc.sql("delete from VECTOR_DOC").update();
+            jdbc.sql("delete from vector_store").update();
         }
     }
 }

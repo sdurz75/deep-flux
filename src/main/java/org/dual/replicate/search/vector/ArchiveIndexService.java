@@ -28,13 +28,14 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.annotation.PreDestroy;
 
 /**
  * Tiene l'indice semantico allineato ai dati, con una RICONCILIAZIONE idempotente invece di ganci su ogni {@code save}:
- * aggiunge i documenti mancanti o cambiati (lo store salta gli invariati per hash del testo e modello), rimuove quelli la
+ * aggiunge i documenti mancanti o cambiati ({@link VectorIndexer} salta gli invariati per hash del testo e modello), rimuove quelli la
  * cui riga sorgente non esiste piu'. Gira in background all'avvio (backfill), ogni {@code app.search.reindex-interval} e
  * dopo ogni generazione completata. Un documento che non si riesce a indicizzare e' registrato ({@link SystemEventService}) e
  * non ferma gli altri.
@@ -56,11 +57,14 @@ public class ArchiveIndexService {
     /** ~512 token del modello: oltre, il tokenizer tronca comunque. */
     public static final int MAX_CHARS = 1800;
 
-    private final H2VectorStore store;
+    private final VectorIndexer indexer;
+    private final VectorDocumentRepository documents;
     private final GenerationRepository generations;
     private final ChatMessageRepository messages;
     private final ChatConversationRepository conversations;
     private final SystemEventService systemEvents;
+    /** Solo la LETTURA delle sorgenti JPA e' in transazione (read-only): le scritture sull'indice vanno fuori, vedi {@link #reconcile()}. */
+    private final TransactionTemplate readOnly;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "archive-indexer");
         thread.setDaemon(true);
@@ -69,9 +73,13 @@ public class ArchiveIndexService {
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicBoolean rerun = new AtomicBoolean();
 
-    public ArchiveIndexService(H2VectorStore store, GenerationRepository generations, ChatMessageRepository messages,
-                               ChatConversationRepository conversations, SystemEventService systemEvents) {
-        this.store = store;
+    public ArchiveIndexService(VectorIndexer indexer, VectorDocumentRepository documents, GenerationRepository generations,
+                               ChatMessageRepository messages, ChatConversationRepository conversations,
+                               SystemEventService systemEvents, PlatformTransactionManager transactionManager) {
+        this.readOnly = new TransactionTemplate(transactionManager);
+        this.readOnly.setReadOnly(true);
+        this.indexer = indexer;
+        this.documents = documents;
         this.generations = generations;
         this.messages = messages;
         this.conversations = conversations;
@@ -121,35 +129,22 @@ public class ArchiveIndexService {
         return running.get();
     }
 
-    /** Un giro completo (sincrono). */
-    @Transactional(readOnly = true)
+    /**
+     * Un giro completo (sincrono). La lettura di generazioni/messaggi/conversazioni sta in una transazione read-only (accesso lazy
+     * alle associazioni); le scritture sull'indice (stesso DataSource, quindi stessa connessione se fossero nella transazione) NO:
+     * in una transazione read-only Postgres rifiuta gli INSERT e, dopo il primo errore, scarterebbe ogni comando successivo,
+     * vanificando il "un documento difettoso non ferma gli altri".
+     */
     public void reconcile() {
         try {
-            Map<String, Document> wanted = new HashMap<>();
-            for (Generation generation : generations.findByStatusIn(List.of(GenerationStatus.SUCCEEDED))) {
-                put(wanted, "generation:" + generation.getId(), generation.getPrompt(),
-                        metadata(TYPE_GENERATION, generation.getId(), generation.getConversationId(), generation.getCreatedAt(),
-                                "kind", String.valueOf(generation.getKind())));
-            }
-            for (ChatMessage message : messages.findAll()) {
-                if (!message.isError()) {
-                    put(wanted, "chatmessage:" + message.getId(), message.getContent(),
-                            metadata(TYPE_CHAT, message.getId(), message.getConversation().getId(), message.getCreatedAt(),
-                                    "role", message.getRole().name()));
-                }
-            }
-            for (ChatConversation conversation : conversations.findAll()) {
-                put(wanted, "conversation:" + conversation.getId(), conversation.getTitle(),
-                        metadata(TYPE_CONVERSATION, conversation.getId(), conversation.getId(), conversation.getCreatedAt()));
-            }
-
+            Map<String, Document> wanted = readOnly.execute(status -> wantedDocuments());
             Set<String> stale = new HashSet<>();
             for (String type : List.of(TYPE_GENERATION, TYPE_CHAT, TYPE_CONVERSATION)) {
-                stale.addAll(store.idsOfType(type));
+                stale.addAll(documents.idsOfType(type));
             }
             stale.removeAll(wanted.keySet());
             if (!stale.isEmpty()) {
-                store.delete(new ArrayList<>(stale));
+                indexer.delete(new ArrayList<>(stale));
             }
             addAll(new ArrayList<>(wanted.values()));
             stampNotes();
@@ -163,31 +158,52 @@ public class ArchiveIndexService {
      * millisecondo di creazione. Si riscrivono i soli metadata (testo e modello invariati: lo store non ri-embedda).
      */
     private void stampNotes() {
-        for (String id : store.idsOfType(TYPE_NOTE)) {
-            store.find(id).filter(doc -> !doc.metadata().containsKey("createdAt")).ifPresent(doc -> {
+        for (String id : documents.idsOfType(TYPE_NOTE)) {
+            documents.find(id).filter(doc -> !doc.metadata().containsKey("createdAt")).ifPresent(doc -> {
                 Map<String, Object> metadata = new HashMap<>(doc.metadata());
                 metadata.put("createdAt", doc.refId());
-                store.add(List.of(Document.builder().id(doc.id()).text(doc.content()).metadata(metadata).build()));
+                indexer.upsertIfChanged(List.of(Document.builder().id(doc.id()).text(doc.content()).metadata(metadata).build()));
             });
         }
     }
 
-    private void addAll(List<Document> documents) {
-        for (int from = 0; from < documents.size(); from += 32) {
-            List<Document> batch = documents.subList(from, Math.min(documents.size(), from + 32));
+    private void addAll(List<Document> toIndex) {
+        for (int from = 0; from < toIndex.size(); from += 32) {
+            List<Document> batch = toIndex.subList(from, Math.min(toIndex.size(), from + 32));
             try {
-                store.add(batch);
+                indexer.upsertIfChanged(batch);
             } catch (RuntimeException batchFailure) {
                 // Un documento difettoso non deve bloccare gli altri: si ripete uno per uno.
                 for (Document document : batch) {
                     try {
-                        store.add(List.of(document));
+                        indexer.upsertIfChanged(List.of(document));
                     } catch (RuntimeException e) {
                         systemEvents.record("reindex", e);
                     }
                 }
             }
         }
+    }
+
+    private Map<String, Document> wantedDocuments() {
+        Map<String, Document> wanted = new HashMap<>();
+        for (Generation generation : generations.findByStatusIn(List.of(GenerationStatus.SUCCEEDED))) {
+            put(wanted, "generation:" + generation.getId(), generation.getPrompt(),
+                    metadata(TYPE_GENERATION, generation.getId(), generation.getConversationId(), generation.getCreatedAt(),
+                            "kind", String.valueOf(generation.getKind())));
+        }
+        for (ChatMessage message : messages.findAll()) {
+            if (!message.isError()) {
+                put(wanted, "chatmessage:" + message.getId(), message.getContent(),
+                        metadata(TYPE_CHAT, message.getId(), message.getConversation().getId(), message.getCreatedAt(),
+                                "role", message.getRole().name()));
+            }
+        }
+        for (ChatConversation conversation : conversations.findAll()) {
+            put(wanted, "conversation:" + conversation.getId(), conversation.getTitle(),
+                    metadata(TYPE_CONVERSATION, conversation.getId(), conversation.getId(), conversation.getCreatedAt()));
+        }
+        return wanted;
     }
 
     private static void put(Map<String, Document> wanted, String id, String text, Map<String, Object> metadata) {

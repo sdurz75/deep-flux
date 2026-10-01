@@ -59,11 +59,17 @@
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
-        <!-- Ricerca semantica (vedi CLAUDE.md, "Ricerca semantica"): interfaccia VectorStore (implementata su H2, nessun DB
-             esterno) + embedding LOCALI via ONNX (multilingual-e5-small, scaricato al primo avvio in ./data/models). -->
+        <!-- Ricerca semantica (vedi CLAUDE.md, "Ricerca semantica"): interfaccia VectorStore implementata da PgVectorStore su
+             PostgreSQL + pgvector + embedding LOCALI via ONNX (multilingual-e5-small, scaricato al primo avvio in ./data/models).
+             Volutamente l'artefatto dello store e NON lo starter: lo starter porta l'autoconfig, qui il bean lo scriviamo noi
+             (SemanticSearchConfig: serve il decorator dei prefissi e5 e deve poter essere spento nei test). -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-vector-store</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
@@ -102,8 +108,8 @@
         </dependency>
 
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 
@@ -112,11 +118,15 @@
             <!-- In Boot 4 l'autoconfigurazione di Flyway e' nel modulo
                  spring-boot-flyway, non piu' bundled: serve lo starter
                  esplicito, non basta flyway-core sul classpath (come
-                 invece bastava in Boot 3). H2 e' supportato direttamente
-                 da flyway-core, non serve un modulo flyway-database-*
-                 separato (a differenza di Postgres/Oracle/etc.). -->
+                 invece bastava in Boot 3). Per PostgreSQL serve in piu' il
+                 modulo flyway-database-postgresql (sotto). -->
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
         <dependency>
@@ -135,6 +145,23 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Test su un PostgreSQL+pgvector vero (container singleton, vedi PostgresTestContainerInitializer). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -162,7 +189,7 @@
 
             <!--
                 Attiva il profilo Spring "test" (src/test/resources/application-test.yml,
-                override del solo datasource su H2 in-memory) per OGNI esecuzione di
+                override di config del test) per OGNI esecuzione di
                 Surefire, non solo per le classi di test che se lo ricordano con
                 un'annotazione: cosi' una futura classe @SpringBootTest eredita
                 l'isolamento gratis, invece di poter tornare a scrivere nel database

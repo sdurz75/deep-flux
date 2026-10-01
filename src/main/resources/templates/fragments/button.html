@@ -348,6 +348,17 @@
         th:classappend="${(neutral ? 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark' : '') + ' ' + (extraClass ?: '')}"
         th:text="${text}">Apri</button>
 
+<!--
+  addToPrompt(text): accoda al prompt (#prompt, solo nelle form dirette: nel pannello di /deep-chat non c'e') le trigger words
+  del LoRA scelto. Assume la variabile Alpine `words` su un antenato x-data (stesso accoppiamento esplicito di dialogOpen);
+  visibile solo con `words` valorizzato e un #prompt nella pagina.
+-->
+<button th:fragment="addToPrompt(text)" type="button"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-0.5 text-[0.8rem]"
+        x-show="words && document.getElementById('prompt')" x-cloak
+        @click="const p = document.getElementById('prompt'); p.value = (p.value.trim() ? p.value.replace(/[\s,]+$/, '') + ', ' : '') + words; p.dispatchEvent(new Event('input', { bubbles: true }))"
+        th:text="${text}">Aggiungi al prompt</button>
+
 <button th:fragment="dialogClose(text, extraClass)" type="button" @click="dialogOpen = false"
         class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark"
         th:classappend="${extraClass}" th:text="${text}">Annulla</button>

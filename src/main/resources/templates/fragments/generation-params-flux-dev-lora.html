@@ -11,10 +11,33 @@
   (hf_token_id/civitai_token_id), che GenerationService#doCreate trasforma nel token in chiaro solo verso Replicate.
   hfTokens/civitaiTokens (senza segreti) li mette nel Model GenerationController/DeepChatController solo per questo form-type.
 
+  LoRA predefiniti: select dei preset anagrafati (CRUD /loras, LoraPresetService; `loraPresets` nel Model, stesso punto dei token)
+  sopra ciascuno dei due slot. Sono solo un aiuto di compilazione lato client: al server arrivano sempre testo e scala.
+
   Blocco img2img (upload + prompt_strength): nascosto nel pannello impostazioni di /deep-chat
   (#generation-settings-panel), dove non c'e' upload e il tool non prende sorgenti.
 -->
 <th:block th:fragment="fields">
+
+    <!--/* Preset (CRUD /loras): aiuto di compilazione, la select NON ha name (non viaggia col form ne' finisce in localStorage). Scegliere un
+         preset copia sorgente e intensita' nei campi sotto (restano modificabili) e mostra le trigger words; "testo libero" non tocca nulla. */-->
+    <div x-data="{ words: '' }"
+         @change="const o = $event.target.selectedOptions[0]; if (o && o.value) { const f = document.getElementById('param-lora-weights'); f.value = o.dataset.source; f.dispatchEvent(new Event('input', { bubbles: true })); const s = document.getElementById('param-lora-scale'); s.value = o.dataset.scale; s.dispatchEvent(new Event('input', { bubbles: true })) }; words = o ? (o.dataset.triggerWords || '') : ''">
+        <label for="param-lora-preset" th:text="#{generationParams.label.loraPreset}">LoRA predefinito</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-lora-preset" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="" th:text="#{generationParams.option.freeText}">— testo libero —</option>
+                <option th:each="p : ${loraPresets}" th:value="${p.id}" th:text="${p.name}"
+                        th:data-source="${p.source}" th:data-scale="${p.scale}" th:data-trigger-words="${p.triggerWords}">nome</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
+        <p x-show="words" x-cloak class="mt-1 mb-0 flex flex-wrap items-center gap-2 text-[0.8rem]">
+            <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationParams.label.triggerWords}">Trigger words</span>
+            <code x-text="words"></code>
+            <button th:replace="~{fragments/button :: addToPrompt(text=#{generationParams.button.addTriggerWords})}">Aggiungi al prompt</button>
+        </p>
+    </div>
 
     <div>
         <label for="param-lora-weights" th:text="#{generationParams.label.loraWeights}">LoRA</label>
@@ -27,6 +50,26 @@
         <input type="number" id="param-lora-scale" name="lora_scale" min="-1" max="3" step="0.1" th:value="${lora_scale}">
     </div>
 
+    <!--/* Preset (CRUD /loras): aiuto di compilazione, la select NON ha name (non viaggia col form ne' finisce in localStorage). Scegliere un
+         preset copia sorgente e intensita' nei campi sotto (restano modificabili) e mostra le trigger words; "testo libero" non tocca nulla. */-->
+    <div x-data="{ words: '' }"
+         @change="const o = $event.target.selectedOptions[0]; if (o && o.value) { const f = document.getElementById('param-extra-lora'); f.value = o.dataset.source; f.dispatchEvent(new Event('input', { bubbles: true })); const s = document.getElementById('param-extra-lora-scale'); s.value = o.dataset.scale; s.dispatchEvent(new Event('input', { bubbles: true })) }; words = o ? (o.dataset.triggerWords || '') : ''">
+        <label for="param-extra-lora-preset" th:text="#{generationParams.label.loraPreset}">LoRA predefinito</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-extra-lora-preset" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="" th:text="#{generationParams.option.freeText}">— testo libero —</option>
+                <option th:each="p : ${loraPresets}" th:value="${p.id}" th:text="${p.name}"
+                        th:data-source="${p.source}" th:data-scale="${p.scale}" th:data-trigger-words="${p.triggerWords}">nome</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
+        <p x-show="words" x-cloak class="mt-1 mb-0 flex flex-wrap items-center gap-2 text-[0.8rem]">
+            <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationParams.label.triggerWords}">Trigger words</span>
+            <code x-text="words"></code>
+            <button th:replace="~{fragments/button :: addToPrompt(text=#{generationParams.button.addTriggerWords})}">Aggiungi al prompt</button>
+        </p>
+    </div>
+
     <div>
         <label for="param-extra-lora" th:text="#{generationParams.label.extraLora}">LoRA aggiuntivo</label>
         <input type="text" id="param-extra-lora" name="extra_lora" autocomplete="off"
@@ -37,6 +80,7 @@
         <label for="param-extra-lora-scale" th:text="#{generationParams.label.extraLoraScale}">Intensita' LoRA aggiuntivo</label>
         <input type="number" id="param-extra-lora-scale" name="extra_lora_scale" min="-1" max="3" step="0.1" th:value="${extra_lora_scale}">
     </div>
+    <p class="-mt-1 mb-0 text-[0.8rem]"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
 
     <!--/* Token per i LoRA privati: scelti PER NOME fra quelli salvati in /tokens (mai digitati qui); l'ID arriva al server e
          GenerationService lo sostituisce col token in chiaro solo verso Replicate. Scaduto = non selezionabile. */-->

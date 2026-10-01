@@ -1,10 +1,13 @@
 package org.dual.replicate.search.vector;
 
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.ObjectMapper;
 
@@ -18,12 +21,37 @@ import tools.jackson.databind.ObjectMapper;
 class SemanticSearchConfig {
 
     /**
-     * L'id del modello (l'URI ONNX configurato) e' salvato con ogni documento: cambiare modello => al prossimo giro
-     * {@link ArchiveIndexService} ri-embedda tutto, senza migrazioni.
+     * {@code PgVectorStore} sulla tabella {@code vector_store} creata da Flyway (V1, {@code initializeSchema=false}). Id testuali
+     * ("generation:12"); nessun indice ANN: la ricerca e' esatta e restituisce TUTTA la classifica sopra soglia (vedi V1).
+     * L'{@code EmbeddingModel} e' avvolto per i prefissi e5 ({@link E5PrefixEmbeddingModel}).
      */
     @Bean
-    H2VectorStore vectorStore(JdbcClient jdbc, EmbeddingModel embeddingModel, ObjectMapper objectMapper,
-                              @Value("${spring.ai.embedding.transformer.onnx.model-uri}") String modelId) {
-        return new H2VectorStore(jdbc, embeddingModel, objectMapper, modelId);
+    VectorStore vectorStore(JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel) {
+        return pgVectorStore(jdbcTemplate, embeddingModel);
+    }
+
+    static PgVectorStore pgVectorStore(JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel) {
+        return PgVectorStore.builder(jdbcTemplate, new E5PrefixEmbeddingModel(embeddingModel))
+                .vectorTableName("vector_store")
+                .idType(PgVectorStore.PgIdType.TEXT)
+                .dimensions(VectorIndexer.DIMENSIONS)
+                .indexType(PgVectorStore.PgIndexType.NONE)
+                .initializeSchema(false)
+                .build();
+    }
+
+    @Bean
+    VectorDocumentRepository vectorDocumentRepository(JdbcClient jdbc, ObjectMapper objectMapper) {
+        return new VectorDocumentRepository(jdbc, objectMapper);
+    }
+
+    /**
+     * L'id del modello (l'URI ONNX configurato) e' salvato con ogni documento: cambiare modello => al prossimo giro
+     * {@link ArchiveIndexService} ri-embedda tutto, senza migrazioni (a parita' di dimensioni, vedi V1).
+     */
+    @Bean
+    VectorIndexer vectorIndexer(VectorStore vectorStore, VectorDocumentRepository repository,
+                                @Value("${spring.ai.embedding.transformer.onnx.model-uri}") String modelId) {
+        return new VectorIndexer(vectorStore, repository, modelId);
     }
 }

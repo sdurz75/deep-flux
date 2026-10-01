@@ -18,8 +18,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.OrderColumn;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Una richiesta di generazione immagine su Replicate: tiene insieme il
@@ -46,12 +47,12 @@ public class Generation {
     /** Version hash pinnata, se l'utente l'ha specificata. Puo' essere null. */
     private String version;
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(nullable = false)
     private String prompt;
 
     /** JSON dei parametri extra (oltre al prompt) passati come input. Puo' essere null. */
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String parametersJson;
 
     /**
@@ -95,7 +96,7 @@ public class Generation {
     @Column(name = "filename")
     private Set<String> favouriteFilenames = new LinkedHashSet<>();
 
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String errorMessage;
 
     /**

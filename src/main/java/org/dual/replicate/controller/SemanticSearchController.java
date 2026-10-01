@@ -12,9 +12,10 @@ import org.dual.replicate.i18n.Messages;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.search.vector.ArchiveIndexService;
 import org.dual.replicate.service.SystemEventService;
-import org.dual.replicate.search.vector.H2VectorStore;
-import org.dual.replicate.search.vector.H2VectorStore.Listing;
-import org.dual.replicate.search.vector.H2VectorStore.StoredDocument;
+import org.dual.replicate.search.vector.VectorDocumentRepository;
+import org.dual.replicate.search.vector.VectorDocumentRepository.Listing;
+import org.dual.replicate.search.vector.VectorDocumentRepository.StoredDocument;
+import org.dual.replicate.search.vector.VectorIndexer;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -37,7 +38,7 @@ import org.springframework.web.util.UriComponentsBuilder;
  * Interfaccia manuale al vector store: interrogarlo (ricerca semantica con punteggi), sfogliarlo/ispezionarlo e modificarlo.
  * Si modificano SOLO le note manuali ({@code type=note}, che {@link ArchiveIndexService} non tocca); i documenti derivati
  * (generation, chat, conversation) sono in sola lettura perche' la loro fonte di verita' e' il DB: si possono solo ri-embeddare.
- * La ricerca passa dall'interfaccia Spring AI {@link VectorStore}; le operazioni di amministrazione dalla classe concreta.
+ * La ricerca passa dall'interfaccia Spring AI {@link VectorStore}; la scrittura da {@link VectorIndexer}, la lettura/il listato da {@link VectorDocumentRepository}.
  */
 @Controller
 @RequestMapping("/search")
@@ -58,17 +59,19 @@ public class SemanticSearchController {
     }
 
     private final VectorStore vectorStore;
-    private final H2VectorStore store;
+    private final VectorIndexer indexer;
+    private final VectorDocumentRepository documents;
     private final ArchiveIndexService indexService;
     private final Messages messages;
     private final SystemEventService systemEvents;
     private final int defaultThresholdPercent;
 
-    public SemanticSearchController(VectorStore vectorStore, H2VectorStore store, ArchiveIndexService indexService,
-                                    Messages messages, SystemEventService systemEvents,
+    public SemanticSearchController(VectorStore vectorStore, VectorIndexer indexer, VectorDocumentRepository documents,
+                                    ArchiveIndexService indexService, Messages messages, SystemEventService systemEvents,
                                     @Value("${app.search.similarity-threshold-percent:0}") int defaultThresholdPercent) {
         this.vectorStore = vectorStore;
-        this.store = store;
+        this.indexer = indexer;
+        this.documents = documents;
         this.indexService = indexService;
         this.messages = messages;
         this.systemEvents = systemEvents;
@@ -123,7 +126,7 @@ public class SemanticSearchController {
             return noteFormView(null, title, text, error, model);
         }
         long now = System.currentTimeMillis();
-        store.add(List.of(note("note:" + UUID.randomUUID(), now, now, text.strip(), title.strip())));
+        indexer.upsertIfChanged(List.of(note("note:" + UUID.randomUUID(), now, now, text.strip(), title.strip())));
         // Chiude il dialog note (search.html) e fa ricaricare la lista col form corrente (search-form ascolta note-saved); con un
         // errore di validazione, sopra, l'evento NON parte e il dialog resta aperto.
         systemEvents.addHxTrigger(response, "note-saved", "");
@@ -155,16 +158,16 @@ public class SemanticSearchController {
             return noteFormView(id, title, text, error, model);
         }
         // La data di creazione non cambia con la modifica (le note piu' vecchie non l'hanno ancora: refId e' lo stesso istante).
-        store.add(List.of(note(existing.id(), existing.refId(), existing.createdAt().toEpochMilli(), text.strip(), title.strip())));
+        indexer.upsertIfChanged(List.of(note(existing.id(), existing.refId(), existing.createdAt().toEpochMilli(), text.strip(), title.strip())));
         systemEvents.addHxTrigger(response, "note-saved", "");
-        model.addAttribute("hit", new Hit(store.find(id).orElseThrow(), null));
+        model.addAttribute("hit", new Hit(documents.find(id).orElseThrow(), null));
         return "fragments/search :: row(hit=${hit})";
     }
 
     @DeleteMapping("/notes/{id}")
     public String deleteNote(@PathVariable String id, Model model) {
         requireNote(id);
-        store.delete(List.of(id));
+        indexer.delete(List.of(id));
         model.addAttribute("stats", stats());
         return "fragments/search :: deleted(stats=${stats})";
     }
@@ -174,10 +177,10 @@ public class SemanticSearchController {
     /** Ricalcola l'embedding di un documento (qualunque tipo): dopo un cambio di modello o per riprovare un fallimento. */
     @PostMapping("/docs/{id}/reembed")
     public String reembed(@PathVariable String id, Model model) {
-        if (!store.reembed(id)) {
+        if (!indexer.reembed(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        model.addAttribute("hit", new Hit(store.find(id).orElseThrow(), null));
+        model.addAttribute("hit", new Hit(documents.find(id).orElseThrow(), null));
         return "fragments/search :: row(hit=${hit})";
     }
 
@@ -193,9 +196,9 @@ public class SemanticSearchController {
     // --- interno ----------------------------------------------------------------------------------------------------
 
     private Stats stats() {
-        Map<String, Long> counts = store.countsByType();
-        return new Stats(counts.values().stream().mapToLong(Long::longValue).sum(), counts, store.embeddingModelId(),
-                store.dimensions(), indexService.isRunning());
+        Map<String, Long> counts = documents.countsByType();
+        return new Stats(counts.values().stream().mapToLong(Long::longValue).sum(), counts, indexer.embeddingModelId(),
+                VectorIndexer.DIMENSIONS, indexService.isRunning());
     }
 
     private void populateResults(String q, String type, String from, String to, Integer threshold, int page, Model model) {
@@ -238,14 +241,14 @@ public class SemanticSearchController {
         int current;
         int totalPages;
         if (query.isEmpty()) {
-            Listing listing = store.list(filter, page, PAGE_SIZE);
+            Listing listing = documents.list(filter, page, PAGE_SIZE);
             hits = listing.documents().stream().map(d -> new Hit(d, null)).toList();
             total = listing.total();
             current = listing.page();
             totalPages = listing.totalPages();
         } else {
             // Tutta la classifica sopra la soglia (topK = dimensione dell'indice): la si pagina qui e si risolvono solo i documenti della pagina.
-            SearchRequest.Builder request = SearchRequest.builder().query(query).topK(Math.max(1, store.size()))
+            SearchRequest.Builder request = SearchRequest.builder().query(query).topK((int) Math.max(1, documents.count()))
                     .similarityThreshold(minPercent / 100.0);
             if (filter != null) {
                 request.filterExpression(filter);
@@ -255,7 +258,7 @@ public class SemanticSearchController {
             totalPages = Math.max(1, (int) Math.ceil(total / (double) PAGE_SIZE));
             current = Math.min(Math.max(1, page), totalPages);
             hits = ranked.stream().skip((long) (current - 1) * PAGE_SIZE).limit(PAGE_SIZE)
-                    .map(d -> store.find(d.getId()).map(stored -> new Hit(stored, d.getScore())))
+                    .map(d -> documents.find(d.getId()).map(stored -> new Hit(stored, d.getScore())))
                     .flatMap(java.util.Optional::stream).toList();
         }
         model.addAttribute("hits", hits);
@@ -333,6 +336,6 @@ public class SemanticSearchController {
         if (!id.startsWith("note:")) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY);
         }
-        return store.find(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return documents.find(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 }

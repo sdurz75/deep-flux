@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.dual.replicate.search.vector.FakeEmbeddingModel;
-import org.dual.replicate.search.vector.H2VectorStore;
+import org.dual.replicate.search.vector.VectorDocumentRepository;
+import org.dual.replicate.search.vector.VectorIndexer;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -45,15 +47,19 @@ class SemanticSearchControllerTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private H2VectorStore store;
+    private VectorStore vectorStore;
+    @Autowired
+    private VectorIndexer indexer;
+    @Autowired
+    private VectorDocumentRepository store;
 
     @BeforeEach
     void clean() {
-        store.delete(store.list((org.springframework.ai.vectorstore.filter.Filter.Expression) null, 1, 1000).documents().stream().map(H2VectorStore.StoredDocument::id).toList());
+        indexer.delete(store.list(null, 1, 1000).documents().stream().map(VectorDocumentRepository.StoredDocument::id).toList());
     }
 
     private void derived(String id, String type, long refId, String text) {
-        store.add(List.of(Document.builder().id(id).text(text).metadata(Map.of("type", type, "refId", refId)).build()));
+        indexer.upsertIfChanged(List.of(Document.builder().id(id).text(text).metadata(Map.of("type", type, "refId", refId)).build()));
     }
 
     private static org.springframework.ai.vectorstore.filter.Filter.Expression noteFilter() {
@@ -65,7 +71,7 @@ class SemanticSearchControllerTest {
 
     private void derivedAt(String id, String type, long refId, String text, java.time.LocalDate day) {
         long millis = day.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
-        store.add(List.of(Document.builder().id(id).text(text).metadata(Map.of("type", type, "refId", refId, "createdAt", millis)).build()));
+        indexer.upsertIfChanged(List.of(Document.builder().id(id).text(text).metadata(Map.of("type", type, "refId", refId, "createdAt", millis)).build()));
     }
 
     private String body(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
@@ -91,7 +97,7 @@ class SemanticSearchControllerTest {
     void semanticSearchReturnsScoredHitsAndHonoursTheTypeFilter() throws Exception {
         derived("generation:1", "generation", 1, "un gatto sul divano");
         derived("generation:2", "generation", 2, "auto in montagna");
-        store.add(List.of(Document.builder().id("note:a").text("appunto sul felino").metadata(Map.of("type", "note", "refId", 3L)).build()));
+        indexer.upsertIfChanged(List.of(Document.builder().id("note:a").text("appunto sul felino").metadata(Map.of("type", "note", "refId", 3L)).build()));
 
         String all = body(get("/search/results").param("q", "gatto").param("topK", "5"));
         String onlyNotes = body(get("/search/results").param("q", "gatto").param("type", "note"));
@@ -161,11 +167,11 @@ class SemanticSearchControllerTest {
         // la risposta porta solo le statistiche: la lista si ricarica da sola (search-form ascolta note-saved) coi filtri correnti
         assertThat(created).contains("id=\"search-stats\"").doesNotContain("<li");
         assertThat(body(get("/search/results").param("type", "note"))).contains("il mio castello con il drago").contains("Idea");
-        H2VectorStore.StoredDocument note = store.list(noteFilter(), 1, 10).documents().get(0);
+        VectorDocumentRepository.StoredDocument note = store.list(noteFilter(), 1, 10).documents().get(0);
         assertThat(note.id()).startsWith("note:");
         assertThat(note.metadata()).containsKey("createdAt");
         long createdAt = ((Number) note.metadata().get("createdAt")).longValue();
-        assertThat(store.similaritySearch(org.springframework.ai.vectorstore.SearchRequest.builder().query("drago").topK(1).build()))
+        assertThat(vectorStore.similaritySearch(org.springframework.ai.vectorstore.SearchRequest.builder().query("drago").topK(1).build()))
                 .extracting(Document::getId).containsExactly(note.id());
 
         String edit = body(get("/search/notes/{id}/edit", note.id()));

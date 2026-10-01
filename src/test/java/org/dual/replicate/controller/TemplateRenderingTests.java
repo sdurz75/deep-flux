@@ -531,6 +531,12 @@ class TemplateRenderingTests {
     @Autowired
     private org.dual.replicate.service.secret.SecretCipher secretCipher;
 
+    @Autowired
+    private org.dual.replicate.service.LoraPresetService loraPresetService;
+
+    @Autowired
+    private org.dual.replicate.repository.LoraPresetRepository loraPresetRepository;
+
     /**
      * Form-type FLUX_DEV_LORA (migrazione V20/FluxDevLoraParameterHandler): campi LoRA, upload img2img opzionale, solo i propri
      * campi (nessuno di quelli di flux-lora-ff3) e i token SALVATI come select per nome (mai un campo per digitarli).
@@ -565,13 +571,33 @@ class TemplateRenderingTests {
         assertThat(body).containsPattern("name=\"lora_scale\"[^>]*value=\"1(\\.0)?\"");
     }
 
+    /**
+     * I LoRA anagrafati (CRUD /loras) compaiono come select di preset sopra i due slot LoRA di flux-dev-lora: la select non ha
+     * name (non viaggia col form), ogni opzione porta sorgente/intensita'/trigger words nei data-*, "testo libero" e' la prima.
+     */
+    @Test
+    @Transactional
+    void paramsEndpointRendersLoraPresetSelectsForFluxDevLora() throws Exception {
+        loraPresetRepository.deleteAll();
+        loraPresetService.create("Stile acquerello", "owner/acquerello", 0.8, "wtrclr style", null);
+
+        String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-dev-lora"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("id=\"param-lora-preset\"", "id=\"param-extra-lora-preset\"", "Stile acquerello",
+                "data-source=\"owner/acquerello\"", "data-trigger-words=\"wtrclr style\"", "testo libero", "href=\"/loras\"");
+        assertThat(body).containsPattern("data-scale=\"0\\.8\"");
+        assertThat(body).doesNotContainPattern("<select[^>]*id=\"param-lora-preset\"[^>]*name=");
+        assertThat(body).doesNotContainPattern("<select[^>]*name=\"[^\"]*\"[^>]*id=\"param-(extra-)?lora-preset\"");
+    }
+
     /** Gli altri form-type non hanno le select dei token (e non fanno la query dei token). */
     @Test
     void otherFormTypesHaveNoTokenSelects() throws Exception {
         String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-krea-dev"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).doesNotContain("hf_token_id").doesNotContain("civitai_token_id");
+        assertThat(body).doesNotContain("hf_token_id").doesNotContain("civitai_token_id").doesNotContain("param-lora-preset");
     }
 
     /**
@@ -597,10 +623,10 @@ class TemplateRenderingTests {
      * sempre quella di default e ci naviga (vedi DeepChatController).
      * @Transactional: senza, ogni esecuzione di questo test (e degli
      * altri due sotto che toccano CHAT_CONVERSATION/CHAT_MESSAGE)
-     * lascerebbe righe permanenti nel DB H2 file-based condiviso con
-     * l'ambiente di sviluppo (niente datasource separato per i test in
-     * questo progetto) - il rollback automatico a fine test evita
-     * l'accumulo silenzioso ad ogni `mvn test`.
+     * lascerebbe righe nel Postgres di test condiviso da tutta la suite
+     * (container unico, vedi PostgresTestContainerInitializer) - il
+     * rollback automatico a fine test evita che si accumulino e
+     * influenzino gli altri test.
      */
     @Test
     @Transactional

@@ -18,6 +18,7 @@ import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.GenerationRepository;
 import org.dual.replicate.service.ApiTokenService;
+import org.dual.replicate.service.LoraPresetService;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
@@ -69,6 +70,7 @@ public class GenerationController {
     private final IImageStorageService imageStorageService;
     private final SystemEventService systemEvents;
     private final ApiTokenService apiTokens;
+    private final LoraPresetService loraPresets;
 
     public GenerationController(GenerationService generationService,
                                  GenerationRepository generationRepository,
@@ -79,9 +81,11 @@ public class GenerationController {
                                  PromptEnhancementService promptEnhancementService,
                                  IImageStorageService imageStorageService,
                                  SystemEventService systemEvents,
-                                 ApiTokenService apiTokens) {
+                                 ApiTokenService apiTokens,
+                                 LoraPresetService loraPresets) {
         this.systemEvents = systemEvents;
         this.apiTokens = apiTokens;
+        this.loraPresets = loraPresets;
         this.generationService = generationService;
         this.generationRepository = generationRepository;
         this.modelCatalog = modelCatalog;
@@ -353,10 +357,11 @@ public class GenerationController {
         }
     }
 
-    /** I token salvati per le select del form-type che li usa (flux-dev-lora): solo dove serve, mai a ogni richiesta. */
+    /** Token e LoRA anagrafati per le select del form-type che li usa (flux-dev-lora): solo dove serve, mai a ogni richiesta. */
     private void addTokenOptions(Model model, GenerationParameterHandler handler) {
         if (handler.formType() == GenerationFormType.FLUX_DEV_LORA) {
             apiTokens.formOptions().forEach(model::addAttribute);
+            loraPresets.formOptions().forEach(model::addAttribute);
         }
     }
 

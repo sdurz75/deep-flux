@@ -60,10 +60,12 @@ spring:
       cache:
         cachecontrol:
           no-cache: true
+  # PostgreSQL con l'estensione pgvector (dati relazionali E vector store della ricerca semantica): `docker compose up -d`
+  # avvia quello di sviluppo (compose.yaml). Credenziali dal .env, mai committate.
   datasource:
-    url: jdbc:h2:file:./data/db/app;AUTO_SERVER=TRUE
-    username: sa
-    password:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:deepflux}
+    username: ${DB_USERNAME:deepflux}
+    password: ${DB_PASSWORD:}
   jpa:
     hibernate:
       # Lo schema e' governato da Flyway (vedi resources/db/migration/),
@@ -100,7 +102,7 @@ spring:
       chat:
         options:
           model: ${OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
-    # Ricerca semantica (H2VectorStore): embedding LOCALI, nessuna chiamata di rete a runtime. Il modello ONNX
+    # Ricerca semantica (PgVectorStore): embedding LOCALI, nessuna chiamata di rete a runtime. Il modello ONNX
     # (multilingual-e5-small quantizzato, ~120 MB, italiano/inglese) e il tokenizer si scaricano UNA volta al primo avvio in
     # ./data/models. Cambiare l'URI del modello => ArchiveIndexService reindicizza tutto (l'URI e' l'id del modello).
     model:

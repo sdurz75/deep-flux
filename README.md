@@ -11,8 +11,10 @@ immagine.
 
 ## Avvio
 
-Richiede Maven installato (nessun wrapper incluso nello zip) e un token
-API Replicate, generabile su
+Richiede Maven installato (nessun wrapper incluso nello zip), Docker per
+il database (PostgreSQL+pgvector: `cp .env.example .env`, imposta
+`DB_PASSWORD`, poi `docker compose up -d`) e un token API Replicate,
+generabile su
 [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens):
 
 ```bash
@@ -36,8 +38,11 @@ funziona comunque: la generazione fallirà con un errore chiaro finché
 non lo imposti.
 
 Le immagini generate finiscono in `./data/images` e i metadati (prompt,
-modello, parametri) in un DB H2 locale sotto `./data/db` — entrambi
-esclusi da git.
+modello, parametri) in PostgreSQL con l'estensione pgvector (usato anche per
+la ricerca semantica). Per lo sviluppo basta `docker compose up -d`
+(`compose.yaml`, credenziali `DB_USERNAME`/`DB_PASSWORD` nel `.env`, vedi
+`.env.example`); i dati stanno in `./data/postgres`, escluso da git. I test
+(`mvn test`) richiedono Docker: usano un container pgvector usa-e-getta.
 
 ### Generare un'immagine
 

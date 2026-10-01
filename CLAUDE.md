@@ -59,6 +59,12 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   (vedi "Token API"). Al server arriva l'ID (`hf_token_id`/`civitai_token_id`, in `PARAMETERS_JSON` resta l'ID): il token in
   chiaro esiste solo in `GenerationService#doCreate`, che con `ApiTokenService#resolveInto` lo mette in `hf_api_token`/
   `civitai_api_token` dell'input per Replicate, PRIMA di chiamarlo (un token inesistente o scaduto e' un rifiuto, nessuna prediction).
+  **LoRA anagrafati**: CRUD in `/loras` (`LoraController`, `LoraPresetService`, `LoraPreset` V2, `fragments/loras.html`, voce nel menu
+  Sistema), solo per comodita': nome, sorgente, intensita' predefinita, trigger words, nota. Sopra i due slot LoRA della form
+  (`generation-params-flux-dev-lora.html`, `loraPresets` nel Model dove si mettono gia' i token) una select Pines SENZA `name`
+  compila testo e scala (restano modificabili, "testo libero" non tocca nulla) e mostra le trigger words con "Aggiungi al prompt"
+  (`button.html :: addToPrompt`, solo se c'e' `#prompt`: non nel pannello di `/deep-chat`). E' un aiuto lato client: al server arrivano
+  sempre testo e scala, nessuna FK dalla `Generation`, cancellare/modificare un preset non tocca le generazioni passate.
 - **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, una
   regola per modello censito — un nuovo modello richiede anche la sua regola) lo calcola da `PredictionResponse.metrics`;
   `GenerationService#refresh` lo salva in `GENERATION.COST_USD` (V13); assente per generazioni vecchie, fallite o senza regola.
@@ -124,10 +130,10 @@ Hypermedia-first, non SPA: il server e' la fonte di verita' e restituisce HTML, 
 
 Spring Boot 4.x + Spring MVC; Thymeleaf + thymeleaf-layout-dialect (`layout:decorate`/`layout:fragment`); htmx e
 Alpine.js via CDN; Pines UI (componenti Alpine+Tailwind da copiare, `preflight` attivo, stessa base di stile del sito);
-Spring Data JPA + H2 su file; Flyway (`spring-boot-starter-flyway`, `ddl-auto: validate`); `RestClient`
+Spring Data JPA + PostgreSQL con l'estensione pgvector (un'istanza sola per dati e vettori; `compose.yaml` per lo sviluppo); Flyway (`spring-boot-starter-flyway`, `ddl-auto: validate`); `RestClient`
 (`spring-boot-starter-restclient`) verso Replicate; Spring AI (`spring-ai-starter-model-openai`, `ChatClient`, `base-url`
 `https://openrouter.ai/api/v1`, richiede Boot 4.x / Spring AI 2.0.x); embedding locali ONNX (`spring-ai-starter-model-transformers`) e
-`spring-ai-vector-store` per la ricerca semantica; Maven; Java 21.
+`spring-ai-vector-store` + `spring-ai-pgvector-store` (`PgVectorStore`) per la ricerca semantica; Maven; Java 21.
 
 ## Struttura del progetto
 
@@ -140,7 +146,7 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
 - `domain/`: `Generation`, `ChatConversation`, `ChatMessage`, `ReplicateModel` (catalogo censito, V6),
   `GenerationFormType` (form/handler di un modello: FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO,
   FLUX_KONTEXT_DEV, FLUX_DEV_LORA; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`, `SystemEvent`/`SystemEventSeverity`/
-  `SystemEventSource` (registro eventi, V17/V21/V22), `ApiToken`/`ApiTokenProvider` (V23).
+  `SystemEventSource` (registro eventi), `ApiToken`/`ApiTokenProvider`, `LoraPreset`.
 - `replicate/`: `ReplicateClient`, `ReplicateModelCatalog`, `ReplicatePricing`, `TooManyPredictionsException` (troppe
   prediction in corso PER LO STESSO MODELLO, vedi `GenerationService#create`). `search/`: `SearxngClient` (Basic Auth).
 - `service/`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni
@@ -154,12 +160,13 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
   id delle generazioni avviate nel turno), `SystemEventService` (+ `SystemEventController`, campanella), `ApiTokenService`/`ApiTokenExpiryService`/`TokenException`, `secret/SecretCipher`,
   `GenerationRecoveryService`, `DeepChatFailedException`.
-- `search/vector/`: `H2VectorStore` (`VectorStore` su H2, tabella `VECTOR_DOC` V19), `ArchiveIndexService` (riconciliazione dell'indice),
-  `SemanticSearchConfig`; `service/ArchiveSearchTool` (tool `searchArchive` della chat). Vedi "Ricerca semantica".
+- `search/vector/`: `SemanticSearchConfig` (bean `PgVectorStore` su `vector_store`), `E5PrefixEmbeddingModel` (prefissi e5), `VectorIndexer`
+  (scrittura: hash/modello nei metadata), `VectorDocumentRepository` (lettura/listato/statistiche JDBC), `ArchiveIndexService` (riconciliazione dell'indice); `service/ArchiveSearchTool` (tool `searchArchive` della chat). Vedi "Ricerca semantica".
 - `remote/`: `RemoteServiceException`, `RemoteCaller`, `RetryPolicy`, `RestClientTranslator`, `RestRemoteClient` (vedi
   "Errori e retry generici"). `config/`: `TailwindAssets`, `UnhandledExceptionResolver`.
-- `db/migration/`: V1..V23, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
-  modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
+- `db/migration/`: `V1__baseline.sql` (schema Postgres + seed del catalogo; sostituisce le V1..V23 del periodo H2), poi una per modifica
+  di schema (vedi "Convenzione: migrazioni"). Un modello nuovo si censisce con un `INSERT` in `replicate_model` (`version` NULL =
+  "ultima versione"): `form_type` e' un varchar, niente `ALTER` di ENUM.
 - `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
   theme switch in uno slideover Pines, stato Alpine `navOpen`, `button.html :: navToggle`), `button.html` (bottoni +
   overlay dei thumbnail: `animateOverlay`, `editOverlay`, `starOverlay`, `downloadOverlay`), `alert.html`,
@@ -171,7 +178,7 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   `accordion.html`, `conversation-list.html`, `toast.html`,
   `live-events.html` (SSE `GET /events` ri-dispatchata come CustomEvent su `document.body`).
 
-Immagini generate e DB H2 vivono in `./data/` (fuori da git). Nessun CSS in `static/`: `static/css/tailwind.css` esiste
+Le immagini generate vivono in `./data/images` e il DB di sviluppo (container Postgres) in `./data/postgres`, entrambi fuori da git. Nessun CSS in `static/`: `static/css/tailwind.css` esiste
 solo se generato dal profilo `tailwind` (in `target/`, mai committato).
 
 ## Pattern Thymeleaf: layout manager
@@ -304,9 +311,12 @@ Nessun file CSS: solo Tailwind, config inline in `fragments/layout.html`. Mai co
 
 `ddl-auto: validate`: Hibernate controlla solo che lo schema Flyway corrisponda alle entity (altrimenti l'app non parte).
 Ogni modifica alla persistenza (entity, campo, indice, rename...) richiede una **nuova migrazione SQL**
-`V<N+1>__<descrizione>.sql` in `src/main/resources/db/migration/` (DDL H2; mai riusare un numero gia' applicato ne'
+`V<N+1>__<descrizione>.sql` in `src/main/resources/db/migration/` (DDL **PostgreSQL**; mai riusare un numero gia' applicato ne'
 modificare un file gia' eseguito: il checksum fa fallire l'avvio). Flyway le applica all'avvio prima della validazione.
-In sviluppo si puo' ripartire da zero cancellando `./data/db/`.
+Regole del dialetto: identificatori **minuscoli non quotati** (Hibernate non quota), testo lungo `text` (nelle entity
+`@JdbcTypeCode(SqlTypes.LONGVARCHAR)`, MAI `@Lob`: su PG sarebbe `oid`), `timestamptz`, `bytea`, enum Java = `varchar` senza
+ENUM/CHECK di DB. Il baseline `V1` e' lo storico H2 squashato (passaggio a Postgres senza migrare i dati). In sviluppo si riparte da zero
+con `docker compose down && rm -rf data/postgres`.
 
 ## Convenzione: internazionalizzazione (i18n)
 
@@ -460,22 +470,33 @@ componente e' solo la UI, legge le `<option>` e scrive il valore con gli eventi 
 Un cambio di valore da codice (senza eventi) va annunciato con `select.dispatchEvent(new Event('pines-select:sync'))` (vedi `deep-chat.html`,
 `button :: resetToDefaults`). Se il pannello fosse tagliato da un contenitore con overflow: fallback `@alpinejs/anchor` o posizione `fixed`.
 
-## Ricerca semantica (vector store su H2, embedding locali)
+## Ricerca semantica (PgVectorStore su PostgreSQL+pgvector, embedding locali)
 
-Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dall'interfaccia Spring AI `VectorStore` (bean
-`H2VectorStore`): un domani si puo' sostituire con Elasticsearch/Qdrant cambiando quel bean.
+Stesso Postgres dei dati, nessun servizio in piu'. Chi vuole cercare per significato dipende SOLO dall'interfaccia Spring AI
+`VectorStore` (bean `PgVectorStore`): un domani si puo' sostituire con Elasticsearch/Qdrant cambiando quel bean.
 
 - **Embedding**: `EmbeddingModel` locale (`TransformersEmbeddingModel`, ONNX) con `multilingual-e5-small` quantizzato (384 dim,
   italiano/inglese, ~120 MB). Il modello e il tokenizer si scaricano UNA volta al primo avvio da Hugging Face in `./data/models`
   (fuori da git; niente download in build). `spring.ai.model.embedding=transformers` evita che l'autoconfig OpenAI crei un secondo
-  `EmbeddingModel`. I modelli e5 vogliono i prefissi `passage: ` (documenti) e `query: ` (ricerche): li applica `H2VectorStore`,
-  chi lo usa passa il testo nudo. I punteggi e5 sono compressi (0.7-0.9): usare top-K, non soglie fisse.
-- **`H2VectorStore`**: documenti in `VECTOR_DOC` (embedding normalizzato, `EMBEDDING_MODEL`, `CONTENT_HASH`), letti da una mappa in
-  memoria (coseno = prodotto scalare, lineare: adatto a decine di migliaia di righe). Ogni documento ha i metadata `type`
-  (stringa) e `refId` (numero), opzionali `conversationId`, `role`, `kind` e `createdAt` (epoch millis della CREAZIONE del contenuto,
-  non dell'indicizzazione: `VECTOR_DOC.UPDATED_AT` cambia a ogni upsert/re-embedding; `StoredDocument#createdAt` ricade su
-  `updatedAt` se manca). Filtri supportati: EQ, NE, IN, NIN, AND, OR, NOT, ISNULL/ISNOTNULL e GT/GTE/LT/LTE (solo numeri; chiave
-  assente = non combacia). Cambiare modello (URI ONNX = id del modello) => alla riconciliazione successiva si ri-embedda tutto.
+  `EmbeddingModel`. I modelli e5 vogliono i prefissi `passage: ` (documenti) e `query: ` (ricerche): li applica
+  `E5PrefixEmbeddingModel`, decorator che solo lo store vede (`getEmbeddingContent` = percorso dell'indicizzazione, `embed(String)` =
+  ricerca), chi lo usa passa il testo nudo. I punteggi e5 sono compressi (0.7-0.9): usare top-K, non soglie fisse.
+- **`PgVectorStore`** (`SemanticSearchConfig`; dipendenza `spring-ai-pgvector-store`, NON lo starter: niente autoconfig): tabella
+  `vector_store` creata da Flyway (V1, `initializeSchema=false`): `id text`, `content`, `metadata json`, `embedding vector(384)`.
+  Punteggio = `1 - distanza coseno`. **Nessun indice ANN** (HNSW/IVFFlat) di proposito: `/search` vuole TUTTA la classifica sopra soglia
+  (`topK` = numero di documenti) e un indice approssimato tronca a `ef_search` (40); lo scan esatto costa pochi ms a decine di migliaia
+  di righe. Cambiare il modello con dimensioni diverse da 384 = nuova migrazione `ALTER ... TYPE vector(N)` (dopo aver svuotato la
+  tabella) + reindicizzazione. Il filtro e' tradotto da Spring AI in jsonpath: operatori **EQ, NE, IN, NIN, AND, OR, GT/GTE/LT/LTE**
+  (NON NOT ne' ISNULL/ISNOTNULL); numeri solo per i confronti, una chiave assente non combacia. Soglia 0 = esclude solo la
+  similarita' esattamente 0 (distanza `<` stretta).
+- **Metadata**: ogni documento ha `type` (stringa) e `refId` (numero), opzionali `conversationId`, `role`, `kind`, `title` e `createdAt`
+  (epoch millis della CREAZIONE del contenuto), piu' le chiavi **riservate** scritte da `VectorIndexer`: `contentHash` (SHA-256 del
+  testo), `embeddingModel` (URI ONNX) e `indexedAt` (ultima indicizzazione; `StoredDocument#createdAt` ricade su di esso se manca
+  `createdAt`). Nello store non ci sono colonne per hash/modello: stanno li'.
+- **`VectorIndexer`** (scrittura, unico punto da cui l'app aggiunge/cancella/ri-embedda): salta i documenti invariati (stesso hash e
+  modello), se cambiano solo i metadata li riscrive senza ri-embeddare, altrimenti `vectorStore.add` (upsert). Cambiare modello (URI ONNX =
+  id del modello) => alla riconciliazione successiva si ri-embedda tutto. **`VectorDocumentRepository`** (lettura JDBC): `find`, `list`
+  (paginato, piu' recenti prima per `createdAt`), `countsByType`, `idsOfType`, `count`; il filtro usa lo stesso convertitore jsonpath dello store.
 - **`ArchiveIndexService`** allinea l'indice con una riconciliazione idempotente (non ganci su ogni `save`): prompt delle generazioni
   SUCCEEDED (`type=generation`), messaggi di chat non d'errore (`chat`), titoli (`conversation`); aggiunge i mancanti/cambiati,
   rimuove i documenti la cui riga non esiste piu'. Gira in background all'avvio (backfill), ogni `app.search.reindex-interval` e a
@@ -522,15 +543,18 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
 Nessun Maven Wrapper (serve Maven installato; `mvn wrapper:wrapper` per generarlo).
 
 ```bash
+docker compose up -d          # PostgreSQL+pgvector di sviluppo (DB_USERNAME/DB_PASSWORD nel .env, vedi .env.example)
 mvn spring-boot:run          # sviluppo (Thymeleaf cache=false)
 mvn test                     # test
 mvn clean package            # jar eseguibile (Tailwind via Play CDN)
 mvn -Ptailwind clean package # + CSS Tailwind compilato/minificato (richiede rete per il binario)
 ```
 
-`mvn test` non tocca mai `./data/db/`: Surefire attiva il profilo Spring "test" (`<systemPropertyVariables>` in
-`pom.xml`, non un'annotazione per classe) che sposta il datasource su H2 in-memory (`src/test/resources/application-test.yml`).
-Prima i `@SpringBootTest` scrivevano `Generation` di prova nel DB di sviluppo.
+`mvn test` richiede **Docker** e non tocca mai il DB di sviluppo: `PostgresTestContainerInitializer` (registrato in
+`src/test/resources/META-INF/spring.factories`, quindi valido per ogni `@SpringBootTest` senza annotazioni) avvia UN container
+`pgvector/pgvector:pg17` per tutta la suite e ne imposta il datasource; Flyway applica lo schema reale. Il profilo "test" di Surefire
+(`<systemPropertyVariables>` in `pom.xml`) resta per il resto della config (`application-test.yml`). I test condividono il DB: i
+`@SpringBootTest` che scrivono ripuliscono a mano o sono `@Transactional`.
 Stesso principio per lo storage: `spring.config.import` carica il `.env` reale anche sotto Surefire, quindi `pom.xml` fissa
 come proprieta' di sistema `storage.type=local` e `storage.migration.from-local.enabled=false` (battono qualunque file);
 un test che vuole WebDAV o la migrazione li sovrascrive con `@SpringBootTest(properties=...)`, mai contro il server vero.
