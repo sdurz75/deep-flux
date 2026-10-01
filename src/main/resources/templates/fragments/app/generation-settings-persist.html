@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Persistenza lato client della form dei parametri di generazione (modello + campi del form-type), condivisa da
+  /deep-chat (templates/app/deep-chat.html) e /generations/new (fragments/app/generate-form.html): include UNA volta,
+  DOPO il markup del <form>. Si attiva su ogni `form[data-persist-key]`; configurazione via attributi data-* (convenzione
+  "binding via data-*", vedi CLAUDE.md "Convenzione: theming"):
+    - data-persist-key        chiave localStorage (chat: deepChat.generationSettings, form: generate.image|video|edit);
+    - data-persist-no-restore campi (separati da spazio) NON ripristinati all'avvio ma comunque scritti: sono quelli che il
+                              server ha valorizzato da un link esplicito (?prompt=, ?seed=, "Anima"/"Modifica"), che vince
+                              sullo stato salvato e diventa lo stato corrente;
+    - data-persist-ignore     campi (separati da spazio) MAI scritti in localStorage (es. `version`, un hash pinnato che
+                              ripristinato di nascosto farebbe partire una prediction a pagamento col modello sbagliato).
+  Ad ogni sync il <form> riceve l'evento `generation-settings:sync` con detail = TUTTI i campi (hidden inclusi, valori sempre
+  stringa) quindi chi deve inoltrarli (la chat: window.setDeepChatSettings) si registra PRIMA di questo include, perche' il
+  primo sync e' sincrono.
+
+  Il contenuto della form e' stato lato client invece che lato server (a differenza di conversazioni/cronologia, vedi
+  CLAUDE.md Scopo punto 3): una preferenza dell'ultima sessione di chi usa il browser, non dati applicativi, stesso principio
+  del tema chiaro/scuro (fragments/core/layout.html) e dello stato degli accordion (fragments/app/accordion.html). Senza, ogni
+  GET della pagina (anche una navigazione fra conversazioni: la lista e' un <a href> pieno) riparte dai default del catalogo.
+
+  Listener `input` DELEGATO su document, non sul form: quello di /generations/new viene ri-renderizzato (swap di
+  #generation-panel dopo un create rifiutato) e perderebbe i listener propri. Funziona per la digitazione nei campi
+  (input nativi), per il cambio modello (evento nativo "input" della select, ignorato qui: scatta PRIMA che htmx sostituisca i
+  campi e salverebbe il nuovo modello coi campi del form-type precedente; si sincronizza dopo lo swap, quando
+  hx-on:htmx:after-swap su #generation-params-fields ridispatcha "input") e per il bottone "Reimposta ai default"
+  (button-gen :: resetToDefaults, stesso target). Il solo swap che non emette "input" e' l'AI enhance, che sostituisce
+  #prompt-field in outerHTML: lo copre `htmx:load` ristretto a quell'elemento (NON ogni htmx:load: dopo un create rifiutato la
+  form ri-renderizzata puo' avere campi svuotati dal server e verrebbero salvati cosi').
+
+  Il RESTORE (all'avvio, se c'e' qualcosa di persistito) e' l'unica parte non banale: se il modello persistito e' diverso da
+  quello di default gia' renderizzato dal server, i campi ATTUALMENTE nel DOM sono quelli del form-type del modello di
+  DEFAULT, con nomi diversi: vanno prima rifetchati. fetch() diretto invece di un evento "change" sintetico sulla <select>
+  (che pure ha hx-get/hx-trigger="change" dichiarativi, vedi fragments/app/generation-params.html): questo script gira PRIMA
+  che lo script defer di htmx.org abbia processato la pagina (un defer gira sempre dopo ogni script classico incontrato
+  durante il parsing), quindi un evento sintetico qui non troverebbe ancora nessun listener htmx. L'URL riusa l'hx-get gia'
+  risolto (subpath-aware, vedi CLAUDE.md "Convenzione: attributi che portano un URL dell'app) della select. Il bottone di
+  reset non ha questo problema (un click reale arriva a pagina caricata): resta htmx dichiarativo.
+
+  applyStoredFields non dispatcha eventi "change" per campo (andrebbero in conflitto handler accoppiati come flux_model/
+  num_inference_steps in generation-params-flux-lora-ff3.html, pensati per un'interazione reale): imposta solo i
+  .value/.checked grezzi, un'incongruenza puramente cosmetica (l'attributo readonly dei passi quando flux_model persistito e'
+  "schnell" potrebbe non riflettersi finche' non si tocca la select) a fronte di una riconciliazione Alpine molto piu'
+  complessa per un pannello di preferenze.
+-->
+<th:block th:fragment="script">
+    <script>
+        (function () {
+            var SELECTOR = 'form[data-persist-key]';
+
+            function names(form, attribute) {
+                return (form.getAttribute(attribute) || '').split(/\s+/).filter(Boolean);
+            }
+
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function hasModelOption(select, value) {
+                for (var i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value === value) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function applyStoredFields(form, stored) {
+                var skip = names(form, 'data-persist-no-restore');
+                Object.keys(stored).forEach(function (name) {
+                    if (skip.indexOf(name) >= 0) {
+                        return;
+                    }
+                    var field = form.elements.namedItem(name);
+                    if (!field || field.type === 'hidden' || field.readOnly) {
+                        return;
+                    }
+                    if (field.type === 'checkbox') {
+                        field.checked = stored[name] === 'true' || stored[name] === true;
+                    } else if (field.tagName === 'SELECT') {
+                        // Un valore che non e' fra le opzioni (residuo di un altro form-type)
+                        // lascerebbe la select senza selezione: si tiene il default.
+                        if (Array.prototype.some.call(field.options, function (o) { return o.value === stored[name]; })) {
+                            field.value = stored[name];
+                            // La UI Pines sopra la select nativa si rilegge solo su evento (vedi fragments/core/select.html).
+                            field.dispatchEvent(new Event('pines-select:sync'));
+                        }
+                    } else {
+                        field.value = stored[name];
+                    }
+                });
+            }
+
+            function sync(form) {
+                var settings = {};
+                new FormData(form).forEach(function (value, key) {
+                    // Un <input type=file> (upload sorgente, nascosto nel pannello della chat) da' un File: non e' un
+                    // parametro e, salvato, romperebbe il restore (field.value su un input file lancia).
+                    if (typeof value === 'string') {
+                        settings[key] = value;
+                    }
+                });
+                form.dispatchEvent(new CustomEvent('generation-settings:sync', { detail: settings }));
+                var ignore = names(form, 'data-persist-ignore');
+                var persisted = {};
+                Object.keys(settings).forEach(function (key) {
+                    if (ignore.indexOf(key) < 0) {
+                        persisted[key] = settings[key];
+                    }
+                });
+                try {
+                    localStorage.setItem(form.getAttribute('data-persist-key'), JSON.stringify(persisted));
+                } catch (e) {
+                    // localStorage non disponibile (privata/quota piena): la
+                    // sessione corrente resta comunque funzionante, solo non persiste.
+                }
+            }
+
+            function restore(form) {
+                var select = form.querySelector('#image-model-input');
+                var fieldsContainer = form.querySelector('#generation-params-fields');
+                var stored = readStored(form.getAttribute('data-persist-key'));
+                if (stored && select && fieldsContainer && stored.model && stored.model !== select.value
+                        && hasModelOption(select, stored.model)) {
+                    select.value = stored.model;
+                    select.dispatchEvent(new Event('pines-select:sync'));
+                    fetch(select.getAttribute('hx-get') + '?model=' + encodeURIComponent(stored.model))
+                        .then(function (response) {
+                            if (!response.ok) { throw new Error('HTTP ' + response.status); }
+                            return response.text();
+                        })
+                        .then(function (html) {
+                            fieldsContainer.innerHTML = html;
+                            applyStoredFields(form, stored);
+                            sync(form);
+                        })
+                        .catch(function () {
+                            // Modello salvato non piu' disponibile / server non raggiungibile: si resta sui campi del
+                            // modello di default (gia' renderizzati), senza scrivere un corpo d'errore nel pannello.
+                            select.value = select.options[0] ? select.options[0].value : select.value;
+                            select.dispatchEvent(new Event('pines-select:sync'));
+                            sync(form);
+                        });
+                } else {
+                    if (stored) {
+                        applyStoredFields(form, stored);
+                    }
+                    sync(form);
+                }
+            }
+
+            document.addEventListener('input', function (event) {
+                var form = event.target.closest && event.target.closest(SELECTOR);
+                if (form && !event.target.matches('#image-model-input')) {
+                    sync(form);
+                }
+            });
+
+            document.addEventListener('htmx:load', function (event) {
+                var form = event.target.id === 'prompt-field' && event.target.closest(SELECTOR);
+                if (form) {
+                    sync(form);
+                }
+            });
+
+            document.querySelectorAll(SELECTOR).forEach(restore);
+        })();
+    </script>
+</th:block>
+
+</body>
+</html>

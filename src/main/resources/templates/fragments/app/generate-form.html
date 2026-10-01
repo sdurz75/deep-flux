@@ -14,8 +14,16 @@
             <p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
         </th:block>
 
+        <!--/*
+          Stato persistito lato client (fragments/app/generation-settings-persist.html, incluso da generate.html): chiave per
+          TIPO di pagina (modelli e campi differiscono), separata da quella della chat. Prompt/seed valorizzati dal server
+          (link "riusa", "Anima"/"Modifica") NON si ripristinano: vince il link. `version` (hash pinnato) non si persiste mai.
+        */-->
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML" hx-encoding="multipart/form-data"
-              th:data-busy-text="#{generateForm.busy.create}">
+              th:data-busy-text="#{generateForm.busy.create}"
+              th:data-persist-key="${editPage} ? 'generate.edit' : (${videoPage} ? 'generate.video' : 'generate.image')"
+              th:data-persist-no-restore="${(prompt != null ? 'prompt ' : '') + (seed != null ? 'seed' : '')}"
+              data-persist-ignore="version">
             <div th:if="${sourceGeneration}" class="mb-4">
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">
                 <input type="hidden" name="sourceImage" th:value="${sourceImage}">
@@ -24,6 +32,11 @@
             </div>
 
             <div th:replace="~{fragments/app/generation-params :: fields}"></div>
+
+            <!--/* x-data: lo @click del bottone (riporta la select al modello di default) ha bisogno di uno scope Alpine. */-->
+            <div x-data>
+                <button th:replace="~{fragments/app/button-gen :: resetToDefaults(text=#{generateForm.button.reset}, hxGet=@{/generations/params(model=${defaultModel})}, defaultModel=${defaultModel}, extraClass='mt-2 text-[0.85rem] py-1.5')}">Reimposta ai default</button>
+            </div>
 
             <label for="version" th:text="#{generateForm.label.version}">Version (opzionale, hash pinnato)</label>
             <input type="text" id="version" name="version" th:value="${version}"

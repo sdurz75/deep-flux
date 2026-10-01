@@ -206,6 +206,12 @@ public class GenerationController {
         uiModel.addAttribute("version", version);
         uiModel.addAttribute("prompt", prompt);
         populateGenerationParamsModel(uiModel, model, allParams);
+        // Il seed non e' fra i defaultFields dei form-type (vedi populateFormTypeFields): senza, la form ri-renderizzata
+        // lo perderebbe e il salvataggio lato client lo scriverebbe vuoto.
+        String seed = allParams.get("seed");
+        if (seed != null && !seed.isBlank()) {
+            uiModel.addAttribute("seed", seed);
+        }
         return "fragments/app/generate-form :: form";
     }
 
@@ -330,6 +336,8 @@ public class GenerationController {
         model.addAttribute("videoPage", kind == GenerationKind.VIDEO);
         model.addAttribute("editPage", edit);
         model.addAttribute("model", modelValue);
+        // Target del "Reimposta ai default" della form: il primo modello del tipo di pagina, non quello corrente.
+        model.addAttribute("defaultModel", pageModels.stream().findFirst().map(ReplicateModel::getIdentifier).orElse(modelValue));
         IGenerationParameterHandler handler = modelCatalog.formTypeOf(modelValue)
                 .map(parameterHandlers::handler)
                 .orElseGet(() -> pageModels.stream().findFirst()

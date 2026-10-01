@@ -143,6 +143,59 @@ class TemplateRenderingTests {
         assertThat(body).contains("owner/does-not-exist");
     }
 
+    /** Un create rifiutato ri-renderizza la form col seed sottomesso (non e' fra i defaultFields): il salvataggio lato client non lo perde. */
+    @Test
+    void rejectedCreateKeepsTheSubmittedSeed() throws Exception {
+        String body = mockMvc.perform(post("/generations")
+                        .param("model", "owner/does-not-exist")
+                        .param("prompt", "a cat")
+                        .param("seed", "4242"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).containsPattern("name=\"seed\"[^>]*value=\"4242\"");
+    }
+
+    /**
+     * Stato della form di /generations/new persistito lato client (fragments/app/generation-settings-persist.html): chiave per
+     * tipo di pagina, separata da quella della chat; `version` mai scritta; prompt/seed da link esplicito non ripristinati;
+     * bottone di reset con il primo modello del tipo di pagina come default.
+     */
+    @Test
+    void newFormCarriesClientSidePersistenceConfig() throws Exception {
+        String image = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String video = mockMvc.perform(get("/generations/new").param("kind", "video"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String reused = mockMvc.perform(get("/generations/new").param("prompt", "a cat").param("seed", "7"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(image).contains("data-persist-key=\"generate.image\"").contains("data-persist-ignore=\"version\"")
+                .doesNotContainPattern("data-persist-no-restore=\"[^\"]*(prompt|seed)");
+        assertThat(video).contains("data-persist-key=\"generate.video\"");
+        assertThat(edit).contains("data-persist-key=\"generate.edit\"");
+        assertThat(reused).containsPattern("data-persist-no-restore=\"prompt seed\"");
+        // Script condiviso incluso una volta, bottone di reset che punta ai default del tipo di pagina.
+        assertThat(image).contains("form[data-persist-key]").contains("generation-settings:sync");
+        assertThat(video).containsPattern("data-default-model=\"prunaai/p-video\"")
+                .contains("/generations/params?model=prunaai/p-video");
+    }
+
+    /** La chat usa lo stesso script condiviso con la sua chiave storica (nessuna perdita delle preferenze salvate). */
+    @Test
+    @Transactional
+    void deepChatUsesTheSharedPersistenceScriptWithItsHistoricKey() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(chat).contains("data-persist-key=\"deepChat.generationSettings\"")
+                .contains("form[data-persist-key]").contains("window.setDeepChatSettings(event.detail)");
+        assertThat(chat.indexOf("window.setDeepChatSettings(event.detail)")).isLessThan(chat.indexOf("form[data-persist-key]"));
+    }
+
     /**
      * Endpoint htmx-only scatenato dalla select modello ad ogni cambio
      * (vedi fragments/app/generation-params.html): deve ritornare i campi

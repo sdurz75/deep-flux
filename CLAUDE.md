@@ -613,6 +613,19 @@ componente e' solo la UI, legge le `<option>` e scrive il valore con gli eventi 
 Un cambio di valore da codice (senza eventi) va annunciato con `select.dispatchEvent(new Event('pines-select:sync'))` (vedi `templates/app/deep-chat.html`,
 `button-gen :: resetToDefaults`). Se il pannello fosse tagliato da un contenitore con overflow: fallback `@alpinejs/anchor` o posizione `fixed`.
 
+## Convenzione: stato delle form di parametri di generazione (client)
+
+Modello + parametri (+ prompt in `/generations/new`) sono una preferenza del browser, non dati applicativi: stanno in `localStorage` e cambiano
+SOLO per modifica dell'utente o "Reimposta ai default" esplicito, mai per una navigazione. Un solo script, `fragments/app/generation-settings-persist.html :: script`
+(da includere DOPO il markup), attivo su ogni `form[data-persist-key]`: `/deep-chat` (`deepChat.generationSettings`) e `/generations/new`
+(`generate.image|video|edit`, una chiave per tipo di pagina, separata dalla chat). Configurazione via `data-*` sul form:
+`data-persist-key`, `data-persist-no-restore` (campi che il server ha valorizzato da un link esplicito, `?prompt=`/`?seed=`/"Anima"/"Modifica": non si
+ripristinano ma si scrivono), `data-persist-ignore` (mai scritti: `version`, un hash pinnato ripristinato di nascosto userebbe il modello sbagliato a
+pagamento). A ogni sync il form emette `generation-settings:sync` (detail = tutti i campi, hidden inclusi): la chat lo inoltra a
+`window.setDeepChatSettings`, registrando il listener PRIMA dell'include. Il listener `input` e' delegato su `document` perche' il form di
+`/generations/new` viene ri-renderizzato dopo un create rifiutato (`createFailed` rimette il `seed` nel Model: non e' fra i `defaultFields`). Non
+persistiti: file `sourceUpload`, hidden. Un nuovo form-type non richiede nulla qui.
+
 ## Ricerca semantica (PgVectorStore su PostgreSQL+pgvector, embedding locali)
 
 Stesso Postgres dei dati, nessun servizio in piu'. Il sottosistema `app.search` espone solo tipi di dominio (`SearchableDocument`,

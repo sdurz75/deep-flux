@@ -13,6 +13,9 @@
         <div th:replace="~{fragments/app/generate-form :: form}"></div>
     </div>
 
+    <!-- Persistenza dello stato della form (modello, parametri, prompt) fra navigazioni: vedi il fragment. -->
+    <th:block th:replace="~{fragments/app/generation-settings-persist :: script}"></th:block>
+
     <!-- Solo per i toast d'errore: il polling della generazione appena creata (sotto, in #generation-panel) non ha altro canale su questa pagina. -->
     <div th:replace="~{fragments/core/live-events :: connect}"></div>
 </div>

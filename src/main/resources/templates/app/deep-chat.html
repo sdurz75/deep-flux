@@ -129,7 +129,7 @@
                   davvero (vedi fragments/app/generate-form.html).
                 -->
                 <div id="generation-settings-panel">
-                    <form id="generation-settings-form" onsubmit="return false;">
+                    <form id="generation-settings-form" data-persist-key="deepChat.generationSettings" onsubmit="return false;">
                         <div th:replace="~{fragments/app/generation-params :: fields}"></div>
                     </form>
                     <button th:replace="~{fragments/app/button-gen :: resetToDefaults(text=#{deepChat.button.resetSettings}, hxGet=@{/generations/params(model=${model})}, defaultModel=${model}, extraClass='w-full text-[0.85rem] py-1.5 mt-2')}">Reimposta ai default</button>
@@ -259,179 +259,17 @@
     </th:block>
 
     <!--
-      Sincronizza il fragment condiviso (fragments/app/generation-params.html,
-      incluso sopra dentro #generation-settings-form) verso
-      window.setDeepChatSettings E verso localStorage (SETTINGS_KEY):
-      un solo listener "input" delegato sul <form>, non un @input per
-      campo. Funziona sia per la digitazione nei campi tipizzati (input
-      nativi, nessun Alpine coinvolto) sia per il cambio modello dalla
-      select (evento nativo "input", nessun dispatch sintetico
-      necessario) sia per lo swap htmx dei campi del form-type dopo un
-      cambio modello (vedi l'hx-on:htmx:after-swap su
-      #generation-params-fields nel fragment, che dopo lo swap dispara lo
-      stesso evento "input" sintetico, e il bottone "Reimposta ai
-      default" — fragments/core/button.html :: resetToDefaults — che passa
-      dallo stesso target) — delegato qui perche' deve leggere TUTTI i
-      campi in un colpo a ogni cambiamento, non solo quello che ha
-      scatenato l'evento. Valori sempre stringa (FormData li restituisce
-      sempre cosi'): la conversione al vocabolario/tipi Replicate e'
-      interamente lato server (IGenerationForms#parameters, binding dell'adapter web di generation),
-      niente lista di campi numerici da mantenere qui per ogni nuovo
-      form-type. Script classico (non module/deferred): gia' eseguito
-      durante il parsing, il <form> sopra (nel rail sinistro non
-      collassabile) esiste gia' quando arriva qui, niente attesa di
-      DOMContentLoaded.
-
-      Il contenuto del form (modello + parametri) e' l'UNICO stato di
-      questa pagina persistito lato client invece che lato server (a
-      differenza di conversazioni/cronologia, sempre server-side, vedi
-      CLAUDE.md Scopo punto 3): una preferenza dell'ultima sessione di
-      chi usa il browser, non dati applicativi — stesso principio gia'
-      applicato al tema chiaro/scuro in fragments/core/layout.html e allo
-      stato aperto/chiuso degli accordion in fragments/app/accordion.html.
-      Senza, ogni GET /deep-chat/{id} (navigazione fra conversazioni
-      inclusa: la lista in fragments/app/conversation-list.html e' un
-      <a href> pieno, non uno swap htmx) fa ripartire il pannello dai
-      default del catalogo (vedi DeepChatController#page), perdendo
-      qualunque modello/parametro scelto in precedenza.
-
-      Il RESTORE (all'avvio, se c'e' qualcosa di persistito) e' l'unica
-      parte non banale: se il modello persistito e' diverso da quello di
-      default gia' renderizzato dal server, i campi ATTUALMENTE nel DOM
-      sono quelli del form-type del modello di DEFAULT, con nomi diversi
-      da quelli del modello persistito — vanno prima rifetchati.
-      fetch() diretto invece di un evento "change" sintetico sulla
-      <select> (che pure ha gia' hx-get/hx-trigger="change" dichiarativi,
-      vedi fragments/app/generation-params.html): questo script gira PRIMA
-      che lo script defer di htmx.org abbia processato la pagina (stesso
-      ordinamento script classici/defer del boot del tema in
-      fragments/core/layout.html — un defer gira sempre dopo ogni script
-      classico incontrato durante il parsing, mai prima), quindi un
-      evento sintetico qui non troverebbe ancora nessun listener htmx
-      attaccato e la richiesta non partirebbe mai. L'URL riusa l'hx-get
-      gia' risolto (subpath-aware, vedi CLAUDE.md "Convenzione: attributi
-      che portano un URL dell'app") della select invece di ricostruirlo
-      qui via stringa letterale. Il bottone di reset non ha questo
-      problema (un click reale arriva sempre a pagina gia' completamente
-      caricata): puo' restare htmx dichiarativo puro, vedi
-      fragments/core/button.html :: resetToDefaults.
-
-      applyStoredFields non dispatcha eventi "change" per campo (che
-      manderebbero in conflitto handler accoppiati come flux_model/
-      num_inference_steps in generation-params-flux-lora-ff3.html,
-      pensati per un'interazione utente reale campo per campo): imposta
-      solo i .value/.checked grezzi, un'incongruenza puramente
-      cosmetica isolata (l'attributo readonly dei passi quando
-      flux_model persistito e' "schnell" potrebbe non riflettersi finche'
-      non si tocca la select) a fronte di una riconciliazione Alpine
-      molto piu' complessa per un pannello di preferenze, non di dati.
+      Persistenza modello + parametri (localStorage, chiave del data-persist-key sul <form>) e inoltro a
+      window.setDeepChatSettings: la logica e' nel fragment condiviso con /generations/new (vedi li' le motivazioni). Il
+      listener va registrato PRIMA dell'include: il primo sync e' sincrono. Il payload e' TUTTO il form (hidden inclusi),
+      che DeepChatApiController riceve come impostazioni del turno.
     -->
     <script>
-        (function () {
-            var SETTINGS_KEY = 'deepChat.generationSettings';
-            var form = document.getElementById('generation-settings-form');
-            var select = document.getElementById('image-model-input');
-            var fieldsContainer = document.getElementById('generation-params-fields');
-
-            function readStoredSettings() {
-                try {
-                    var raw = localStorage.getItem(SETTINGS_KEY);
-                    return raw ? JSON.parse(raw) : null;
-                } catch (e) {
-                    return null;
-                }
-            }
-
-            function hasModelOption(value) {
-                for (var i = 0; i < select.options.length; i++) {
-                    if (select.options[i].value === value) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            function applyStoredFields(stored) {
-                Object.keys(stored).forEach(function (name) {
-                    var field = form.elements.namedItem(name);
-                    if (!field || field.type === 'hidden' || field.readOnly) {
-                        return;
-                    }
-                    if (field.type === 'checkbox') {
-                        field.checked = stored[name] === 'true' || stored[name] === true;
-                    } else if (field.tagName === 'SELECT') {
-                        // Un valore che non e' fra le opzioni (residuo di un altro form-type)
-                        // lascerebbe la select senza selezione: si tiene il default.
-                        if (Array.prototype.some.call(field.options, function (o) { return o.value === stored[name]; })) {
-                            field.value = stored[name];
-                            // La UI Pines sopra la select nativa si rilegge solo su evento (vedi fragments/core/select.html).
-                            field.dispatchEvent(new Event('pines-select:sync'));
-                        }
-                    } else {
-                        field.value = stored[name];
-                    }
-                });
-            }
-
-            function sync() {
-                var data = new FormData(form);
-                var settings = {};
-                data.forEach(function (value, key) {
-                    // Un <input type=file> (upload img2img di flux-dev-lora, nascosto qui) da' un File: non e' un
-                    // parametro e, salvato, romperebbe il restore (field.value su un input file lancia).
-                    if (typeof value === 'string') {
-                        settings[key] = value;
-                    }
-                });
-                window.setDeepChatSettings(settings);
-                try {
-                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-                } catch (e) {
-                    // localStorage non disponibile (privata/quota piena): la
-                    // sessione corrente resta comunque funzionante, solo non persiste.
-                }
-            }
-
-            var stored = readStoredSettings();
-            if (stored && stored.model && stored.model !== select.value && hasModelOption(stored.model)) {
-                select.value = stored.model;
-                select.dispatchEvent(new Event('pines-select:sync'));
-                fetch(select.getAttribute('hx-get') + '?model=' + encodeURIComponent(stored.model))
-                    .then(function (response) {
-                        if (!response.ok) { throw new Error('HTTP ' + response.status); }
-                        return response.text();
-                    })
-                    .then(function (html) {
-                        fieldsContainer.innerHTML = html;
-                        applyStoredFields(stored);
-                        sync();
-                    })
-                    .catch(function () {
-                        // Modello salvato non piu' disponibile / server non raggiungibile: si resta sui campi del
-                        // modello di default (gia' renderizzati), senza scrivere un corpo d'errore nel pannello.
-                        select.value = select.options[0] ? select.options[0].value : select.value;
-                        select.dispatchEvent(new Event('pines-select:sync'));
-                        sync();
-                    });
-            } else {
-                if (stored) {
-                    applyStoredFields(stored);
-                }
-                sync();
-            }
-
-            // Il cambio modello (evento nativo "input" della select) scatta PRIMA che htmx
-            // sostituisca i campi: a quel punto il DOM ha ancora quelli del form-type
-            // precedente (es. aspect_ratio=custom di FLUX_LORA_FF3), che finirebbero
-            // salvati insieme al nuovo modello. Si sincronizza solo dopo lo swap, quando
-            // hx-on:htmx:after-swap ridispatcha "input" sul contenitore dei campi.
-            form.addEventListener('input', function (event) {
-                if (event.target !== select) {
-                    sync();
-                }
-            });
-        })();
+        document.getElementById('generation-settings-form').addEventListener('generation-settings:sync', function (event) {
+            window.setDeepChatSettings(event.detail);
+        });
     </script>
+    <th:block th:replace="~{fragments/app/generation-settings-persist :: script}"></th:block>
 
     <!-- deepChat.bundle.js e' un modulo ES (termina con "export{...}"): un
          <script> classico lo scarta con "Unexpected token 'export'" senza
