@@ -8,6 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
+import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.ReplicateModel;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -101,7 +102,7 @@ public class DeepChatController {
                 .map(org.dual.replicate.domain.Generation::getId).toList());
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", id);
-        model.addAttribute("contextualItems", chatMessageRepository.findSucceededGenerationsByConversationId(id).stream()
+        model.addAttribute("contextualItems", generationService.succeededForConversation(id).stream()
                 .map(org.dual.replicate.service.GalleryItem::first).toList());
 
         // Solo modelli immagine: il tool di chat genera immagini (i video passano da /generations/new).
@@ -136,7 +137,7 @@ public class DeepChatController {
      */
     @GetMapping("/deep-chat/{id}/gallery")
     public String gallery(@PathVariable Long id, Model model) {
-        model.addAttribute("contextualItems", chatMessageRepository.findSucceededGenerationsByConversationId(id).stream()
+        model.addAttribute("contextualItems", generationService.succeededForConversation(id).stream()
                 .map(org.dual.replicate.service.GalleryItem::first).toList());
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
         model.addAttribute("conversationId", id);
@@ -195,16 +196,19 @@ public class DeepChatController {
      * stato generato, non solo come testo.
      */
     private List<HistoryMessage> loadHistory(Long conversationId) {
-        return chatMessageRepository.findByConversationIdOrderByIdAsc(conversationId).stream()
-                .map(this::toHistoryMessage)
-                .toList();
+        List<ChatMessage> messages = chatMessageRepository.findByConversationIdOrderByIdAsc(conversationId);
+        // Le generazioni dei turni in un colpo solo (la chat ne conosce solo l'id): una cancellata e' semplicemente assente.
+        java.util.Map<Long, Generation> generations = generationService.findAllById(messages.stream()
+                        .map(ChatMessage::getGenerationId).filter(java.util.Objects::nonNull).distinct().toList())
+                .stream().collect(java.util.stream.Collectors.toMap(Generation::getId, g -> g));
+        return messages.stream().map(message -> toHistoryMessage(message, generations.get(message.getGenerationId()))).toList();
     }
 
-    private HistoryMessage toHistoryMessage(ChatMessage message) {
+    private HistoryMessage toHistoryMessage(ChatMessage message, Generation generation) {
         String role = message.getRole() == ChatMessageRole.USER ? "user" : "ai";
-        List<DeepChatService.FileRef> files = DeepChatService.toFiles(message.getGeneration());
-        Long generationId = message.getGeneration() != null ? message.getGeneration().getId() : null;
-        return new HistoryMessage(role, message.getContent(), files, message.isError() ? Boolean.TRUE : null, generationId);
+        List<DeepChatService.FileRef> files = DeepChatService.toFiles(generation);
+        return new HistoryMessage(role, message.getContent(), files, message.isError() ? Boolean.TRUE : null,
+                generation != null ? generation.getId() : null);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

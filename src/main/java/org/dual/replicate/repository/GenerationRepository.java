@@ -48,12 +48,16 @@ public interface GenerationRepository extends JpaRepository<Generation, Long> {
     List<Generation> findByStatusIn(Collection<GenerationStatus> statuses);
 
     /**
-     * Generazioni di una conversazione di /deep-chat gia' terminali da prima di {@code before} ma senza alcun
-     * turno in chat (watcher perso/fallito): lo sweep di GenerationRecoveryService scrive il turno mancante.
-     * {@code before} evita di incrociare un watcher che sta scrivendo il proprio turno proprio ora.
+     * Id delle generazioni terminali di una conversazione di /deep-chat, completate prima di {@code before}, le piu' recenti prima
+     * (il chiamante limita con il Pageable): la chat sottrae quelle che hanno gia' un turno (lo sweep di ChatRecoveryService).
+     * Solo id: l'archivio delle generazioni cresce e questa query gira ogni pochi minuti. {@code before} evita di incrociare un
+     * watcher che sta scrivendo il proprio turno proprio ora.
      */
-    @Query("select g from Generation g where g.conversationId is not null and g.status in :statuses "
-            + "and g.completedAt < :before and not exists (select 1 from ChatMessage m where m.generation = g)")
-    List<Generation> findTerminalWithoutChatTurn(@Param("statuses") Collection<GenerationStatus> statuses,
-                                                 @Param("before") Instant before);
+    @Query("select g.id from Generation g where g.conversationId is not null and g.status in :statuses "
+            + "and g.completedAt < :before order by g.id desc")
+    List<Long> findTerminalIdsWithConversation(@Param("statuses") Collection<GenerationStatus> statuses,
+                                               @Param("before") Instant before, Pageable pageable);
+
+    /** Galleria contestuale di /deep-chat: le generazioni riuscite di una conversazione, in ordine cronologico. */
+    List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status);
 }

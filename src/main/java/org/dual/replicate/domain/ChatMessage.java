@@ -43,7 +43,7 @@ public class ChatMessage {
 
     /**
      * Conversazione a cui appartiene questo turno. LAZY (a differenza di
-     * {@code generation} sotto): nessun codice legge mai
+     * {@code generationId} sotto): nessun codice legge mai
      * {@code getConversation()} — l'accesso e' sempre per query gia'
      * filtrata per conversazione (vedi ChatMessageRepository), mai
      * navigando l'associazione da un'istanza gia' caricata, quindi non
@@ -54,16 +54,12 @@ public class ChatMessage {
     private ChatConversation conversation;
 
     /**
-     * Generazione immagine prodotta in questo turno, se presente. EAGER
-     * perche' va sempre letta insieme al messaggio per ricostruire
-     * l'allegato immagine mostrato da deep-chat al ripristino della
-     * cronologia (DeepChatController): con open-in-view=false un fetch
-     * LAZY andrebbe in LazyInitializationException fuori dalla
-     * transazione del repository.
+     * Generazione prodotta in questo turno, se presente: solo l'id (colonna generation_id, FK ON DELETE SET NULL, quindi la
+     * cancellazione della generazione lascia il turno e azzera il riferimento). La chat non conosce l'entita' Generation:
+     * per l'allegato mostrato al ripristino della cronologia la legge dal servizio delle generazioni, in blocco per id.
      */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "generation_id")
-    private Generation generation;
+    @Column(name = "generation_id")
+    private Long generationId;
 
     /**
      * True per il turno ASSISTANT scritto quando la chiamata all'LLM fallisce (vedi V18,
@@ -81,11 +77,11 @@ public class ChatMessage {
         // richiesto da JPA
     }
 
-    public ChatMessage(ChatConversation conversation, ChatMessageRole role, String content, Generation generation) {
+    public ChatMessage(ChatConversation conversation, ChatMessageRole role, String content, Long generationId) {
         this.conversation = conversation;
         this.role = role;
         this.content = content;
-        this.generation = generation;
+        this.generationId = generationId;
         this.createdAt = Instant.now();
     }
 
@@ -116,8 +112,8 @@ public class ChatMessage {
         return content;
     }
 
-    public Generation getGeneration() {
-        return generation;
+    public Long getGenerationId() {
+        return generationId;
     }
 
     public Instant getCreatedAt() {

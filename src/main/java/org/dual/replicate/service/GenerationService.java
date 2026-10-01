@@ -473,6 +473,31 @@ public class GenerationService {
                 Instant.now().minus(TIMEOUT));
     }
 
+    /** Tutte le generazioni PENDING/PROCESSING (recupero all'avvio e sweep). */
+    public List<Generation> inProgress() {
+        return repository.findByStatusIn(List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING));
+    }
+
+    /** Galleria contestuale: le generazioni RIUSCITE di una conversazione di /deep-chat, in ordine cronologico. */
+    public List<Generation> succeededForConversation(Long conversationId) {
+        return repository.findByConversationIdAndStatusOrderByIdAsc(conversationId, GenerationStatus.SUCCEEDED);
+    }
+
+    /** Le generazioni esistenti fra gli id dati (gli id cancellati, o nulli, sono semplicemente assenti). */
+    public List<Generation> findAllById(java.util.Collection<Long> ids) {
+        return ids.isEmpty() ? List.of() : repository.findAllById(ids);
+    }
+
+    /**
+     * Id (i piu' recenti, al massimo {@code limit}) delle generazioni terminali di una conversazione completate prima di
+     * {@code before}: la chat decide quali non hanno ancora il turno di esito.
+     */
+    public List<Long> terminalIdsWithConversation(Instant before, int limit) {
+        return repository.findTerminalIdsWithConversation(
+                List.of(GenerationStatus.SUCCEEDED, GenerationStatus.FAILED), before,
+                org.springframework.data.domain.PageRequest.of(0, limit));
+    }
+
     /**
      * Salva e, solo se questa chiamata ha portato la generazione a uno
      * stato terminale (non ad ogni poll: refresh() ritorna subito se lo

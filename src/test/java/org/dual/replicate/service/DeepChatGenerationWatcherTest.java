@@ -78,7 +78,7 @@ class DeepChatGenerationWatcherTest {
         ChatMessage saved = messageCaptor.getValue();
         assertThat(saved.getRole()).isEqualTo(ChatMessageRole.AI);
         assertThat(saved.getContent()).isEqualTo("Immagine generata con successo.");
-        assertThat(saved.getGeneration()).isSameAs(generation);
+        assertThat(saved.getGenerationId()).isEqualTo(generation.getId());
 
         ArgumentCaptor<ChatMessagePushEvent> pushCaptor =
                 ArgumentCaptor.forClass(ChatMessagePushEvent.class);

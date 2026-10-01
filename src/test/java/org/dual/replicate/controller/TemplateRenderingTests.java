@@ -679,10 +679,11 @@ class TemplateRenderingTests {
         Generation generation = new Generation("pred-dc-1", "owner/model", null, "a fox", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
         generation.setImageFilenames(List.of("dc-1.png"));
+        generation.setConversationId(conversation.getId());
         generation = repository.save(generation);
 
         chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.USER, "genera una volpe", null));
-        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, "ecco la volpe", generation));
+        chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, "ecco la volpe", generation.getId()));
 
         String body = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
                 .andExpect(status().isOk())
@@ -965,7 +966,7 @@ class TemplateRenderingTests {
         generation = repository.save(generation);
 
         ChatMessage message = chatMessageRepository.save(
-                new ChatMessage(conversation, ChatMessageRole.AI, "ecco la volpe", generation));
+                new ChatMessage(conversation, ChatMessageRole.AI, "ecco la volpe", generation.getId()));
 
         mockMvc.perform(delete("/generations/" + generation.getId()))
                 .andExpect(header().string("HX-Redirect", "/gallery"));
@@ -974,7 +975,7 @@ class TemplateRenderingTests {
         assertThat(chatMessageRepository.findById(message.getId()))
                 .isPresent()
                 .get()
-                .extracting(ChatMessage::getGeneration)
+                .extracting(ChatMessage::getGenerationId)
                 .isNull();
     }
 

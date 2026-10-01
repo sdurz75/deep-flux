@@ -127,7 +127,7 @@ public class DeepChatGenerationWatcher {
 
             conversation.touch();
             chatConversationRepository.save(conversation);
-            chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, generation));
+            chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, generation.getId()));
 
             broadcaster.broadcastChatMessage(new ChatMessagePushEvent(
                     conversationId, generation.getId(), text, DeepChatService.toFiles(generation)));
