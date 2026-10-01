@@ -207,6 +207,21 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * flux_model marca l'<option> selezionata lato server (non solo via Alpine): il ripristino dello stato salvato scrive la
+     * select prima che Alpine parta, e Alpine legge il valore dal DOM (altrimenti riscriverebbe "dev" su un "schnell" ripristinato).
+     */
+    @Test
+    void fluxModelOptionIsMarkedSelectedByTheServer() throws Exception {
+        String schnell = mockMvc.perform(get("/generations/params").param("model", "sdurz75/flux-lora-ff3").param("flux_model", "schnell"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String byDefault = mockMvc.perform(get("/generations/params").param("model", "sdurz75/flux-lora-ff3"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(schnell).containsPattern("<option value=\"schnell\"[^>]*selected").doesNotContainPattern("<option value=\"dev\"[^>]*selected");
+        assertThat(byDefault).containsPattern("<option value=\"dev\"[^>]*selected").doesNotContainPattern("<option value=\"schnell\"[^>]*selected");
+    }
+
     /** Quarto form-type (P_VIDEO, V12/PVideoParameterHandler): il fragment dedicato renderizza, con i default del modello. */
     @Test
     void paramsEndpointRendersFieldsForPVideo() throws Exception {

@@ -42,9 +42,9 @@
 
   applyStoredFields non dispatcha eventi "change" per campo (andrebbero in conflitto handler accoppiati come flux_model/
   num_inference_steps in generation-params-flux-lora-ff3.html, pensati per un'interazione reale): imposta solo i
-  .value/.checked grezzi, un'incongruenza puramente cosmetica (l'attributo readonly dei passi quando flux_model persistito e'
-  "schnell" potrebbe non riflettersi finche' non si tocca la select) a fronte di una riconciliazione Alpine molto piu'
-  complessa per un pannello di preferenze.
+  .value/.checked grezzi. Lo stato Alpine accoppiato (fluxModel, readonly dei passi) si inizializza DOPO, leggendo il valore
+  gia' scritto nel DOM: per questo i fragment dei form-type non devono inizializzare Alpine da attributi del server ma dal DOM
+  (verificato dal vivo: un x-model inizializzato dal server riscriveva "dev" sopra il "schnell" ripristinato).
 -->
 <th:block th:fragment="script">
     <script>

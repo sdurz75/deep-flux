@@ -58,9 +58,14 @@
       verrebbe incluso nel submit del form dedicato di /generations/new,
       mentre readonly mantiene comunque il valore nella richiesta).
     -->
-    <div th:data-flux-model="${flux_model}"
-         x-data="{ fluxModel: $el.dataset.fluxModel || 'dev' }"
-         x-init="$nextTick(() => { $refs.stepsInput.readOnly = (fluxModel === 'schnell') })">
+    <!--/*
+      fluxModel parte dal valore DOM della select (non da un attributo del server): il server marca l'<option> selezionata
+      (th:selected) e il ripristino dello stato salvato lato client (fragments/app/generation-settings-persist.html) scrive la select
+      PRIMA che Alpine parta; un x-model inizializzato da un attributo del server riscriverebbe il valore ripristinato.
+    */-->
+    <div x-data="{ fluxModel: 'dev' }"
+         x-init="fluxModel = $el.querySelector('select[name=flux_model]').value || 'dev';
+                 $nextTick(() => { $refs.stepsInput.readOnly = (fluxModel === 'schnell') })">
         <label for="param-flux-model" th:text="#{generationParams.label.fluxModel}">Variante Flux</label>
         <div class="relative" x-data="pinesSelect" x-bind="root">
             <select id="param-flux-model" name="flux_model" x-model="fluxModel"
@@ -68,8 +73,8 @@
                              $refs.stepsInput.readOnly = (fluxModel === 'schnell');
                              $nextTick(() => $refs.stepsInput.dispatchEvent(new Event('input', { bubbles: true })))"
                     class="sr-only" tabindex="-1" aria-hidden="true">
-                <option value="dev">dev</option>
-                <option value="schnell">schnell</option>
+                <option value="dev" th:selected="${flux_model != 'schnell'}">dev</option>
+                <option value="schnell" th:selected="${flux_model == 'schnell'}">schnell</option>
             </select>
             <div th:replace="~{fragments/core/select :: ui}"></div>
         </div>
