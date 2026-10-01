@@ -166,7 +166,7 @@ app:
     # A differenza di WebDAV non e' obbligatoria all'avvio: senza, /tokens segnala che manca e non si possono salvare token.
     encryption-key: ${storage.webdav.encryption-key:}
   tokens:
-    # Scadenza dei token (ApiTokenExpiryService): controllo all'avvio e periodico; avviso se scade entro expiry-warning-days.
+    # Scadenza dei token (TokenExpiryScheduler): controllo all'avvio e periodico; avviso se scade entro expiry-warning-days.
     # Disattivato nei test (application-test.yml).
     expiry-check-enabled: true
     expiry-check-interval: 1h

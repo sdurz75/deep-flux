@@ -128,7 +128,7 @@ public class ImageStorageService implements IImageStorageService {
         if (upload.size() > MAX_UPLOAD_BYTES) {
             throw new StorageException(messages.get("imagestorage.error.uploadTooLarge", MAX_UPLOAD_BYTES / (1024 * 1024)), null, Kind.REJECTED);
         }
-        try (InputStream content = upload.content()) {
+        try (InputStream content = upload.content().open()) {
             byte[] bytes = content.readNBytes((int) MAX_UPLOAD_BYTES + 1);
             if (bytes.length > MAX_UPLOAD_BYTES) {
                 throw new StorageException(messages.get("imagestorage.error.uploadTooLarge", MAX_UPLOAD_BYTES / (1024 * 1024)), null, Kind.REJECTED);

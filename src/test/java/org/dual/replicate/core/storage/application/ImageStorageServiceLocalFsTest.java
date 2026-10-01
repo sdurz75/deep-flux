@@ -8,7 +8,7 @@ import java.nio.file.Path;
 
 import com.sun.net.httpserver.HttpServer;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.core.storage.adapter.in.web.UploadedFiles;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.storage.adapter.out.http.HttpFileFetcher;
 import org.dual.replicate.core.storage.adapter.out.local.LocalFsBlobBackend;
 import org.dual.replicate.core.storage.domain.StorageException;
@@ -122,7 +122,7 @@ class ImageStorageServiceLocalFsTest {
     @Test
     void storeUploadSavesUnderGeneratedNameDetectingTypeFromMagicBytes() throws IOException {
         byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1};
-        var upload = UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "../../evil.jpg", "image/jpeg", png));
+        var upload = UploadedFile.of("../../evil.jpg", png);
 
         String filename = service.storeUpload(upload);
 
@@ -132,7 +132,7 @@ class ImageStorageServiceLocalFsTest {
 
     @Test
     void storeUploadRejectsNonImagesEvenWithAnImageContentType() {
-        var upload = UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", "not an image".getBytes(StandardCharsets.UTF_8)));
+        var upload = UploadedFile.of("a.png", "not an image".getBytes(StandardCharsets.UTF_8));
 
         assertThatThrownBy(() -> service.storeUpload(upload)).isInstanceOf(StorageException.class);
         assertThat(dir.toFile().list()).isEmpty();

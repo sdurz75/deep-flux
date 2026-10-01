@@ -16,5 +16,5 @@ app:
   search:
     enabled: false
   tokens:
-    # Niente controllo di scadenza periodico/all'avvio nei @SpringBootTest: i test chiamano ApiTokenExpiryService#sweep direttamente.
+    # Niente controllo di scadenza periodico/all'avvio nei @SpringBootTest: i test chiamano TokenExpiryScheduler direttamente.
     expiry-check-enabled: false

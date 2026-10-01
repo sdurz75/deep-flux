@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.core.storage.adapter.in.web.UploadedFiles;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.storage.adapter.out.http.HttpFileFetcher;
 import org.dual.replicate.core.storage.application.ImageStorageService;
 import org.dual.replicate.core.storage.domain.StorageException;
@@ -197,7 +197,7 @@ class WebDavBlobBackendTest {
     @Test
     void uploadIsEncryptedToo() throws IOException {
         ImageStorageService service = service();
-        var upload = UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png));
+        var upload = UploadedFile.of("a.png", png);
 
         String filename = service.storeUpload(upload);
 
@@ -269,7 +269,7 @@ class WebDavBlobBackendTest {
         dav.failureStatus = 403;
         dav.failuresLeft.set(100);
 
-        assertThatThrownBy(() -> service.storeUpload(UploadedFiles.of(new org.springframework.mock.web.MockMultipartFile("sourceUpload", "a.png", "image/png", png)))).isNotNull();
+        assertThatThrownBy(() -> service.storeUpload(UploadedFile.of("a.png", png))).isNotNull();
 
         assertThat(dav.requestsOf("PUT")).isEqualTo(puts + 1);
     }

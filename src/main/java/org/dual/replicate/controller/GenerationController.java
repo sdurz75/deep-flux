@@ -10,7 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.core.storage.adapter.in.web.UploadedFiles;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.core.web.PaginationSupport;
@@ -199,7 +199,7 @@ public class GenerationController {
                 parameters.remove("aspect_ratio");
             }
             String parametersJson = objectMapper.writeValueAsString(parameters);
-            String uploadFilename = upload ? imageStorageService.storeUpload(UploadedFiles.of(sourceUpload)) : null;
+            String uploadFilename = upload ? imageStorageService.storeUpload(uploaded(sourceUpload)) : null;
             boolean fromGeneration = animate && !upload;
             Generation generation = generationService.create(model, resolvedVersion, prompt, parametersJson,
                     formType.kind(), fromGeneration ? sourceGeneration.getId() : null,
@@ -236,9 +236,14 @@ public class GenerationController {
         return "fragments/generate-form :: form";
     }
 
+    /** {@code MultipartFile} -> tipo di dominio dello storage (che non conosce il framework web). */
+    private static UploadedFile uploaded(MultipartFile file) {
+        return new UploadedFile(file.getOriginalFilename(), file.getSize(), file::getInputStream);
+    }
+
     private SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
         if (upload != null && !upload.isEmpty()) {
-            return imageStorageService.inspectUpload(UploadedFiles.of(upload));
+            return imageStorageService.inspectUpload(uploaded(upload));
         }
         Generation source = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
         return source == null ? null : imageStorageService.read(sourceImage);

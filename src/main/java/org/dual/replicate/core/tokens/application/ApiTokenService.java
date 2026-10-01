@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
  * <p>
  * Scadenza (data inserita a mano): {@link #checkExpiries} registra un AVVISO (ISystemEvents#warn, source TOKENS,
  * subject {@code token:<id>}) per i token scaduti o in scadenza entro {@code app.tokens.expiry-warning-days}; vedi
- * {@code ApiTokenExpiryService} per l'esecuzione periodica.
+ * {@code TokenExpiryScheduler} per l'esecuzione periodica.
  */
 @Service
 public class ApiTokenService implements IApiTokens {
