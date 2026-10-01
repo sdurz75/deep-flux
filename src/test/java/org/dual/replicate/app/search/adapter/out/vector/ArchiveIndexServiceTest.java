@@ -1,17 +1,24 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.dual.replicate.app.search.adapter.out.vector.FakeEmbeddingModel;
+import org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository;
+import org.dual.replicate.app.search.adapter.out.vector.VectorIndexer;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
+import org.dual.replicate.app.generation.adapter.out.search.GenerationSearchSource;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
+import org.dual.replicate.app.search.application.ArchiveIndexService;
+import org.dual.replicate.app.search.domain.DocumentTypes;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.service.ChatSearchSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +27,7 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -69,7 +77,7 @@ class ArchiveIndexServiceTest {
         documents = new VectorDocumentRepository(jdbc, objectMapper);
         indexer = new VectorIndexer(vectorStore, documents, "modello-a");
         systemEvents = mock(ISystemEvents.class);
-        service = new ArchiveIndexService(indexer, documents, generationsPort(), messages, conversations, systemEvents, transactionManager);
+        service = serviceOver(indexer);
     }
 
     @AfterEach
@@ -170,7 +178,7 @@ class ArchiveIndexServiceTest {
             }
         };
         VectorIndexer fragile = new VectorIndexer(SemanticSearchConfig.pgVectorStore(jdbcTemplate, failingOnPoison), documents, "modello-a");
-        ArchiveIndexService fragileService = new ArchiveIndexService(fragile, documents, generationsPort(), messages, conversations, systemEvents, transactionManager);
+        ArchiveIndexService fragileService = serviceOver(fragile);
         generation("veleno", GenerationStatus.SUCCEEDED);
         Generation fine = generation("gatto", GenerationStatus.SUCCEEDED);
 
@@ -187,9 +195,17 @@ class ArchiveIndexServiceTest {
         service.reconcile();
 
         List<Document> found = vectorStore.similaritySearch(SearchRequest.builder().query("gatto").topK(5).build());
-        assertThat(found).allSatisfy(d -> assertThat(d.getText().length()).isLessThanOrEqualTo(ArchiveIndexService.MAX_CHARS));
+        assertThat(found).allSatisfy(d -> assertThat(d.getText().length()).isLessThanOrEqualTo(DocumentTypes.MAX_CHARS));
         assertThat(documents.idsOfType("conversation")).doesNotContain("conversation:" + conversation.getId());
         assertThat(Stream.of(documents.idsOfType("generation")).count()).isEqualTo(1);
+    }
+
+    /** L'indice reale (store pgvector) con le sorgenti vere di generation e chat, sopra lo stesso DB di test. */
+    @SuppressWarnings("unchecked")
+    private ArchiveIndexService serviceOver(VectorIndexer over) {
+        var generationsSource = new GenerationSearchSource(generationsPort(), org.mockito.Mockito.mock(ObjectProvider.class));
+        return new ArchiveIndexService(new PgVectorIndex(vectorStore, over, documents),
+                List.of(generationsSource, new ChatSearchSource(messages, conversations)), systemEvents, transactionManager);
     }
 
     /** La porta delle generazioni vista dall'indice: solo le riuscite, lette dallo store di test. */

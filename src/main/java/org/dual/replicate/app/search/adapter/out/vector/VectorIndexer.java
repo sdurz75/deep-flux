@@ -1,4 +1,4 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -13,9 +13,9 @@ import java.util.stream.Collectors;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 
-import static org.dual.replicate.search.vector.VectorDocumentRepository.HASH;
-import static org.dual.replicate.search.vector.VectorDocumentRepository.INDEXED_AT;
-import static org.dual.replicate.search.vector.VectorDocumentRepository.MODEL;
+import static org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository.HASH;
+import static org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository.INDEXED_AT;
+import static org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository.MODEL;
 
 /**
  * Scrittura nell'indice semantico: sopra il {@link VectorStore} (che embedda e fa l'upsert) aggiunge cio' che l'interfaccia non

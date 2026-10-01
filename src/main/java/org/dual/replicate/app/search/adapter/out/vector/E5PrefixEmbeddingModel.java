@@ -1,4 +1,4 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;

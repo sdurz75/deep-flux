@@ -1,4 +1,4 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
+import org.dual.replicate.app.search.domain.IndexedDocument;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.pgvector.PgVectorFilterExpressionConverter;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -35,18 +36,8 @@ public class VectorDocumentRepository {
     /** Piu' recenti prima: {@code createdAt} del contenuto, o l'indicizzazione se il documento non lo porta. */
     private static final String RECENT_FIRST = "coalesce((metadata->>'createdAt')::bigint, (metadata->>'indexedAt')::bigint, 0) desc, id";
 
-    /** Un documento cosi' come sta nello store, per l'interfaccia di amministrazione (senza il vettore). */
-    public record StoredDocument(String id, String type, Long refId, Long conversationId, String content,
-                                 Map<String, Object> metadata, String model, String hash, Instant updatedAt, int dimensions) {
-
-        /** Quando e' stato creato il contenuto (metadata {@code createdAt}); in mancanza, l'ultima indicizzazione. */
-        public Instant createdAt() {
-            return metadata.get("createdAt") instanceof Number millis ? Instant.ofEpochMilli(millis.longValue()) : updatedAt;
-        }
-    }
-
-    /** Una pagina di {@link StoredDocument} (numerazione da 1). */
-    public record Listing(List<StoredDocument> documents, int page, int totalPages, long total) {
+    /** Una pagina di {@link IndexedDocument} (numerazione da 1). */
+    public record Listing(List<IndexedDocument> documents, int page, int totalPages, long total) {
         public boolean hasPrevious() {
             return page > 1;
         }
@@ -70,7 +61,7 @@ public class VectorDocumentRepository {
     }
 
     /** Il documento {@code id}, se c'e'. */
-    public Optional<StoredDocument> find(String id) {
+    public Optional<IndexedDocument> find(String id) {
         return jdbc.sql("select " + COLUMNS + " from vector_store where id = :id").param("id", id)
                 .query((rs, row) -> stored(rs.getString("id"), rs.getString("content"), rs.getString("metadata"), rs.getInt("dimensions")))
                 .optional();
@@ -82,7 +73,7 @@ public class VectorDocumentRepository {
         long total = jdbc.sql("select count(*) from vector_store" + where).query(Long.class).single();
         int totalPages = Math.max(1, (int) Math.ceil(total / (double) size));
         int current = Math.min(Math.max(1, page), totalPages);
-        List<StoredDocument> documents = jdbc.sql("select " + COLUMNS + " from vector_store" + where + " order by " + RECENT_FIRST
+        List<IndexedDocument> documents = jdbc.sql("select " + COLUMNS + " from vector_store" + where + " order by " + RECENT_FIRST
                         + " limit :limit offset :offset")
                 .param("limit", size).param("offset", (long) (current - 1) * size)
                 .query((rs, row) -> stored(rs.getString("id"), rs.getString("content"), rs.getString("metadata"), rs.getInt("dimensions")))
@@ -126,11 +117,11 @@ public class VectorDocumentRepository {
                 .param("metadata", objectMapper.writeValueAsString(metadata)).param("id", id).update();
     }
 
-    private StoredDocument stored(String id, String content, String metadataJson, int dimensions) {
+    private IndexedDocument stored(String id, String content, String metadataJson, int dimensions) {
         Map<String, Object> metadata = parse(metadataJson);
         Object conversationId = metadata.get("conversationId");
         Object indexedAt = metadata.get(INDEXED_AT);
-        return new StoredDocument(id, String.valueOf(metadata.get("type")), ((Number) metadata.get("refId")).longValue(),
+        return new IndexedDocument(id, String.valueOf(metadata.get("type")), ((Number) metadata.get("refId")).longValue(),
                 conversationId instanceof Number n ? n.longValue() : null, content, metadata,
                 String.valueOf(metadata.get(MODEL)), String.valueOf(metadata.get(HASH)),
                 indexedAt instanceof Number millis ? Instant.ofEpochMilli(millis.longValue()) : Instant.EPOCH, dimensions);

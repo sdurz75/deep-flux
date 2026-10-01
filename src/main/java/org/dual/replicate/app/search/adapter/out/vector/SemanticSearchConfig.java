@@ -1,5 +1,7 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
+import org.dual.replicate.app.search.application.ArchiveIndexService;
+import org.dual.replicate.app.search.port.out.IVectorIndex;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
@@ -47,11 +49,16 @@ class SemanticSearchConfig {
 
     /**
      * L'id del modello (l'URI ONNX configurato) e' salvato con ogni documento: cambiare modello => al prossimo giro
-     * {@link ArchiveIndexService} ri-embedda tutto, senza migrazioni (a parita' di dimensioni, vedi V1).
+     * la riconciliazione dell'indice ri-embedda tutto, senza migrazioni (a parita' di dimensioni, vedi V1).
      */
     @Bean
     VectorIndexer vectorIndexer(VectorStore vectorStore, VectorDocumentRepository repository,
                                 @Value("${spring.ai.embedding.transformer.onnx.model-uri}") String modelId) {
         return new VectorIndexer(vectorStore, repository, modelId);
+    }
+
+    @Bean
+    IVectorIndex vectorIndex(VectorStore vectorStore, VectorIndexer indexer, VectorDocumentRepository repository) {
+        return new PgVectorIndex(vectorStore, indexer, repository);
     }
 }

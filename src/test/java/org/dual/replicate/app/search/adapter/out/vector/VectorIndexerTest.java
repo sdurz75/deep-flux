@@ -1,4 +1,4 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -261,6 +261,6 @@ class VectorIndexerTest {
     }
 
     private static List<String> ids(VectorDocumentRepository.Listing listing) {
-        return listing.documents().stream().map(VectorDocumentRepository.StoredDocument::id).toList();
+        return listing.documents().stream().map(org.dual.replicate.app.search.domain.IndexedDocument::id).toList();
     }
 }

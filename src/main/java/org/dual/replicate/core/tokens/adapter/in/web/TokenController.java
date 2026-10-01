@@ -5,7 +5,6 @@ import java.util.List;
 import java.time.format.DateTimeParseException;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.controller.SemanticSearchController;
 import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -25,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * CRUD dei token API (CivitAI/HuggingFace, {@link IApiTokens}): pagina {@code /tokens} con l'elenco e un dialog Pines
- * per creare/modificare (stessa meccanica del dialog note di {@link SemanticSearchController}: al salvataggio riuscito
+ * per creare/modificare (stessa meccanica del dialog note di /search: al salvataggio riuscito
  * {@code HX-Trigger: token-saved} chiude il dialog; con un errore il form si rimpiazza da se' ({@code HX-Retarget}) e il
  * dialog resta aperto). Il token in chiaro non esce MAI da qui: ne' nel modello, ne' nelle risposte.
  */

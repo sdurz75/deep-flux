@@ -1,4 +1,4 @@
-package org.dual.replicate.search.vector;
+package org.dual.replicate.app.search.adapter.out.vector;
 
 import java.util.ArrayList;
 import java.util.List;

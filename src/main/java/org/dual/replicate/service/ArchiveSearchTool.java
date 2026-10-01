@@ -1,39 +1,38 @@
 package org.dual.replicate.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.search.vector.ArchiveIndexService;
-import org.springframework.ai.document.Document;
+import org.dual.replicate.app.search.domain.DocumentFilter;
+import org.dual.replicate.app.search.domain.DocumentTypes;
+import org.dual.replicate.app.search.domain.ScoredDocument;
+import org.dual.replicate.app.search.port.in.IArchiveSearch;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * Tool del modello di /deep-chat: ricerca SEMANTICA nell'archivio dell'utente (prompt delle immagini/video generati, messaggi
- * delle conversazioni passate, titoli) sul {@link VectorStore}. Come {@link WebSearchTool}, un guasto non rompe il turno:
+ * delle conversazioni passate, titoli) sull'archivio ({@link IArchiveSearch}). Come {@link WebSearchTool}, un guasto non rompe il turno:
  * e' registrato e il modello riceve un testo d'errore.
  */
 @Component
 @ConditionalOnProperty(name = "app.search.enabled", havingValue = "true", matchIfMissing = true)
 public class ArchiveSearchTool {
 
-    private static final Set<String> TYPES = Set.of(ArchiveIndexService.TYPE_GENERATION, ArchiveIndexService.TYPE_CHAT,
-            ArchiveIndexService.TYPE_CONVERSATION);
+    private static final Set<String> TYPES = Set.of(DocumentTypes.GENERATION, DocumentTypes.CHAT, DocumentTypes.CONVERSATION);
     private static final int SNIPPET = 300;
 
-    private final VectorStore vectorStore;
+    private final IArchiveSearch search;
     private final ISystemEvents systemEvents;
     private final int topK;
 
-    public ArchiveSearchTool(VectorStore vectorStore, ISystemEvents systemEvents, @Value("${app.search.top-k:5}") int topK) {
-        this.vectorStore = vectorStore;
+    public ArchiveSearchTool(IArchiveSearch search, ISystemEvents systemEvents, @Value("${app.search.top-k:5}") int topK) {
+        this.search = search;
         this.systemEvents = systemEvents;
         this.topK = topK;
     }
@@ -47,15 +46,15 @@ public class ArchiveSearchTool {
             @ToolParam(description = "What to look for, in natural language (Italian or English)") String query,
             @ToolParam(description = "Optional filter: generation, chat or conversation", required = false) String type) {
         try {
-            SearchRequest.Builder request = SearchRequest.builder().query(query).topK(topK);
+            DocumentFilter filter = DocumentFilter.NONE;
             if (type != null && !type.isBlank()) {
                 String wanted = type.strip().toLowerCase(java.util.Locale.ROOT);
                 if (!TYPES.contains(wanted)) {
                     return "Tipo non valido (" + type + "): usa generation, chat o conversation, oppure ometti il filtro.";
                 }
-                request.filterExpression(new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("type"), new Filter.Value(wanted)));
+                filter = DocumentFilter.ofType(wanted);
             }
-            List<Document> found = vectorStore.similaritySearch(request.build());
+            List<ScoredDocument> found = search.search(query, filter, 0.0, topK);
             if (found.isEmpty()) {
                 return "Nessun risultato nell'archivio.";
             }
@@ -67,16 +66,17 @@ public class ArchiveSearchTool {
         }
     }
 
-    private static String describe(Document document) {
-        String type = String.valueOf(document.getMetadata().get("type"));
-        Object refId = document.getMetadata().get("refId");
-        Object conversationId = document.getMetadata().get("conversationId");
-        String text = document.getText().replaceAll("\\s+", " ");
+    private static String describe(ScoredDocument result) {
+        Map<String, Object> metadata = result.document().metadata();
+        String type = String.valueOf(metadata.get("type"));
+        Object refId = metadata.get("refId");
+        Object conversationId = metadata.get("conversationId");
+        String text = result.document().text().replaceAll("\\s+", " ");
         String snippet = text.length() > SNIPPET ? text.substring(0, SNIPPET) + "…" : text;
         return switch (type) {
-            case ArchiveIndexService.TYPE_GENERATION -> "- [generation #%s] (/generations/%s) %s".formatted(refId, refId, snippet);
-            case ArchiveIndexService.TYPE_CONVERSATION -> "- [conversation #%s] %s".formatted(refId, snippet);
-            default -> "- [chat, conversation #%s, %s] %s".formatted(conversationId, document.getMetadata().get("role"), snippet);
+            case DocumentTypes.GENERATION -> "- [generation #%s] (/generations/%s) %s".formatted(refId, refId, snippet);
+            case DocumentTypes.CONVERSATION -> "- [conversation #%s] %s".formatted(refId, snippet);
+            default -> "- [chat, conversation #%s, %s] %s".formatted(conversationId, metadata.get("role"), snippet);
         };
     }
 }
