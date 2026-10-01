@@ -11,36 +11,11 @@
 
     <div th:replace="~{fragments/search :: stats(stats=${stats}, oob=false)}"></div>
 
-    <h2 class="mt-8" th:text="#{search.query.title}">Interroga</h2>
-    <form th:hx-get="@{/search/results}" hx-target="#search-results" hx-swap="innerHTML"
-          hx-trigger="submit, input changed delay:500ms" class="flex flex-col gap-3 md:flex-row md:items-end">
-        <div class="flex-1">
-            <label for="search-q" th:text="#{search.query.label}">Cerca</label>
-            <input type="search" id="search-q" name="q" class="w-full" autocomplete="off" th:placeholder="#{search.query.placeholder}">
-        </div>
-        <div>
-            <label for="search-type" th:text="#{search.query.type}">Tipo</label>
-            <div class="relative" x-data="pinesSelect" x-bind="root">
-                <select id="search-type" name="type" class="sr-only" tabindex="-1" aria-hidden="true">
-                    <option th:each="t : ${types}" th:value="${t}" th:text="#{'search.type.' + ${t}}">Tutti</option>
-                </select>
-                <div th:replace="~{fragments/select :: ui}"></div>
-            </div>
-        </div>
-        <div>
-            <label for="search-topk" th:text="#{search.query.topK}">Risultati</label>
-            <input type="number" id="search-topk" name="topK" min="1" max="50" th:value="${topK}" class="w-24">
-        </div>
-        <div>
-            <label for="search-threshold" th:text="#{search.query.threshold}">Somiglianza minima (%)</label>
-            <input type="number" id="search-threshold" name="threshold" min="0" max="100" th:value="${threshold}" class="w-24">
-        </div>
-        <button th:replace="~{fragments/button :: primary(type='submit', text=#{search.query.button}, extraClass=null)}">Cerca</button>
-    </form>
-    <div id="search-results" class="mt-4"></div>
-
     <!--
-      Documenti + dialog note, per creare E modificare (Pines UI modal, stessa meccanica del lightbox di gallery.html): `dialogOpen` e' lo stato
+      Un solo form e una sola lista (#search-results): con testo e' la classifica per significato, senza testo la lista sfoglia i documenti
+      (piu' recenti prima); in entrambi i casi filtrata per tipo e per periodo di creazione (dal/al) e paginata. Il form si re-invia da solo
+      a ogni modifica (testo con debounce, select/date subito) e a `note-saved` (nota creata/modificata: lista aggiornata coi filtri correnti).
+      Dialog note, per creare E modificare (Pines UI modal, stessa meccanica del lightbox di gallery.html): `dialogOpen` e' lo stato
       Alpine letto da button :: dialogOpen/dialogClose. x-trap.inert.noscroll (plugin @alpinejs/focus) confina il focus e blocca
       lo scroll; niente x-teleport. Il contenuto (#note-form) si ri-carica a ogni apertura (button :: dialogOpen con hxGet: form vuoto o
       precompilato). Al salvataggio riuscito il server emette l'evento htmx `note-saved` (HX-Trigger) che chiude il dialog; con un
@@ -48,10 +23,42 @@
     -->
     <div x-data="{ dialogOpen: false }" @keydown.escape.window="dialogOpen = false" @note-saved.window="dialogOpen = false">
         <div class="mt-8 flex flex-wrap items-center justify-between gap-3">
-            <h2 class="m-0" th:text="#{search.list.title}">Documenti</h2>
+            <h2 class="m-0" th:text="#{search.query.label}">Cerca</h2>
             <button th:replace="~{fragments/button :: dialogOpen(text=#{search.note.open}, hxGet=@{/search/notes/new},
                         hxTarget='#note-form', hxSwap='outerHTML', neutral=false, extraClass='px-3 py-1.5 text-[0.85rem]')}">Nuova nota</button>
         </div>
+
+        <form id="search-form" th:hx-get="@{/search/results}" hx-target="#search-results" hx-swap="innerHTML"
+              hx-trigger="submit, input changed delay:500ms, change, note-saved from:body"
+              class="mt-3 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+            <div class="flex-1 md:min-w-[16rem]">
+                <label for="search-q" th:text="#{search.query.label}">Cerca</label>
+                <input type="search" id="search-q" name="q" class="w-full" autocomplete="off" th:value="${q}"
+                       th:placeholder="#{search.query.placeholder}">
+            </div>
+            <div>
+                <label for="search-type" th:text="#{search.query.type}">Tipo</label>
+                <div class="relative" x-data="pinesSelect" x-bind="root">
+                    <select id="search-type" name="type" class="sr-only" tabindex="-1" aria-hidden="true">
+                        <option th:each="t : ${types}" th:value="${t}" th:selected="${t == type}" th:text="#{'search.type.' + ${t}}">Tutti</option>
+                    </select>
+                    <div th:replace="~{fragments/select :: ui}"></div>
+                </div>
+            </div>
+            <div>
+                <label for="search-from" th:text="#{search.query.from}">Dal</label>
+                <input type="date" id="search-from" name="from" th:value="${from}">
+            </div>
+            <div>
+                <label for="search-to" th:text="#{search.query.to}">Al</label>
+                <input type="date" id="search-to" name="to" th:value="${to}">
+            </div>
+            <div>
+                <label for="search-threshold" th:text="#{search.query.threshold}">Somiglianza minima (%)</label>
+                <input type="number" id="search-threshold" name="threshold" min="0" max="100" th:value="${threshold}" class="w-24">
+            </div>
+            <button th:replace="~{fragments/button :: primary(type='submit', text=#{search.query.button}, extraClass=null)}">Cerca</button>
+        </form>
 
         <div x-show="dialogOpen" x-cloak x-trap.inert.noscroll="dialogOpen"
              class="fixed inset-0 z-[100] flex items-center justify-center p-4"
@@ -67,8 +74,8 @@
             </div>
         </div>
 
-        <div id="search-list">
-            <div th:replace="~{fragments/search :: list(listing=${listing}, listType=${listType}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers}, types=${types})}"></div>
+        <div id="search-results" class="mt-4">
+            <div th:replace="~{fragments/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
         </div>
     </div>
 </div>

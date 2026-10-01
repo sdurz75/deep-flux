@@ -77,9 +77,10 @@ class H2VectorStoreTest {
                 new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("conversationId"), new Filter.Value(9)));
         assertThat(store.similaritySearch(SearchRequest.builder().query("gatto").topK(5).filterExpression(inConversation).build()))
                 .extracting(Document::getId).containsExactly("chatmessage:2");
-        assertThatThrownBy(() -> store.similaritySearch(SearchRequest.builder().query("gatto")
+        // GT/GTE/LT/LTE sono supportati (periodo di /search): refId > 1 esclude il primo
+        assertThat(store.similaritySearch(SearchRequest.builder().query("gatto").topK(5)
                 .filterExpression(new Filter.Expression(Filter.ExpressionType.GT, new Filter.Key("refId"), new Filter.Value(1))).build()))
-                .isInstanceOf(UnsupportedOperationException.class);
+                .extracting(Document::getId).doesNotContain("chatmessage:1");
     }
 
     @Test
@@ -157,13 +158,13 @@ class H2VectorStoreTest {
         });
         assertThat(store.find("nope")).isEmpty();
         assertThat(store.countsByType()).containsEntry("chat", 2L).containsEntry("generation", 1L);
-        H2VectorStore.Listing chats = store.list("chat", 1, 1);
+        H2VectorStore.Listing chats = store.list(ofType("chat"), 1, 1);
         assertThat(chats.total()).isEqualTo(2);
         assertThat(chats.totalPages()).isEqualTo(2);
         assertThat(chats.documents()).hasSize(1);
         assertThat(chats.hasNext()).isTrue();
-        assertThat(store.list(null, 1, 10).documents()).hasSize(3);
-        assertThat(store.list("chat", 99, 1).page()).isEqualTo(2); // pagina oltre la fine: ricade sull'ultima
+        assertThat(store.list((Filter.Expression) null, 1, 10).documents()).hasSize(3);
+        assertThat(store.list(ofType("chat"), 99, 1).page()).isEqualTo(2); // pagina oltre la fine: ricade sull'ultima
 
         int before = embedding.embedded.get();
         assertThat(store.reembed("generation:1")).isTrue();
@@ -194,5 +195,50 @@ class H2VectorStoreTest {
         reloaded.add(List.of(d)); // dal DB refId torna Integer, nel documento e' Long: stesso valore
 
         assertThat(reloaded.find("generation:1").orElseThrow().updatedAt()).isEqualTo(stamp);
+    }
+
+    private static Filter.Expression ofType(String type) {
+        return new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("type"), new Filter.Value(type));
+    }
+
+    private static Filter.Expression createdAt(Filter.ExpressionType type, long millis) {
+        return new Filter.Expression(type, new Filter.Key("createdAt"), new Filter.Value(millis));
+    }
+
+    private void withCreatedAt(String id, long refId, String text, Long createdAt) {
+        Map<String, Object> metadata = new java.util.HashMap<>(Map.of("type", "chat", "refId", refId));
+        if (createdAt != null) {
+            metadata.put("createdAt", createdAt);
+        }
+        store.add(List.of(Document.builder().id(id).text(text).metadata(metadata).build()));
+    }
+
+    @Test
+    void numericComparisonFiltersMatchOnlyDocumentsThatCarryTheKey() {
+        withCreatedAt("chatmessage:1", 1, "uno", 1000L);
+        withCreatedAt("chatmessage:2", 2, "due", 2000L);
+        withCreatedAt("chatmessage:3", 3, "tre", 3000L);
+        withCreatedAt("chatmessage:4", 4, "senza data", null);
+
+        assertThat(ids(store.list(createdAt(Filter.ExpressionType.GTE, 2000), 1, 10))).containsExactly("chatmessage:3", "chatmessage:2");
+        assertThat(ids(store.list(createdAt(Filter.ExpressionType.GT, 2000), 1, 10))).containsExactly("chatmessage:3");
+        assertThat(ids(store.list(createdAt(Filter.ExpressionType.LTE, 2000), 1, 10))).containsExactly("chatmessage:2", "chatmessage:1");
+        assertThat(ids(store.list(createdAt(Filter.ExpressionType.LT, 1000), 1, 10))).isEmpty();
+        // il documento senza createdAt non entra in nessun confronto, ma c'e' nella lista senza filtro
+        assertThat(store.list((Filter.Expression) null, 1, 10).documents()).hasSize(4);
+    }
+
+    @Test
+    void listIsOrderedByCreationDateNewestFirstNotByIndexingTime() {
+        withCreatedAt("chatmessage:1", 1, "il piu' vecchio, indicizzato per ultimo", 1000L);
+        withCreatedAt("chatmessage:2", 2, "il piu' recente", 9000L);
+        withCreatedAt("chatmessage:3", 3, "in mezzo", 5000L);
+
+        assertThat(ids(store.list((Filter.Expression) null, 1, 10))).containsExactly("chatmessage:2", "chatmessage:3", "chatmessage:1");
+        assertThat(store.find("chatmessage:2").orElseThrow().createdAt()).isEqualTo(java.time.Instant.ofEpochMilli(9000L));
+    }
+
+    private static List<String> ids(H2VectorStore.Listing listing) {
+        return listing.documents().stream().map(H2VectorStore.StoredDocument::id).toList();
     }
 }

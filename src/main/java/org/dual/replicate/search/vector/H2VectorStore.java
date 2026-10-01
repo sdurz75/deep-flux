@@ -39,8 +39,8 @@ import tools.jackson.databind.ObjectMapper;
  * un documento con un modello diverso da quello corrente viene ri-embeddato al prossimo {@link #add}.
  *
  * <p>Ogni documento porta in {@code metadata} almeno {@code type} (stringa) e {@code refId} (numero); {@code conversationId} e'
- * opzionale. I filtri ({@link SearchRequest#getFilterExpression()}) supportano EQ, NE, IN, NIN, AND, OR, NOT e ISNULL/ISNOTNULL
- * sulle chiavi dei metadata; gli altri operatori lanciano {@link UnsupportedOperationException}.
+ * opzionale. I filtri ({@link SearchRequest#getFilterExpression()}) supportano EQ, NE, IN, NIN, AND, OR, NOT, ISNULL/ISNOTNULL e
+ * GT/GTE/LT/LTE (solo numeri, es. {@code createdAt} in epoch millis) sulle chiavi dei metadata; gli altri operatori lanciano {@link UnsupportedOperationException}.
  */
 public class H2VectorStore implements VectorStore {
 
@@ -57,6 +57,11 @@ public class H2VectorStore implements VectorStore {
     /** Un documento cosi' come sta nello store, per l'interfaccia di amministrazione (senza il vettore). */
     public record StoredDocument(String id, String type, Long refId, Long conversationId, String content,
                                  Map<String, Object> metadata, String model, String hash, Instant updatedAt, int dimensions) {
+
+        /** Quando e' stato creato il contenuto (metadata {@code createdAt}); in mancanza, l'ultima indicizzazione. */
+        public Instant createdAt() {
+            return metadata.get("createdAt") instanceof Number millis ? Instant.ofEpochMilli(millis.longValue()) : updatedAt;
+        }
     }
 
     /** Una pagina di {@link StoredDocument} (numerazione da 1). */
@@ -170,18 +175,25 @@ public class H2VectorStore implements VectorStore {
         return java.util.Optional.ofNullable(entries.get(id)).map(H2VectorStore::stored);
     }
 
-    /** Una pagina (da 1) dei documenti di {@code type} ({@code null} = tutti), piu' recenti prima. */
-    public Listing list(String type, int page, int size) {
+    /**
+     * Una pagina (da 1) dei documenti che soddisfano {@code filter} ({@code null} = tutti), piu' recenti prima (per
+     * {@code createdAt}, o {@code updatedAt} se il documento non lo porta).
+     */
+    public Listing list(Filter.Expression filter, int page, int size) {
         ensureLoaded();
         List<Entry> matching = entries.values().stream()
-                .filter(e -> type == null || type.equals(e.metadata().get("type")))
-                .sorted(java.util.Comparator.comparing(Entry::updatedAt).reversed().thenComparing(Entry::id))
+                .filter(e -> filter == null || matches(filter, e.metadata()))
+                .sorted(java.util.Comparator.comparing(H2VectorStore::createdAt).reversed().thenComparing(Entry::id))
                 .toList();
         int totalPages = Math.max(1, (int) Math.ceil(matching.size() / (double) size));
         int current = Math.min(Math.max(1, page), totalPages);
         List<StoredDocument> documents = matching.stream().skip((long) (current - 1) * size).limit(size)
                 .map(H2VectorStore::stored).toList();
         return new Listing(documents, current, totalPages, matching.size());
+    }
+
+    private static Instant createdAt(Entry e) {
+        return e.metadata().get("createdAt") instanceof Number millis ? Instant.ofEpochMilli(millis.longValue()) : e.updatedAt();
     }
 
     /** Quanti documenti per {@code type}. */
@@ -284,6 +296,10 @@ public class H2VectorStore implements VectorStore {
             case NIN -> !inList(valueOf(expression.left(), metadata), valueOf(expression.right(), metadata));
             case ISNULL -> valueOf(expression.left(), metadata) == null;
             case ISNOTNULL -> valueOf(expression.left(), metadata) != null;
+            case GT -> compare(valueOf(expression.left(), metadata), valueOf(expression.right(), metadata)) > 0;
+            case GTE -> compare(valueOf(expression.left(), metadata), valueOf(expression.right(), metadata)) >= 0;
+            case LT -> compare(valueOf(expression.left(), metadata), valueOf(expression.right(), metadata)) < 0;
+            case LTE -> compare(valueOf(expression.left(), metadata), valueOf(expression.right(), metadata)) <= 0;
             default -> throw new UnsupportedOperationException("Operatore di filtro non supportato: " + expression.type());
         };
     }
@@ -306,6 +322,14 @@ public class H2VectorStore implements VectorStore {
             return Double.compare(x.doubleValue(), y.doubleValue()) == 0;
         }
         return a.toString().equals(b.toString());
+    }
+
+    /** Confronto numerico; un operando assente o non numerico non combacia mai (NaN: ogni confronto e' falso). */
+    private static double compare(Object a, Object b) {
+        if (!(a instanceof Number x) || !(b instanceof Number y)) {
+            return Double.NaN;
+        }
+        return Double.compare(x.doubleValue(), y.doubleValue());
     }
 
     /** Numeri da JSON (Integer) e da codice (Long) sono lo stesso valore: si confrontano per valore, non per tipo. */

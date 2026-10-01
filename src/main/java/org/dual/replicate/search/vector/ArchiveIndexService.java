@@ -1,5 +1,6 @@
 package org.dual.replicate.search.vector;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,6 +51,8 @@ public class ArchiveIndexService {
     public static final String TYPE_GENERATION = "generation";
     public static final String TYPE_CHAT = "chat";
     public static final String TYPE_CONVERSATION = "conversation";
+    /** Note manuali (create dalla UI /search): la riconciliazione non le crea ne' le rimuove, le timbra soltanto. */
+    public static final String TYPE_NOTE = "note";
     /** ~512 token del modello: oltre, il tokenizer tronca comunque. */
     public static final int MAX_CHARS = 1800;
 
@@ -125,17 +128,19 @@ public class ArchiveIndexService {
             Map<String, Document> wanted = new HashMap<>();
             for (Generation generation : generations.findByStatusIn(List.of(GenerationStatus.SUCCEEDED))) {
                 put(wanted, "generation:" + generation.getId(), generation.getPrompt(),
-                        metadata(TYPE_GENERATION, generation.getId(), generation.getConversationId(), "kind", String.valueOf(generation.getKind())));
+                        metadata(TYPE_GENERATION, generation.getId(), generation.getConversationId(), generation.getCreatedAt(),
+                                "kind", String.valueOf(generation.getKind())));
             }
             for (ChatMessage message : messages.findAll()) {
                 if (!message.isError()) {
                     put(wanted, "chatmessage:" + message.getId(), message.getContent(),
-                            metadata(TYPE_CHAT, message.getId(), message.getConversation().getId(), "role", message.getRole().name()));
+                            metadata(TYPE_CHAT, message.getId(), message.getConversation().getId(), message.getCreatedAt(),
+                                    "role", message.getRole().name()));
                 }
             }
             for (ChatConversation conversation : conversations.findAll()) {
                 put(wanted, "conversation:" + conversation.getId(), conversation.getTitle(),
-                        metadata(TYPE_CONVERSATION, conversation.getId(), conversation.getId()));
+                        metadata(TYPE_CONVERSATION, conversation.getId(), conversation.getId(), conversation.getCreatedAt()));
             }
 
             Set<String> stale = new HashSet<>();
@@ -147,8 +152,23 @@ public class ArchiveIndexService {
                 store.delete(new ArrayList<>(stale));
             }
             addAll(new ArrayList<>(wanted.values()));
+            stampNotes();
         } catch (RuntimeException e) {
             systemEvents.record("reindex", e);
+        }
+    }
+
+    /**
+     * Le note nascono con {@code createdAt}; quelle precedenti al filtro per periodo non lo hanno: per le note {@code refId} e' il
+     * millisecondo di creazione. Si riscrivono i soli metadata (testo e modello invariati: lo store non ri-embedda).
+     */
+    private void stampNotes() {
+        for (String id : store.idsOfType(TYPE_NOTE)) {
+            store.find(id).filter(doc -> !doc.metadata().containsKey("createdAt")).ifPresent(doc -> {
+                Map<String, Object> metadata = new HashMap<>(doc.metadata());
+                metadata.put("createdAt", doc.refId());
+                store.add(List.of(Document.builder().id(doc.id()).text(doc.content()).metadata(metadata).build()));
+            });
         }
     }
 
@@ -180,10 +200,13 @@ public class ArchiveIndexService {
                 .metadata(metadata).build());
     }
 
-    private static Map<String, Object> metadata(String type, Long refId, Long conversationId, String... extra) {
+    private static Map<String, Object> metadata(String type, Long refId, Long conversationId, Instant createdAt, String... extra) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("type", type);
         metadata.put("refId", refId);
+        if (createdAt != null) {
+            metadata.put("createdAt", createdAt.toEpochMilli());
+        }
         if (conversationId != null) {
             metadata.put("conversationId", conversationId);
         }

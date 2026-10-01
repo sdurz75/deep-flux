@@ -4,7 +4,7 @@
 
 <!--
   Frammenti di /search (interfaccia manuale al vector store, SemanticSearchController): statistiche, risultati di ricerca,
-  elenco sfogliabile, riga documento, form delle note. Stesso pattern pagina/fragment del resto dell'app (vedi
+  lista unica (classifica o sfoglia), riga documento, form delle note. Stesso pattern pagina/fragment del resto dell'app (vedi
   fragments/system-events.html): la pagina intera li include, htmx li ri-scambia da soli. Nessun JS: <details> nativo + htmx.
   Le note (type=note) sono modificabili; i documenti derivati (generation/chat/conversation) sono in sola lettura, si puo' solo
   ri-embeddarli (la loro fonte di verita' e' il DB, la riconciliazione li riporta al testo sorgente).
@@ -33,32 +33,24 @@
     </p>
 </section>
 
-<!-- Risultati di una ricerca semantica (target #search-results). -->
-<th:block th:fragment="results(hits, query, error)">
+<!--
+  L'unica lista di /search (target #search-results): classifica per significato (con testo) o documenti recenti (senza), gia'
+  filtrata e paginata dal controller. baseQuery = filtri correnti gia' codificati: la paginazione ci accoda &page=N.
+-->
+<th:block th:fragment="results(hits, total, query, error, baseQuery, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
     <th:block th:if="${error}">
         <p th:replace="~{fragments/alert :: error(text=${error})}">Errore</p>
     </th:block>
     <th:block th:unless="${error}">
-        <p th:if="${!#strings.isEmpty(query) && #lists.isEmpty(hits)}" th:text="#{search.results.empty}">Nessun risultato.</p>
-        <ul th:unless="${#lists.isEmpty(hits)}" class="list-none p-0 flex flex-col gap-3">
-            <th:block th:each="h : ${hits}"><th:block th:replace="~{::row(hit=${h})}"></th:block></th:block>
-        </ul>
+        <p th:if="${#lists.isEmpty(hits)}" th:text="${#strings.isEmpty(query)} ? #{search.list.empty} : #{search.results.empty}">Nessun risultato.</p>
+        <th:block th:unless="${#lists.isEmpty(hits)}">
+            <p class="mt-0 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{search.results.count(${total})}">12 risultati</p>
+            <ul class="list-none p-0 flex flex-col gap-3">
+                <th:block th:each="h : ${hits}"><th:block th:replace="~{::row(hit=${h})}"></th:block></th:block>
+            </ul>
+            <div th:replace="~{fragments/pagination :: nav('/search/results?' + ${baseQuery}, '#search-results', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        </th:block>
     </th:block>
-</th:block>
-
-<!-- Elenco sfogliabile con schede per tipo (contenuto di #search-list). Il tipo sta nel path: la paginazione non lo perde. -->
-<th:block th:fragment="list(listing, listType, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, types)">
-    <div class="flex flex-wrap gap-2 mt-2">
-        <a th:each="t : ${types}" th:href="@{'/search/list/' + ${t}}" th:hx-get="@{'/search/list/' + ${t}}"
-           hx-target="#search-list" hx-swap="innerHTML" th:text="#{'search.type.' + ${t}}"
-           th:classappend="${t == listType} ? 'font-semibold border-accent dark:border-accent-dark' : 'border-line dark:border-line-dark'"
-           class="no-underline text-[0.85rem] px-3 py-1 rounded-full border text-ink dark:text-ink-dark">Tipo</a>
-    </div>
-    <p th:if="${#lists.isEmpty(listing)}" class="mt-4" th:text="#{search.list.empty}">Nessun documento.</p>
-    <ul th:unless="${#lists.isEmpty(listing)}" class="list-none p-0 mt-4 flex flex-col gap-3">
-        <th:block th:each="h : ${listing}"><th:block th:replace="~{::row(hit=${h})}"></th:block></th:block>
-    </ul>
-    <div th:replace="~{fragments/pagination :: nav('/search/list/' + ${listType}, '#search-list', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
 </th:block>
 
 <!-- Una riga documento (<li>): risposta diretta di modifica/ri-embedda, che sostituiscono il loro "closest li". -->
@@ -70,7 +62,7 @@
         <span th:if="${hit.score != null}" class="font-semibold"
               th:text="#{search.row.score} + ' ' + ${#numbers.formatDecimal(hit.score * 100, 1, 1)} + '%'">Somiglianza 85.0%</span>
         <strong th:if="${d.metadata['title'] != null}" th:text="${d.metadata['title']}">titolo</strong>
-        <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${d.updatedAt}">data</span>
+        <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${#temporals.format(d.createdAt, 'dd/MM/yyyy HH:mm')}">data</span>
         <a th:if="${d.type == 'generation'}" th:href="@{/generations/{id}(id=${d.refId})}" th:text="#{search.row.openGeneration}">Apri</a>
         <a th:if="${d.type == 'conversation'}" th:href="@{/deep-chat/{id}(id=${d.refId})}" th:text="#{search.row.openConversation}">Apri</a>
         <a th:if="${d.type == 'chat' && d.conversationId != null}" th:href="@{/deep-chat/{id}(id=${d.conversationId})}" th:text="#{search.row.openConversation}">Apri</a>
@@ -104,7 +96,7 @@
   Contenuto del dialog note (search.html), per CREAZIONE (noteId null) e MODIFICA: intestazione con titolo e "x", form. Viene
   sempre ri-caricato all'apertura (dialogOpen con hxGet) e, con un errore di validazione, rimpiazzato da se' stesso
   (HX-Retarget/HX-Reswap dal controller): il dialog resta aperto col messaggio. Al successo il controller emette `note-saved`
-  (HX-Trigger) e il dialog si chiude: in creazione la risposta e' l'elenco (target #search-list), in modifica la riga aggiornata.
+  (HX-Trigger) e il dialog si chiude: in creazione la lista si ricarica da sola (search-form ascolta note-saved), in modifica la risposta e' la riga aggiornata.
 -->
 <div th:fragment="noteForm(noteId, noteTitle, noteText, noteError)" id="note-form">
     <div class="flex items-start justify-between gap-3">
@@ -113,8 +105,8 @@
     </div>
     <p th:if="${noteId == null}" class="mt-2 text-ink-muted dark:text-ink-muted-dark" th:text="#{search.note.intro}">Le note sono documenti manuali.</p>
     <form th:hx-post="${noteId == null} ? @{/search/notes} : @{/search/notes/{id}(id=${noteId})}"
-          th:hx-target="${noteId == null} ? '#search-list' : '#doc-' + ${#strings.replace(noteId, ':', '-')}"
-          th:hx-swap="${noteId == null} ? 'innerHTML' : 'outerHTML'" class="mt-3">
+          th:hx-target="${noteId == null} ? 'this' : '#doc-' + ${#strings.replace(noteId, ':', '-')}"
+          th:hx-swap="${noteId == null} ? 'none' : 'outerHTML'" class="mt-3">
         <p th:if="${noteError}" th:replace="~{fragments/alert :: error(text=${noteError})}">Errore</p>
         <label for="note-title" th:text="#{search.note.titleLabel}">Titolo</label>
         <input type="text" id="note-title" name="title" class="w-full" th:value="${noteTitle}">
@@ -127,13 +119,7 @@
     </form>
 </div>
 
-<!-- Risposta di POST /search/notes riuscito: l'elenco (target) piu' le statistiche aggiornate fuori banda. -->
-<th:block th:fragment="createResult(listing, listType, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, types, stats)">
-    <th:block th:replace="~{::list(listing=${listing}, listType=${listType}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers}, types=${types})}"></th:block>
-    <th:block th:replace="~{::stats(stats=${stats}, oob=true)}"></th:block>
-</th:block>
-
-<!-- Risposta di DELETE (la riga sparisce): solo le statistiche aggiornate, fuori banda. -->
+<!-- Risposta di DELETE (la riga sparisce) e di POST /search/notes (la lista si ricarica da sola su note-saved): solo le statistiche aggiornate, fuori banda. -->
 <th:block th:fragment="deleted(stats)">
     <th:block th:replace="~{::stats(stats=${stats}, oob=true)}"></th:block>
 </th:block>

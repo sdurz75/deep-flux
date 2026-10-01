@@ -472,8 +472,10 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
   chi lo usa passa il testo nudo. I punteggi e5 sono compressi (0.7-0.9): usare top-K, non soglie fisse.
 - **`H2VectorStore`**: documenti in `VECTOR_DOC` (embedding normalizzato, `EMBEDDING_MODEL`, `CONTENT_HASH`), letti da una mappa in
   memoria (coseno = prodotto scalare, lineare: adatto a decine di migliaia di righe). Ogni documento ha i metadata `type`
-  (stringa) e `refId` (numero), opzionali `conversationId`, `role`, `kind`. Filtri supportati: EQ, NE, IN, NIN, AND, OR, NOT,
-  ISNULL/ISNOTNULL. Cambiare modello (URI ONNX = id del modello) => alla riconciliazione successiva si ri-embedda tutto.
+  (stringa) e `refId` (numero), opzionali `conversationId`, `role`, `kind` e `createdAt` (epoch millis della CREAZIONE del contenuto,
+  non dell'indicizzazione: `VECTOR_DOC.UPDATED_AT` cambia a ogni upsert/re-embedding; `StoredDocument#createdAt` ricade su
+  `updatedAt` se manca). Filtri supportati: EQ, NE, IN, NIN, AND, OR, NOT, ISNULL/ISNOTNULL e GT/GTE/LT/LTE (solo numeri; chiave
+  assente = non combacia). Cambiare modello (URI ONNX = id del modello) => alla riconciliazione successiva si ri-embedda tutto.
 - **`ArchiveIndexService`** allinea l'indice con una riconciliazione idempotente (non ganci su ogni `save`): prompt delle generazioni
   SUCCEEDED (`type=generation`), messaggi di chat non d'errore (`chat`), titoli (`conversation`); aggiunge i mancanti/cambiati,
   rimuove i documenti la cui riga non esiste piu'. Gira in background all'avvio (backfill), ogni `app.search.reindex-interval` e a
@@ -487,9 +489,19 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
   `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`). Prove reali, opt-in:
   `mvn test -Dtest='E5ModelSmokeTest,SemanticSearchWiringTest' -Dsemantic.model.test=true`.
 - **UI `/search`** (`SemanticSearchController`, `search.html` + `fragments/search.html`; link nell'header solo con `app.search.enabled`):
-  interroga (`GET /search/results`, punteggi in %, via l'interfaccia `VectorStore`), sfoglia per tipo (`/search/list/{type}`: il tipo sta
-  nel PATH cosi' la paginazione generica non lo perde), mostra dettagli/metadata/modello/hash, statistiche e "Riconcilia ora".
-  **Solo le note manuali (`type=note`) sono creabili/modificabili/eliminabili**: la riconciliazione non le tocca. I documenti
+  **UN solo form** (testo, tipo, periodo dal/al, soglia) e **UNA sola lista paginata** (`GET /search/results`, target `#search-results`,
+  20 per pagina): con testo e' la classifica per significato (punteggi in %, via l'interfaccia `VectorStore`, TUTTA la classifica sopra la
+  soglia: nessun top-K nella UI, `app.search.top-k` resta solo per il tool della chat), senza testo si sfogliano i documenti, i piu'
+  recenti prima (per `createdAt`); in entrambi i casi filtrati per tipo e per periodo di creazione (date ISO, estremi inclusi, fuso del
+  server). Niente liste "non filtrate" a parte: non reintrodurle, sembrerebbero il risultato della ricerca. La paginazione conserva i
+  filtri perche' il controller passa `baseQuery` (query string gia' codificata) e il template `'/search/results?' + ${baseQuery}`
+  (`pagination :: nav` accoda `&page=N`). Il form si re-invia da solo (`input`/`change` e `note-saved`: una nota creata o modificata
+  ricarica la lista coi filtri correnti; `POST /search/notes` risponde con le sole statistiche fuori banda). Mostra
+  dettagli/metadata/modello/hash, statistiche e "Riconcilia ora". `createdAt` lo scrivono `ArchiveIndexService#reconcile` (da
+  `getCreatedAt` della sorgente, backfill a costo zero: cambiano solo i metadata) e le note (alla creazione, conservato in modifica;
+  `stampNotes` timbra con `refId` quelle vecchie). Nei test, i documenti finti di tipo derivato (`chat`/`generation`) possono essere
+  cancellati dalla riconciliazione di fondo del contesto: per liste lunghe usare `type=note`.
+  **Solo le note manuali (`type=note`) sono creabili/modificabili/eliminabili**: la riconciliazione non le crea ne' rimuove. I documenti
   derivati (generation/chat/conversation) sono in sola lettura (la fonte di verita' e' il DB, una modifica o cancellazione a mano
   verrebbe annullata al giro dopo): su di essi solo "Ri-embedda" (anche dopo un cambio di modello). Un id non-nota su
   modifica/eliminazione => 422.
@@ -497,7 +509,7 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
   `x-data="{ dialogOpen: false }"`, `x-trap.inert.noscroll`, senza teleport; bottoni `button :: dialogOpen|dialogClose|dialogCloseIcon`,
   che assumono `dialogOpen` su un antenato). `dialogOpen` con `hxGet` ricarica `#note-form` (`fragments/search :: noteForm`, vuoto per
   `GET /search/notes/new`, precompilato per `/search/notes/{id}/edit`) a ogni apertura. Al salvataggio riuscito il server emette
-  `HX-Trigger: note-saved` (`SystemEventService#addHxTrigger`) che chiude il dialog (risposta: elenco in creazione, riga `#doc-...`
+  `HX-Trigger: note-saved` (`SystemEventService#addHxTrigger`) che chiude il dialog (risposta: solo le statistiche in creazione, riga `#doc-...`
   in modifica); con un errore di validazione risponde col form (`HX-Retarget: #note-form`) e il dialog resta aperto. Le statistiche
   si aggiornano fuori banda (`hx-swap-oob`).
   La ricerca ha una **soglia di somiglianza minima** in % (`threshold`, 0..100, default `app.search.similarity-threshold-percent`=0):

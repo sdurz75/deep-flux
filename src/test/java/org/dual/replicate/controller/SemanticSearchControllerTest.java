@@ -49,11 +49,23 @@ class SemanticSearchControllerTest {
 
     @BeforeEach
     void clean() {
-        store.delete(store.list(null, 1, 1000).documents().stream().map(H2VectorStore.StoredDocument::id).toList());
+        store.delete(store.list((org.springframework.ai.vectorstore.filter.Filter.Expression) null, 1, 1000).documents().stream().map(H2VectorStore.StoredDocument::id).toList());
     }
 
     private void derived(String id, String type, long refId, String text) {
         store.add(List.of(Document.builder().id(id).text(text).metadata(Map.of("type", type, "refId", refId)).build()));
+    }
+
+    private static org.springframework.ai.vectorstore.filter.Filter.Expression noteFilter() {
+        return new org.springframework.ai.vectorstore.filter.Filter.Expression(
+                org.springframework.ai.vectorstore.filter.Filter.ExpressionType.EQ,
+                new org.springframework.ai.vectorstore.filter.Filter.Key("type"),
+                new org.springframework.ai.vectorstore.filter.Filter.Value("note"));
+    }
+
+    private void derivedAt(String id, String type, long refId, String text, java.time.LocalDate day) {
+        long millis = day.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        store.add(List.of(Document.builder().id(id).text(text).metadata(Map.of("type", type, "refId", refId, "createdAt", millis)).build()));
     }
 
     private String body(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
@@ -67,7 +79,8 @@ class SemanticSearchControllerTest {
         String page = mockMvc.perform(get("/search")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("id=\"search-stats\"").contains("id=\"search-results\"").contains("id=\"note-form\"")
-                .contains("id=\"search-list\"").contains("un gatto sul divano").contains("href=\"/search\"")
+                .contains("id=\"search-form\"").contains("name=\"from\"").contains("name=\"to\"").doesNotContain("search-list")
+                .doesNotContain("name=\"topK\"").contains("un gatto sul divano").contains("href=\"/search\"")
                 // "Nuova nota" e' un dialog modale (Pines): aperto da dialogOpen, focus confinato, form dentro il dialog
                 .contains("x-data=\"{ dialogOpen: false }\"").contains("role=\"dialog\"").contains("aria-modal=\"true\"")
                 .contains("x-trap.inert.noscroll=\"dialogOpen\"").contains("@note-saved.window");
@@ -89,11 +102,53 @@ class SemanticSearchControllerTest {
     }
 
     @Test
-    void anOutOfRangeTopKIsAnInlineErrorAndABlankQueryShowsNothing() throws Exception {
-        assertThat(body(get("/search/results").param("q", "gatto").param("topK", "500"))).contains("tra 1 e 50");
+    void invalidFiltersAreInlineErrorsAndABlankQueryBrowsesTheDocuments() throws Exception {
+        derived("generation:1", "generation", 1, "un gatto sul divano");
+
         assertThat(body(get("/search/results").param("q", "gatto").param("threshold", "101"))).contains("tra 0 e 100");
-        assertThat(body(get("/search/results").param("q", "gatto").param("threshold", "100"))).doesNotContain("<li");
-        assertThat(body(get("/search/results").param("q", "  "))).doesNotContain("Nessun risultato").doesNotContain("<li");
+        assertThat(body(get("/search/results").param("q", "gatto").param("from", "ieri"))).contains("data non e&#39; valida");
+        assertThat(body(get("/search/results").param("from", "2026-02-01").param("to", "2026-01-01"))).contains("non puo&#39; essere dopo");
+        assertThat(body(get("/search/results").param("q", "castello").param("threshold", "100"))).contains("Nessun risultato").doesNotContain("<li");
+        // senza testo: si sfoglia (nessun punteggio), non e' una ricerca vuota
+        assertThat(body(get("/search/results").param("q", "  "))).contains("un gatto sul divano").doesNotContain("Somiglianza");
+        assertThat(body(get("/search/results").param("type", "chat"))).contains("Nessun documento").doesNotContain("<li");
+    }
+
+    @Test
+    void theSingleListIsPaginatedBothBrowsingAndRankedAndPageLinksKeepTheFilters() throws Exception {
+        // type "note": la riconciliazione di fondo (ArchiveIndexService, attiva in questo contesto) cancella i derivati finti ("chat") che non trova nel DB
+        for (int i = 0; i < 25; i++) {
+            derivedAt("note:n" + i, "note", i, "castello numero " + i, java.time.LocalDate.of(2026, 1, 1).plusDays(i));
+        }
+        derived("generation:1", "generation", 1, "altro tipo");
+
+        String first = body(get("/search/results").param("type", "note"));
+        String second = body(get("/search/results").param("type", "note").param("page", "2"));
+        String ranked = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01"));
+        String rankedSecond = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01").param("page", "2"));
+
+        assertThat(first).contains("25 risultati").contains("castello numero 24").doesNotContain("altro tipo")
+                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;page=2");
+        assertThat(second).contains("castello numero").doesNotContain("page=3");
+        assertThat(ranked).contains("Somiglianza").contains("25 risultati")
+                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;page=2");
+        assertThat(rankedSecond).contains("castello numero").doesNotContain("page=3");
+        mockMvc.perform(get("/search/list/chat")).andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void thePeriodRestrictsByCreationDateWithInclusiveEnds() throws Exception {
+        derivedAt("note:n1", "note", 1, "messaggio di gennaio", java.time.LocalDate.of(2026, 1, 10));
+        derivedAt("note:n2", "note", 2, "messaggio di febbraio", java.time.LocalDate.of(2026, 2, 10));
+        derivedAt("note:n3", "note", 3, "messaggio di marzo", java.time.LocalDate.of(2026, 3, 10));
+
+        String february = body(get("/search/results").param("from", "2026-02-10").param("to", "2026-02-10"));
+        String sinceFebruary = body(get("/search/results").param("q", "castello").param("from", "2026-02-01"));
+        String untilFebruary = body(get("/search/results").param("q", "castello").param("to", "2026-02-28"));
+
+        assertThat(february).contains("messaggio di febbraio").doesNotContain("di gennaio").doesNotContain("di marzo");
+        assertThat(sinceFebruary).contains("di febbraio").contains("di marzo").doesNotContain("di gennaio");
+        assertThat(untilFebruary).contains("di gennaio").contains("di febbraio").doesNotContain("di marzo");
     }
 
     @Test
@@ -103,9 +158,13 @@ class SemanticSearchControllerTest {
         assertThat(createdResponse.getHeader("HX-Trigger")).contains("note-saved"); // chiude il dialog
         String created = createdResponse.getContentAsString();
 
-        assertThat(created).contains("il mio castello con il drago").contains("Idea").contains("id=\"search-stats\"");
-        H2VectorStore.StoredDocument note = store.list("note", 1, 10).documents().get(0);
+        // la risposta porta solo le statistiche: la lista si ricarica da sola (search-form ascolta note-saved) coi filtri correnti
+        assertThat(created).contains("id=\"search-stats\"").doesNotContain("<li");
+        assertThat(body(get("/search/results").param("type", "note"))).contains("il mio castello con il drago").contains("Idea");
+        H2VectorStore.StoredDocument note = store.list(noteFilter(), 1, 10).documents().get(0);
         assertThat(note.id()).startsWith("note:");
+        assertThat(note.metadata()).containsKey("createdAt");
+        long createdAt = ((Number) note.metadata().get("createdAt")).longValue();
         assertThat(store.similaritySearch(org.springframework.ai.vectorstore.SearchRequest.builder().query("drago").topK(1).build()))
                 .extracting(Document::getId).containsExactly(note.id());
 
@@ -119,6 +178,7 @@ class SemanticSearchControllerTest {
         assertThat(updated).contains("una montagna innevata").doesNotContain("il mio castello");
         assertThat(store.find(note.id()).orElseThrow().content()).isEqualTo("una montagna innevata");
         assertThat(store.find(note.id()).orElseThrow().metadata()).doesNotContainKey("title");
+        assertThat(((Number) store.find(note.id()).orElseThrow().metadata().get("createdAt")).longValue()).isEqualTo(createdAt);
 
         String deleted = body(delete("/search/notes/{id}", note.id()));
         assertThat(deleted).contains("id=\"search-stats\"").doesNotContain("<li");
@@ -132,7 +192,7 @@ class SemanticSearchControllerTest {
         assertThat(invalid.getHeader("HX-Trigger")).isNull(); // il dialog resta aperto col messaggio
         assertThat(invalid.getHeader("HX-Retarget")).isEqualTo("#note-form");
         assertThat(body(post("/search/notes").param("text", "x".repeat(2000)))).contains("supera 1800");
-        assertThat(store.list("note", 1, 10).documents()).isEmpty();
+        assertThat(store.list(noteFilter(), 1, 10).documents()).isEmpty();
     }
 
     @Test
@@ -146,7 +206,7 @@ class SemanticSearchControllerTest {
 
         assertThat(store.find("generation:9").orElseThrow().content()).isEqualTo("un gatto");
         // e nella lista i derivati non hanno Modifica/Elimina, solo Ri-embedda
-        String list = body(get("/search/list/generation"));
+        String list = body(get("/search/results").param("type", "generation"));
         assertThat(list).contains("un gatto").contains("Ri-embedda").doesNotContain("Elimina").doesNotContain("Modifica");
     }
 
@@ -167,20 +227,6 @@ class SemanticSearchControllerTest {
 
     private EmbeddingModel fake() {
         return embeddingModel;
-    }
-
-    @Test
-    void listIsPaginatedPerTypeAndAnUnknownTypeIs400() throws Exception {
-        for (int i = 0; i < 25; i++) {
-            derived("chatmessage:" + i, "chat", i, "messaggio numero " + i);
-        }
-
-        String first = body(get("/search/list/chat"));
-        String second = body(get("/search/list/chat").param("page", "2"));
-
-        assertThat(first).contains("/search/list/chat?page=2");
-        assertThat(second).contains("messaggio numero").doesNotContain("/search/list/chat?page=3");
-        mockMvc.perform(get("/search/list/bogus")).andExpect(status().isBadRequest());
     }
 
     @Test

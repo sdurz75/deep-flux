@@ -94,6 +94,30 @@ class ArchiveIndexServiceTest {
     }
 
     @Test
+    void documentsCarryTheCreationDateOfTheirSourceAndLegacyOnesGetItWithoutReEmbedding() {
+        Generation g = generation("gatto", GenerationStatus.SUCCEEDED);
+        ChatConversation conversation = new ChatConversation();
+        conversation.setTitle("Il castello del drago");
+        conversation = conversations.save(conversation);
+        ChatMessage message = messages.save(new ChatMessage(conversation, ChatMessageRole.USER, "vorrei un ritratto", null));
+        // un documento gia' indicizzato SENZA createdAt (indice precedente al filtro per periodo) e una nota vecchia
+        store.add(List.of(Document.builder().id("generation:" + g.getId()).text("gatto")
+                .metadata(java.util.Map.of("type", "generation", "refId", g.getId(), "kind", String.valueOf(g.getKind()))).build()));
+        store.add(List.of(Document.builder().id("note:old").text("appunto vecchio")
+                .metadata(java.util.Map.of("type", "note", "refId", 1_700_000_000_000L)).build()));
+        int before = embedding.embedded.get();
+
+        service.reconcile();
+
+        assertThat(embedding.embedded.get()).isEqualTo(before + 2); // solo conversazione e messaggio: gli altri solo metadata
+        assertThat(store.find("generation:" + g.getId()).orElseThrow().metadata()).containsEntry("createdAt", g.getCreatedAt().toEpochMilli());
+        assertThat(store.find("chatmessage:" + message.getId()).orElseThrow().createdAt()).isEqualTo(message.getCreatedAt().truncatedTo(java.time.temporal.ChronoUnit.MILLIS));
+        assertThat(store.find("conversation:" + conversation.getId()).orElseThrow().metadata()).containsKey("createdAt");
+        assertThat(store.find("note:old").orElseThrow().metadata().get("createdAt")).isEqualTo(1_700_000_000_000L);
+        assertThat(store.find("note:old").orElseThrow().content()).isEqualTo("appunto vecchio");
+    }
+
+    @Test
     void isIdempotentAndOnlyEmbedsWhatChanged() {
         Generation g = generation("gatto", GenerationStatus.SUCCEEDED);
         service.reconcile();
