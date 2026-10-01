@@ -100,7 +100,7 @@ public class SemanticSearchController {
         model.addAttribute("noteError", null);
         model.addAttribute("noteText", "");
         model.addAttribute("noteTitle", "");
-        return "search";
+        return "app/search";
     }
 
     /**
@@ -114,7 +114,7 @@ public class SemanticSearchController {
                           @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "1") int page,
                           Model model) {
         populateResults(q, type, from, to, threshold, page, model);
-        return "fragments/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
+        return "fragments/app/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
                 + "currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, "
                 + "pageNumbers=${pageNumbers})";
     }
@@ -135,7 +135,7 @@ public class SemanticSearchController {
         // errore di validazione, sopra, l'evento NON parte e il dialog resta aperto.
         htmx.addHxTrigger(response, "note-saved", "");
         model.addAttribute("stats", stats());
-        return "fragments/search :: deleted(stats=${stats})";
+        return "fragments/app/search :: deleted(stats=${stats})";
     }
 
     /** Contenuto del dialog per una nota nuova (form vuoto, caricato a ogni apertura). */
@@ -165,7 +165,7 @@ public class SemanticSearchController {
         indexer.upsertIfChanged(List.of(note(existing.id(), existing.refId(), existing.createdAt().toEpochMilli(), text.strip(), title.strip())));
         htmx.addHxTrigger(response, "note-saved", "");
         model.addAttribute("hit", new Hit(documents.find(id).orElseThrow(), null));
-        return "fragments/search :: row(hit=${hit})";
+        return "fragments/app/search :: row(hit=${hit})";
     }
 
     @DeleteMapping("/notes/{id}")
@@ -173,7 +173,7 @@ public class SemanticSearchController {
         requireNote(id);
         indexer.delete(List.of(id));
         model.addAttribute("stats", stats());
-        return "fragments/search :: deleted(stats=${stats})";
+        return "fragments/app/search :: deleted(stats=${stats})";
     }
 
     // --- amministrazione --------------------------------------------------------------------------------------------
@@ -185,7 +185,7 @@ public class SemanticSearchController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         model.addAttribute("hit", new Hit(documents.find(id).orElseThrow(), null));
-        return "fragments/search :: row(hit=${hit})";
+        return "fragments/app/search :: row(hit=${hit})";
     }
 
     /** Avvia la riconciliazione con i dati (in background) e ritorna le statistiche con "in corso". */
@@ -194,7 +194,7 @@ public class SemanticSearchController {
         indexService.reindexAsync();
         model.addAttribute("stats", stats());
         model.addAttribute("oob", false);
-        return "fragments/search :: stats(stats=${stats}, oob=${oob})";
+        return "fragments/app/search :: stats(stats=${stats}, oob=${oob})";
     }
 
     // --- interno ----------------------------------------------------------------------------------------------------
@@ -313,7 +313,7 @@ public class SemanticSearchController {
         model.addAttribute("noteTitle", title);
         model.addAttribute("noteText", text);
         model.addAttribute("noteError", error);
-        return "fragments/search :: noteForm(noteId=${noteId}, noteTitle=${noteTitle}, noteText=${noteText}, noteError=${noteError})";
+        return "fragments/app/search :: noteForm(noteId=${noteId}, noteTitle=${noteTitle}, noteText=${noteText}, noteError=${noteError})";
     }
 
     private String validate(String text) {

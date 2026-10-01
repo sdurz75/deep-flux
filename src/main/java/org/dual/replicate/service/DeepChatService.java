@@ -46,7 +46,7 @@ import org.springframework.stereotype.Service;
  * CLAUDE.md punto 3 dello Scopo): {@link #reply} opera sempre su una
  * conversazione precisa, passata per id dal client. La cronologia resta
  * anche interamente lato client: deep-chat la rimanda per intero ad ogni
- * turno (vedi requestBodyLimits in templates/deep-chat.html) ed e' quella
+ * turno (vedi requestBodyLimits in templates/app/deep-chat.html) ed e' quella
  * che alimenta il modello (buildMessages sotto) — la persistenza qui e'
  * solo una copia durevole per ripristinare la UI al prossimo caricamento
  * di quella conversazione (DeepChatController) e non rientra nel giro di
@@ -138,7 +138,7 @@ public class DeepChatService {
      * chat, nessuna gestione dedicata necessaria qui.
      *
      * {@code selectedModel} e' il modello Replicate scelto nel combobox
-     * lato UI (vedi templates/deep-chat.html), inviato dal client su ogni
+     * lato UI (vedi templates/app/deep-chat.html), inviato dal client su ogni
      * turno tramite requestInterceptor: passato sia come nota di
      * contesto al modello LLM (buildMessages sotto, utile ad es. per
      * capire se e' uno dei LoRA personali dell'utente, vedi

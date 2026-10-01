@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Unico punto che sa parlare SSE: apre GET /events (core.push EventStreamController)
+  e ri-dispatcha ogni evento ricevuto come CustomEvent su document.body,
+  cosi' ogni pagina/fragment decide cosa farne con gli strumenti che gia'
+  usa altrove (htmx hx-trigger="nome-evento from:body" per un refresh,
+  vedi fragments/app/gallery.html; un listener JS dedicato per un caso piu'
+  specifico, vedi deep-chat.html) senza dover conoscere SSE.
+
+  Incluso solo dalle pagine che ne hanno bisogno (gallery.html,
+  generations-list.html, deep-chat.html, generation-status.html, system-events.html: tutte dove qualcosa
+  arriva in un secondo momento, errori compresi), non da fragments/core/layout.html: una connessione persistente
+  aperta su OGNI pagina saturerebbe le ~6 connessioni HTTP/1.1 per host che
+  i browser concedono quando l'utente tiene piu' tab dell'app aperte
+  contemporaneamente.
+
+  I nomi degli eventi dell'app vengono da app.push.client-events (es. "gallery-update": solo un segnale "qualcosa e'
+  cambiato, ricarica"; "chat-message": il dettaglio e' il payload JSON cosi' com'e' mandato da GenerationEventBroadcaster);
+  "system-event" (toast) e' sempre gestito.
+-->
+<th:block th:fragment="connect">
+    <script th:inline="javascript">
+        (function () {
+            var eventsUrl = /*[[@{/events}]]*/ '/events';
+            // Nomi degli eventi dell'app (app.push.client-events / reconnect-events, PushModelAdvice): niente e' hardcoded qui.
+            var appEvents = /*[[${pushEvents}]]*/ [];
+            var reconnectEvents = /*[[${pushReconnectEvents}]]*/ [];
+            var source = new EventSource(eventsUrl);
+            // EventSource si riconnette da solo ma gli eventi emessi nel frattempo sono persi (nessun replay):
+            // alla riconnessione si ri-dispatchano gli eventi "da refresh" (es. gallery-update).
+            var dropped = false;
+            source.addEventListener('error', function () { dropped = true; });
+            source.addEventListener('open', function () {
+                if (dropped) {
+                    dropped = false;
+                    reconnectEvents.forEach(function (name) {
+                        document.body.dispatchEvent(new CustomEvent(name));
+                    });
+                }
+            });
+            // Eventi dell'app: il payload (JSON) diventa il detail del CustomEvent su body.
+            appEvents.forEach(function (name) {
+                source.addEventListener(name, function (event) {
+                    var detail;
+                    try { detail = JSON.parse(event.data); } catch (e) { detail = event.data; }
+                    document.body.dispatchEvent(new CustomEvent(name, {detail: detail}));
+                });
+            });
+            // Toast (SystemEventService), sempre gestito: al contenitore di fragments/core/toast.html (evento window) e,
+            // come CustomEvent su body, alle liste che si aggiornano da sole (/system/events).
+            source.addEventListener('system-event', function (event) {
+                var detail = JSON.parse(event.data);
+                window.dispatchEvent(new CustomEvent('system-toast', {detail: detail}));
+                document.body.dispatchEvent(new CustomEvent('system-event', {detail: detail}));
+            });
+        })();
+    </script>
+</th:block>
+
+</body>
+</html>

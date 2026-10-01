@@ -42,7 +42,7 @@ public class LoraController {
     public String page(Model model) {
         populateList(model);
         formAttributes(model, null, "", "", String.valueOf(LoraPresetService.DEFAULT_SCALE), "", "", null);
-        return "loras";
+        return "app/loras";
     }
 
     /** Form vuoto per il dialog (caricato a ogni apertura). */
@@ -126,12 +126,12 @@ public class LoraController {
     private String formView(Model model, Long id, String name, String source, String scale, String triggerWords, String note,
                             String error) {
         formAttributes(model, id, name, source, scale, triggerWords, note, error);
-        return "fragments/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, "
+        return "fragments/app/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, "
                 + "loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError})";
     }
 
     private static String listView() {
-        return "fragments/loras :: list(loras=${loras})";
+        return "fragments/app/loras :: list(loras=${loras})";
     }
 
     /** Vuoto = intensita' predefinita; un numero non valido e' un rifiuto con messaggio, non un 400. */

@@ -67,7 +67,7 @@ public class SystemEventController {
             events.markSeen(event);
         }
         populate(page, severity, event, model);
-        return "true".equalsIgnoreCase(hxRequest) ? contentView() : "system-events";
+        return "true".equalsIgnoreCase(hxRequest) ? contentView() : "core/system-events";
     }
 
     /** Svuota il registro e ritorna il contenuto aggiornato (target #events-content). */
@@ -170,12 +170,12 @@ public class SystemEventController {
 
     // Viste di risposta diretta: parametri NOMINATI (vedi CLAUDE.md, "Pattern controller").
     private static String contentView() {
-        return "fragments/system-events :: content(events=${events}, eventLinks=${eventLinks}, currentPage=${currentPage}, totalPages=${totalPages}, "
+        return "fragments/core/system-events :: content(events=${events}, eventLinks=${eventLinks}, currentPage=${currentPage}, totalPages=${totalPages}, "
                 + "hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers}, severity=${severity}, "
                 + "highlightId=${highlightId}, unseenCount=${unseenCount})";
     }
 
     private static String bellView() {
-        return "fragments/notification-bell :: bell(count=${bellCount}, hasError=${bellHasError}, items=${bellItems})";
+        return "fragments/core/notification-bell :: bell(count=${bellCount}, hasError=${bellHasError}, items=${bellItems})";
     }
 }

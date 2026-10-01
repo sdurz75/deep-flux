@@ -53,7 +53,7 @@ public class TokenController {
         populateList(model);
         model.addAttribute("providers", providers());
         formAttributes(model, null, defaultProvider(), "", "", null);
-        return "tokens";
+        return "core/tokens";
     }
 
     /** Form vuoto per il dialog (caricato a ogni apertura). */
@@ -139,12 +139,12 @@ public class TokenController {
         formAttributes(model, id, provider, name, expiresAt, error);
         model.addAttribute("providers", providers());
         model.addAttribute("configured", tokens.isConfigured());
-        return "fragments/tokens :: tokenForm(tokenId=${tokenId}, tokenProvider=${tokenProvider}, tokenName=${tokenName}, "
+        return "fragments/core/tokens :: tokenForm(tokenId=${tokenId}, tokenProvider=${tokenProvider}, tokenName=${tokenName}, "
                 + "tokenExpires=${tokenExpires}, tokenError=${tokenError}, providers=${providers}, configured=${configured})";
     }
 
     private static String listView() {
-        return "fragments/tokens :: list(tokens=${tokens}, configured=${configured}, warningDays=${warningDays})";
+        return "fragments/core/tokens :: list(tokens=${tokens}, configured=${configured}, warningDays=${warningDays})";
     }
 
     /** I provider offerti dall'app ({@link ITokenProviderCatalog}); nessuna implementazione = nessuno. */

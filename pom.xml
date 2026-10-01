@@ -178,7 +178,7 @@
             <resource>
                 <directory>src/main/resources</directory>
             </resource>
-            <!-- Config Tailwind condivisa: il Play CDN (default, fragments/layout.html)
+            <!-- Config Tailwind condivisa: il Play CDN (default, fragments/core/layout.html)
                  la carica come /js/tailwind.config.js, la CLI la legge da src/main/tailwind. -->
             <resource>
                 <directory>src/main/tailwind</directory>

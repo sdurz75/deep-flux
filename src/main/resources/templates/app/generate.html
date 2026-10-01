@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="${editPage} ? #{generate.edit.title} : (${videoPage} ? #{generate.video.title} : #{generate.title})">Genera immagine</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <h1 th:text="${editPage} ? #{generate.edit.title} : (${videoPage} ? #{generate.video.title} : #{generate.title})">Genera immagine</h1>
+    <p th:text="${editPage} ? #{generate.edit.intro} : (${videoPage} ? #{generate.video.intro} : #{generate.intro})">Scegli un modello censito, scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</p>
+
+    <div id="generation-panel">
+        <div th:replace="~{fragments/app/generate-form :: form}"></div>
+    </div>
+
+    <!-- Solo per i toast d'errore: il polling della generazione appena creata (sotto, in #generation-panel) non ha altro canale su questa pagina. -->
+    <div th:replace="~{fragments/core/live-events :: connect}"></div>
+</div>
+</body>
+</html>

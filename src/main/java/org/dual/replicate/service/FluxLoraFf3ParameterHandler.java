@@ -76,6 +76,6 @@ public class FluxLoraFf3ParameterHandler implements GenerationParameterHandler {
 
     @Override
     public String fragmentName() {
-        return "fragments/generation-params-flux-lora-ff3 :: fields";
+        return "fragments/app/generation-params-flux-lora-ff3 :: fields";
     }
 }

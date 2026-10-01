@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{index.title}">Home</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <h1>deep-flux</h1>
+    <p th:text="#{index.intro}">
+        Genera immagini con l'aiuto di un assistente, ritrovale in galleria.
+        Navigazione via HTML renderizzato dal server (Spring MVC +
+        Thymeleaf), interattivita' locale con Alpine.js, aggiornamenti
+        parziali via htmx. Nessuno step di build frontend.
+    </p>
+
+    <ul class="list-none p-0 my-4">
+        <li class="py-2">
+            <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}">Deep Flux</a>
+            &mdash; <span th:text="#{index.link.deepChat.suffix}">descrivi l'immagine che vuoi, l'assistente puo' cercare
+            sul web e generarla su Replicate.</span>
+        </li>
+        <li class="py-2">
+            <a th:href="@{/generations/new}" th:text="#{header.nav.generate}">Genera immagine</a>
+            &mdash; <span th:text="#{index.link.generate.suffix}">form diretto: modello, prompt e parametri, senza chatbot.</span>
+        </li>
+        <li class="py-2">
+            <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a>
+            &mdash; <span th:text="#{index.link.gallery.suffix}">tutte le immagini generate, con prompt e modello usato.</span>
+        </li>
+    </ul>
+</div>
+</body>
+</html>

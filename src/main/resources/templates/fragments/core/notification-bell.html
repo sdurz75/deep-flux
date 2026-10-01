@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campanella della toolbar: scorciatoia al registro eventi di sistema (/system/events). Si accende (badge) quando c'e' almeno un
+  evento NON visualizzato di severita' WARNING o superiore e apre un pannello con gli ultimi non visualizzati; il click su un
+  evento porta a /system/events?event=<id> (lo marca come visualizzato e lo evidenzia).
+
+  container: incluso UNA volta da header.html, fuori dallo slideover (visibile a ogni larghezza). Lo stato Alpine `open` vive QUI,
+  sul contenitore, che non viene mai sostituito: l'aggiornamento (hx-swap="innerHTML") riscrive solo bottone+pannello, quindi un
+  pannello aperto resta aperto. Si ricarica al load, ogni 30s (le pagine senza connessione SSE: live-events non e' globale) e subito
+  quando arriva un evento: "system-toast" su window (toast, anche da HX-Trigger) e "system-event" su body (SSE).
+
+  bell(count, hasError, items): contenuto, reso da SystemEventController (GET /system/events/bell, POST /system/events/seen).
+-->
+<div th:fragment="container" id="notification-bell" class="relative shrink-0" x-data="{ open: false }"
+     @click.outside="open = false" @keydown.escape.window="open = false"
+     th:hx-get="@{/system/events/bell}" hx-trigger="load, every 30s, system-toast from:window, system-event from:body"
+     hx-swap="innerHTML"></div>
+
+<th:block th:fragment="bell(count, hasError, items)">
+    <button th:replace="~{fragments/core/button :: bell(count=${count}, hasError=${hasError}, title=#{bell.title(${count})})}">&#128276;</button>
+
+    <div x-show="open" x-cloak x-transition.opacity
+         class="absolute right-0 top-full mt-2 z-50 w-80 max-w-[90vw] rounded-md border border-line dark:border-line-dark
+                bg-surface dark:bg-surface-dark shadow-lg">
+        <div class="flex items-center justify-between gap-2 border-b border-line dark:border-line-dark px-3 py-2">
+            <span class="text-[0.9rem] font-semibold" th:text="#{bell.heading}">Eventi di sistema</span>
+            <th:block th:if="${count > 0}">
+                <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{bell.markSeen}, hxGet=null,
+                                    hxPost=@{/system/events/seen}, hxTarget='#notification-bell', hxSwap='innerHTML',
+                                    extraClass='px-2 py-1 text-[0.75rem]')}">Segna tutti come letti</button>
+            </th:block>
+        </div>
+
+        <p th:if="${#lists.isEmpty(items)}" th:text="#{bell.empty}"
+           class="m-0 px-3 py-4 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">Nessun nuovo evento.</p>
+
+        <ul th:unless="${#lists.isEmpty(items)}" class="m-0 list-none p-0">
+            <li th:each="item : ${items}" class="border-b border-line dark:border-line-dark last:border-b-0">
+                <a th:href="@{/system/events(event=${item.id})}"
+                   class="block px-3 py-2 no-underline text-ink dark:text-ink-dark hover:bg-canvas dark:hover:bg-canvas-dark">
+                    <span class="flex items-baseline justify-between gap-2 text-[0.75rem]">
+                        <span class="font-semibold"
+                              th:classappend="${item.severity.name() == 'WARNING'} ? 'text-warning dark:text-warning-dark' : 'text-danger dark:text-danger-dark'"
+                              th:text="#{'events.severity.' + ${item.severity.name()}} + ' · ' + #{'events.source.' + ${item.source}}">Errore · Replicate</span>
+                        <span class="shrink-0 text-ink-muted dark:text-ink-muted-dark" th:text="${item.ago}">2 min fa</span>
+                    </span>
+                    <span class="mt-1 block text-[0.85rem] break-words line-clamp-2" th:text="${item.message}">messaggio</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="border-t border-line dark:border-line-dark px-3 py-2 text-[0.85rem]">
+            <a th:href="@{/system/events}" th:text="#{bell.viewAll}">Vedi tutti</a>
+        </div>
+    </div>
+</th:block>
+
+</body>
+</html>

@@ -21,7 +21,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      * in ordine cronologico: alimenta la galleria contestuale
      * dell'accordion di /deep-chat/{id}. Filtro su SUCCEEDED per lo
      * stesso motivo di {@code GenerationRepository.findByStatusOrderByCreatedAtDesc}:
-     * {@code fragments/gallery-card.html :: card(...)} dereferenzia
+     * {@code fragments/app/gallery-card.html :: card(...)} dereferenzia
      * {@code imageFilenames[0]} senza controlli, una riga pending/failed
      * andrebbe in errore.
      */

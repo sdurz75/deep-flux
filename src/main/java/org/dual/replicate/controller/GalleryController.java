@@ -23,9 +23,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 /**
  * Galleria delle immagini generate: SOLO generazioni SUCCEEDED,
  * paginazione classica (numeri di pagina + precedente/successiva, markup
- * in fragments/pagination.html, riusabile da futuri altri listati) e
+ * in fragments/core/pagination.html, riusabile da futuri altri listati) e
  * cancellazione in blocco dalla griglia stessa (checkbox per card, vedi
- * fragments/gallery.html/gallery-card.html). Il dettaglio di una singola
+ * fragments/app/gallery.html/gallery-card.html). Il dettaglio di una singola
  * generazione (prompt/parametri, cancellazione singola e per-immagine)
  * vive invece su GET /generations/{id} (vedi GenerationController e
  * CLAUDE.md): le card di questa griglia ci linkano, non c'e' piu' una
@@ -59,7 +59,7 @@ public class GalleryController {
         // Una pagina che esisteva puo' smettere di esistere fra un refresh e
         // l'altro (cancellazione in blocco dell'ultima pagina, vedi
         // GalleryController#deleteSelected): il refresh SSE ri-richiede
-        // esattamente currentPage (fragments/gallery.html, hx-get="@{/gallery(page=...)}"),
+        // esattamente currentPage (fragments/app/gallery.html, hx-get="@{/gallery(page=...)}"),
         // che a questo punto sarebbe oltre l'ultima pagina rimasta - senza
         // questo aggiustamento l'utente vedrebbe "nessuna immagine" anche se
         // le pagine precedenti hanno ancora contenuto.
@@ -81,9 +81,9 @@ public class GalleryController {
         // Nota: come vista di risposta diretta (non dentro un th:replace inline)
         // Thymeleaf richiede parametri nominati, non posizionali.
         return isHtmxRequest
-                ? "fragments/gallery :: content(items=${items}, tab=${tab}, currentPage=${currentPage}, "
+                ? "fragments/app/gallery :: content(items=${items}, tab=${tab}, currentPage=${currentPage}, "
                         + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
-                : "gallery";
+                : "app/gallery";
     }
 
     /** Tab "Tutte": una card per generazione (primo file); tab "Preferiti": una card per file con la star. */
@@ -97,8 +97,8 @@ public class GalleryController {
 
     /**
      * Cancellazione in blocco dalla griglia (checkbox multiple, bottone
-     * "Elimina selezionate" in fragments/gallery.html :: grid, disabilitato
-     * lato client finche' la selezione e' vuota — vedi fragments/button.html
+     * "Elimina selezionate" in fragments/app/gallery.html :: grid, disabilitato
+     * lato client finche' la selezione e' vuota — vedi fragments/core/button.html
      * :: dangerSelectable). La pagina corrente (globale o contestuale di
      * /deep-chat) resta valida dopo la cancellazione: nessun redirect,
      * risposta vuota. Il refresh — sia della tab che ha cliccato sia di

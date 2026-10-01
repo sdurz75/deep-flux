@@ -55,7 +55,7 @@ import tools.jackson.databind.ObjectMapper;
  * GET /generations/{id} del polling di stato ("stessa URL, due risposte":
  * fragment se chiamato da htmx via hx-trigger="every 2s" mentre non
  * terminale, pagina intera altrimenti) - a stato terminale quello stesso
- * fragment (fragments/generation.html :: status) mostra anche prompt/
+ * fragment (fragments/app/generation.html :: status) mostra anche prompt/
  * parametri/immagini cancellabili, niente pagina di dettaglio separata
  * (vedi CLAUDE.md).
  */
@@ -135,7 +135,7 @@ public class GenerationController {
             defaultModel = modelCatalog.editModels().stream().findFirst()
                     .map(ReplicateModel::getIdentifier).orElse(defaultModel);
         }
-        // "Anima"/"Modifica" (vedi fragments/generation.html :: status): preseleziona il primo modello
+        // "Anima"/"Modifica" (vedi fragments/app/generation.html :: status): preseleziona il primo modello
         // video (o di modifica se kind=edit) e porta con se' la generazione immagine sorgente (hidden
         // sourceGenerationId nel form).
         Generation sourceGeneration = source == null ? null : animatableSource(source, sourceImage);
@@ -153,14 +153,14 @@ public class GenerationController {
         }
         model.addAttribute("prompt", prompt);
         populateGenerationParamsModel(model, defaultModel, Map.of());
-        // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,
+        // Push del seed dal dettaglio di una generazione (vedi fragments/app/generation.html :: status,
         // ramo SUCCEEDED): non passa per populateFormTypeFields/defaultFields (seed ne e'
         // intenzionalmente escluso, vedi FluxLoraFf3ParameterHandler/Flux2Klein9bParameterHandler),
         // va impostato qui esplicitamente.
         if (seed != null) {
             model.addAttribute("seed", seed);
         }
-        return "generate";
+        return "app/generate";
     }
 
     @PostMapping
@@ -211,7 +211,7 @@ public class GenerationController {
             // valorizza comunque per coerenza col Model di status() sotto, stesso fragment condiviso.
             uiModel.addAttribute("conversationId", null);
             uiModel.addAttribute("generationsPage", null);
-            return "fragments/generation :: status";
+            return "fragments/app/generation :: status";
         } catch (org.dual.replicate.core.kernel.remote.RemoteServiceException e) {
             // Validazioni applicative (modello sconosciuto, sorgente mancante, troppe in corso) non hanno una
             // causa: sono un rifiuto, non un errore di comunicazione, e restano solo nel form. Il resto
@@ -233,7 +233,7 @@ public class GenerationController {
         uiModel.addAttribute("version", version);
         uiModel.addAttribute("prompt", prompt);
         populateGenerationParamsModel(uiModel, model, allParams);
-        return "fragments/generate-form :: form";
+        return "fragments/app/generate-form :: form";
     }
 
     /** {@code MultipartFile} -> tipo di dominio dello storage (che non conosce il framework web). */
@@ -263,7 +263,7 @@ public class GenerationController {
 
     /**
      * Ri-renderizza solo i campi del form-type del modello selezionato
-     * (target #generation-params-fields, vedi fragments/generation-params.html),
+     * (target #generation-params-fields, vedi fragments/app/generation-params.html),
      * scatenata dalla &lt;select&gt; modello ad ogni cambio
      * (hx-trigger="change"): cosi' un modello con una form diversa mostra
      * subito i campi giusti. I valori gia' sottomessi (hx-include, vedi
@@ -285,8 +285,8 @@ public class GenerationController {
 
     /**
      * Riscrive una bozza di prompt in un prompt Flux ben formato in
-     * inglese (icona "AI enhance", fragments/button.html :: aiEnhance,
-     * fragments/generate-form.html :: promptField): solo fragment, mai
+     * inglese (icona "AI enhance", fragments/core/button.html :: aiEnhance,
+     * fragments/app/generate-form.html :: promptField): solo fragment, mai
      * pagina intera (stesso principio di params() sopra), e SEMPRE 200
      * anche in caso di errore, come DeepChatApiController - htmx non
      * farebbe lo swap di una risposta 4xx/5xx di default, un errore
@@ -334,11 +334,11 @@ public class GenerationController {
                 uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", ISystemEvents.sanitize(e)));
             }
         }
-        return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
+        return "fragments/app/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
     }
 
     /**
-     * Attributi richiesti dal guscio fragments/generation-params.html
+     * Attributi richiesti dal guscio fragments/app/generation-params.html
      * (combobox modello + contenitore dei campi del form-type corrente):
      * usato sia dal primo caricamento di /generations/new sia dal path
      * di errore di create(), altrimenti il fragment ri-renderizzato sul
@@ -417,15 +417,15 @@ public class GenerationController {
 
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         return isHtmxRequest
-                ? "fragments/generations :: content(generations=${generations}, currentPage=${currentPage}, "
+                ? "fragments/app/generations :: content(generations=${generations}, currentPage=${currentPage}, "
                         + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
-                : "generations-list";
+                : "app/generations-list";
     }
 
 
     /**
      * Cancellazione in blocco dal listato (checkbox multiple, vedi
-     * fragments/generations.html :: list): stesso pattern di
+     * fragments/app/generations.html :: list): stesso pattern di
      * GalleryController#deleteSelected, nessun redirect, il refresh
      * arriva dall'evento SSE pubblicato da GenerationService#deleteAll.
      */
@@ -466,7 +466,7 @@ public class GenerationController {
      * link "indietro" e il target del redirect dopo una cancellazione da
      * questa pagina (vedi delete/deleteImage sotto) - conversationId
      * quando si arriva dalla galleria contestuale di una conversazione
-     * /deep-chat (vedi fragments/gallery-card.html), generationsPage
+     * /deep-chat (vedi fragments/app/gallery-card.html), generationsPage
      * quando si arriva dal listato /generations, nessuno dei due dalla
      * galleria globale (default a /gallery).
      */
@@ -517,12 +517,12 @@ public class GenerationController {
         model.addAttribute("generationsPage", generationsPage);
         model.addAttribute("cancelDisabled", cancelDisabled);
 
-        return isHtmxRequest ? "fragments/generation :: status" : "generation-status";
+        return isHtmxRequest ? "fragments/app/generation :: status" : "app/generation-status";
     }
 
     /**
      * Interrompe una generazione in corso (bottone del placeholder, vedi
-     * fragments/generation-placeholder.html). Due chiamanti: htmx
+     * fragments/app/generation-placeholder.html). Due chiamanti: htmx
      * (/generations/{id}, HX-Request presente) riceve il fragment di stato
      * aggiornato - se l'interruzione non e' riuscita, o e' stata richiesta ma
      * la prediction non e' ancora terminale, con cancelDisabled=true (il
@@ -580,11 +580,11 @@ public class GenerationController {
         model.addAttribute("conversationId", conversationId);
         model.addAttribute("generationsPage", generationsPage);
         model.addAttribute("cancelDisabled", true);
-        return "fragments/generation :: status";
+        return "fragments/app/generation :: status";
     }
 
     /**
-     * Cancellazione dal dettaglio (bottone in fragments/generation.html
+     * Cancellazione dal dettaglio (bottone in fragments/app/generation.html
      * :: status, ramo SUCCEEDED/FAILED): a differenza di deleteOne sopra,
      * la pagina corrente smette di esistere dopo la cancellazione, serve
      * un redirect (HX-Redirect, non HX-Refresh: la pagina corrente non
@@ -607,7 +607,7 @@ public class GenerationController {
      * generazione e' sparita, stesso redirect di delete(...) sopra. Se no,
      * il dettaglio resta valido: si ri-renderizza solo la griglia
      * immagini aggiornata (hx-target/hx-swap sul bottone stesso, vedi
-     * fragments/generation-images.html), niente redirect.
+     * fragments/app/generation-images.html), niente redirect.
      */
     @DeleteMapping("/{id}/images/{filename}")
     public String deleteImage(@PathVariable Long id, @PathVariable String filename,
@@ -631,17 +631,17 @@ public class GenerationController {
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
         model.addAttribute("generationsPage", generationsPage);
-        return "fragments/generation-images :: grid(generation=${generation}, conversationId=${conversationId}, generationsPage=${generationsPage})";
+        return "fragments/app/generation-images :: grid(generation=${generation}, conversationId=${conversationId}, generationsPage=${generationsPage})";
     }
 
     /**
      * Inverte la star di un file (vedi GenerationService#toggleFavourite) e
      * ritorna il solo bottone aggiornato (hx-swap="outerHTML" sul bottone
-     * stesso, fragments/button.html :: starOverlay). variant sceglie la
+     * stesso, fragments/core/button.html :: starOverlay). variant sceglie la
      * posizione dell'icona (card di galleria vs griglia del dettaglio).
      * refresh=true (tab "Preferiti"): la card deve sparire togliendo la
      * star, quindi si emette "gallery-update" (HX-Trigger), lo stesso
-     * evento che il wrapper di fragments/gallery.html :: content ascolta
+     * evento che il wrapper di fragments/app/gallery.html :: content ascolta
      * gia' per gli aggiornamenti SSE.
      */
     @PostMapping("/{id}/favourite")

@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Endpoint JSON per il Web Component &lt;deep-chat&gt; (pagina servita da
- * DeepChatController, vedi templates/deep-chat.html). Deep Chat parla
+ * DeepChatController, vedi templates/app/deep-chat.html). Deep Chat parla
  * JSON, non fragment HTML: e' l'eccezione prevista da CLAUDE.md per un
  * "componente complesso" montato come Web Component isolato su un div.
  * Il contratto richiesta/risposta qui sotto ricalca il default di

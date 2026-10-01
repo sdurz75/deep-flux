@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 /**
- * Espone a fragments/live-events.html i nomi degli eventi SSE dell'app: {@code app.push.client-events} (ri-dispatchati come
+ * Espone a fragments/core/live-events.html i nomi degli eventi SSE dell'app: {@code app.push.client-events} (ri-dispatchati come
  * CustomEvent su {@code document.body}) e {@code app.push.reconnect-events} (quelli da ri-dispatchare alla riconnessione, perche'
  * gli eventi emessi a connessione caduta sono persi). {@code system-event} (toast) e' sempre gestito dal core.
  */

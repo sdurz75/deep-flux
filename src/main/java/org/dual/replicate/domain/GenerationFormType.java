@@ -10,7 +10,7 @@ package org.dual.replicate.domain;
  * migrazione che estende l'ENUM della colonna FORM_TYPE), un nuovo
  * fragment fragments/generation-params-&lt;form&gt;.html, un nuovo
  * GenerationParameterHandler e un nuovo {@code th:case} nel guscio
- * fragments/generation-params.html. Ogni form-type dichiara anche il
+ * fragments/app/generation-params.html. Ogni form-type dichiara anche il
  * {@link GenerationKind} del media che produce e, se prende un'immagine
  * sorgente, la chiave Replicate sotto cui va inviata ({@link #sourceImageParam()}:
  * "image" per p-video e flux-dev-lora, "input_image" per kontext-dev). {@link #isEdit()}

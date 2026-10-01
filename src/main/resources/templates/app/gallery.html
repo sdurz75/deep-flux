@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{gallery.title}">Galleria</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <h1 th:text="#{gallery.title}">Galleria</h1>
+
+    <!-- Messaggio "galleria vuota" spostato dentro fragments/app/gallery :: content, vedi commento li'. -->
+    <div id="gallery-content">
+        <div th:replace="~{fragments/app/gallery :: content(${items}, ${tab}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
+    </div>
+
+    <div th:replace="~{fragments/core/live-events :: connect}"></div>
+</div>
+</body>
+</html>

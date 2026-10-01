@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Select "Pines" (Alpine + Tailwind) usata per OGNI selezione dell'app: mai una <select> nuda nei template
+  (TemplateRenderingTests.everySelectIsWrappedByThePinesSelectComponent lo verifica).
+
+  Principio: la <select> nativa RESTA nel DOM (nascosta con sr-only) ed e' la fonte di verita': FormData, hx-trigger="change"/
+  hx-include/hx-get, required, x-model, il sync/restore di deep-chat.html e i test sulle <option selected> continuano a funzionare.
+  Questo componente e' solo la UI sopra: legge le <option> dalla nativa, scrive il valore con gli eventi nativi input+change.
+  Un cambio di valore da codice (senza eventi) va annunciato con l'evento "pines-select:sync" sulla <select>.
+
+  Uso (la select conserva id/name/hx-*/required/opzioni invariati):
+
+    <div class="relative" x-data="pinesSelect" x-bind="root">
+        <select id="..." name="..." class="sr-only" tabindex="-1" aria-hidden="true"> ...<option>... </select>
+        <div th:replace="~{fragments/core/select :: ui}"></div>
+    </div>
+
+  Il componente Alpine ('pinesSelect') e' registrato da :: script, incluso nell'<head> di layout.html PRIMA del core Alpine (alpine:init).
+-->
+
+<script th:fragment="script">
+    document.addEventListener('alpine:init', function () {
+        Alpine.data('pinesSelect', function () {
+            return {
+                open: false,
+                items: [],
+                value: '',
+                label: '',
+                active: -1,
+                query: '',
+                queryTimer: null,
+                native: null,
+
+                // Chiusura con click fuori / Escape: su x-bind del wrapper, cosi' un click sul bottone resta "dentro".
+                root: {
+                    ['@click.outside']() { this.open = false; },
+                    ['@keydown.escape']() { this.open = false; }
+                },
+
+                init() {
+                    var self = this;
+                    this.native = this.$el.querySelector('select');
+                    ['input', 'change', 'pines-select:sync'].forEach(function (type) {
+                        self.native.addEventListener(type, function () { self.read(); });
+                    });
+                    // Un click su <label for=id> porta il focus alla nativa nascosta: lo si passa al bottone.
+                    this.native.addEventListener('focus', function () { self.$refs.button.focus(); });
+                    new MutationObserver(function () { self.read(); }).observe(this.native, {
+                        childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'selected', 'label']
+                    });
+                    this.read();
+                    // x-model/th:selected possono valorizzare la nativa dopo questo init.
+                    this.$nextTick(function () { self.read(); self.labelButton(); });
+                },
+
+                // Nome accessibile del bottone = la <label for=id> della nativa (se c'e').
+                labelButton() {
+                    var label = this.native.id ? document.querySelector('label[for="' + this.native.id + '"]') : null;
+                    if (!label) { return; }
+                    if (!label.id) { label.id = this.native.id + '-label'; }
+                    this.$refs.button.setAttribute('aria-labelledby', label.id);
+                },
+
+                read() {
+                    var n = this.native;
+                    if (!n) { return; }
+                    this.items = Array.prototype.map.call(n.options, function (o) {
+                        return { value: o.value, label: o.text.trim(), disabled: o.disabled, title: o.title || '' };
+                    });
+                    this.value = n.value;
+                    this.label = n.selectedIndex >= 0 ? n.options[n.selectedIndex].text.trim() : '';
+                },
+
+                toggle() {
+                    if (this.open) { this.open = false; } else { this.show(); }
+                },
+
+                show() {
+                    this.read();
+                    this.active = this.native.selectedIndex;
+                    this.open = true;
+                    this.reveal();
+                },
+
+                choose(index) {
+                    var item = this.items[index];
+                    if (!item || item.disabled) { return; }
+                    var changed = this.native.value !== item.value;
+                    this.native.value = item.value;
+                    if (changed) {
+                        // "input" per i listener delegati (sync di deep-chat), "change" per htmx e x-model.
+                        this.native.dispatchEvent(new Event('input', { bubbles: true }));
+                        this.native.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    this.read();
+                    this.open = false;
+                    this.$refs.button.focus();
+                },
+
+                // Porta nel campo visivo la voce attiva (liste lunghe).
+                reveal() {
+                    var self = this;
+                    this.$nextTick(function () {
+                        var el = self.$refs.list && self.$refs.list.querySelector('[data-index="' + self.active + '"]');
+                        if (el) { el.scrollIntoView({ block: 'nearest' }); }
+                    });
+                },
+
+                move(step) {
+                    var count = this.items.length;
+                    if (!count) { return; }
+                    var next = this.active;
+                    for (var i = 0; i < count; i++) {
+                        next = (next + step + count) % count;
+                        if (!this.items[next].disabled) { break; }
+                    }
+                    this.active = next;
+                    this.reveal();
+                },
+
+                onKey(event) {
+                    switch (event.key) {
+                        case 'ArrowDown':
+                        case 'ArrowUp':
+                            event.preventDefault();
+                            if (!this.open) { this.show(); } else { this.move(event.key === 'ArrowDown' ? 1 : -1); }
+                            break;
+                        case 'Home':
+                        case 'End':
+                            if (this.open) {
+                                event.preventDefault();
+                                this.active = event.key === 'Home' ? -1 : 0;
+                                this.move(event.key === 'Home' ? 1 : -1);
+                            }
+                            break;
+                        case 'Enter':
+                        case ' ':
+                            if (event.key === ' ' && this.query !== '') { this.typeahead(event); break; }
+                            event.preventDefault();
+                            if (this.open) { this.choose(this.active); } else { this.show(); }
+                            break;
+                        case 'Tab':
+                            this.open = false;
+                            break;
+                        default:
+                            this.typeahead(event);
+                    }
+                },
+
+                // Digitando si salta alla prima voce che inizia con le lettere scritte (buffer azzerato dopo 600 ms).
+                typeahead(event) {
+                    if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) { return; }
+                    var self = this;
+                    this.query += event.key.toLowerCase();
+                    clearTimeout(this.queryTimer);
+                    this.queryTimer = setTimeout(function () { self.query = ''; }, 600);
+                    for (var i = 0; i < this.items.length; i++) {
+                        if (!this.items[i].disabled && this.items[i].label.toLowerCase().indexOf(this.query) === 0) {
+                            if (!this.open) { this.show(); }
+                            this.active = i;
+                            this.reveal();
+                            break;
+                        }
+                    }
+                }
+            };
+        });
+    });
+</script>
+
+<!--
+  UI del componente: va dentro al wrapper x-data="pinesSelect" accanto alla <select> nativa (vedi sopra). Il bottone sovrascrive il
+  "button" del layer base (utility > base) e non e' un bottone d'azione: per questo non passa da fragments/core/button.html.
+-->
+<th:block th:fragment="ui">
+    <button type="button" x-ref="button"
+            @click="toggle()" @keydown="onKey($event)"
+            aria-haspopup="listbox" :aria-expanded="open"
+            class="flex w-full items-center justify-between gap-2 rounded-md border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark px-3 py-2 text-left text-ink dark:text-ink-dark hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-accent dark:focus:ring-accent-dark">
+        <span class="truncate" x-text="label">&nbsp;</span>
+        <svg class="h-4 w-4 shrink-0 text-ink-muted dark:text-ink-muted-dark transition-transform" :class="open ? 'rotate-180' : ''"
+             xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"/>
+        </svg>
+    </button>
+    <ul x-show="open" x-cloak x-ref="list" x-transition.opacity.duration.100ms
+        role="listbox" tabindex="-1"
+        class="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark py-1 shadow-lg">
+        <template x-for="(item, index) in items" :key="index">
+            <li role="option" :data-index="index" :aria-selected="item.value === value" :aria-disabled="item.disabled"
+                :title="item.title"
+                @click="choose(index)" @mouseenter="if (!item.disabled) active = index"
+                class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm text-ink dark:text-ink-dark"
+                :class="(index === active ? 'bg-surface dark:bg-surface-dark ' : '') + (item.disabled ? 'cursor-not-allowed opacity-50' : '') + (item.value === value ? ' font-semibold' : '')">
+                <span class="truncate" x-text="item.label"></span>
+                <svg x-show="item.value === value" class="h-4 w-4 shrink-0 text-accent dark:text-accent-dark"
+                     xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/>
+                </svg>
+            </li>
+        </template>
+    </ul>
+</th:block>
+
+</body>
+</html>

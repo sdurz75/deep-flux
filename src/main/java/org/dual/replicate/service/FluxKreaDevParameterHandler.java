@@ -83,6 +83,6 @@ public class FluxKreaDevParameterHandler implements GenerationParameterHandler {
 
     @Override
     public String fragmentName() {
-        return "fragments/generation-params-flux-krea-dev :: fields";
+        return "fragments/app/generation-params-flux-krea-dev :: fields";
     }
 }

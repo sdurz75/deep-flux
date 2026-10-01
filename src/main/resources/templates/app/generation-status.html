@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{generationStatus.heading(${generation.id})}">Generazione #1</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <!--
+      "Indietro" dipende da dove si e' arrivati (vedi
+      GenerationController#status): dalla galleria contestuale di una
+      conversazione /deep-chat (conversationId presente) torna li', dal
+      listato /generations (generationsPage presente) torna alla pagina
+      da cui si e' cliccato, altrimenti (galleria globale o generazione
+      appena creata dal form diretto) torna a /gallery.
+    -->
+    <p th:if="${conversationId != null}"><a th:href="@{/deep-chat/{id}(id=${conversationId})}">&larr; <span th:text="#{generationDetail.backLink.deepChat}">Torna alla conversazione</span></a></p>
+    <p th:if="${conversationId == null and generationsPage != null}"><a th:href="@{/generations(page=${generationsPage})}">&larr; <span th:text="#{generationDetail.backLink.generations}">Torna al listato</span></a></p>
+    <p th:if="${conversationId == null and generationsPage == null}"><a th:href="@{/gallery}">&larr; <span th:text="#{generationDetail.backLink}">Torna alla galleria</span></a></p>
+
+    <h1 th:text="#{generationStatus.heading(${generation.id})}">Generazione #1</h1>
+    <p><em th:text="${generation.prompt}">prompt</em></p>
+
+    <div th:replace="~{fragments/app/generation :: status}"></div>
+
+    <!-- Solo per i toast d'errore (system-event): un poll che fallisce ripetutamente non ha altro canale su questa pagina. -->
+    <div th:replace="~{fragments/core/live-events :: connect}"></div>
+</div>
+</body>
+</html>

@@ -96,7 +96,7 @@ public class FluxDevLoraParameterHandler implements GenerationParameterHandler {
 
     @Override
     public String fragmentName() {
-        return "fragments/generation-params-flux-dev-lora :: fields";
+        return "fragments/app/generation-params-flux-dev-lora :: fields";
     }
 
     /** Testo ripulito, {@code null} se assente o vuoto (la chiave viene omessa e vale il default di Replicate). */

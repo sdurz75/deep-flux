@@ -77,6 +77,6 @@ public class FluxKontextDevParameterHandler implements GenerationParameterHandle
 
     @Override
     public String fragmentName() {
-        return "fragments/generation-params-flux-kontext-dev :: fields";
+        return "fragments/app/generation-params-flux-kontext-dev :: fields";
     }
 }

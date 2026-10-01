@@ -70,7 +70,7 @@ class TemplateRenderingTests {
     }
 
     /**
-     * fragments/live-events.html non ha nomi di eventi hardcoded: li legge da app.push.client-events / reconnect-events
+     * fragments/core/live-events.html non ha nomi di eventi hardcoded: li legge da app.push.client-events / reconnect-events
      * (core.push.PushModelAdvice), e "system-event" (toast) e' sempre gestito.
      */
     @Test
@@ -85,7 +85,7 @@ class TemplateRenderingTests {
 
     /**
      * Regressione: th:case e th:replace sullo STESSO tag in
-     * fragments/generation-params.html non filtravano nulla (l'ordine di
+     * fragments/app/generation-params.html non filtravano nulla (l'ordine di
      * precedenza degli attributi di Thymeleaf processa th:replace PRIMA
      * di th:switch/th:case), quindi un caricamento pieno di /generations/new
      * (o /deep-chat/{id}, stesso fragment condiviso) concatenava TUTTI E
@@ -142,7 +142,7 @@ class TemplateRenderingTests {
 
     /**
      * Endpoint htmx-only scatenato dalla select modello ad ogni cambio
-     * (vedi fragments/generation-params.html): deve ritornare i campi
+     * (vedi fragments/app/generation-params.html): deve ritornare i campi
      * del form-type di quel modello, non una pagina intera.
      */
     @Test
@@ -664,7 +664,7 @@ class TemplateRenderingTests {
     /**
      * Copre sia il ramo vuoto (nessuna generazione riuscita in questa
      * conversazione: messaggio i18n) sia quello pieno (grid riusata da
-     * fragments/gallery.html, vedi CLAUDE.md/il piano di questa feature)
+     * fragments/app/gallery.html, vedi CLAUDE.md/il piano di questa feature)
      * dell'accordion "galleria" di /deep-chat/{id} - in particolare che
      * il th:block che avvolge il th:replace condizionale funzioni
      * davvero (th:if/th:unless sullo STESSO tag di th:replace non
@@ -690,9 +690,9 @@ class TemplateRenderingTests {
 
         assertThat(body).contains("/images/dc-1.png");
         assertThat(body).doesNotContain("Nessuna immagine ancora in questa conversazione");
-        // Overlay "Scarica" sul thumbnail (fragments/button.html :: downloadOverlay).
+        // Overlay "Scarica" sul thumbnail (fragments/core/button.html :: downloadOverlay).
         assertThat(body).contains("download=\"dc-1.png\"");
-        // Il link di dettaglio della card contestuale porta il conversationId (vedi fragments/gallery-card.html), per il link "indietro" del dettaglio (fragments/generation.html :: status, ora su /generations/{id} - vedi CLAUDE.md).
+        // Il link di dettaglio della card contestuale porta il conversationId (vedi fragments/app/gallery-card.html), per il link "indietro" del dettaglio (fragments/app/generation.html :: status, ora su /generations/{id} - vedi CLAUDE.md).
         assertThat(body).contains("/generations/" + generation.getId() + "?conversationId=" + conversation.getId());
 
         ChatConversation otherConversation = chatConversationRepository.save(new ChatConversation());
@@ -717,7 +717,7 @@ class TemplateRenderingTests {
     /**
      * Una pagina puo' smettere di esistere fra un refresh e l'altro
      * (cancellazione in blocco dell'ultima pagina, vedi
-     * GalleryController#deleteSelected): il refresh SSE (fragments/gallery.html,
+     * GalleryController#deleteSelected): il refresh SSE (fragments/app/gallery.html,
      * hx-get="@{/gallery(page=...)}") ri-richiede esattamente la pagina
      * gia' servita, che potrebbe non esistere piu' - GalleryController#list
      * deve ripiegare sull'ultima pagina rimasta, non mostrare "nessuna
@@ -754,7 +754,7 @@ class TemplateRenderingTests {
 
     /**
      * Una Generation con num_outputs > 1 deve mostrare TUTTE le immagini nel
-     * dettaglio (galleria con lightbox, vedi fragments/generation-images.html),
+     * dettaglio (galleria con lightbox, vedi fragments/app/generation-images.html),
      * ciascuna con il proprio bottone di cancellazione - non solo la prima.
      * @Transactional: stesso motivo di bareDeepChatRedirectsToAConversation
      * sopra, questa riga (con le sue 3 immagini) non deve restare nel DB di
@@ -810,7 +810,7 @@ class TemplateRenderingTests {
     }
 
     /**
-     * Push di seed/prompt dal dettaglio (vedi fragments/generation.html
+     * Push di seed/prompt dal dettaglio (vedi fragments/app/generation.html
      * :: status, ramo SUCCEEDED): il prompt punta sempre solo a
      * /generations/new, il seed sia a /generations/new sia a /deep-chat -
      * verso la STESSA conversazione quando conversationId e' presente
@@ -891,7 +891,7 @@ class TemplateRenderingTests {
      * listato /generations (generationsPage) torna a quella pagina,
      * dalla galleria contestuale di una conversazione /deep-chat
      * (conversationId sulla query string, propagato da
-     * fragments/gallery-card.html) torna a quella conversazione.
+     * fragments/app/gallery-card.html) torna a quella conversazione.
      */
     @Test
     void generationDetailBackLinkDependsOnOrigin() throws Exception {
@@ -918,7 +918,7 @@ class TemplateRenderingTests {
 
     /**
      * Cancellazione SINGOLA dalla pagina di dettaglio (vedi
-     * fragments/generation.html :: status, ramo SUCCEEDED/FAILED): dopo
+     * fragments/app/generation.html :: status, ramo SUCCEEDED/FAILED): dopo
      * la cancellazione la pagina corrente non esiste piu', quindi il
      * controller porta il browser a /gallery (default, nessuna
      * provenienza specifica) via l'header HX-Redirect (non uno swap di
@@ -980,7 +980,7 @@ class TemplateRenderingTests {
 
     /**
      * Regressione: una tab che sta ancora pollando GET /generations/{id}
-     * ogni 2s (vedi fragments/generation.html) non deve incappare in un
+     * ogni 2s (vedi fragments/app/generation.html) non deve incappare in un
      * 500 quando la generazione sparisce nel frattempo (cancellata da
      * un'altra tab/dal listato - vedi GenerationController#status).
      * Simula la race cancellando direttamente la riga via repository
@@ -1015,7 +1015,7 @@ class TemplateRenderingTests {
     }
 
     /**
-     * Ramo in corso di fragments/generation.html :: status: placeholder con bottone
+     * Ramo in corso di fragments/app/generation.html :: status: placeholder con bottone
      * "Interrompi" (hx-post verso /generations/{id}/cancel); cancelDisabled=true lo
      * disabilita e viene propagato nell'hx-get del polling. Renderizza il fragment
      * direttamente col template engine (NON via GET /generations/{id}: refresh()
@@ -1059,14 +1059,14 @@ class TemplateRenderingTests {
         context.setVariable("conversationId", null);
         context.setVariable("generationsPage", null);
         context.setVariable("cancelDisabled", cancelDisabled ? Boolean.TRUE : null);
-        return templateEngine.process("fragments/generation", java.util.Set.of("status"), context);
+        return templateEngine.process("fragments/app/generation", java.util.Set.of("status"), context);
     }
 
     /**
-     * Griglia (globale o contestuale, stesso fragment fragments/gallery.html
+     * Griglia (globale o contestuale, stesso fragment fragments/app/gallery.html
      * :: grid): checkbox di selezione + bottone "Elimina selezionate"
      * disabilitato di default (nessuna selezione al primo caricamento,
-     * vedi fragments/button.html :: dangerSelectable) devono comparire
+     * vedi fragments/core/button.html :: dangerSelectable) devono comparire
      * nel markup renderizzato.
      */
     @Test
@@ -1083,7 +1083,7 @@ class TemplateRenderingTests {
         assertThat(body).contains("name=\"ids\"", "x-model=\"selectedIds\"", ":disabled=\"selectedIds.length === 0\"",
                 "hx-post=\"/gallery/delete-selected\"");
         // Attributo "disabled" LETTERALE (non solo il binding Alpine ":disabled"): senza, il bottone sarebbe
-        // cliccabile per un istante al primo paint, prima che Alpine inizializzi - vedi fragments/button.html.
+        // cliccabile per un istante al primo paint, prima che Alpine inizializzi - vedi fragments/core/button.html.
         assertThat(body).containsPattern("<button[^>]*\\bdisabled\\b[^>]*hx-post=\"/gallery/delete-selected\"[^>]*>");
     }
 
@@ -1181,7 +1181,7 @@ class TemplateRenderingTests {
 
     /**
      * Cancellazione della sola selezione (checkbox multiple, vedi
-     * fragments/generations.html :: list): stesso principio di
+     * fragments/app/generations.html :: list): stesso principio di
      * deleteSelectedRemovesEveryGeneration per /gallery, ma qui una
      * terza generazione NON selezionata deve sopravvivere.
      */
@@ -1202,7 +1202,7 @@ class TemplateRenderingTests {
 
     /**
      * Cancellazione di riga singola dal listato (bottone "Elimina" di
-     * fragments/generation-row.html): a differenza di delete-selected,
+     * fragments/app/generation-row.html): a differenza di delete-selected,
      * ignora qualunque id passato come parametro form-wide - qui non ne
      * passiamo nessuno, la sola presenza dell'id nel path deve bastare.
      */
@@ -1277,7 +1277,7 @@ class TemplateRenderingTests {
      * anche il comportamento di merge di thymeleaf-layout-dialect
      * sull'attributo lang (th:lang dinamico sul decoratore, nessun
      * lang letterale sulle pagine, altrimenti vincerebbe sempre quello
-     * letterale - vedi fragments/layout.html).
+     * letterale - vedi fragments/core/layout.html).
      */
     @ParameterizedTest
     @CsvSource({
@@ -1296,7 +1296,7 @@ class TemplateRenderingTests {
     }
 
     /**
-     * Ogni selezione dell'app usa la select Pines (fragments/select.html): la <select> nativa resta nel DOM, ma sempre dentro il
+     * Ogni selezione dell'app usa la select Pines (fragments/core/select.html): la <select> nativa resta nel DOM, ma sempre dentro il
      * wrapper x-data="pinesSelect", nascosta (sr-only) e con la UI sotto. Guardia STRUTTURALE sui sorgenti dei template (cosi'
      * copre anche pagine non renderizzabili nei test, come /search con app.search.enabled=false): una select nuda aggiunta in
      * futuro fa fallire questo test.
@@ -1316,7 +1316,7 @@ class TemplateRenderingTests {
             var selects = java.util.regex.Pattern.compile("<select\\b").matcher(html).results().count();
             var wrappers = java.util.regex.Pattern.compile("x-data=\"pinesSelect\"").matcher(html).results().count();
             var hidden = java.util.regex.Pattern.compile("class=\"sr-only\" tabindex=\"-1\" aria-hidden=\"true\"").matcher(html).results().count();
-            var uis = java.util.regex.Pattern.compile("fragments/select :: ui").matcher(html).results().count();
+            var uis = java.util.regex.Pattern.compile("fragments/core/select :: ui").matcher(html).results().count();
             assertThat(wrappers).as("wrapper pinesSelect in %s", resource.getFilename()).isEqualTo(selects);
             assertThat(hidden).as("select sr-only in %s", resource.getFilename()).isEqualTo(selects);
             assertThat(uis).as("UI del componente in %s", resource.getFilename()).isEqualTo(selects);

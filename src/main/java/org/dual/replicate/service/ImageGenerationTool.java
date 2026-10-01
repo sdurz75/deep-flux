@@ -137,7 +137,7 @@ public class ImageGenerationTool {
      * mappa vuota serializzata resterebbe comunque una stringa non
      * bianca, che GenerationService#create (blankToNull) non scarterebbe
      * - finirebbe persistita e mostrata nel dettaglio generazione
-     * (fragments/generation.html :: status, th:if su parametersJson) come
+     * (fragments/app/generation.html :: status, th:if su parametersJson) come
      * un vuoto "Parametri: {}" invece di essere omessa del tutto.
      */
     private String buildParametersJson(ToolContext toolContext) {

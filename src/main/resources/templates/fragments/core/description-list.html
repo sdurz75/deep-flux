@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Termine (<dt>) di una lista di definizioni: le classi erano ripetute
+  identiche sui <dt> di fragments/app/generation.html :: status (ramo
+  SUCCEEDED, il dettaglio di /generations/{id} - vedi CLAUDE.md), unico
+  chiamante oggi. Il <dd> gemello resta inline li' (contenuto troppo
+  eterogeneo per un parametro semplice: uno wrappa un <pre> col JSON dei
+  parametri) - non un fragment "field(label, value)" per non forzare un
+  caso che non calza a tutti i chiamanti. Non una regola @layer base su
+  "dt"/"dd" nudi (alternativa usata per <label>, vedi
+  fragments/core/layout.html): esiste gia' una regola "dd { @apply ml-[40px]; }"
+  nello stesso layer, e il class="ms-0 mt-1" sui <dd> del chiamante esiste
+  apposta per annullarla - una seconda regola bare-tag su dt/dd
+  introdurrebbe un conflitto di specificita' pari, deciso dall'ordine nel
+  foglio generato invece che dal DOM.
+-->
+<dt th:fragment="term(text)"
+    class="mt-4 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark"
+    th:text="${text}">Termine</dt>
+
+</body>
+</html>

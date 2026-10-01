@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 /**
- * Unico endpoint SSE dell'app: le pagine vi si connettono (vedi fragments/live-events.html) per ricevere i push invece di
+ * Unico endpoint SSE dell'app: le pagine vi si connettono (vedi fragments/core/live-events.html) per ricevere i push invece di
  * fare polling. La sorgente Reactor (Flux/Sinks) e' {@code PushService}.
  * <p>
  * Il tipo di ritorno Flux non fa di questo un endpoint WebFlux: resta un {@code @RestController} Spring MVC ordinario su

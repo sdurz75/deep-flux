@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campi del form-type FLUX_KREA_DEV (vedi GenerationFormType/
+  FluxKreaDevParameterHandler): schema reale di
+  black-forest-labs/flux-krea-dev (GET /v1/models/...), esclusi "image"
+  (image-to-image, nessuna UI di upload in questo progetto) e
+  "disable_safety_checker" (mai esposto in UI: forzato a true per ogni
+  modello da GenerationService#create, non un campo di questo form-type).
+  Parametro-meno come gli altri due form-type: legge i valori correnti
+  dal Model (nomi = chiave Replicate del campo), non da parametri di
+  fragment.
+
+  megapixels ha SOLE 2 opzioni (0.25/1) - a differenza del select a 5
+  opzioni di generation-params-flux-2-klein-9b.html, questo modello non
+  accetta 0.5/2/4 (verificato dal vivo): non riusabile da li'.
+-->
+<th:block th:fragment="fields">
+
+    <div>
+        <label for="param-aspect-ratio" th:text="#{generationParams.label.aspectRatio}">Aspect ratio</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-aspect-ratio" name="aspect_ratio" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
+                <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
+                <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
+                <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
+                <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
+                <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
+                <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
+                <option value="5:4" th:selected="${aspect_ratio == '5:4'}">5:4</option>
+                <option value="4:5" th:selected="${aspect_ratio == '4:5'}">4:5</option>
+                <option value="21:9" th:selected="${aspect_ratio == '21:9'}">21:9</option>
+                <option value="9:21" th:selected="${aspect_ratio == '9:21'}">9:21</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+    </div>
+
+    <div>
+        <label for="param-megapixels" th:text="#{generationParams.label.megapixels}">Megapixel</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-megapixels" name="megapixels" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="0.25" th:selected="${megapixels == '0.25'}">0.25</option>
+                <option value="1" th:selected="${megapixels == '1'}">1</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+    </div>
+
+    <div>
+        <label for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
+        <input type="number" id="param-num-outputs" name="num_outputs" min="1" max="4" th:value="${num_outputs}">
+    </div>
+
+    <div>
+        <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
+        <input type="number" id="param-steps" name="num_inference_steps" min="1" max="50" th:value="${num_inference_steps}">
+    </div>
+
+    <div>
+        <label for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
+        <input type="number" id="param-guidance" name="guidance" min="0" max="10" step="0.1" th:value="${guidance}">
+    </div>
+
+    <div>
+        <label for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-output-format" name="output_format" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
+                <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
+                <option value="png" th:selected="${output_format == 'png'}">png</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+    </div>
+
+    <div>
+        <label for="param-output-quality" th:text="#{generationParams.label.quality}">Qualita'</label>
+        <input type="number" id="param-output-quality" name="output_quality" min="0" max="100" th:value="${output_quality}">
+    </div>
+
+    <div>
+        <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
+        <input type="number" id="param-seed" name="seed" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
+    </div>
+
+    <div>
+        <label for="param-go-fast" th:text="#{generationParams.label.goFast}">Go fast</label>
+        <input type="checkbox" id="param-go-fast" name="go_fast" value="true"
+               th:checked="${go_fast == true or go_fast == 'true'}">
+    </div>
+
+</th:block>
+
+</body>
+</html>

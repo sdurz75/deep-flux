@@ -1,6 +1,6 @@
 // Sorgente UNICA della config Tailwind. Consumata da:
 //  - Tailwind CLI (profilo Maven "tailwind"): `module.exports` in Node;
-//  - Play CDN (default, fragments/layout.html): caricata come risorsa
+//  - Play CDN (default, fragments/core/layout.html): caricata come risorsa
 //    statica con uno shim `var module = {}` e assegnata a `tailwind.config`.
 // Per questo deve restare un singolo `module.exports = {...}` senza require().
 // `content` e' ignorato dal Play CDN (scansiona il DOM).

@@ -5,13 +5,13 @@
 <!--
   Bottoni SPECIFICI dell'app (generazione di immagini/video, galleria, deep-chat, LoRA): reimposta ai default, AI enhance,
   Interrompi, Nascondi/Mostra, overlay dei thumbnail (Anima, Modifica, Scarica, Preferiti) e "Aggiungi al prompt". Le stesse
-  regole dei bottoni generici di fragments/button.html (parametri nominati, mai un <button> a mano, classi solo qui); i
-  bottoni GENERICI (primary/neutral/danger/dialog*/toggle...) restano in fragments/button.html, nel core.
+  regole dei bottoni generici di fragments/core/button.html (parametri nominati, mai un <button> a mano, classi solo qui); i
+  bottoni GENERICI (primary/neutral/danger/dialog*/toggle...) restano in fragments/core/button.html, nel core.
 -->
 
 <!--
   Bottone "reimposta ai default" del pannello impostazioni di /deep-chat
-  (fragments/generation-params.html, vedi deep-chat.html): tocca DUE
+  (fragments/app/generation-params.html, vedi deep-chat.html): tocca DUE
   cose in un solo click, da cui il comportamento hardcoded invece di un
   parametro in piu' (stesso principio di dangerSelectable/themeToggle
   sopra - singolo chiamante, mai riusato altrove per ora). hx-params="none"
@@ -38,7 +38,7 @@
 
 <!--
   Icona "AI enhance" sovrapposta alla textarea del prompt in
-  fragments/generate-form.html :: promptField (unico chiamante: hx-post/
+  fragments/app/generate-form.html :: promptField (unico chiamante: hx-post/
   hx-target/hx-swap sono percio' hardcoded qui, non parametrizzati -
   stesso principio gia' visto in dangerSelectable/resetToDefaults sopra
   per bottoni con un solo punto di chiamata). type="button" e' CRITICO:
@@ -52,9 +52,9 @@
   per un'icona esiste altrove nel progetto (il pencil di
   conversation-list.html usa un colore muted, non opacity): si estende
   qui l'idioma piu' vicino gia' adottato, read-only:opacity-60
-  (fragments/generation-params-flux-lora-ff3.html), a piena opacita' su
+  (fragments/app/generation-params-flux-lora-ff3.html), a piena opacita' su
   hover/focus - hover:opacity-100 esplicito perche' altrimenti la regola
-  globale "button:hover{opacity:.9}" del layer base (fragments/layout.html)
+  globale "button:hover{opacity:.9}" del layer base (fragments/core/layout.html)
   vincerebbe per specificita' su una bare utility opacity-60. Lo stato
   disabled riusa invece l'esatto standard gia' in uso altrove
   (disabled:opacity-40 disabled:cursor-not-allowed, vedi dangerSelectable
@@ -82,7 +82,7 @@
 
 <!--
   Bottone "Interrompi" del placeholder di generazione
-  (fragments/generation-placeholder.html). Stili INLINE, non Tailwind:
+  (fragments/app/generation-placeholder.html). Stili INLINE, non Tailwind:
   lo stesso markup finisce anche dentro lo shadow DOM di <deep-chat>, che
   non vede le classi della pagina. hx-post/hx-confirm servono alla pagina
   htmx (hx-target/hx-swap sul div di polling #generation-status); in chat

@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * Il lato HTTP/htmx dei toast: aggiunge alla risposta l'header {@code HX-Trigger} che fa comparire il toast (evento
- * {@code system-toast}, vedi fragments/toast.html) o altri eventi client, SENZA sovrascrivere quelli gia' presenti. Sta nel kit
+ * {@code system-toast}, vedi fragments/core/toast.html) o altri eventi client, SENZA sovrascrivere quelli gia' presenti. Sta nel kit
  * web e non nella porta del registro eventi (non conosce il protocollo HTTP); non dipende dagli eventi: riceve un {@link ToastMessage}.
  */
 @Component

@@ -1,6 +1,6 @@
 /*
  * Input della build Tailwind (profilo Maven "tailwind"). Il blocco @layer base
- * e' DUPLICATO in fragments/layout.html (<style type="text/tailwindcss">, usato
+ * e' DUPLICATO in fragments/core/layout.html (<style type="text/tailwindcss">, usato
  * dal Play CDN in sviluppo): tenerli allineati.
  */
 @tailwind base;

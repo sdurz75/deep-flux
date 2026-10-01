@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Frammenti di /search (interfaccia manuale al vector store, SemanticSearchController): statistiche, risultati di ricerca,
+  lista unica (classifica o sfoglia), riga documento, form delle note. Stesso pattern pagina/fragment del resto dell'app (vedi
+  fragments/core/system-events.html): la pagina intera li include, htmx li ri-scambia da soli. Nessun JS: <details> nativo + htmx.
+  Le note (type=note) sono modificabili; i documenti derivati (generation/chat/conversation) sono in sola lettura, si puo' solo
+  ri-embeddarli (la loro fonte di verita' e' il DB, la riconciliazione li riporta al testo sorgente).
+-->
+
+<!-- Statistiche. oob=true: risposta fuori banda (id search-stats), per aggiornare i conteggi dopo creazione/cancellazione. -->
+<section th:fragment="stats(stats, oob)" id="search-stats" th:attr="hx-swap-oob=${oob} ? 'true'"
+         class="mt-4 border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <dl class="m-0 flex flex-wrap gap-x-6 gap-y-1 text-[0.9rem]">
+            <div><dt class="inline text-ink-muted dark:text-ink-muted-dark" th:text="#{search.stats.total}">Totale</dt>
+                <dd class="inline ml-1 font-semibold" th:text="${stats.total}">0</dd></div>
+            <div th:each="c : ${stats.counts}"><dt class="inline text-ink-muted dark:text-ink-muted-dark" th:text="#{'search.type.' + ${c.key}}">tipo</dt>
+                <dd class="inline ml-1" th:text="${c.value}">0</dd></div>
+            <div><dt class="inline text-ink-muted dark:text-ink-muted-dark" th:text="#{search.stats.dimensions}">Dimensioni</dt>
+                <dd class="inline ml-1" th:text="${stats.dimensions}">384</dd></div>
+        </dl>
+        <div class="flex items-center gap-3">
+            <span th:if="${stats.running}" class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{search.stats.running}">Riconciliazione in corso</span>
+            <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{search.stats.reindex}, hxGet=null,
+                        hxPost=@{/search/reindex}, hxTarget='#search-stats', hxSwap='outerHTML', extraClass='px-3 py-1.5 text-[0.85rem]')}">Riconcilia ora</button>
+        </div>
+    </div>
+    <p class="mt-2 mb-0 text-[0.75rem] text-ink-muted dark:text-ink-muted-dark break-all">
+        <span th:text="#{search.stats.model}">Modello</span>: <code th:text="${stats.modelId}">modello</code>
+    </p>
+</section>
+
+<!--
+  L'unica lista di /search (target #search-results): classifica per significato (con testo) o documenti recenti (senza), gia'
+  filtrata e paginata dal controller. baseQuery = filtri correnti gia' codificati: la paginazione ci accoda &page=N.
+-->
+<th:block th:fragment="results(hits, total, query, error, baseQuery, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
+    <th:block th:if="${error}">
+        <p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
+    </th:block>
+    <th:block th:unless="${error}">
+        <p th:if="${#lists.isEmpty(hits)}" th:text="${#strings.isEmpty(query)} ? #{search.list.empty} : #{search.results.empty}">Nessun risultato.</p>
+        <th:block th:unless="${#lists.isEmpty(hits)}">
+            <p class="mt-0 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{search.results.count(${total})}">12 risultati</p>
+            <ul class="list-none p-0 flex flex-col gap-3">
+                <th:block th:each="h : ${hits}"><th:block th:replace="~{::row(hit=${h})}"></th:block></th:block>
+            </ul>
+            <div th:replace="~{fragments/core/pagination :: nav('/search/results?' + ${baseQuery}, '#search-results', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        </th:block>
+    </th:block>
+</th:block>
+
+<!-- Una riga documento (<li>): risposta diretta di modifica/ri-embedda, che sostituiscono il loro "closest li". -->
+<li th:fragment="row(hit)" th:with="d=${hit.doc}" th:id="'doc-' + ${#strings.replace(d.id, ':', '-')}"
+    class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3">
+    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.85rem]">
+        <span class="rounded-full px-2 border" th:text="#{'search.type.' + ${d.type}}"
+              th:classappend="${d.type == 'note'} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark' : 'border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark'">tipo</span>
+        <span th:if="${hit.score != null}" class="font-semibold"
+              th:text="#{search.row.score} + ' ' + ${#numbers.formatDecimal(hit.score * 100, 1, 1)} + '%'">Somiglianza 85.0%</span>
+        <strong th:if="${d.metadata['title'] != null}" th:text="${d.metadata['title']}">titolo</strong>
+        <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${#temporals.format(d.createdAt, 'dd/MM/yyyy HH:mm')}">data</span>
+        <a th:if="${d.type == 'generation'}" th:href="@{/generations/{id}(id=${d.refId})}" th:text="#{search.row.openGeneration}">Apri</a>
+        <a th:if="${d.type == 'conversation'}" th:href="@{/deep-chat/{id}(id=${d.refId})}" th:text="#{search.row.openConversation}">Apri</a>
+        <a th:if="${d.type == 'chat' && d.conversationId != null}" th:href="@{/deep-chat/{id}(id=${d.conversationId})}" th:text="#{search.row.openConversation}">Apri</a>
+    </div>
+    <p class="mt-2 mb-0 break-words" th:text="${#strings.abbreviate(d.content, 300)}">testo</p>
+    <details class="mt-2">
+        <summary class="cursor-pointer text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{search.row.details}">Dettagli</summary>
+        <pre class="mt-2 p-3 whitespace-pre-wrap break-words text-[0.8rem] rounded-md bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark" th:text="${d.content}">testo completo</pre>
+        <dl class="mt-2 mb-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[0.8rem]">
+            <dt class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.row.id}">Id</dt><dd class="m-0 break-all"><code th:text="${d.id}">id</code></dd>
+            <dt class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.row.metadata}">Metadati</dt>
+            <dd class="m-0 break-all"><span th:each="m : ${d.metadata}" class="mr-3 inline-block"><code th:text="${m.key} + '=' + ${m.value}">k=v</code></span></dd>
+            <dt class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.stats.model}">Modello</dt><dd class="m-0 break-all"><code th:text="${d.model}">modello</code></dd>
+            <dt class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.stats.dimensions}">Dimensioni</dt><dd class="m-0" th:text="${d.dimensions}">384</dd>
+            <dt class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.row.hash}">Hash</dt><dd class="m-0"><code th:text="${#strings.substring(d.hash, 0, 12)}">hash</code></dd>
+        </dl>
+    </details>
+    <div class="mt-3 flex flex-wrap gap-2">
+        <th:block th:if="${d.type == 'note'}">
+            <button th:replace="~{fragments/core/button :: dialogOpen(text=#{search.button.edit}, hxGet=@{/search/notes/{id}/edit(id=${d.id})},
+                        hxTarget='#note-form', hxSwap='outerHTML', neutral=true, extraClass='px-3 py-1 text-[0.85rem]')}">Modifica</button>
+            <button th:replace="~{fragments/core/button :: danger(type='button', text=#{search.button.delete}, hxPost=null, hxDelete=@{/search/notes/{id}(id=${d.id})},
+                        hxConfirm=#{search.confirm.deleteNote}, hxSwap='outerHTML', hxTarget='closest li', extraClass='px-3 py-1 text-[0.85rem]')}">Elimina</button>
+        </th:block>
+        <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{search.button.reembed}, hxGet=null, hxPost=@{/search/docs/{id}/reembed(id=${d.id})},
+                    hxTarget='closest li', hxSwap='outerHTML', extraClass='px-3 py-1 text-[0.85rem]')}">Ri-embedda</button>
+    </div>
+</li>
+
+<!--
+  Contenuto del dialog note (search.html), per CREAZIONE (noteId null) e MODIFICA: intestazione con titolo e "x", form. Viene
+  sempre ri-caricato all'apertura (dialogOpen con hxGet) e, con un errore di validazione, rimpiazzato da se' stesso
+  (HX-Retarget/HX-Reswap dal controller): il dialog resta aperto col messaggio. Al successo il controller emette `note-saved`
+  (HX-Trigger) e il dialog si chiude: in creazione la lista si ricarica da sola (search-form ascolta note-saved), in modifica la risposta e' la riga aggiornata.
+-->
+<div th:fragment="noteForm(noteId, noteTitle, noteText, noteError)" id="note-form">
+    <div class="flex items-start justify-between gap-3">
+        <h2 id="note-dialog-title" class="m-0" th:text="${noteId == null} ? #{search.note.title} : #{search.note.editTitle}">Nuova nota</h2>
+        <button th:replace="~{fragments/core/button :: dialogCloseIcon(title=#{search.note.close})}">&times;</button>
+    </div>
+    <p th:if="${noteId == null}" class="mt-2 text-ink-muted dark:text-ink-muted-dark" th:text="#{search.note.intro}">Le note sono documenti manuali.</p>
+    <form th:hx-post="${noteId == null} ? @{/search/notes} : @{/search/notes/{id}(id=${noteId})}"
+          th:hx-target="${noteId == null} ? 'this' : '#doc-' + ${#strings.replace(noteId, ':', '-')}"
+          th:hx-swap="${noteId == null} ? 'none' : 'outerHTML'" class="mt-3">
+        <th:block th:if="${noteError}"><p th:replace="~{fragments/core/alert :: error(text=${noteError})}">Errore</p></th:block>
+        <label for="note-title" th:text="#{search.note.titleLabel}">Titolo</label>
+        <input type="text" id="note-title" name="title" class="w-full" th:value="${noteTitle}">
+        <label for="note-text" th:text="#{search.note.textLabel}">Testo</label>
+        <textarea id="note-text" name="text" rows="4" required class="w-full" th:text="${noteText}"></textarea>
+        <div class="mt-4 flex flex-wrap justify-end gap-2">
+            <button th:replace="~{fragments/core/button :: dialogClose(text=#{search.button.cancel}, extraClass=null)}">Annulla</button>
+            <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{search.note.button}, extraClass=null)}">Salva</button>
+        </div>
+    </form>
+</div>
+
+<!-- Risposta di DELETE (la riga sparisce) e di POST /search/notes (la lista si ricarica da sola su note-saved): solo le statistiche aggiornate, fuori banda. -->
+<th:block th:fragment="deleted(stats)">
+    <th:block th:replace="~{::stats(stats=${stats}, oob=true)}"></th:block>
+</th:block>
+
+</body>
+</html>

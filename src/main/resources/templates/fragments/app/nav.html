@@ -3,7 +3,7 @@
 <body>
 
 <!--
-  PUNTO DI ESTENSIONE dell'app: le voci di navigazione. fragments/header.html (core) include
+  PUNTO DI ESTENSIONE dell'app: le voci di navigazione. fragments/core/header.html (core) include
   `fragments/app/nav :: links(inline)` sia nella barra (inline=false) sia nello slideover sotto md (inline=true); questo file
   e' di chi costruisce l'app e va riscritto per una nuova webapp. Compone i fragment generici del core
   (header :: navMenu / navLink / navSystemCore / navTheme).
@@ -11,31 +11,31 @@
 
 <!-- Voci di primo livello: tre menu semantici + Deep Chat (link diretto, l'azione principale). -->
 <th:block th:fragment="links(inline)">
-    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.create}, items=~{fragments/app/nav :: navCreate}, inline=${inline})}"></div>
-    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.archive}, items=~{fragments/app/nav :: navArchive}, inline=${inline})}"></div>
-    <a th:replace="~{fragments/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
-    <div th:replace="~{fragments/header :: navMenu(label=#{header.menu.system}, items=~{fragments/app/nav :: navSystem}, inline=${inline})}"></div>
+    <div th:replace="~{fragments/core/header :: navMenu(label=#{header.menu.create}, items=~{fragments/app/nav :: navCreate}, inline=${inline})}"></div>
+    <div th:replace="~{fragments/core/header :: navMenu(label=#{header.menu.archive}, items=~{fragments/app/nav :: navArchive}, inline=${inline})}"></div>
+    <a th:replace="~{fragments/core/header :: navLink(path='/deep-chat', text=#{header.nav.deepChat})}">Deep Chat</a>
+    <div th:replace="~{fragments/core/header :: navMenu(label=#{header.menu.system}, items=~{fragments/app/nav :: navSystem}, inline=${inline})}"></div>
 </th:block>
 
 <th:block th:fragment="navCreate">
-    <a th:replace="~{fragments/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
 </th:block>
 
 <th:block th:fragment="navArchive">
-    <a th:replace="~{fragments/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
-    <a th:replace="~{fragments/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/gallery', text=#{header.nav.gallery})}">Galleria</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
     <!-- Solo con la ricerca semantica attiva (app.search.enabled): senza, /search non esiste. -->
     <th:block th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}">
-        <a th:replace="~{fragments/header :: navLink(path='/search', text=#{header.nav.search})}">Ricerca</a>
+        <a th:replace="~{fragments/core/header :: navLink(path='/search', text=#{header.nav.search})}">Ricerca</a>
     </th:block>
 </th:block>
 
 <th:block th:fragment="navSystem">
-    <th:block th:replace="~{fragments/header :: navSystemCore}"></th:block>
-    <a th:replace="~{fragments/header :: navLink(path='/loras', text=#{header.nav.loras})}">LoRA</a>
-    <th:block th:replace="~{fragments/header :: navTheme}"></th:block>
+    <th:block th:replace="~{fragments/core/header :: navSystemCore}"></th:block>
+    <a th:replace="~{fragments/core/header :: navLink(path='/loras', text=#{header.nav.loras})}">LoRA</a>
+    <th:block th:replace="~{fragments/core/header :: navTheme}"></th:block>
 </th:block>
 
 </body>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Stato di una generazione. Finche' non e' terminale il div si
+  ripolla da solo (hx-trigger="every 2s"), chiamando sempre lo stesso
+  GET /generations/{id} che fa avanzare lo stato lato server -
+  coerente col pattern "stessa URL, due risposte" usato altrove.
+
+  A stato terminale questo E' anche il dettaglio della generazione
+  (niente pagina separata, vedi CLAUDE.md): prompt/modello/seed/
+  parametri, immagini cancellabili singolarmente (con cascade
+  sull'ultima, vedi fragments/app/generation-images.html) e bottone elimina
+  l'intera generazione. conversationId/generationsPage (entrambi
+  nullable, valorizzati da GenerationController#status nel Model)
+  decidono sia il link "indietro" nella pagina intera (vedi
+  generation-status.html) sia la provenienza da propagare al bottone
+  elimina/alle immagini, cosi' la cancellazione da qui torna al punto
+  giusto (deep-chat/listato /generations/galleria globale) invece di
+  assumere sempre quest'ultima.
+-->
+<th:block th:fragment="status">
+    <div id="generation-status"
+         th:if="${generation.status.name() == 'PENDING' or generation.status.name() == 'PROCESSING'}"
+         th:hx-get="@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled})}"
+         hx-trigger="every 2s"
+         hx-swap="outerHTML">
+        <div th:replace="~{fragments/app/generation-placeholder :: placeholder(generationId=${generation.id}, conversationId=${conversationId},
+                    generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled})}"></div>
+    </div>
+
+    <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">
+        <div class="flex justify-end mb-2">
+            <button th:replace="~{fragments/core/button :: danger(type='button', text=#{gallery.button.deleteGeneration}, hxPost=null,
+                        hxDelete=@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                        hxConfirm=#{gallery.confirm.delete}, hxSwap='none', hxTarget=null,
+                        extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
+        </div>
+
+        <div th:replace="~{fragments/app/generation-images :: grid(${generation}, ${conversationId}, ${generationsPage})}"></div>
+
+        <dl>
+            <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.prompt})}">Prompt</dt>
+            <dd class="ms-0 mt-1">
+                <span th:text="${generation.prompt}">prompt</span>
+                <a th:href="@{/generations/new(prompt=${generation.prompt})}" class="ms-2 text-[0.85rem]"
+                   th:text="#{generationDetail.action.pushPrompt}">Usa in una nuova generazione</a>
+            </dd>
+
+            <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>
+            <dd class="ms-0 mt-1" th:text="${generation.model}">modello</dd>
+
+            <!--/* Costo stimato (ReplicatePricing, salvato al completamento): assente per righe vecchie/modelli senza regola. */-->
+            <th:block th:if="${generation.costUsd != null}">
+                <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.cost})}">Costo stimato</dt>
+                <dd class="ms-0 mt-1" th:text="#{generationDetail.value.cost(${generation.costUsd})}">≈ 0.0600 USD</dd>
+            </th:block>
+
+            <th:block th:if="${generation.sourceGenerationId != null}">
+                <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.source})}">Generazione sorgente</dt>
+                <dd class="ms-0 mt-1">
+                    <a th:href="@{'/generations/' + ${generation.sourceGenerationId}}"
+                       th:text="#{generationDetail.value.generationNumber(${generation.sourceGenerationId})}">n. 1</a>
+                </dd>
+            </th:block>
+
+            <th:block th:if="${generation.sourceUploadFilename != null}">
+                <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.source})}">Sorgente</dt>
+                <dd class="ms-0 mt-1">
+                    <img th:src="@{'/images/' + ${generation.sourceUploadFilename}}" alt="" class="h-24 w-auto rounded-md">
+                </dd>
+            </th:block>
+
+            <!--
+              Seed sempre mostrato (a differenza di version/parametri sotto,
+              nascosti se assenti): l'utente deve poterlo vedere chiaramente
+              anche quando non e' disponibile (vedi Generation.seed/
+              GenerationService), non solo quando e' valorizzato - un
+              placeholder "casuale" e' piu' onesto di una riga che sparisce.
+            -->
+            <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.seed})}">Seed</dt>
+            <dd class="ms-0 mt-1">
+                <span class="font-mono" th:text="${generation.seed} ?: #{generationParams.placeholder.seed}">seed</span>
+                <th:block th:if="${generation.seed != null}">
+                    <a th:href="@{/generations/new(seed=${generation.seed})}" class="ms-2 text-[0.85rem]"
+                       th:text="#{generationDetail.action.pushSeedGenerations}">Usa in una nuova generazione</a>
+                    <a th:if="${conversationId != null}"
+                       th:href="@{/deep-chat/{id}(id=${conversationId}, seed=${generation.seed})}"
+                       class="ms-2 text-[0.85rem]" th:text="#{generationDetail.action.pushSeedDeepChat}">Usa in Deep Chat</a>
+                    <a th:if="${conversationId == null}" th:href="@{/deep-chat(seed=${generation.seed})}"
+                       class="ms-2 text-[0.85rem]" th:text="#{generationDetail.action.pushSeedDeepChat}">Usa in Deep Chat</a>
+                </th:block>
+            </dd>
+
+            <th:block th:if="${generation.version}">
+                <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.version})}">Version</dt>
+                <dd class="ms-0 mt-1" th:text="${generation.version}">version</dd>
+            </th:block>
+
+            <th:block th:if="${generation.parametersJson}">
+                <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.parameters})}">Parametri</dt>
+                <dd class="ms-0 mt-1"><pre th:text="${generation.parametersJson}"
+                    class="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md p-3 overflow-x-auto font-mono text-[0.85rem]">{}</pre></dd>
+            </th:block>
+
+            <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.completedAt})}">Generata il</dt>
+            <dd class="ms-0 mt-1" th:text="${generation.completedAt}">timestamp</dd>
+        </dl>
+    </div>
+
+    <div id="generation-status" th:if="${generation.status.name() == 'FAILED'}">
+        <p th:replace="~{fragments/core/alert :: error(text=${generation.errorMessage})}">Errore</p>
+        <div class="flex justify-end mt-2">
+            <button th:replace="~{fragments/core/button :: danger(type='button', text=#{gallery.button.deleteGeneration}, hxPost=null,
+                        hxDelete=@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                        hxConfirm=#{gallery.confirm.delete}, hxSwap='none', hxTarget=null,
+                        extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
+        </div>
+    </div>
+</th:block>
+
+</body>
+</html>

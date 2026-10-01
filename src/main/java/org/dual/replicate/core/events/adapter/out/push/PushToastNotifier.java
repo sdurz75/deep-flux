@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Consegna i toast delle serie di eventi a tutte le tab connesse a GET /events (evento SSE {@code system-event}, ri-dispatchato
- * come {@code system-toast} da fragments/live-events.html). Il payload ha gli stessi campi di quello dell'header HX-Trigger
- * (fragments/toast.html lo legge cosi'): key, message, transient, severity.
+ * come {@code system-toast} da fragments/core/live-events.html). Il payload ha gli stessi campi di quello dell'header HX-Trigger
+ * (fragments/core/toast.html lo legge cosi'): key, message, transient, severity.
  */
 @Component
 public class PushToastNotifier implements IToastNotifier {

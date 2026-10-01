@@ -68,6 +68,6 @@ public class Flux2Klein9bParameterHandler implements GenerationParameterHandler 
 
     @Override
     public String fragmentName() {
-        return "fragments/generation-params-flux-2-klein-9b :: fields";
+        return "fragments/app/generation-params-flux-2-klein-9b :: fields";
     }
 }

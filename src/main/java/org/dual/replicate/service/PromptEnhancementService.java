@@ -18,7 +18,7 @@ import org.springframework.util.MimeType;
 /**
  * Riscrittura one-shot di una bozza di prompt (anche in italiano) in un
  * prompt Flux ben formato in inglese, per l'icona "AI enhance" accanto
- * alla textarea di /generations/new (fragments/generate-form.html ::
+ * alla textarea di /generations/new (fragments/app/generate-form.html ::
  * promptField, GenerationController#enhancePrompt). A differenza di
  * DeepChatService non c'e' conversazione ne' tool: {@link ChatClient.Builder}
  * e' prototype-scoped (verificato in ChatClientAutoConfiguration di

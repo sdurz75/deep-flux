@@ -74,6 +74,6 @@ public class PVideoParameterHandler implements GenerationParameterHandler {
 
     @Override
     public String fragmentName() {
-        return "fragments/generation-params-p-video :: fields";
+        return "fragments/app/generation-params-p-video :: fields";
     }
 }

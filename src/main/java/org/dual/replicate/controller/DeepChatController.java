@@ -117,13 +117,13 @@ public class DeepChatController {
                 loraPresets.formOptions().forEach(model::addAttribute);
             }
         }
-        // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,
+        // Push del seed dal dettaglio di una generazione (vedi fragments/app/generation.html :: status,
         // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' in
         // defaultFields(), va impostato a parte.
         if (seed != null) {
             model.addAttribute("seed", seed);
         }
-        return "deep-chat";
+        return "app/deep-chat";
     }
 
     /**
@@ -140,7 +140,7 @@ public class DeepChatController {
                 .map(org.dual.replicate.service.GalleryItem::first).toList());
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
         model.addAttribute("conversationId", id);
-        return "fragments/gallery :: gridOrEmpty(items=${contextualItems}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";
+        return "fragments/app/gallery :: gridOrEmpty(items=${contextualItems}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";
     }
 
     @PostMapping("/deep-chat/new")
@@ -159,7 +159,7 @@ public class DeepChatController {
         chatConversationService.rename(id, title);
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", activeConversationId);
-        return "fragments/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
+        return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
     /**
@@ -184,7 +184,7 @@ public class DeepChatController {
         }
         model.addAttribute("conversations", chatConversationRepository.findAllByOrderByUpdatedAtDesc());
         model.addAttribute("activeConversationId", activeConversationId);
-        return "fragments/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
+        return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
     /**

@@ -3,7 +3,7 @@ package org.dual.replicate.core.web;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Finestra di numeri di pagina condivisa dai listati paginati (fragments/pagination.html). */
+/** Finestra di numeri di pagina condivisa dai listati paginati (fragments/core/pagination.html). */
 public final class PaginationSupport {
 
     private PaginationSupport() {
