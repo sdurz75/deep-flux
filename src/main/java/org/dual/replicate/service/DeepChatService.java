@@ -10,7 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
@@ -68,7 +68,7 @@ public class DeepChatService {
     // reply()/buildMessages()), collisione con Messages se chiamato
     // uguale.
     private final Messages i18n;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
     public DeepChatService(ChatClient.Builder chatClientBuilder,
                             WebSearchTool webSearchTool,
@@ -78,13 +78,13 @@ public class DeepChatService {
                             ChatMessageRepository chatMessageRepository,
                             DeepChatGenerationWatcher generationWatcher,
                             Messages i18n,
-                            AppErrorService appErrors,
+                            SystemEventService systemEvents,
                             @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.generationWatcher = generationWatcher;
         this.i18n = i18n;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
                         You are a helpful, friendly assistant. You can search the public web
@@ -193,13 +193,13 @@ public class DeepChatService {
                 logChatResponse(chatResponse, elapsed);
                 text = chatResponse.getResult().getOutput().getText();
             } catch (RuntimeException e) {
-                throw failTurn(conversation, AppErrorSource.OPENROUTER, "chatTurn", e);
+                throw failTurn(conversation, SystemEventSource.OPENROUTER, "chatTurn", e);
             }
 
             try {
                 chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, null));
             } catch (RuntimeException e) {
-                throw failTurn(conversation, AppErrorSource.INTERNAL, "saveChatTurn", e);
+                throw failTurn(conversation, SystemEventSource.INTERNAL, "saveChatTurn", e);
             }
             return new Reply(text, resultHolder.getStartedGenerationIds());
         } finally {
@@ -218,7 +218,7 @@ public class DeepChatService {
                     generationWatcher.attachToConversation(id, conversation.getId());
                     generationWatcher.watch(id, conversation.getId(), locale);
                 } catch (RuntimeException e) {
-                    appErrors.record(AppErrorSource.INTERNAL, "watchStart", e, id, conversation.getId());
+                    systemEvents.record(SystemEventSource.INTERNAL, "watchStart", e, id, conversation.getId());
                 }
             }
         }
@@ -229,9 +229,9 @@ public class DeepChatService {
      * ASSISTANT d'errore (il turno USER e' gia' salvato: senza, resterebbe orfano) e ritorna l'eccezione
      * da lanciare, gia' col messaggio per l'utente. Non lancia mai da se'.
      */
-    private DeepChatFailedException failTurn(ChatConversation conversation, AppErrorSource source, String operation, RuntimeException cause) {
-        appErrors.record(source, operation, cause, null, conversation.getId());
-        String userMessage = i18n.get("deepchat.error.contactAssistant", AppErrorService.sanitize(cause));
+    private DeepChatFailedException failTurn(ChatConversation conversation, SystemEventSource source, String operation, RuntimeException cause) {
+        systemEvents.record(source, operation, cause, null, conversation.getId());
+        String userMessage = i18n.get("deepchat.error.contactAssistant", SystemEventService.sanitize(cause));
         try {
             chatMessageRepository.save(ChatMessage.errorTurn(conversation, userMessage));
         } catch (RuntimeException e) {

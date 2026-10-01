@@ -20,9 +20,12 @@
         </div>
         <div>
             <label for="search-type" th:text="#{search.query.type}">Tipo</label>
-            <select id="search-type" name="type">
-                <option th:each="t : ${types}" th:value="${t}" th:text="#{'search.type.' + ${t}}">Tutti</option>
-            </select>
+            <div class="relative" x-data="pinesSelect" x-bind="root">
+                <select id="search-type" name="type" class="sr-only" tabindex="-1" aria-hidden="true">
+                    <option th:each="t : ${types}" th:value="${t}" th:text="#{'search.type.' + ${t}}">Tutti</option>
+                </select>
+                <div th:replace="~{fragments/select :: ui}"></div>
+            </div>
         </div>
         <div>
             <label for="search-topk" th:text="#{search.query.topK}">Risultati</label>

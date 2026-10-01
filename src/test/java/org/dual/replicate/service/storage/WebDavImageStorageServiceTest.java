@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class WebDavImageStorageServiceTest {
     private AtomicBoolean down;
     private final String key = Base64.getEncoder().encodeToString(random(32, 7));
     private Messages messages;
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
     private byte[] png;
 
     private static byte[] random(int length, long seed) {
@@ -67,7 +67,7 @@ class WebDavImageStorageServiceTest {
         down = dav.down;
         messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
-        appErrors = mock(AppErrorService.class);
+        systemEvents = mock(SystemEventService.class);
     }
 
     @AfterEach
@@ -81,7 +81,7 @@ class WebDavImageStorageServiceTest {
 
     private WebDavImageStorageService service(Path cacheDir, DataSize cacheMax) throws IOException {
         return new WebDavImageStorageService(base() + "/dav/", "user", "secret", key, cacheDir.toString(), cacheMax,
-                messages, RestClient.builder(), appErrors);
+                messages, RestClient.builder(), systemEvents);
     }
 
     private WebDavImageStorageService service() throws IOException {
@@ -287,7 +287,7 @@ class WebDavImageStorageServiceTest {
 
         assertThatThrownBy(() -> service.downloadAndStore(base() + "/src/x.png")).isNotNull();
 
-        org.mockito.Mockito.verify(appErrors).record(org.mockito.ArgumentMatchers.eq(org.dual.replicate.domain.AppErrorSource.STORAGE),
+        org.mockito.Mockito.verify(systemEvents).record(org.mockito.ArgumentMatchers.eq(org.dual.replicate.domain.SystemEventSource.STORAGE),
                 org.mockito.ArgumentMatchers.eq("cleanupPart"), any(Throwable.class));
     }
 
@@ -298,7 +298,7 @@ class WebDavImageStorageServiceTest {
 
         service.delete("nonexistent.png"); // 404 sul server: tollerato
 
-        org.mockito.Mockito.verify(appErrors, org.mockito.Mockito.never()).record(any(), anyString(), any(Throwable.class));
+        org.mockito.Mockito.verify(systemEvents, org.mockito.Mockito.never()).record(any(), anyString(), any(Throwable.class));
     }
 
     @Test
@@ -324,12 +324,12 @@ class WebDavImageStorageServiceTest {
     @Test
     void refusesToStartWithoutUrlOrWithAnInvalidKey() {
         assertThatThrownBy(() -> new WebDavImageStorageService("", "", "", key, tmp.toString(), DataSize.ofMegabytes(1),
-                messages, RestClient.builder(), appErrors)).isInstanceOf(IllegalStateException.class);
+                messages, RestClient.builder(), systemEvents)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> new WebDavImageStorageService(base(), "", "", "", tmp.toString(),
-                DataSize.ofMegabytes(1), messages, RestClient.builder(), appErrors))
+                DataSize.ofMegabytes(1), messages, RestClient.builder(), systemEvents))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new WebDavImageStorageService(base(), "", "",
                 Base64.getEncoder().encodeToString(new byte[16]), tmp.toString(), DataSize.ofMegabytes(1), messages,
-                RestClient.builder(), appErrors)).isInstanceOf(IllegalArgumentException.class);
+                RestClient.builder(), systemEvents)).isInstanceOf(IllegalArgumentException.class);
     }
 }

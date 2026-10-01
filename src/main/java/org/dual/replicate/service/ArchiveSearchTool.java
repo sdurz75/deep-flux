@@ -28,12 +28,12 @@ public class ArchiveSearchTool {
     private static final int SNIPPET = 300;
 
     private final VectorStore vectorStore;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
     private final int topK;
 
-    public ArchiveSearchTool(VectorStore vectorStore, AppErrorService appErrors, @Value("${app.search.top-k:5}") int topK) {
+    public ArchiveSearchTool(VectorStore vectorStore, SystemEventService systemEvents, @Value("${app.search.top-k:5}") int topK) {
         this.vectorStore = vectorStore;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
         this.topK = topK;
     }
 
@@ -60,8 +60,8 @@ public class ArchiveSearchTool {
             }
             return found.stream().map(ArchiveSearchTool::describe).collect(java.util.stream.Collectors.joining("\n"));
         } catch (RuntimeException e) {
-            appErrors.record("searchArchive", e);
-            return "Ricerca nell'archivio non disponibile al momento (" + AppErrorService.sanitize(e)
+            systemEvents.record("searchArchive", e);
+            return "Ricerca nell'archivio non disponibile al momento (" + SystemEventService.sanitize(e)
                     + "). Rispondi senza, dicendo all'utente che la ricerca non e' andata a buon fine.";
         }
     }

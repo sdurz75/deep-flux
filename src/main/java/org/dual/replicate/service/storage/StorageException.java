@@ -1,6 +1,6 @@
 package org.dual.replicate.service.storage;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.remote.RemoteServiceException;
 
 /**
@@ -12,6 +12,6 @@ import org.dual.replicate.remote.RemoteServiceException;
 public class StorageException extends RemoteServiceException {
 
     public StorageException(String message, Throwable cause, Kind kind) {
-        super(AppErrorSource.STORAGE, kind, message, cause);
+        super(SystemEventSource.STORAGE, kind, message, cause);
     }
 }

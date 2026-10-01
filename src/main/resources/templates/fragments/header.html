@@ -26,6 +26,8 @@
             <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-md:flex-1">deep-flux</a>
             <div class="flex items-center gap-4 flex-1 max-md:hidden"
                  th:insert="~{fragments/header :: navLinks(inline=false)}"></div>
+            <!-- Campanella degli eventi di sistema: fuori dallo slideover, sempre visibile (vedi fragments/notification-bell.html). -->
+            <div th:replace="~{fragments/notification-bell :: container}"></div>
         </nav>
 
         <!-- Slideover Pines UI (solo sotto md) -->
@@ -73,7 +75,8 @@
 </th:block>
 
 <th:block th:fragment="navSystem">
-    <a th:replace="~{fragments/header :: navLink(path='/errors', text=#{header.nav.errors})}">Errori</a>
+    <a th:replace="~{fragments/header :: navLink(path='/system/events', text=#{header.nav.events})}">Eventi</a>
+    <a th:replace="~{fragments/header :: navLink(path='/tokens', text=#{header.nav.tokens})}">Token</a>
     <div class="flex items-center gap-1 px-2 py-1.5">
         <span class="mr-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{header.menu.theme}">Tema</span>
         <th:block th:insert="~{fragments/header :: themeSwitch}"></th:block>

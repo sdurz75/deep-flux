@@ -1,10 +1,10 @@
 package org.dual.replicate.remote;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 
 /**
  * Radice di ogni errore legato a un servizio esterno (Replicate, OpenRouter, SearXNG, storage): un solo tipo che porta
- * con se' DA DOVE viene ({@link #source()}, cosi' {@code AppErrorService} non ha bisogno che gliela si passi a mano) e
+ * con se' DA DOVE viene ({@link #source()}, cosi' {@code SystemEventService} non ha bisogno che gliela si passi a mano) e
  * CHE COSA farne ({@link #kind()}). Vedi "Convenzione: errori delle chiamate remote" in CLAUDE.md e {@link RemoteCaller}.
  */
 public class RemoteServiceException extends RuntimeException {
@@ -24,16 +24,16 @@ public class RemoteServiceException extends RuntimeException {
         REJECTED
     }
 
-    private final AppErrorSource source;
+    private final SystemEventSource source;
     private final Kind kind;
 
-    public RemoteServiceException(AppErrorSource source, Kind kind, String message, Throwable cause) {
+    public RemoteServiceException(SystemEventSource source, Kind kind, String message, Throwable cause) {
         super(message, cause);
         this.source = source;
         this.kind = kind;
     }
 
-    public AppErrorSource source() {
+    public SystemEventSource source() {
         return source;
     }
 

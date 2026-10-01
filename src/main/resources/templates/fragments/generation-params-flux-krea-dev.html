@@ -21,27 +21,33 @@
 
     <div>
         <label for="param-aspect-ratio" th:text="#{generationParams.label.aspectRatio}">Aspect ratio</label>
-        <select id="param-aspect-ratio" name="aspect_ratio">
-            <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
-            <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
-            <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
-            <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
-            <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
-            <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
-            <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
-            <option value="5:4" th:selected="${aspect_ratio == '5:4'}">5:4</option>
-            <option value="4:5" th:selected="${aspect_ratio == '4:5'}">4:5</option>
-            <option value="21:9" th:selected="${aspect_ratio == '21:9'}">21:9</option>
-            <option value="9:21" th:selected="${aspect_ratio == '9:21'}">9:21</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-aspect-ratio" name="aspect_ratio" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
+                <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
+                <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
+                <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
+                <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
+                <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
+                <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
+                <option value="5:4" th:selected="${aspect_ratio == '5:4'}">5:4</option>
+                <option value="4:5" th:selected="${aspect_ratio == '4:5'}">4:5</option>
+                <option value="21:9" th:selected="${aspect_ratio == '21:9'}">21:9</option>
+                <option value="9:21" th:selected="${aspect_ratio == '9:21'}">9:21</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>
         <label for="param-megapixels" th:text="#{generationParams.label.megapixels}">Megapixel</label>
-        <select id="param-megapixels" name="megapixels">
-            <option value="0.25" th:selected="${megapixels == '0.25'}">0.25</option>
-            <option value="1" th:selected="${megapixels == '1'}">1</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-megapixels" name="megapixels" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="0.25" th:selected="${megapixels == '0.25'}">0.25</option>
+                <option value="1" th:selected="${megapixels == '1'}">1</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>
@@ -61,11 +67,14 @@
 
     <div>
         <label for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
-        <select id="param-output-format" name="output_format">
-            <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
-            <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
-            <option value="png" th:selected="${output_format == 'png'}">png</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-output-format" name="output_format" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
+                <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
+                <option value="png" th:selected="${output_format == 'png'}">png</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>

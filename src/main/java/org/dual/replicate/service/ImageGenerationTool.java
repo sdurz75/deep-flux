@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import tools.jackson.databind.ObjectMapper;
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.ReplicateModel;
@@ -50,13 +50,13 @@ public class ImageGenerationTool {
     private final GenerationService generationService;
     private final ReplicateModelCatalog modelCatalog;
     private final ObjectMapper objectMapper;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
     public ImageGenerationTool(GenerationService generationService,
                                 ReplicateModelCatalog modelCatalog,
                                 ObjectMapper objectMapper,
-                                AppErrorService appErrors) {
-        this.appErrors = appErrors;
+                                SystemEventService systemEvents) {
+        this.systemEvents = systemEvents;
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
         this.objectMapper = objectMapper;
@@ -85,7 +85,7 @@ public class ImageGenerationTool {
             String parametersJson = buildParametersJson(toolContext);
             generation = generationService.create(model, version, prompt, parametersJson);
         } catch (ReplicateException e) {
-            appErrors.record("createPrediction", e);
+            systemEvents.record("createPrediction", e);
             // Es. troppe generazioni gia' in corso su Replicate: rifiuto
             // applicativo, non un errore di rete. Restituirlo come testo
             // invece di propagarlo fa si' che diventi la risposta del
@@ -96,8 +96,8 @@ public class ImageGenerationTool {
         } catch (RuntimeException e) {
             // Errore inatteso (parametri non serializzabili, DB...): stesso trattamento, mai un'eccezione
             // che attraversi Spring AI con esito non verificato.
-            appErrors.record(AppErrorSource.INTERNAL, "generateImage", e);
-            return "Impossibile avviare la generazione: errore interno (" + AppErrorService.sanitize(e)
+            systemEvents.record(SystemEventSource.INTERNAL, "generateImage", e);
+            return "Impossibile avviare la generazione: errore interno (" + SystemEventService.sanitize(e)
                     + "). Non ritentare automaticamente.";
         }
 

@@ -17,7 +17,7 @@ import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.repository.GenerationRepository;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.GenerationCompletedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ import jakarta.annotation.PreDestroy;
  * Tiene l'indice semantico allineato ai dati, con una RICONCILIAZIONE idempotente invece di ganci su ogni {@code save}:
  * aggiunge i documenti mancanti o cambiati (lo store salta gli invariati per hash del testo e modello), rimuove quelli la
  * cui riga sorgente non esiste piu'. Gira in background all'avvio (backfill), ogni {@code app.search.reindex-interval} e
- * dopo ogni generazione completata. Un documento che non si riesce a indicizzare e' registrato ({@link AppErrorService}) e
+ * dopo ogni generazione completata. Un documento che non si riesce a indicizzare e' registrato ({@link SystemEventService}) e
  * non ferma gli altri.
  *
  * <p>Cosa si indicizza: il prompt delle generazioni riuscite ({@code type=generation}), i messaggi delle chat non di errore
@@ -57,7 +57,7 @@ public class ArchiveIndexService {
     private final GenerationRepository generations;
     private final ChatMessageRepository messages;
     private final ChatConversationRepository conversations;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "archive-indexer");
         thread.setDaemon(true);
@@ -67,12 +67,12 @@ public class ArchiveIndexService {
     private final AtomicBoolean rerun = new AtomicBoolean();
 
     public ArchiveIndexService(H2VectorStore store, GenerationRepository generations, ChatMessageRepository messages,
-                               ChatConversationRepository conversations, AppErrorService appErrors) {
+                               ChatConversationRepository conversations, SystemEventService systemEvents) {
         this.store = store;
         this.generations = generations;
         this.messages = messages;
         this.conversations = conversations;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -148,7 +148,7 @@ public class ArchiveIndexService {
             }
             addAll(new ArrayList<>(wanted.values()));
         } catch (RuntimeException e) {
-            appErrors.record("reindex", e);
+            systemEvents.record("reindex", e);
         }
     }
 
@@ -163,7 +163,7 @@ public class ArchiveIndexService {
                     try {
                         store.add(List.of(document));
                     } catch (RuntimeException e) {
-                        appErrors.record("reindex", e);
+                        systemEvents.record("reindex", e);
                     }
                 }
             }

@@ -7,7 +7,7 @@ import java.util.Base64;
 import java.util.Random;
 
 import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ class LocalToWebDavMigratorTest {
 
     private FakeWebDavServer dav;
     private WebDavImageStorageService webdav;
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
     private Path images;
     private final byte[] photo = new byte[150_000];
 
@@ -45,12 +45,12 @@ class LocalToWebDavMigratorTest {
         dav = new FakeWebDavServer();
         Messages messages = mock(Messages.class);
         when(messages.get(anyString(), any(Object[].class))).thenReturn("errore");
-        appErrors = mock(AppErrorService.class);
+        systemEvents = mock(SystemEventService.class);
         byte[] keyBytes = new byte[32];
         new Random(9).nextBytes(keyBytes);
         String key = Base64.getEncoder().encodeToString(keyBytes);
         webdav = new WebDavImageStorageService(dav.base() + "/dav/", "user", "secret", key,
-                tmp.resolve("cache").toString(), DataSize.ofMegabytes(10), messages, RestClient.builder(), appErrors);
+                tmp.resolve("cache").toString(), DataSize.ofMegabytes(10), messages, RestClient.builder(), systemEvents);
         images = Files.createDirectories(tmp.resolve("images"));
         Files.write(images.resolve("1-0.png"), photo);
         Files.write(images.resolve("2-0.mp4"), "video".getBytes());
@@ -70,7 +70,7 @@ class LocalToWebDavMigratorTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<WebDavImageStorageService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(webdav);
-        return new LocalToWebDavMigrator(provider, appErrors, images.toString(), deleteLocal);
+        return new LocalToWebDavMigrator(provider, systemEvents, images.toString(), deleteLocal);
     }
 
     @Test
@@ -128,7 +128,7 @@ class LocalToWebDavMigratorTest {
 
         assertThat(result.failed()).isEqualTo(1);
         assertThat(images.resolve("1-0.png")).exists();
-        verify(appErrors).record(any(), eq("migrateLocalToWebDav"), any(Throwable.class));
+        verify(systemEvents).record(any(), eq("migrateLocalToWebDav"), any(Throwable.class));
     }
 
     @Test
@@ -140,7 +140,7 @@ class LocalToWebDavMigratorTest {
         assertThat(result.migrated()).isZero();
         assertThat(result.failed()).isEqualTo(3);
         assertThat(images.resolve("1-0.png")).exists(); // niente perso con il server giu'
-        verify(appErrors, times(3)).record(any(), eq("migrateLocalToWebDav"), any(Throwable.class));
+        verify(systemEvents, times(3)).record(any(), eq("migrateLocalToWebDav"), any(Throwable.class));
     }
 
     @Test
@@ -148,7 +148,7 @@ class LocalToWebDavMigratorTest {
         LocalToWebDavMigrator migrator = migratorFor(tmp.resolve("does-not-exist"));
 
         assertThat(migrator.migrate()).isEqualTo(new LocalToWebDavMigrator.Result(0, 0, 0, 0, 0));
-        verify(appErrors, never()).record(any(), anyString(), any(Throwable.class));
+        verify(systemEvents, never()).record(any(), anyString(), any(Throwable.class));
     }
 
     @Test
@@ -157,7 +157,7 @@ class LocalToWebDavMigratorTest {
         ObjectProvider<WebDavImageStorageService> none = mock(ObjectProvider.class);
         when(none.getIfAvailable()).thenReturn(null);
 
-        assertThatThrownBy(() -> new LocalToWebDavMigrator(none, appErrors, images.toString(), false))
+        assertThatThrownBy(() -> new LocalToWebDavMigrator(none, systemEvents, images.toString(), false))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -165,7 +165,7 @@ class LocalToWebDavMigratorTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<WebDavImageStorageService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(webdav);
-        return new LocalToWebDavMigrator(provider, appErrors, dir.toString(), false);
+        return new LocalToWebDavMigrator(provider, systemEvents, dir.toString(), false);
     }
 
     private static String dav(String filename) {

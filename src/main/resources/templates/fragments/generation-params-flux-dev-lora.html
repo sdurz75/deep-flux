@@ -7,9 +7,9 @@
   schema reale di black-forest-labs/flux-dev-lora, escluso "disable_safety_checker" (forzato da
   GenerationService#create). Legge i valori correnti dal Model (nomi = chiave Replicate del campo).
 
-  Token HF/Civitai: type=password, SENZA th:value (mai rimessi nel DOM) e fuori dai default del
-  handler; GenerationService li toglie dal PARAMETERS_JSON salvato; la select modello li esclude da
-  hx-include (hx-params, vedi generation-params.html) e deep-chat.html non li salva in localStorage.
+  Token HF/Civitai: select dei token salvati (CRUD /tokens, ApiTokenService) per NOME; al server arriva l'ID
+  (hf_token_id/civitai_token_id), che GenerationService#doCreate trasforma nel token in chiaro solo verso Replicate.
+  hfTokens/civitaiTokens (senza segreti) li mette nel Model GenerationController/DeepChatController solo per questo form-type.
 
   Blocco img2img (upload + prompt_strength): nascosto nel pannello impostazioni di /deep-chat
   (#generation-settings-panel), dove non c'e' upload e il tool non prende sorgenti.
@@ -38,17 +38,36 @@
         <input type="number" id="param-extra-lora-scale" name="extra_lora_scale" min="-1" max="3" step="0.1" th:value="${extra_lora_scale}">
     </div>
 
-    <details>
-        <summary class="cursor-pointer text-sm text-ink-muted dark:text-ink-muted-dark" th:text="#{generationParams.label.loraTokens}">Token per LoRA privati</summary>
-        <div>
-            <label for="param-hf-api-token" th:text="#{generationParams.label.hfApiToken}">Token HuggingFace</label>
-            <input type="password" id="param-hf-api-token" name="hf_api_token" autocomplete="off">
+    <!--/* Token per i LoRA privati: scelti PER NOME fra quelli salvati in /tokens (mai digitati qui); l'ID arriva al server e
+         GenerationService lo sostituisce col token in chiaro solo verso Replicate. Scaduto = non selezionabile. */-->
+    <div>
+        <label for="param-hf-token" th:text="#{generationParams.label.hfToken}">Token HuggingFace</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-hf-token" name="hf_token_id" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
+                <option th:each="t : ${hfTokens}" th:value="${t.id}"
+                        th:disabled="${t.status.name() == 'EXPIRED'}"
+                        th:selected="${#strings.toString(hf_token_id) == #strings.toString(t.id)}"
+                        th:text="${t.expiresAt == null} ? ${t.name} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name})} : #{generationParams.option.tokenExpires(${t.name}, ${t.expiresAt})})">nome</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
         </div>
-        <div>
-            <label for="param-civitai-api-token" th:text="#{generationParams.label.civitaiApiToken}">Token CivitAI</label>
-            <input type="password" id="param-civitai-api-token" name="civitai_api_token" autocomplete="off">
+    </div>
+
+    <div>
+        <label for="param-civitai-token" th:text="#{generationParams.label.civitaiToken}">Token CivitAI</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-civitai-token" name="civitai_token_id" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
+                <option th:each="t : ${civitaiTokens}" th:value="${t.id}"
+                        th:disabled="${t.status.name() == 'EXPIRED'}"
+                        th:selected="${#strings.toString(civitai_token_id) == #strings.toString(t.id)}"
+                        th:text="${t.expiresAt == null} ? ${t.name} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name})} : #{generationParams.option.tokenExpires(${t.name}, ${t.expiresAt})})">nome</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
         </div>
-    </details>
+        <p class="mt-1 mb-0 text-[0.8rem]"><a th:href="@{/tokens}" th:text="#{generationParams.link.manageTokens}">Gestisci i token</a></p>
+    </div>
 
     <div x-data x-cloak x-show="!$el.closest('#generation-settings-panel')">
         <div th:replace="~{fragments/generation-params-source-upload :: field(label=#{generationParams.label.sourceUpload}, required=false)}"></div>
@@ -61,27 +80,33 @@
 
     <div>
         <label for="param-aspect-ratio" th:text="#{generationParams.label.aspectRatio}">Aspect ratio</label>
-        <select id="param-aspect-ratio" name="aspect_ratio">
-            <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
-            <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
-            <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
-            <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
-            <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
-            <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
-            <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
-            <option value="5:4" th:selected="${aspect_ratio == '5:4'}">5:4</option>
-            <option value="4:5" th:selected="${aspect_ratio == '4:5'}">4:5</option>
-            <option value="21:9" th:selected="${aspect_ratio == '21:9'}">21:9</option>
-            <option value="9:21" th:selected="${aspect_ratio == '9:21'}">9:21</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-aspect-ratio" name="aspect_ratio" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
+                <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
+                <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
+                <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
+                <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
+                <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
+                <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
+                <option value="5:4" th:selected="${aspect_ratio == '5:4'}">5:4</option>
+                <option value="4:5" th:selected="${aspect_ratio == '4:5'}">4:5</option>
+                <option value="21:9" th:selected="${aspect_ratio == '21:9'}">21:9</option>
+                <option value="9:21" th:selected="${aspect_ratio == '9:21'}">9:21</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>
         <label for="param-megapixels" th:text="#{generationParams.label.megapixels}">Megapixel</label>
-        <select id="param-megapixels" name="megapixels">
-            <option value="0.25" th:selected="${megapixels == '0.25'}">0.25</option>
-            <option value="1" th:selected="${megapixels == '1'}">1</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-megapixels" name="megapixels" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="0.25" th:selected="${megapixels == '0.25'}">0.25</option>
+                <option value="1" th:selected="${megapixels == '1'}">1</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>
@@ -101,11 +126,14 @@
 
     <div>
         <label for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
-        <select id="param-output-format" name="output_format">
-            <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
-            <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
-            <option value="png" th:selected="${output_format == 'png'}">png</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-output-format" name="output_format" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
+                <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
+                <option value="png" th:selected="${output_format == 'png'}">png</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>

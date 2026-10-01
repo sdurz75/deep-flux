@@ -23,31 +23,40 @@
 
     <div>
         <label for="param-aspect-ratio" th:text="#{generationParams.label.aspectRatio}">Aspect ratio</label>
-        <select id="param-aspect-ratio" name="aspect_ratio">
-            <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
-            <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
-            <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
-            <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
-            <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
-            <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
-            <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-aspect-ratio" name="aspect_ratio" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="16:9" th:selected="${aspect_ratio == '16:9'}">16:9</option>
+                <option value="9:16" th:selected="${aspect_ratio == '9:16'}">9:16</option>
+                <option value="4:3" th:selected="${aspect_ratio == '4:3'}">4:3</option>
+                <option value="3:4" th:selected="${aspect_ratio == '3:4'}">3:4</option>
+                <option value="3:2" th:selected="${aspect_ratio == '3:2'}">3:2</option>
+                <option value="2:3" th:selected="${aspect_ratio == '2:3'}">2:3</option>
+                <option value="1:1" th:selected="${aspect_ratio == '1:1'}">1:1</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>
         <label for="param-resolution" th:text="#{generationParams.label.resolution}">Risoluzione</label>
-        <select id="param-resolution" name="resolution">
-            <option value="720p" th:selected="${resolution == '720p'}">720p</option>
-            <option value="1080p" th:selected="${resolution == '1080p'}">1080p</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-resolution" name="resolution" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="720p" th:selected="${resolution == '720p'}">720p</option>
+                <option value="1080p" th:selected="${resolution == '1080p'}">1080p</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>
         <label for="param-fps" th:text="#{generationParams.label.fps}">Frame al secondo</label>
-        <select id="param-fps" name="fps">
-            <option value="24" th:selected="${fps == 24 or fps == '24'}">24</option>
-            <option value="48" th:selected="${fps == 48 or fps == '48'}">48</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-fps" name="fps" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="24" th:selected="${fps == 24 or fps == '24'}">24</option>
+                <option value="48" th:selected="${fps == 48 or fps == '48'}">48</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <div>

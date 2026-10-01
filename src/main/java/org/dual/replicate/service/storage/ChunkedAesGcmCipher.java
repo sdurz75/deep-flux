@@ -22,9 +22,9 @@ import javax.crypto.spec.SecretKeySpec;
  * L'AAD di ogni chunk e' header + indice + flag "ultimo chunk": un chunk manomesso, riordinato, copiato da un altro
  * file o un file troncato/esteso fa fallire l'autenticazione (mai dati in chiaro sbagliati in silenzio).
  */
-final class ChunkedAesGcmCipher {
+public final class ChunkedAesGcmCipher {
 
-    static final int DEFAULT_CHUNK_SIZE = 64 * 1024;
+    public static final int DEFAULT_CHUNK_SIZE = 64 * 1024;
 
     private static final byte[] MAGIC = {'D', 'F', 'X', '1'};
     private static final int HEADER_LENGTH = 16;
@@ -35,7 +35,7 @@ final class ChunkedAesGcmCipher {
     private final int chunkSize;
     private final SecureRandom random = new SecureRandom();
 
-    ChunkedAesGcmCipher(byte[] key) {
+    public ChunkedAesGcmCipher(byte[] key) {
         this(key, DEFAULT_CHUNK_SIZE);
     }
 
@@ -52,11 +52,44 @@ final class ChunkedAesGcmCipher {
     }
 
     /** Chiave AES-256 da base64 (es. {@code openssl rand -base64 32}). */
-    static byte[] keyFromBase64(String base64) {
+    public static byte[] keyFromBase64(String base64) {
         try {
             return Base64.getDecoder().decode(base64 == null ? "" : base64.trim());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("La chiave di cifratura non e' base64 valido", e);
+        }
+    }
+
+    /**
+     * Cifra un valore piccolo in memoria (es. un token API: sta in un solo chunk) con lo STESSO formato dei binari: usato da
+     * {@code SecretCipher} per i segreti nel DB, con la stessa chiave dei binari WebDAV.
+     */
+    public byte[] encryptBytes(byte[] plain) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(plain.length + HEADER_LENGTH + TAG_LENGTH);
+        try {
+            encrypt(new java.io.ByteArrayInputStream(plain), out);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e); // flussi in memoria: non puo' accadere
+        }
+        return out.toByteArray();
+    }
+
+    /** Inverso di {@link #encryptBytes}: {@link IOException} se il blob e' manomesso, troncato o cifrato con un'altra chiave. */
+    public byte[] decryptBytes(byte[] blob) throws IOException {
+        EncryptedBlobSource source = new EncryptedBlobSource() {
+            @Override
+            public long length() {
+                return blob.length;
+            }
+
+            @Override
+            public InputStream read(long offset, long len) {
+                int from = (int) Math.min(offset, blob.length);
+                return new java.io.ByteArrayInputStream(blob, from, (int) Math.min(len, blob.length - from));
+            }
+        };
+        try (InputStream in = decryptRange(source, 0, plainSize(source))) {
+            return in.readAllBytes();
         }
     }
 

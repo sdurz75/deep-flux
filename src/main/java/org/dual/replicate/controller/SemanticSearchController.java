@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.dual.replicate.i18n.Messages;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.search.vector.ArchiveIndexService;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.search.vector.H2VectorStore;
 import org.dual.replicate.search.vector.H2VectorStore.Listing;
 import org.dual.replicate.search.vector.H2VectorStore.StoredDocument;
@@ -56,18 +56,18 @@ public class SemanticSearchController {
     private final H2VectorStore store;
     private final ArchiveIndexService indexService;
     private final Messages messages;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
     private final int defaultTopK;
     private final int defaultThresholdPercent;
 
     public SemanticSearchController(VectorStore vectorStore, H2VectorStore store, ArchiveIndexService indexService,
-                                    Messages messages, AppErrorService appErrors, @Value("${app.search.top-k:5}") int defaultTopK,
+                                    Messages messages, SystemEventService systemEvents, @Value("${app.search.top-k:5}") int defaultTopK,
                                     @Value("${app.search.similarity-threshold-percent:0}") int defaultThresholdPercent) {
         this.vectorStore = vectorStore;
         this.store = store;
         this.indexService = indexService;
         this.messages = messages;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
         this.defaultTopK = defaultTopK;
         this.defaultThresholdPercent = defaultThresholdPercent;
     }
@@ -136,7 +136,7 @@ public class SemanticSearchController {
         }
         store.add(List.of(note("note:" + UUID.randomUUID(), System.currentTimeMillis(), text.strip(), title.strip())));
         // Chiude il dialog note (search.html): con un errore di validazione, sopra, l'evento NON parte e il dialog resta aperto.
-        appErrors.addHxTrigger(response, "note-saved", "");
+        systemEvents.addHxTrigger(response, "note-saved", "");
         model.addAttribute("stats", stats());
         populateList(TYPE_NOTE, 1, model);
         return createResultView();
@@ -166,7 +166,7 @@ public class SemanticSearchController {
             return noteFormView(id, title, text, error, model);
         }
         store.add(List.of(note(existing.id(), existing.refId(), text.strip(), title.strip())));
-        appErrors.addHxTrigger(response, "note-saved", "");
+        systemEvents.addHxTrigger(response, "note-saved", "");
         model.addAttribute("hit", new Hit(store.find(id).orElseThrow(), null));
         return "fragments/search :: row(hit=${hit})";
     }

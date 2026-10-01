@@ -5,7 +5,7 @@ import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +17,7 @@ class RemoteCallerTest {
     private static final RetryPolicy FAST = RetryPolicy.of(2, Duration.ZERO);
 
     private static RemoteServiceException error(Kind kind, String message, Throwable cause) {
-        return new RemoteServiceException(AppErrorSource.INTERNAL, kind, message, cause);
+        return new RemoteServiceException(SystemEventSource.INTERNAL, kind, message, cause);
     }
 
     private final RemoteCaller caller = RemoteCaller.builder(e -> error(Kind.PERMANENT, "tradotta", e))

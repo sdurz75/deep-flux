@@ -1,6 +1,6 @@
 package org.dual.replicate.search;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.remote.RemoteServiceException;
 
 /**
@@ -12,10 +12,10 @@ public class SearxngException extends RemoteServiceException {
 
     /** Credenziali mancanti: configurazione. */
     public SearxngException(String message) {
-        super(AppErrorSource.SEARXNG, Kind.CONFIGURATION, message, null);
+        super(SystemEventSource.SEARXNG, Kind.CONFIGURATION, message, null);
     }
 
     public SearxngException(String message, Throwable cause, Kind kind) {
-        super(AppErrorSource.SEARXNG, kind, message, cause);
+        super(SystemEventSource.SEARXNG, kind, message, cause);
     }
 }

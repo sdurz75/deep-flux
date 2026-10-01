@@ -52,12 +52,12 @@ class DeepChatGenerationWatcherTest {
     private Messages i18n;
 
     @Mock
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
 
     @Test
     void watchPersistsChatMessageAndBroadcastsOnSuccess() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -89,7 +89,7 @@ class DeepChatGenerationWatcherTest {
     @Test
     void watchPersistsErrorMessageOnFailure() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.FAILED);
@@ -117,7 +117,7 @@ class DeepChatGenerationWatcherTest {
     @Test
     void watchDoesNothingWhenConversationWasDeletedMeanwhile() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -143,7 +143,7 @@ class DeepChatGenerationWatcherTest {
     @Test
     void watchStopsSilentlyWhenGenerationWasDeletedMeanwhile() {
         DeepChatGenerationWatcher watcher = new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
 
         when(generationService.waitUntilTerminal(eq(1L), any(Duration.class)))
                 .thenThrow(new ReplicateException("generazione non trovata"));
@@ -157,7 +157,7 @@ class DeepChatGenerationWatcherTest {
 
     private DeepChatGenerationWatcher watcher() {
         return new DeepChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, appErrors);
+                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
     }
 
     /** Errore inatteso con la riga ancora esistente: NON e' una cancellazione, va registrato (prima veniva ingoiato in silenzio). */
@@ -169,7 +169,7 @@ class DeepChatGenerationWatcherTest {
 
         watcher().watch(1L, 7L, Locale.ITALIAN);
 
-        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.INTERNAL, "watchGeneration", boom, 1L, 7L);
+        verify(systemEvents).record(org.dual.replicate.domain.SystemEventSource.INTERNAL, "watchGeneration", boom, 1L, 7L);
         verify(chatMessageRepository, never()).save(any());
         verify(broadcaster, never()).broadcastChatMessage(any());
     }
@@ -212,6 +212,6 @@ class DeepChatGenerationWatcherTest {
 
         assertThat(watcher().persistOutcome(generation, 7L)).isFalse();
 
-        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.INTERNAL, "persistChatTurn", boom, 1L, 7L);
+        verify(systemEvents).record(org.dual.replicate.domain.SystemEventSource.INTERNAL, "persistChatTurn", boom, 1L, 7L);
     }
 }

@@ -162,4 +162,30 @@ class ChunkedAesGcmCipherTest {
         assertThat(ChunkedAesGcmCipher.keyFromBase64(java.util.Base64.getEncoder().encodeToString(keyBytes)))
                 .isEqualTo(keyBytes);
     }
+
+    /** Valori piccoli in memoria (token API nel DB): stesso formato dei binari, round-trip e manomissione. */
+    @Test
+    void encryptBytesAndDecryptBytesRoundTripSmallValues() throws IOException {
+        ChunkedAesGcmCipher small = new ChunkedAesGcmCipher(keyBytes);
+
+        for (int length : new int[] {0, 1, 40, 500}) {
+            byte[] plain = data(length);
+            byte[] blob = small.encryptBytes(plain);
+
+            assertThat(blob.length).isEqualTo(16 + length + 16);
+            assertThat(small.decryptBytes(blob)).isEqualTo(plain);
+        }
+    }
+
+    @Test
+    void decryptBytesRejectsTamperedTruncatedOrForeignBlobs() {
+        ChunkedAesGcmCipher small = new ChunkedAesGcmCipher(keyBytes);
+        byte[] blob = small.encryptBytes(data(40));
+        byte[] tampered = blob.clone();
+        tampered[20] ^= 1;
+
+        assertThatThrownBy(() -> small.decryptBytes(tampered)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> small.decryptBytes(Arrays.copyOf(blob, blob.length - 3))).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> new ChunkedAesGcmCipher(new byte[32]).decryptBytes(blob)).isInstanceOf(IOException.class);
+    }
 }

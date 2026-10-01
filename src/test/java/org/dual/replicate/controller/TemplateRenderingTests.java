@@ -51,7 +51,7 @@ class TemplateRenderingTests {
     private MockMvc mockMvc;
 
     @Autowired
-    private org.dual.replicate.repository.AppErrorRepository appErrorRepository;
+    private org.dual.replicate.repository.SystemEventRepository systemEventRepository;
 
     @Autowired
     private GenerationRepository repository;
@@ -313,32 +313,131 @@ class TemplateRenderingTests {
         assertThat(empty).doesNotContain("/images/7-1.png");
     }
 
-    /** /errors: pagina intera e frammento htmx, e "Svuota" cancella il registro. */
+    /** /system/events (e il vecchio /errors che reindirizza): pagina intera e frammento htmx, e "Svuota" cancella il registro. */
     @Test
     @Transactional
     void errorsPageListsRecordedErrorsAndClearEmptiesTheLog() throws Exception {
-        appErrorRepository.save(new org.dual.replicate.domain.AppError(org.dual.replicate.domain.AppErrorSource.REPLICATE,
+        systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(org.dual.replicate.domain.SystemEventSource.REPLICATE,
                 "getPrediction", "ReplicateException", "Replicate non risponde", "stack...", 42L, null, java.time.Instant.now()));
 
-        String page = mockMvc.perform(get("/errors")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String fragment = mockMvc.perform(get("/errors").header("HX-Request", "true")).andExpect(status().isOk())
+        String page = mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String fragment = mockMvc.perform(get("/system/events").header("HX-Request", "true")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("Replicate non risponde").contains("getPrediction").contains("/generations/42");
         assertThat(fragment).contains("Replicate non risponde").doesNotContain("<html");
 
-        String cleared = mockMvc.perform(post("/errors/clear").header("HX-Request", "true")).andExpect(status().isOk())
+        String cleared = mockMvc.perform(post("/system/events/clear").header("HX-Request", "true")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        assertThat(cleared).doesNotContain("Replicate non risponde").contains("Nessun errore registrato");
-        assertThat(appErrorRepository.count()).isZero();
+        assertThat(cleared).doesNotContain("Replicate non risponde").contains("Nessun evento registrato");
+        assertThat(systemEventRepository.count()).isZero();
     }
 
-    /** Ogni pagina porta il contenitore dei toast e il link a /errors nell'header. */
+    private org.dual.replicate.domain.SystemEvent savedEvent(org.dual.replicate.domain.SystemEventSeverity severity, String message,
+                                                              String subject) {
+        return systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(severity,
+                org.dual.replicate.domain.SystemEventSource.TOKENS, "op", "T", message, null, null, null, subject,
+                java.time.Instant.now().minusSeconds(300)));
+    }
+
+    /** La campanella: contenitore statico UNA volta nell'header, contenuto (badge+pannello) da GET /system/events/bell. */
+    @Test
+    void headerHasTheBellContainerOnceOutsideTheSlideover() throws Exception {
+        String page = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String header = page.substring(page.indexOf("<header"), page.indexOf("</header>"));
+
+        assertThat(header.split("id=\"notification-bell\"", -1)).hasSize(2);
+        assertThat(header).contains("hx-get=\"/system/events/bell\"").contains("system-event from:body");
+        assertThat(header.indexOf("id=\"notification-bell\"")).isLessThan(header.indexOf("x-show=\"navOpen\"")); // nella barra, non nello slideover
+    }
+
+    @Test
+    @Transactional
+    void bellIsOffWithoutUnseenEvents() throws Exception {
+        systemEventRepository.deleteAll();
+
+        String body = mockMvc.perform(get("/system/events/bell")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("Nessun nuovo evento").doesNotContain("bg-danger").doesNotContain("bg-warning");
+    }
+
+    @Test
+    @Transactional
+    void bellShowsUnseenCountSeverityColourAndLinksToTheEvent() throws Exception {
+        systemEventRepository.deleteAll();
+        var warning = savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "Il token scade tra 3 giorni", "token:1");
+
+        String onlyWarning = mockMvc.perform(get("/system/events/bell")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(onlyWarning).contains("bg-warning").doesNotContain("bg-danger").contains("Il token scade tra 3 giorni")
+                .contains("href=\"/system/events?event=" + warning.getId() + "\"").contains("Avviso");
+
+        var error = savedEvent(org.dual.replicate.domain.SystemEventSeverity.ERROR, "Replicate non risponde", null);
+        String withError = mockMvc.perform(get("/system/events/bell")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(withError).contains("bg-danger").contains(">2</span>").contains("Replicate non risponde")
+                .contains("href=\"/system/events?event=" + error.getId() + "\"");
+    }
+
+    @Test
+    @Transactional
+    void openingAnEventMarksOnlyThatOneAsSeenAndHighlightsIt() throws Exception {
+        systemEventRepository.deleteAll();
+        var a = savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "evento a", "token:1");
+        var b = savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "evento b", "token:2");
+
+        String page = mockMvc.perform(get("/system/events").param("event", String.valueOf(a.getId())))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(page).contains("id=\"event-" + a.getId() + "\"").containsPattern("id=\"event-" + a.getId() + "\"[^>]*ring-2");
+        assertThat(systemEventRepository.findById(a.getId()).orElseThrow().getAcknowledgedAt()).isNotNull();
+        assertThat(systemEventRepository.findById(b.getId()).orElseThrow().getAcknowledgedAt()).isNull();
+    }
+
+    @Test
+    @Transactional
+    void markAllSeenClearsTheBellAndTellsTheListToRefresh() throws Exception {
+        systemEventRepository.deleteAll();
+        savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "evento", "token:1");
+
+        var result = mockMvc.perform(post("/system/events/seen").header("HX-Request", "true")).andExpect(status().isOk()).andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).contains("Nessun nuovo evento");
+        assertThat(result.getResponse().getHeader("HX-Trigger")).contains("system-event");
+    }
+
+    @Test
+    @Transactional
+    void eventsPageFiltersBySeverityAndMarksUnreadRows() throws Exception {
+        systemEventRepository.deleteAll();
+        savedEvent(org.dual.replicate.domain.SystemEventSeverity.WARNING, "solo avviso", "token:1");
+        savedEvent(org.dual.replicate.domain.SystemEventSeverity.ERROR, "solo errore", null);
+
+        String warnings = mockMvc.perform(get("/system/events").param("severity", "WARNING")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(warnings).contains("solo avviso").doesNotContain("solo errore").contains("Non visualizzato");
+
+        String all = mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(all).contains("solo avviso").contains("solo errore").contains("Segna tutti come letti");
+
+        String unknown = mockMvc.perform(get("/system/events").param("severity", "bogus")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(unknown).contains("solo avviso").contains("solo errore");
+    }
+
+    @Test
+    void legacyErrorsPathRedirectsToSystemEvents() throws Exception {
+        mockMvc.perform(get("/errors")).andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", "/system/events"));
+    }
+
+    /** Ogni pagina porta il contenitore dei toast e il link a /system/events nell'header. */
     @Test
     void layoutHasToastContainerAndErrorsNavLink() throws Exception {
         String body = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).contains("@app-error.window").contains("href=\"/errors\"")
+        assertThat(body).contains("@system-toast.window").contains("href=\"/system/events\"")
                 .doesNotContain("href=\"/search\""); // ricerca semantica spenta nei test: niente link a una pagina inesistente
     }
 
@@ -351,7 +450,7 @@ class TemplateRenderingTests {
         assertThat(body).contains("Crea").contains("Archivio").contains("Sistema").contains("aria-haspopup=\"true\"");
         assertThat(body.split("href=\"/generations/new\\?kind=video\"", -1)).hasSize(3); // barra + slideover
         assertThat(body.split("href=\"/gallery\"", -1)).hasSize(3);
-        assertThat(body.split("href=\"/errors\"", -1)).hasSize(3);
+        assertThat(body.split("href=\"/system/events\"", -1)).hasSize(3);
         assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(7); // 3 menu x 2 contenitori
     }
 
@@ -367,15 +466,15 @@ class TemplateRenderingTests {
         g.setStatus(GenerationStatus.SUCCEEDED);
         g.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("8-0.png")));
         repository.save(g);
-        long before = appErrorRepository.count();
+        long before = systemEventRepository.count();
 
         var result = mockMvc.perform(post("/generations/" + g.getId() + "/favourite")
                         .param("filename", "nope.png").header("HX-Request", "true"))
                 .andExpect(status().isUnprocessableEntity())
                 .andReturn();
 
-        assertThat(result.getResponse().getHeader("HX-Trigger")).contains("app-error").contains("\"message\"");
-        assertThat(appErrorRepository.count()).isEqualTo(before);
+        assertThat(result.getResponse().getHeader("HX-Trigger")).contains("system-toast").contains("\"message\"");
+        assertThat(systemEventRepository.count()).isEqualTo(before);
     }
 
     @Test
@@ -423,14 +522,31 @@ class TemplateRenderingTests {
         assertThat(body).doesNotContain("value=\"0.5\"", "value=\"2\"", "value=\"4\"");
     }
 
+    @Autowired
+    private org.dual.replicate.service.ApiTokenService apiTokenService;
+
+    @Autowired
+    private org.dual.replicate.repository.ApiTokenRepository apiTokenRepository;
+
+    @Autowired
+    private org.dual.replicate.service.secret.SecretCipher secretCipher;
+
     /**
-     * Form-type FLUX_DEV_LORA (migrazione V20/FluxDevLoraParameterHandler): campi LoRA, upload img2img opzionale,
-     * token come password SENZA valore, solo i propri campi (nessuno di quelli di flux-lora-ff3).
+     * Form-type FLUX_DEV_LORA (migrazione V20/FluxDevLoraParameterHandler): campi LoRA, upload img2img opzionale, solo i propri
+     * campi (nessuno di quelli di flux-lora-ff3) e i token SALVATI come select per nome (mai un campo per digitarli).
      */
     @Test
-    void paramsEndpointRendersFieldsForFluxDevLora() throws Exception {
+    @Transactional
+    void paramsEndpointRendersFieldsForFluxDevLoraWithNamedTokenSelects() throws Exception {
+        apiTokenRepository.deleteAll();
+        var hf = apiTokenService.create(org.dual.replicate.domain.ApiTokenProvider.HUGGINGFACE, "Personale", "hf_super_secret_1234", null);
+        var civitai = apiTokenService.create(org.dual.replicate.domain.ApiTokenProvider.CIVITAI, "Civitai lavoro", "cv_other_secret_5678",
+                java.time.LocalDate.now().plusDays(400));
+        apiTokenRepository.save(new org.dual.replicate.domain.ApiToken(org.dual.replicate.domain.ApiTokenProvider.CIVITAI, "Vecchio",
+                secretCipher.encrypt("cv_old_secret_0000"), "0000", java.time.LocalDate.now().minusDays(1), java.time.Instant.now()));
+
         String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-dev-lora")
-                        .param("hf_api_token", "hf_must_not_echo"))
+                        .param("hf_token_id", String.valueOf(hf.id())))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -438,19 +554,24 @@ class TemplateRenderingTests {
                 "name=\"extra_lora_scale\"", "name=\"prompt_strength\"", "name=\"sourceUpload\"",
                 "name=\"aspect_ratio\"", "name=\"megapixels\"", "name=\"go_fast\"", "name=\"num_outputs\"");
         assertThat(body).doesNotContain("name=\"flux_model\"", "name=\"width\"", "value=\"match_input_image\"");
-        assertThat(body).containsPattern("<input type=\"password\"[^>]*name=\"hf_api_token\"");
-        assertThat(body).containsPattern("<input type=\"password\"[^>]*name=\"civitai_api_token\"");
-        assertThat(body).doesNotContain("hf_must_not_echo");
+        // select Pines per nome: l'ID scelto e' preselezionato, il token scaduto non e' selezionabile, nessun segreto nel markup
+        assertThat(body).contains("name=\"hf_token_id\"", "name=\"civitai_token_id\"", "Personale", "Civitai lavoro");
+        assertThat(body).containsPattern("<option value=\"" + hf.id() + "\"[^>]*selected");
+        assertThat(body).containsPattern("<option value=\"\"[^>]*>");
+        assertThat(body).containsPattern("(?s)<option[^>]*value=\"" + civitai.id() + "\"[^>]*>[^<]*Civitai lavoro \\(scade il");
+        assertThat(body).containsPattern("(?s)<option[^>]*disabled[^>]*>\\s*Vecchio \\(scaduto\\)");
+        assertThat(body).doesNotContain("type=\"password\"").doesNotContain("hf_super_secret_1234")
+                .doesNotContain("cv_other_secret_5678").doesNotContain("cv_old_secret_0000").doesNotContain("_secret_");
         assertThat(body).containsPattern("name=\"lora_scale\"[^>]*value=\"1(\\.0)?\"");
     }
 
-    /** La select modello esclude i token da hx-include: mai nella query string di GET /generations/params. */
+    /** Gli altri form-type non hanno le select dei token (e non fanno la query dei token). */
     @Test
-    void modelSelectNeverSendsTokensInTheParamsRequest() throws Exception {
-        String body = mockMvc.perform(get("/generations/new")).andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
+    void otherFormTypesHaveNoTokenSelects() throws Exception {
+        String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-krea-dev"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).contains("hx-params=\"not hf_api_token,civitai_api_token\"");
+        assertThat(body).doesNotContain("hf_token_id").doesNotContain("civitai_token_id");
     }
 
     /**
@@ -1129,6 +1250,48 @@ class TemplateRenderingTests {
         assertThat(body).doesNotContain("??");
         assertThat(body).contains("<html lang=\"" + expectedLang + "\"");
         assertThat(body).contains(expectedNavText);
+    }
+
+    /**
+     * Ogni selezione dell'app usa la select Pines (fragments/select.html): la <select> nativa resta nel DOM, ma sempre dentro il
+     * wrapper x-data="pinesSelect", nascosta (sr-only) e con la UI sotto. Guardia STRUTTURALE sui sorgenti dei template (cosi'
+     * copre anche pagine non renderizzabili nei test, come /search con app.search.enabled=false): una select nuda aggiunta in
+     * futuro fa fallire questo test.
+     */
+    @Test
+    void everySelectIsWrappedByThePinesSelectComponent() throws IOException {
+        var resolver = new org.springframework.core.io.support.PathMatchingResourcePatternResolver();
+        var resources = resolver.getResources("classpath*:templates/**/*.html");
+        assertThat(resources).isNotEmpty();
+        int totalSelects = 0;
+        for (var resource : resources) {
+            if ("select.html".equals(resource.getFilename())) {
+                continue;
+            }
+            String html = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                    .replaceAll("(?s)<!--.*?-->", "");
+            var selects = java.util.regex.Pattern.compile("<select\\b").matcher(html).results().count();
+            var wrappers = java.util.regex.Pattern.compile("x-data=\"pinesSelect\"").matcher(html).results().count();
+            var hidden = java.util.regex.Pattern.compile("class=\"sr-only\" tabindex=\"-1\" aria-hidden=\"true\"").matcher(html).results().count();
+            var uis = java.util.regex.Pattern.compile("fragments/select :: ui").matcher(html).results().count();
+            assertThat(wrappers).as("wrapper pinesSelect in %s", resource.getFilename()).isEqualTo(selects);
+            assertThat(hidden).as("select sr-only in %s", resource.getFilename()).isEqualTo(selects);
+            assertThat(uis).as("UI del componente in %s", resource.getFilename()).isEqualTo(selects);
+            totalSelects += (int) selects;
+        }
+        assertThat(totalSelects).isGreaterThanOrEqualTo(18);
+    }
+
+    /** Il componente Alpine e' caricato da layout.html prima del core Alpine, e la UI e' resa accanto alla select nativa. */
+    @Test
+    void layoutRegistersThePinesSelectComponentBeforeAlpineAndFormsRenderIt() throws Exception {
+        String body = mockMvc.perform(get("/generations/new")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("Alpine.data('pinesSelect'");
+        assertThat(body.indexOf("Alpine.data('pinesSelect'")).isLessThan(body.indexOf("alpinejs@3.14.3"));
+        assertThat(body).contains("x-data=\"pinesSelect\"", "role=\"listbox\"");
+        assertThat(body).containsPattern("<select id=\"image-model-input\"[^>]*class=\"sr-only\"");
     }
 
     /**

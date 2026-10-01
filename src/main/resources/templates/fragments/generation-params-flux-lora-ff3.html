@@ -39,11 +39,14 @@
 
     <div>
         <label for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
-        <select id="param-output-format" name="output_format">
-            <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
-            <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
-            <option value="png" th:selected="${output_format == 'png'}">png</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-output-format" name="output_format" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
+                <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
+                <option value="png" th:selected="${output_format == 'png'}">png</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
     </div>
 
     <!--
@@ -59,13 +62,17 @@
          x-data="{ fluxModel: $el.dataset.fluxModel || 'dev' }"
          x-init="$nextTick(() => { $refs.stepsInput.readOnly = (fluxModel === 'schnell') })">
         <label for="param-flux-model" th:text="#{generationParams.label.fluxModel}">Variante Flux</label>
-        <select id="param-flux-model" name="flux_model" x-model="fluxModel"
-                @change="$refs.stepsInput.value = (fluxModel === 'schnell' ? 4 : 28);
-                         $refs.stepsInput.readOnly = (fluxModel === 'schnell');
-                         $nextTick(() => $refs.stepsInput.dispatchEvent(new Event('input', { bubbles: true })))">
-            <option value="dev">dev</option>
-            <option value="schnell">schnell</option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-flux-model" name="flux_model" x-model="fluxModel"
+                    @change="$refs.stepsInput.value = (fluxModel === 'schnell' ? 4 : 28);
+                             $refs.stepsInput.readOnly = (fluxModel === 'schnell');
+                             $nextTick(() => $refs.stepsInput.dispatchEvent(new Event('input', { bubbles: true })))"
+                    class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="dev">dev</option>
+                <option value="schnell">schnell</option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
 
         <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
         <input type="number" id="param-steps" name="num_inference_steps" min="1" max="50" th:value="${num_inference_steps}"

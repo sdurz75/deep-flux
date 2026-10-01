@@ -136,10 +136,10 @@ class GenerationEventBroadcasterTest {
             payloads.add(event.data());
         });
 
-        org.dual.replicate.domain.event.ErrorToastEvent toast = new org.dual.replicate.domain.event.ErrorToastEvent("e1", "Errore Replicate: rete giu'");
+        org.dual.replicate.domain.event.SystemToastEvent toast = new org.dual.replicate.domain.event.SystemToastEvent("e1", "Errore Replicate: rete giu'");
         broadcaster.onErrorToast(toast);
 
-        assertThat(names).containsExactly("error-toast");
+        assertThat(names).containsExactly("system-event");
         assertThat(payloads).containsExactly(toast);
     }
 }

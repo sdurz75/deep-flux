@@ -3,7 +3,7 @@ package org.dual.replicate.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.search.SearchResult;
 import org.dual.replicate.search.SearxngClient;
 import org.springframework.ai.tool.annotation.Tool;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * modello decide da solo se e quando invocarlo (nessuna ricerca
  * automatica ad ogni messaggio). Qualunque errore della ricerca viene
  * catturato QUI (non ci si affida al comportamento di default di Spring
- * AI per le eccezioni dei tool): registrato in AppErrorService (tabella
+ * AI per le eccezioni dei tool): registrato in SystemEventService (tabella
  * errori + toast) e rimandato al modello come testo, cosi' il turno
  * continua e l'utente ne vede comunque l'esito.
  */
@@ -25,11 +25,11 @@ public class WebSearchTool {
     private static final int MAX_RESULTS = 5;
 
     private final SearxngClient searxngClient;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
-    public WebSearchTool(SearxngClient searxngClient, AppErrorService appErrors) {
+    public WebSearchTool(SearxngClient searxngClient, SystemEventService systemEvents) {
         this.searxngClient = searxngClient;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
     }
 
     @Tool(description = "Search the public web for current information (news, facts, prices, "
@@ -40,8 +40,8 @@ public class WebSearchTool {
         try {
             results = searxngClient.search(query);
         } catch (RuntimeException e) {
-            appErrors.record("search", e);
-            return "Ricerca web non disponibile al momento (" + AppErrorService.sanitize(e)
+            systemEvents.record("search", e);
+            return "Ricerca web non disponibile al momento (" + SystemEventService.sanitize(e)
                     + "). Rispondi senza, dicendo all'utente che la ricerca non e' andata a buon fine.";
         }
         if (results.isEmpty()) {

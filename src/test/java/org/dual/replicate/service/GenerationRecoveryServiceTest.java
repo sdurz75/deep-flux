@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.GenerationRepository;
@@ -33,10 +33,10 @@ class GenerationRecoveryServiceTest {
     private DeepChatGenerationWatcher watcher;
 
     @Mock
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
 
     private GenerationRecoveryService service() {
-        return new GenerationRecoveryService(repository, generationService, watcher, appErrors);
+        return new GenerationRecoveryService(repository, generationService, watcher, systemEvents);
     }
 
     private static Generation generation(long id, GenerationStatus status, Long conversationId) {
@@ -88,7 +88,7 @@ class GenerationRecoveryServiceTest {
 
         service().recoverOnStartup();
 
-        verify(appErrors).record(AppErrorSource.INTERNAL, "recoverGeneration", boom, 1L, null);
+        verify(systemEvents).record(SystemEventSource.INTERNAL, "recoverGeneration", boom, 1L, null);
         verify(generationService).refresh(2L);
     }
 

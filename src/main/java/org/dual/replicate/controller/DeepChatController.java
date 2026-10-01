@@ -51,6 +51,7 @@ public class DeepChatController {
     private final GenerationService generationService;
     private final ObjectMapper objectMapper;
     private final Messages messages;
+    private final org.dual.replicate.service.ApiTokenService apiTokens;
 
     public DeepChatController(ReplicateModelCatalog modelCatalog,
                                GenerationParameterHandlers parameterHandlers,
@@ -59,7 +60,9 @@ public class DeepChatController {
                                ChatMessageRepository chatMessageRepository,
                                GenerationService generationService,
                                ObjectMapper objectMapper,
-                               Messages messages) {
+                               Messages messages,
+                               org.dual.replicate.service.ApiTokenService apiTokens) {
+        this.apiTokens = apiTokens;
         this.modelCatalog = modelCatalog;
         this.parameterHandlers = parameterHandlers;
         this.chatConversationRepository = chatConversationRepository;
@@ -106,6 +109,9 @@ public class DeepChatController {
         model.addAttribute("formType", handler == null ? null : handler.formType().name());
         if (handler != null) {
             handler.defaultFields().forEach(model::addAttribute);
+            if (handler.formType() == org.dual.replicate.domain.GenerationFormType.FLUX_DEV_LORA) {
+                apiTokens.formOptions().forEach(model::addAttribute);
+            }
         }
         // Push del seed dal dettaglio di una generazione (vedi fragments/generation.html :: status,
         // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' in

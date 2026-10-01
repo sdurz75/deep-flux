@@ -130,7 +130,8 @@
         th:hx-get="${hxGet}"
         hx-target="#generation-params-fields" hx-swap="innerHTML" hx-params="none"
         th:data-default-model="${defaultModel}"
-        @click="document.getElementById('image-model-input').value = $el.dataset.defaultModel"
+        @click="document.getElementById('image-model-input').value = $el.dataset.defaultModel;
+                document.getElementById('image-model-input').dispatchEvent(new Event('pines-select:sync'))"
         th:text="${text}">Reimposta ai default</button>
 
 <!--
@@ -364,6 +365,29 @@
         th:title="${title}" th:aria-label="${title}"
         @click="dismiss(t.key)"
         class="shrink-0 w-6 h-6 p-0 rounded-full bg-transparent text-ink-muted dark:text-ink-muted-dark hover:bg-canvas dark:hover:bg-canvas-dark leading-none">&times;</button>
+
+<!--
+  bell(count, hasError, title): bottone della campanella della toolbar (fragments/notification-bell.html). Assume la variabile
+  Alpine `open` sul contenitore. Senza non letti (count 0) l'icona e' neutra e senza badge ("spenta"); con non letti il badge
+  mostra il conteggio (9+ oltre 9): rosso (danger) se fra i non letti c'e' un ERROR, altrimenti warning. Il testo del
+  badge usa il colore di contrasto dei token (il badge e' sempre una tinta piena). title/aria-label: conteggio gia' tradotto.
+-->
+<button th:fragment="bell(count, hasError, title)" type="button"
+        @click="open = !open" :aria-expanded="open" aria-haspopup="true"
+        th:title="${title}" th:aria-label="${title}"
+        class="relative inline-flex items-center rounded-md border-0 bg-transparent p-1.5 hover:opacity-100
+               text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+    <span th:if="${count > 0}"
+          class="absolute -right-1 -top-1 h-4 min-w-4 rounded-full px-1 text-center text-[0.65rem] font-semibold leading-4
+                 text-accent-contrast dark:text-accent-contrast-dark"
+          th:classappend="${hasError} ? 'bg-danger dark:bg-danger-dark' : 'bg-warning dark:bg-warning-dark'"
+          th:text="${count > 9} ? '9+' : ${count}">3</span>
+</button>
 
 </body>
 </html>

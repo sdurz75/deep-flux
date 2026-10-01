@@ -3,7 +3,7 @@ package org.dual.replicate.service;
 import java.time.Duration;
 import java.util.Locale;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
 import org.dual.replicate.domain.ChatMessageRole;
@@ -41,20 +41,20 @@ public class DeepChatGenerationWatcher {
     private final ChatMessageRepository chatMessageRepository;
     private final GenerationEventBroadcaster broadcaster;
     private final Messages i18n;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
     public DeepChatGenerationWatcher(GenerationService generationService,
                                       ChatConversationRepository chatConversationRepository,
                                       ChatMessageRepository chatMessageRepository,
                                       GenerationEventBroadcaster broadcaster,
                                       Messages i18n,
-                                      AppErrorService appErrors) {
+                                      SystemEventService systemEvents) {
         this.generationService = generationService;
         this.chatConversationRepository = chatConversationRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.broadcaster = broadcaster;
         this.i18n = i18n;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
     }
 
     /**
@@ -87,7 +87,7 @@ public class DeepChatGenerationWatcher {
                 // Qualunque altro fallimento (DB, errore inatteso) NON e' una cancellazione: va registrato
                 // e mostrato. Il turno di esito lo scrive comunque GenerationRecoveryService (sweep), quindi il
                 // placeholder in chat non resta appeso per sempre.
-                appErrors.record(AppErrorSource.INTERNAL, "watchGeneration", e, generationId, conversationId);
+                systemEvents.record(SystemEventSource.INTERNAL, "watchGeneration", e, generationId, conversationId);
                 return;
             }
             if (!generation.isTerminal()) {
@@ -131,7 +131,7 @@ public class DeepChatGenerationWatcher {
                     conversationId, generation.getId(), text, DeepChatService.toFiles(generation)));
             return true;
         } catch (RuntimeException e) {
-            appErrors.record(AppErrorSource.INTERNAL, "persistChatTurn", e, generation.getId(), conversationId);
+            systemEvents.record(SystemEventSource.INTERNAL, "persistChatTurn", e, generation.getId(), conversationId);
             return false;
         }
     }

@@ -6,8 +6,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
-import org.dual.replicate.domain.AppErrorSource;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.service.SystemEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -38,11 +38,11 @@ public class LocalToWebDavMigrator {
     }
 
     private final WebDavImageStorageService target;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
     private final Path sourceDir;
     private final boolean deleteLocal;
 
-    public LocalToWebDavMigrator(ObjectProvider<WebDavImageStorageService> target, AppErrorService appErrors,
+    public LocalToWebDavMigrator(ObjectProvider<WebDavImageStorageService> target, SystemEventService systemEvents,
                                  @Value("${storage.images-dir}") String imagesDir,
                                  @Value("${storage.migration.from-local.delete-local:false}") boolean deleteLocal) {
         this.target = target.getIfAvailable();
@@ -50,7 +50,7 @@ public class LocalToWebDavMigrator {
             throw new IllegalStateException(
                     "storage.migration.from-local.enabled=true richiede storage.type=webdav (backend di destinazione)");
         }
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
         this.sourceDir = Path.of(imagesDir);
         this.deleteLocal = deleteLocal;
     }
@@ -60,7 +60,7 @@ public class LocalToWebDavMigrator {
         migrate();
     }
 
-    /** Un giro completo; un file che fallisce non ferma gli altri (registrato con {@link AppErrorService}). */
+    /** Un giro completo; un file che fallisce non ferma gli altri (registrato con {@link SystemEventService}). */
     public Result migrate() {
         List<Path> files = localFiles();
         log.info("Migrazione storage locale -> WebDAV: {} file in {} (delete-local={})", files.size(), sourceDir,
@@ -87,7 +87,7 @@ public class LocalToWebDavMigrator {
                 }
             } catch (IOException | RuntimeException e) {
                 failed++;
-                appErrors.record(AppErrorSource.STORAGE, "migrateLocalToWebDav", e);
+                systemEvents.record(SystemEventSource.STORAGE, "migrateLocalToWebDav", e);
             }
         }
         Result result = new Result(migrated, skipped, failed, deleted, bytes);

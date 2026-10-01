@@ -179,6 +179,9 @@
                              configurazione. I test che ne hanno bisogno le sovrascrivono con @SpringBootTest(properties). -->
                         <storage.type>local</storage.type>
                         <storage.migration.from-local.enabled>false</storage.migration.from-local.enabled>
+                        <!-- Chiave di test (32 byte a zero in base64) per i token API cifrati: senza, userebbe quella del
+                             .env reale (STORAGE_WEBDAV_ENCRYPTION_KEY) e un test potrebbe cifrare con la chiave vera. -->
+                        <app.secrets.encryption-key>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</app.secrets.encryption-key>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

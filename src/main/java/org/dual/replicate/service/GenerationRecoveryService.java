@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.GenerationRepository;
@@ -46,14 +46,14 @@ public class GenerationRecoveryService {
     private final GenerationRepository repository;
     private final GenerationService generationService;
     private final DeepChatGenerationWatcher watcher;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
     public GenerationRecoveryService(GenerationRepository repository, GenerationService generationService,
-                                      DeepChatGenerationWatcher watcher, AppErrorService appErrors) {
+                                      DeepChatGenerationWatcher watcher, SystemEventService systemEvents) {
         this.repository = repository;
         this.generationService = generationService;
         this.watcher = watcher;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -74,7 +74,7 @@ public class GenerationRecoveryService {
                     .forEach(generation -> recover(generation, false));
             writeMissingChatTurns();
         } catch (RuntimeException e) {
-            appErrors.record(AppErrorSource.INTERNAL, "recoverySweep", e);
+            systemEvents.record(SystemEventSource.INTERNAL, "recoverySweep", e);
         }
     }
 
@@ -90,7 +90,7 @@ public class GenerationRecoveryService {
             }
         } catch (RuntimeException e) {
             if (generationService.exists(generation.getId())) {
-                appErrors.record(AppErrorSource.INTERNAL, "recoverGeneration", e, generation.getId(), generation.getConversationId());
+                systemEvents.record(SystemEventSource.INTERNAL, "recoverGeneration", e, generation.getId(), generation.getConversationId());
             }
         }
     }

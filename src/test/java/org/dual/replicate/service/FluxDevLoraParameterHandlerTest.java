@@ -32,10 +32,17 @@ class FluxDevLoraParameterHandlerTest {
     }
 
     @Test
-    void tokensAreForwardedWhenSubmittedAndOmittedWhenBlank() {
+    void chosenTokenIdsAreParsedAndBlankOrInvalidOnesOmitted() {
+        assertThat(handler.toParameterMap(Map.of("hf_token_id", "3", "civitai_token_id", "12")))
+                .containsEntry("hf_token_id", 3L).containsEntry("civitai_token_id", 12L);
+        assertThat(handler.toParameterMap(Map.of("hf_token_id", "", "civitai_token_id", "abc")))
+                .doesNotContainKeys("hf_token_id", "civitai_token_id");
+    }
+
+    /** Il token in chiaro non e' piu' un campo del form: un valore con quel nome viene ignorato, mai inoltrato. */
+    @Test
+    void plaintextTokenFieldsAreNotAcceptedAnymore() {
         assertThat(handler.toParameterMap(Map.of("hf_api_token", "hf_x", "civitai_api_token", "cv_y")))
-                .containsEntry("hf_api_token", "hf_x").containsEntry("civitai_api_token", "cv_y");
-        assertThat(handler.toParameterMap(Map.of("hf_api_token", " ")))
                 .doesNotContainKeys("hf_api_token", "civitai_api_token");
     }
 
@@ -64,7 +71,7 @@ class FluxDevLoraParameterHandlerTest {
     }
 
     @Test
-    void defaultFieldsMatchAppDefaultsAndNeverCarryTokens() {
+    void defaultFieldsMatchAppDefaultsAndPreselectNoToken() {
         assertThat(handler.defaultFields())
                 .containsEntry("aspect_ratio", "1:1")
                 .containsEntry("megapixels", "1")
@@ -77,6 +84,8 @@ class FluxDevLoraParameterHandlerTest {
                 .containsEntry("lora_scale", 1.0)
                 .containsEntry("extra_lora_scale", 1.0)
                 .containsEntry("prompt_strength", 0.8)
+                .containsEntry("hf_token_id", "")
+                .containsEntry("civitai_token_id", "")
                 .doesNotContainKeys("seed", "lora_weights", "extra_lora", "hf_api_token", "civitai_api_token");
     }
 }

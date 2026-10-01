@@ -6,7 +6,7 @@ import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.remote.RemoteServiceException;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -19,7 +19,7 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
  * Ultima rete per le eccezioni che nessun catch del controller ne' i resolver standard di Spring MVC
  * (ExceptionHandler, ResponseStatus, DefaultHandlerExceptionResolver: 404, 400, 405...) hanno gestito: prima
  * finivano in un 500 senza traccia utile, che htmx non renderizza (l'utente non vedeva nulla). Ora sono
- * registrate (AppErrorService) e, per una richiesta htmx, accompagnate dall'header HX-Trigger del toast.
+ * registrate (SystemEventService) e, per una richiesta htmx, accompagnate dall'header HX-Trigger del toast.
  * <p>
  * Ordine LOWEST_PRECEDENCE: vede solo cio' che gli altri resolver hanno lasciato passare. Un resolver e non
  * un {@code @ControllerAdvice(Exception)} proprio per non intercettare (e trasformare) gli errori "normali"
@@ -31,10 +31,10 @@ public class UnhandledExceptionResolver implements HandlerExceptionResolver, Ord
 
     private static final Logger log = LoggerFactory.getLogger(UnhandledExceptionResolver.class);
 
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
-    public UnhandledExceptionResolver(AppErrorService appErrors) {
-        this.appErrors = appErrors;
+    public UnhandledExceptionResolver(SystemEventService systemEvents) {
+        this.systemEvents = systemEvents;
     }
 
     @Override
@@ -56,18 +56,18 @@ public class UnhandledExceptionResolver implements HandlerExceptionResolver, Ord
             // niente registro errori; all'utente htmx si mostra comunque il messaggio.
             status = 422;
             if (htmx && !response.isCommitted()) {
-                appErrors.addHxTrigger(response, "app-error",
+                systemEvents.addHxTrigger(response, "system-toast",
                         Map.of("key", "rejected-" + Math.abs(remote.getMessage().hashCode()), "message", remote.getMessage()));
             }
         } else {
             // La source viene dall'eccezione (Replicate, storage...), non e' piu' sempre INTERNAL; un guasto di un
             // servizio esterno e' un 502, non un 500 dell'app.
-            AppErrorService.Recorded recorded = appErrors.record(operation, ex);
+            SystemEventService.Recorded recorded = systemEvents.record(operation, ex);
             if (remote != null) {
                 status = HttpServletResponse.SC_BAD_GATEWAY;
             }
             if (htmx && !response.isCommitted()) {
-                appErrors.addToastHeader(response, recorded);
+                systemEvents.addToastHeader(response, recorded);
             }
         }
         if (response.isCommitted()) {

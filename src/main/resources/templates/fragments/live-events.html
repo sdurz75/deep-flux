@@ -11,7 +11,7 @@
   specifico, vedi deep-chat.html) senza dover conoscere SSE.
 
   Incluso solo dalle pagine che ne hanno bisogno (gallery.html,
-  generations-list.html, deep-chat.html, generation-status.html, errors.html: tutte dove qualcosa
+  generations-list.html, deep-chat.html, generation-status.html, system-events.html: tutte dove qualcosa
   arriva in un secondo momento, errori compresi), non da fragments/layout.html: una connessione persistente
   aperta su OGNI pagina saturerebbe le ~6 connessioni HTTP/1.1 per host che
   i browser concedono quando l'utente tiene piu' tab dell'app aperte
@@ -40,12 +40,12 @@
             source.addEventListener('gallery-update', function () {
                 document.body.dispatchEvent(new CustomEvent('gallery-update'));
             });
-            // Toast d'errore (AppErrorService): al contenitore di fragments/toast.html (evento window) e,
-            // come CustomEvent su body, alle liste che si aggiornano da sole (/errors).
-            source.addEventListener('error-toast', function (event) {
+            // Toast d'errore (SystemEventService): al contenitore di fragments/toast.html (evento window) e,
+            // come CustomEvent su body, alle liste che si aggiornano da sole (/system/events).
+            source.addEventListener('system-event', function (event) {
                 var detail = JSON.parse(event.data);
-                window.dispatchEvent(new CustomEvent('app-error', {detail: detail}));
-                document.body.dispatchEvent(new CustomEvent('error-toast', {detail: detail}));
+                window.dispatchEvent(new CustomEvent('system-toast', {detail: detail}));
+                document.body.dispatchEvent(new CustomEvent('system-event', {detail: detail}));
             });
             source.addEventListener('chat-message', function (event) {
                 document.body.dispatchEvent(new CustomEvent('chat-message', {detail: JSON.parse(event.data)}));

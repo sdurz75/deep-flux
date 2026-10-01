@@ -13,13 +13,15 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 /**
- * Riga del registro errori (vedi V17, AppErrorService, pagina /errors).
- * Una "serie" di errori identici ravvicinati e' una sola riga con
- * {@link #getOccurrences()} incrementato.
+ * Riga del registro eventi di sistema (vedi V17/V21/V22, SystemEventService, pagina /system/events).
+ * Una "serie" di eventi identici ravvicinati e' una sola riga con
+ * {@link #getOccurrences()} incrementato. {@code subject} (es. "token:12") dice a cosa si riferisce
+ * l'evento ed entra nella chiave di serie; {@code acknowledgedAt} valorizzato = visualizzato (campanella).
+ * Una ripetizione di una serie gia' visualizzata NON torna "non visualizzata".
  */
 @Entity
-@Table(name = "app_error")
-public class AppError {
+@Table(name = "system_event")
+public class SystemEvent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,7 +38,11 @@ public class AppError {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private AppErrorSource source;
+    private SystemEventSource source;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private SystemEventSeverity severity = SystemEventSeverity.ERROR;
 
     @Column(nullable = false, length = 100)
     private String operation;
@@ -54,12 +60,25 @@ public class AppError {
 
     private Long conversationId;
 
-    protected AppError() {
+    @Column(length = 100)
+    private String subject;
+
+    private Instant acknowledgedAt;
+
+    protected SystemEvent() {
         // richiesto da JPA
     }
 
-    public AppError(AppErrorSource source, String operation, String errorType, String message, String details,
+    /** Un ERROR senza subject (il caso di tutti gli errori registrati finora). */
+    public SystemEvent(SystemEventSource source, String operation, String errorType, String message, String details,
                     Long generationId, Long conversationId, Instant now) {
+        this(SystemEventSeverity.ERROR, source, operation, errorType, message, details, generationId, conversationId, null, now);
+    }
+
+    public SystemEvent(SystemEventSeverity severity, SystemEventSource source, String operation, String errorType, String message,
+                    String details, Long generationId, Long conversationId, String subject, Instant now) {
+        this.severity = severity;
+        this.subject = subject;
         this.source = source;
         this.operation = operation;
         this.errorType = errorType;
@@ -79,6 +98,13 @@ public class AppError {
         this.details = latestDetails;
     }
 
+    /** Segna l'evento come visualizzato (idempotente). */
+    public void acknowledge(Instant now) {
+        if (acknowledgedAt == null) {
+            acknowledgedAt = now;
+        }
+    }
+
     public Long getId() {
         return id;
     }
@@ -95,7 +121,7 @@ public class AppError {
         return occurrences;
     }
 
-    public AppErrorSource getSource() {
+    public SystemEventSource getSource() {
         return source;
     }
 
@@ -121,5 +147,17 @@ public class AppError {
 
     public Long getConversationId() {
         return conversationId;
+    }
+
+    public SystemEventSeverity getSeverity() {
+        return severity;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public Instant getAcknowledgedAt() {
+        return acknowledgedAt;
     }
 }

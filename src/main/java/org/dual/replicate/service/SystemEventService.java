@@ -4,18 +4,22 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.AppError;
-import org.dual.replicate.domain.AppErrorSource;
-import org.dual.replicate.domain.event.ErrorToastEvent;
+import org.dual.replicate.domain.SystemEvent;
+import org.dual.replicate.domain.SystemEventSeverity;
+import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.domain.event.SystemToastEvent;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException;
-import org.dual.replicate.repository.AppErrorRepository;
+import org.dual.replicate.repository.SystemEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,50 +28,67 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Unico punto di registrazione degli errori delle chiamate remote e degli
- * errori interni non gestiti (vedi CLAUDE.md, "Errori e stati terminali"):
- * ogni {@code catch} che riguarda Replicate/OpenRouter/SearXNG/storage
- * passa da qui invece di ingoiare l'eccezione o loggarla a mano.
+ * Unico punto di registrazione degli eventi di sistema (vedi CLAUDE.md,
+ * "Errori ed eventi di sistema"): gli ERRORI delle chiamate remote e quelli interni non
+ * gestiti ({@link #record}: ogni {@code catch} che riguarda Replicate/OpenRouter/SearXNG/
+ * storage passa da qui invece di ingoiare l'eccezione o loggarla a mano) e gli AVVISI
+ * ({@link #warn}, es. un token in scadenza).
  * <p>
  * {@link #record} fa tre cose: (1) logga con stack, (2) salva/aggiorna una
- * riga {@link AppError} (transazione propria, REQUIRES_NEW: sopravvive al
+ * riga {@link SystemEvent} (transazione propria, REQUIRES_NEW: sopravvive al
  * rollback del chiamante), (3) se e' la prima occorrenza di una serie,
- * pubblica un {@link ErrorToastEvent} (→ SSE "error-toast"). NON lancia
+ * pubblica un {@link SystemToastEvent} (→ SSE "system-event"). NON lancia
  * mai: un fallimento del registro stesso viene solo loggato, altrimenti
  * il codice di gestione errori creerebbe nuovi errori.
  * <p>
- * Serie: lo stesso errore (source+operation+generationId+tipo di
- * eccezione) ripetuto entro {@link #SERIES_WINDOW} aggiorna la riga
- * esistente (occurrences++) senza nuovo toast: il polling di
- * /generations/{id} ogni 2s durante un'outage non deve produrre centinaia
- * di righe/toast.
+ * Serie: lo stesso evento (severity+source+operation+generationId+subject+tipo di
+ * eccezione) ripetuto entro la finestra aggiorna la riga esistente (occurrences++) senza
+ * nuovo toast: il polling di /generations/{id} ogni 2s durante un'outage non deve produrre
+ * centinaia di righe/toast. La finestra e' {@link #SERIES_WINDOW} (5 min) per gli ERRORI e
+ * {@code app.events.warning-series-window} (24h) per gli AVVISI: un controllo periodico
+ * non deve ripetere lo stesso toast ogni pochi minuti.
  * <p>
  * Locale: il messaggio del toast e' risolto con la locale del thread
  * corrente (vedi i18n/Messages); i thread async che vogliono la locale
  * della richiesta d'origine la impostano prima (vedi DeepChatGenerationWatcher).
  */
 @Service
-public class AppErrorService {
+public class SystemEventService {
 
-    private static final Logger log = LoggerFactory.getLogger(AppErrorService.class);
+    private static final Logger log = LoggerFactory.getLogger(SystemEventService.class);
 
     static final Duration SERIES_WINDOW = Duration.ofMinutes(5);
     private static final int MAX_MESSAGE = 500;
     private static final int MAX_TOAST = 200;
     private static final int MAX_DETAILS = 8000;
 
-    /** Esito di {@link #record}: {@code key} per la dedupe lato client, {@code firstOfSeries} se ha generato un toast SSE. */
-    public record Recorded(String key, String message, boolean firstOfSeries, boolean transientFailure) {
+    /** Esito di {@link #record}/{@link #warn}: {@code key} per la dedupe lato client, {@code firstOfSeries} se ha generato un toast SSE. */
+    public record Recorded(String key, String message, boolean firstOfSeries, boolean transientFailure,
+                           SystemEventSeverity severity) {
+
+        public Recorded(String key, String message, boolean firstOfSeries, boolean transientFailure) {
+            this(key, message, firstOfSeries, transientFailure, SystemEventSeverity.ERROR);
+        }
     }
 
-    private final AppErrorRepository repository;
+    /** Stato della campanella: non visualizzati (almeno WARNING), gli ultimi {@value #BELL_ITEMS} e se c'e' almeno un ERROR. */
+    public record Unseen(long count, List<SystemEvent> latest, boolean hasError) {
+    }
+
+    static final int BELL_ITEMS = 5;
+    private static final SystemEventSeverity BELL_MINIMUM = SystemEventSeverity.WARNING;
+
+    private final SystemEventRepository repository;
     private final TransactionTemplate transaction;
     private final ApplicationEventPublisher eventPublisher;
     private final Messages messages;
     private final ObjectMapper objectMapper;
+    private final Duration warningSeriesWindow;
 
-    public AppErrorService(AppErrorRepository repository, PlatformTransactionManager transactionManager,
-                            ApplicationEventPublisher eventPublisher, Messages messages, ObjectMapper objectMapper) {
+    public SystemEventService(SystemEventRepository repository, PlatformTransactionManager transactionManager,
+                            ApplicationEventPublisher eventPublisher, Messages messages, ObjectMapper objectMapper,
+                            @Value("${app.events.warning-series-window:24h}") Duration warningSeriesWindow) {
+        this.warningSeriesWindow = warningSeriesWindow;
         this.repository = repository;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -77,7 +98,7 @@ public class AppErrorService {
     }
 
     /**
-     * Come {@link #record(AppErrorSource, String, Throwable)}, con la source ricavata dall'eccezione
+     * Come {@link #record(SystemEventSource, String, Throwable)}, con la source ricavata dall'eccezione
      * ({@link RemoteServiceException#source()}, anche se incapsulata; {@code INTERNAL} per il resto): il chiamante non
      * deve conoscere il servizio da cui viene l'errore.
      */
@@ -101,9 +122,9 @@ public class AppErrorService {
     }
 
     /** La source dell'eccezione remota (anche nella catena delle cause), {@code INTERNAL} se non lo e'. */
-    public static AppErrorSource sourceOf(Throwable error) {
+    public static SystemEventSource sourceOf(Throwable error) {
         RemoteServiceException remote = remoteCause(error);
-        return remote != null ? remote.source() : AppErrorSource.INTERNAL;
+        return remote != null ? remote.source() : SystemEventSource.INTERNAL;
     }
 
     private static RemoteServiceException remoteCause(Throwable error) {
@@ -115,32 +136,51 @@ public class AppErrorService {
         return null;
     }
 
-    public Recorded record(AppErrorSource source, String operation, Throwable error) {
+    public Recorded record(SystemEventSource source, String operation, Throwable error) {
         return record(source, operation, error, null, null);
     }
 
-    public Recorded record(AppErrorSource source, String operation, Throwable error, Long generationId, Long conversationId) {
+    public Recorded record(SystemEventSource source, String operation, Throwable error, Long generationId, Long conversationId) {
         String type = error == null ? "Unknown" : error.getClass().getSimpleName();
         boolean transientFailure = remoteCause(error) != null && remoteCause(error).isTransient();
         String message = sanitize(error);
         log.warn("Errore [{}] {} (generationId={}, conversationId={}): {}", source, operation, generationId, conversationId, message, error);
+        return store(SystemEventSeverity.ERROR, source, operation, type, message, stack(error), generationId, conversationId,
+                null, toast(source, message), transientFailure);
+    }
 
-        String toastMessage = toast(source, message);
+    /**
+     * Registra un AVVISO (severita' WARNING): qualcosa che richiede attenzione prima che diventi un guasto (es. un token in
+     * scadenza). {@code message} e' gia' tradotto e completo; {@code subject} (es. {@code token:12}) identifica la causa e separa
+     * le serie fra loro; {@code operation} dice cosa l'ha prodotto (es. {@code tokenExpiring}). Stessa semantica di
+     * {@link #record}: non lancia mai, un solo toast per serie (finestra {@code app.events.warning-series-window}).
+     */
+    public Recorded warn(SystemEventSource source, String operation, String subject, String message) {
+        String text = sanitizeText(message);
+        log.warn("Avviso [{}] {} ({}): {}", source, operation, subject, text);
+        return store(SystemEventSeverity.WARNING, source, operation, "Warning", text, null, null, null, subject,
+                toastWarning(source, text), false);
+    }
+
+    private Recorded store(SystemEventSeverity severity, SystemEventSource source, String operation, String type, String message,
+                           String details, Long generationId, Long conversationId, String subject, String toastMessage,
+                           boolean transientFailure) {
         String key = UUID.randomUUID().toString();
         boolean first = true;
         try {
-            String details = stack(error);
             Instant now = Instant.now();
+            Duration window = severity == SystemEventSeverity.WARNING ? warningSeriesWindow : SERIES_WINDOW;
             Saved saved = transaction.execute(status -> {
-                var open = repository.findFirstBySourceAndOperationAndGenerationIdAndErrorTypeAndLastSeenAtAfterOrderByIdDesc(
-                        source, operation, generationId, type, now.minus(SERIES_WINDOW));
-                if (open.isPresent()) {
-                    AppError existing = open.get();
+                var open = repository.findOpenSeries(source, operation, type, severity, now.minus(window), generationId, subject,
+                        Pageable.ofSize(1));
+                if (!open.isEmpty()) {
+                    SystemEvent existing = open.get(0);
                     existing.repeat(message, details, now);
                     repository.save(existing);
                     return new Saved(existing.getId(), false);
                 }
-                AppError created = repository.save(new AppError(source, operation, type, message, details, generationId, conversationId, now));
+                SystemEvent created = repository.save(new SystemEvent(severity, source, operation, type, message, details,
+                        generationId, conversationId, subject, now));
                 return new Saved(created.getId(), true);
             });
             if (saved != null) {
@@ -149,21 +189,45 @@ public class AppErrorService {
             }
         } catch (RuntimeException registryFailure) {
             // Il registro non deve mai far fallire il chiamante: si perde solo la riga, resta il log sopra.
-            log.error("Impossibile salvare l'errore nel registro: {}", registryFailure.toString());
+            log.error("Impossibile salvare l'evento nel registro: {}", registryFailure.toString());
         }
         if (first) {
             try {
-                eventPublisher.publishEvent(new ErrorToastEvent(key, toastMessage, transientFailure));
+                eventPublisher.publishEvent(new SystemToastEvent(key, toastMessage, transientFailure, severity));
             } catch (RuntimeException publishFailure) {
-                log.error("Impossibile pubblicare il toast d'errore: {}", publishFailure.toString());
+                log.error("Impossibile pubblicare il toast dell'evento: {}", publishFailure.toString());
             }
         }
-        return new Recorded(key, toastMessage, first, transientFailure);
+        return new Recorded(key, toastMessage, first, transientFailure, severity);
+    }
+
+    /** Stato della campanella (vedi {@link Unseen}). */
+    public Unseen unseen() {
+        var severities = SystemEventSeverity.atLeast(BELL_MINIMUM);
+        long count = repository.countBySeverityInAndAcknowledgedAtIsNull(severities);
+        if (count == 0) {
+            return new Unseen(0, List.of(), false);
+        }
+        return new Unseen(count, repository.findTop5BySeverityInAndAcknowledgedAtIsNullOrderByLastSeenAtDesc(severities),
+                repository.countBySeverityAndAcknowledgedAtIsNull(SystemEventSeverity.ERROR) > 0);
+    }
+
+    public void markSeen(Long id) {
+        repository.markSeen(id, Instant.now());
+    }
+
+    public void markAllSeen() {
+        repository.markAllSeen(Instant.now());
+    }
+
+    /** Toglie dalla campanella gli eventi non letti riferiti a {@code subject} (es. dopo aver rinnovato/cancellato un token). */
+    public void markSeenBySubject(String subject) {
+        repository.markSeenBySubject(subject, Instant.now());
     }
 
     /**
      * Aggiunge alla risposta htmx l'header {@code HX-Trigger} che fa comparire il toast
-     * (evento {@code app-error}, vedi fragments/toast.html). Sempre presente, anche per una
+     * (evento {@code system-toast}, vedi fragments/toast.html). Sempre presente, anche per una
      * ripetizione di serie: e' l'utente che ha appena provato un'azione e deve saperne l'esito.
      */
     public void addToastHeader(HttpServletResponse response, Recorded recorded) {
@@ -171,7 +235,8 @@ public class AppErrorService {
         toast.put("key", recorded.key());
         toast.put("message", recorded.message());
         toast.put("transient", recorded.transientFailure());
-        addHxTrigger(response, "app-error", toast);
+        toast.put("severity", recorded.severity().name());
+        addHxTrigger(response, "system-toast", toast);
     }
 
     /**
@@ -205,10 +270,19 @@ public class AppErrorService {
     private record Saved(Long id, boolean first) {
     }
 
-    private String toast(AppErrorSource source, String message) {
+    private String toast(SystemEventSource source, String message) {
         String shortMessage = message.length() > MAX_TOAST ? message.substring(0, MAX_TOAST) + "…" : message;
         try {
-            return messages.get("toast.error.message", messages.get("errors.source." + source.name()), shortMessage);
+            return messages.get("toast.event.message", messages.get("events.source." + source.name()), shortMessage);
+        } catch (RuntimeException e) {
+            return source.getLabel() + ": " + shortMessage;
+        }
+    }
+
+    private String toastWarning(SystemEventSource source, String message) {
+        String shortMessage = message.length() > MAX_TOAST ? message.substring(0, MAX_TOAST) + "…" : message;
+        try {
+            return messages.get("toast.event.warning", messages.get("events.source." + source.name()), shortMessage);
         } catch (RuntimeException e) {
             return source.getLabel() + ": " + shortMessage;
         }
@@ -223,7 +297,11 @@ public class AppErrorService {
         if (text == null || text.isBlank()) {
             text = error.getClass().getSimpleName();
         }
-        text = text.replaceAll("\\s+", " ").trim();
+        return sanitizeText(text);
+    }
+
+    private static String sanitizeText(String text) {
+        text = text == null ? "" : text.replaceAll("\\s+", " ").trim();
         return text.length() > MAX_MESSAGE ? text.substring(0, MAX_MESSAGE) + "…" : text;
     }
 

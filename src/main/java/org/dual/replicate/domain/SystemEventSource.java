@@ -1,16 +1,17 @@
 package org.dual.replicate.domain;
 
-/** Da dove viene un errore registrato in {@link AppError}. */
-public enum AppErrorSource {
+/** Da dove viene un evento registrato in {@link SystemEvent}. */
+public enum SystemEventSource {
     REPLICATE("Replicate"),
     OPENROUTER("OpenRouter"),
     SEARXNG("SearXNG"),
     STORAGE("Storage"),
+    TOKENS("Token"),
     INTERNAL("Interno");
 
     private final String label;
 
-    AppErrorSource(String label) {
+    SystemEventSource(String label) {
         this.label = label;
     }
 

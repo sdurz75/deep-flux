@@ -1,6 +1,6 @@
 package org.dual.replicate.service;
 
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.remote.RemoteCaller;
 import org.dual.replicate.remote.RemoteServiceException;
 import org.dual.replicate.remote.RetryPolicy;
@@ -21,7 +21,7 @@ public class OpenRouterException extends RemoteServiceException {
             .retry(RetryPolicy.NONE).build();
 
     public OpenRouterException(String message, Throwable cause, Kind kind) {
-        super(AppErrorSource.OPENROUTER, kind, message, cause);
+        super(SystemEventSource.OPENROUTER, kind, message, cause);
     }
 
     /**

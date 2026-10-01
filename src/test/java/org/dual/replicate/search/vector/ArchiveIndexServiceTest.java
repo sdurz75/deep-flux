@@ -11,7 +11,7 @@ import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.dual.replicate.repository.GenerationRepository;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,7 +47,7 @@ class ArchiveIndexServiceTest {
 
     private FakeEmbeddingModel embedding;
     private H2VectorStore store;
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
     private ArchiveIndexService service;
 
     @BeforeEach
@@ -55,8 +55,8 @@ class ArchiveIndexServiceTest {
         clean();
         embedding = new FakeEmbeddingModel();
         store = new H2VectorStore(jdbc, embedding, objectMapper, "modello-a");
-        appErrors = mock(AppErrorService.class);
-        service = new ArchiveIndexService(store, generations, messages, conversations, appErrors);
+        systemEvents = mock(SystemEventService.class);
+        service = new ArchiveIndexService(store, generations, messages, conversations, systemEvents);
     }
 
     @AfterEach
@@ -90,7 +90,7 @@ class ArchiveIndexServiceTest {
         assertThat(store.idsOfType("chat")).hasSize(1); // il turno d'errore non si indicizza
         assertThat(store.similaritySearch(SearchRequest.builder().query("gatto").topK(1).build()))
                 .extracting(Document::getId).containsExactly("generation:" + ok.getId());
-        verify(appErrors, never()).record(anyString(), any(Throwable.class));
+        verify(systemEvents, never()).record(anyString(), any(Throwable.class));
     }
 
     @Test
@@ -133,14 +133,14 @@ class ArchiveIndexServiceTest {
             }
         };
         H2VectorStore fragile = new H2VectorStore(jdbc, failingOnPoison, objectMapper, "modello-a");
-        ArchiveIndexService fragileService = new ArchiveIndexService(fragile, generations, messages, conversations, appErrors);
+        ArchiveIndexService fragileService = new ArchiveIndexService(fragile, generations, messages, conversations, systemEvents);
         generation("veleno", GenerationStatus.SUCCEEDED);
         Generation fine = generation("gatto", GenerationStatus.SUCCEEDED);
 
         fragileService.reconcile();
 
         assertThat(fragile.idsOfType("generation")).containsExactly("generation:" + fine.getId());
-        verify(appErrors).record(anyString(), any(Throwable.class));
+        verify(systemEvents).record(anyString(), any(Throwable.class));
     }
 
     @Test

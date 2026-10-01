@@ -8,8 +8,8 @@ import java.util.OptionalLong;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.AppErrorSource;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.service.storage.StorageException;
 import org.springframework.http.HttpHeaders;
@@ -33,11 +33,11 @@ public class ImageController {
     private static final String CACHE_CONTROL = "private, max-age=31536000, immutable";
 
     private final IImageStorageService storage;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
 
-    public ImageController(IImageStorageService storage, AppErrorService appErrors) {
+    public ImageController(IImageStorageService storage, SystemEventService systemEvents) {
         this.storage = storage;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
     }
 
     @GetMapping("/images/{filename:.+}")
@@ -55,7 +55,7 @@ public class ImageController {
             response.sendError(HttpStatus.NOT_FOUND.value());
             return;
         } catch (StorageException e) {
-            appErrors.record(AppErrorSource.STORAGE, "serveImage", e);
+            systemEvents.record(SystemEventSource.STORAGE, "serveImage", e);
             response.sendError(HttpStatus.BAD_GATEWAY.value());
             return;
         }
@@ -96,7 +96,7 @@ public class ImageController {
             try {
                 in = storage.openRange(filename, start, length);
             } catch (IOException | StorageException e) {
-                appErrors.record(AppErrorSource.STORAGE, "serveImage", e);
+                systemEvents.record(SystemEventSource.STORAGE, "serveImage", e);
                 response.sendError(HttpStatus.BAD_GATEWAY.value());
                 return;
             }
@@ -132,7 +132,7 @@ public class ImageController {
             try {
                 read = in.read(buffer);
             } catch (IOException e) {
-                appErrors.record(AppErrorSource.STORAGE, "serveImage", e);
+                systemEvents.record(SystemEventSource.STORAGE, "serveImage", e);
                 return;
             }
             if (read < 0) {

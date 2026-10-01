@@ -43,6 +43,9 @@
         })();
     </script>
 
+    <!-- Componente Alpine "pinesSelect" (alpine:init): registrato PRIMA del core Alpine, che parte defer. Vedi fragments/select.html. -->
+    <script th:replace="~{fragments/select :: script}"></script>
+
     <!-- Nessun bundler: htmx e Alpine arrivano da CDN, zero build step -->
     <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
     <!-- Plugin Alpine richiesto da x-trap (usato dalla lightbox di Pines UI in fragments/gallery.html): va caricato PRIMA del core Alpine sotto, entrambi defer. -->
@@ -113,7 +116,7 @@
                 @apply bg-accent dark:bg-accent-dark text-accent-contrast dark:text-accent-contrast-dark
                        border-0 rounded-md px-4 py-2 cursor-pointer hover:opacity-90;
             }
-            input[type="search"], input[type="text"], input[type="number"], select, textarea {
+            input[type="search"], input[type="text"], input[type="number"], input[type="password"], input[type="date"], select, textarea {
                 @apply w-full px-3 py-2 border border-line dark:border-line-dark rounded-md
                        bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark;
             }

@@ -54,13 +54,16 @@ class GenerationServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
+
+    @Mock
+    private ApiTokenService apiTokens;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void createSavesGenerationWithPredictionIdAndMergedInput() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new PredictionResponse("pred-1", "starting", null, null, null, null));
@@ -92,7 +95,7 @@ class GenerationServiceTest {
      */
     @Test
     void createForcesDisableSafetyCheckerEvenIfExplicitlyFalseInParameters() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new PredictionResponse("pred-2", "starting", null, null, null, null));
@@ -106,43 +109,47 @@ class GenerationServiceTest {
         assertThat(inputCaptor.getValue()).containsEntry("disable_safety_checker", true);
     }
 
-    /** I token dei LoRA privati vanno a Replicate ma non nel PARAMETERS_JSON salvato (mostrato nel dettaglio). */
+    /** Gli ID dei token scelti diventano il token in chiaro solo nell'input per Replicate; nel JSON salvato restano gli ID. */
     @Test
-    void createSendsSecretTokensToReplicateButDoesNotPersistThem() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
-
+    void createResolvesChosenTokenIdsForReplicateButPersistsOnlyTheIds() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Map<String, Object> input = invocation.getArgument(0);
+            input.remove("hf_token_id");
+            input.put("hf_api_token", "hf_secret");
+            return null;
+        }).when(apiTokens).resolveInto(any());
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new PredictionResponse("pred-s", "starting", null, null, null, null));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Generation result = service.create("black-forest-labs/flux-dev-lora", null, "a cat",
-                "{\"lora_weights\": \"owner/lora\", \"hf_api_token\": \"hf_secret\", \"civitai_api_token\": \"cv_secret\"}");
+                "{\"lora_weights\": \"owner/lora\", \"hf_token_id\": 3}");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
-        assertThat(inputCaptor.getValue()).containsEntry("hf_api_token", "hf_secret")
-                .containsEntry("civitai_api_token", "cv_secret").containsEntry("lora_weights", "owner/lora");
-        assertThat(result.getParametersJson()).contains("owner/lora").doesNotContain("hf_secret", "cv_secret", "api_token");
+        assertThat(inputCaptor.getValue()).containsEntry("hf_api_token", "hf_secret").containsEntry("lora_weights", "owner/lora")
+                .doesNotContainKey("hf_token_id");
+        assertThat(result.getParametersJson()).contains("owner/lora", "hf_token_id").doesNotContain("hf_secret", "hf_api_token");
     }
 
+    /** Token inesistente/scaduto: rifiuto PRIMA di chiamare Replicate (nessuna prediction a pagamento). */
     @Test
-    void createWithOnlyTokensPersistsNoParameters() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+    void createDoesNotCallReplicateWhenAChosenTokenCannotBeResolved() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
+        org.mockito.Mockito.doThrow(new TokenException("Il token \"x\" e' scaduto")).when(apiTokens).resolveInto(any());
 
-        when(replicateClient.createPrediction(anyString(), any(), any()))
-                .thenReturn(new PredictionResponse("pred-t", "starting", null, null, null, null));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        Generation result = service.create("black-forest-labs/flux-dev-lora", null, "a cat", "{\"hf_api_token\": \"hf_secret\"}");
-
-        assertThat(result.getParametersJson()).isNull();
+        assertThatThrownBy(() -> service.create("black-forest-labs/flux-dev-lora", null, "a cat", "{\"hf_token_id\": 3}"))
+                .isInstanceOf(TokenException.class).hasMessageContaining("scaduto");
+        verify(replicateClient, never()).createPrediction(anyString(), any(), any());
+        verify(repository, never()).save(any());
     }
 
     /** Un video non riceve disable_safety_checker (p-video non lo dichiara), ma ricorda kind e sorgente. */
     @Test
     void createForVideoOmitsDisableSafetyCheckerAndRecordsKindAndSource() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
@@ -167,7 +174,7 @@ class GenerationServiceTest {
     /** Un refresh SUCCEEDED con metrics salva il costo stimato; senza metrics resta null (mai un numero inventato). */
     @Test
     void refreshStoresEstimatedCostFromMetricsWhenAvailable() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         Generation withMetrics = new Generation("pred-c1", "black-forest-labs/flux-krea-dev", null, "p", null);
         Generation withoutMetrics = new Generation("pred-c2", "black-forest-labs/flux-krea-dev", null, "p", null);
         ReflectionTestUtils.setField(withMetrics, "id", 21L);
@@ -189,7 +196,7 @@ class GenerationServiceTest {
     /** img2video: l'immagine sorgente va nell'input Replicate come data-URI, ma NON in parametersJson persistito. */
     @Test
     void createForVideoWithSourceSendsImageButDoesNotPersistItInParametersJson() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
@@ -210,7 +217,7 @@ class GenerationServiceTest {
     /** img2video stand-alone: l'upload va nell'input come data-URI, non in parametersJson, ed e' tracciato sulla riga. */
     @Test
     void createForVideoWithUploadSendsImageAndRecordsTheUploadFilename() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         when(imageStorageService.readAsDataUri("upload-x.png")).thenReturn("data:image/png;base64,CCCC");
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new PredictionResponse("pred-u", "starting", null, null, null, null));
@@ -231,7 +238,7 @@ class GenerationServiceTest {
     /** Se Replicate rifiuta, il file caricato non ha piu' un proprietario: va eliminato. */
     @Test
     void createDeletesTheUploadWhenCreationFails() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         when(imageStorageService.readAsDataUri("upload-y.png")).thenReturn("data:image/png;base64,DDDD");
         when(replicateClient.createPrediction(anyString(), any(), any())).thenThrow(new RuntimeException("boom"));
 
@@ -244,7 +251,7 @@ class GenerationServiceTest {
     /** Con piu' immagini la sorgente e' quella scelta sul thumbnail, non la prima. */
     @Test
     void createForVideoUsesTheChosenSourceImage() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png", "7-1.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
@@ -264,7 +271,7 @@ class GenerationServiceTest {
     /** File sorgente illeggibile: errore mostrabile dal form (ReplicateException), non un 500, e nessuna prediction avviata. */
     @Test
     void createForVideoFailsCleanlyWhenTheSourceFileIsUnreadable() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("gone.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
@@ -281,7 +288,7 @@ class GenerationServiceTest {
     /** Una generazione video ancora in corso dopo il timeout delle immagini (5 min) non deve essere marcata FAILED. */
     @Test
     void refreshDoesNotTimeOutAVideoAfterFiveMinutes() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
         Generation generation = new Generation("pred-v", "prunaai/p-video", null, "p", null);
         generation.setKind(GenerationKind.VIDEO);
         ReflectionTestUtils.setField(generation, "id", 5L);
@@ -299,7 +306,7 @@ class GenerationServiceTest {
 
     @Test
     void createRejectsWhenTooManyPredictionsInProgress() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         when(repository.countByModelAndStatusInAndCreatedAtAfter(eq("owner/model"), any(), any())).thenReturn(4L);
         when(messages.get(eq("generation.error.tooManyInProgress"), any())).thenReturn("troppe generazioni in corso");
@@ -313,7 +320,7 @@ class GenerationServiceTest {
 
     @Test
     void createProceedsWhenBelowInProgressThreshold() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         when(repository.countByModelAndStatusInAndCreatedAtAfter(eq("owner/model"), any(), any())).thenReturn(3L);
         when(replicateClient.createPrediction(anyString(), any(), any()))
@@ -328,7 +335,7 @@ class GenerationServiceTest {
 
     @Test
     void cancelMarksGenerationFailedWhenReplicateReportsCanceled() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.PROCESSING);
@@ -351,7 +358,7 @@ class GenerationServiceTest {
 
     @Test
     void cancelLeavesGenerationUntouchedWhenReplicateRefuses() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.PROCESSING);
@@ -369,7 +376,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDownloadsImageWhenPredictionSucceeded() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -397,7 +404,7 @@ class GenerationServiceTest {
      */
     @Test
     void refreshExtractsSeedFromLogsWhenNotSetExplicitly() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -416,7 +423,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDoesNotOverrideAnExplicitlySetSeedFromLogs() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", "{\"seed\": 42}", 42L);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -435,7 +442,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDownloadsAllImagesWhenPredictionHasMultipleOutputs() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-5", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 5L);
@@ -455,7 +462,7 @@ class GenerationServiceTest {
 
     @Test
     void refreshDoesNotCallReplicateWhenAlreadyTerminal() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -469,7 +476,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteRemovesImageFileAndRepositoryRow() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -492,7 +499,7 @@ class GenerationServiceTest {
      */
     @Test
     void deleteAllRemovesEveryImageFileAndPublishesOneEvent() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation first = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(first, "id", 1L);
@@ -513,7 +520,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteAllPublishesNothingWhenNoIdsMatch() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         when(repository.findAllById(List.of(99L))).thenReturn(List.of());
 
@@ -531,7 +538,7 @@ class GenerationServiceTest {
      */
     @Test
     void deleteEverythingRemovesEveryImageFileAndPublishesOneEvent() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation first = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(first, "id", 1L);
@@ -551,7 +558,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteEverythingPublishesNothingWhenArchiveIsEmpty() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         when(repository.findAll()).thenReturn(List.of());
 
@@ -567,7 +574,7 @@ class GenerationServiceTest {
      */
     @Test
     void deleteImageOfMultiImageGenerationRemovesOnlyThatFileAndPublishesImageDeletedEvent() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -592,7 +599,7 @@ class GenerationServiceTest {
      */
     @Test
     void deleteImageOfLastImageCascadesToWholeGenerationDelete() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -610,7 +617,7 @@ class GenerationServiceTest {
 
     @Test
     void toggleFavouriteFlipsStateAndRejectsForeignFilename() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -629,7 +636,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteImageAlsoDropsItsFavouriteMark() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -644,7 +651,7 @@ class GenerationServiceTest {
 
     @Test
     void deleteImageRejectsUnknownFilename() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -670,7 +677,7 @@ class GenerationServiceTest {
      */
     @Test
     void refreshCleansUpDownloadedImagesWhenGenerationWasDeletedConcurrently() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
@@ -695,7 +702,7 @@ class GenerationServiceTest {
     /** Un modello di modifica manda la sorgente sotto input_image (non image) e mantiene disable_safety_checker. */
     @Test
     void createForEditModelSendsSourceAsInputImage() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
@@ -720,7 +727,7 @@ class GenerationServiceTest {
     /** Senza sorgente un modello di modifica non parte: nessuna prediction (nessun costo). */
     @Test
     void createForEditModelWithoutSourceFailsBeforeCallingReplicate() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create("black-forest-labs/flux-kontext-dev", null,
                         "make it red", null, GenerationKind.IMAGE, null, null, null, "input_image", true))
@@ -729,7 +736,7 @@ class GenerationServiceTest {
     }
 
     private GenerationService newService() {
-        return new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+        return new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens);
     }
 
     private Generation processing(long id, String externalId) {
@@ -752,7 +759,7 @@ class GenerationServiceTest {
         Generation result = newService().refresh(1L);
 
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.PROCESSING);
-        verify(appErrors).record("getPrediction", outage, 1L, null);
+        verify(systemEvents).record("getPrediction", outage, 1L, null);
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
@@ -768,7 +775,7 @@ class GenerationServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.FAILED);
         assertThat(result.getErrorMessage()).isEqualTo("contatto fallito");
-        verify(appErrors).record(eq("getPrediction"), any(), eq(1L), any());
+        verify(systemEvents).record(eq("getPrediction"), any(), eq(1L), any());
     }
 
     /** Anche con il poll che continua a fallire, il timeout di business chiude la generazione (e annulla la prediction). */
@@ -805,7 +812,7 @@ class GenerationServiceTest {
         assertThat(result.getImageFilenames()).isEmpty();
         assertThat(result.getCompletedAt()).isNotNull();
         verify(imageStorageService).delete("1-0.png");
-        verify(appErrors).record(eq(org.dual.replicate.domain.AppErrorSource.STORAGE), eq("downloadOutput"), any(), eq(1L), any());
+        verify(systemEvents).record(eq(org.dual.replicate.domain.SystemEventSource.STORAGE), eq("downloadOutput"), any(), eq(1L), any());
         verify(eventPublisher).publishEvent(any(GenerationCompletedEvent.class));
     }
 
@@ -915,6 +922,6 @@ class GenerationServiceTest {
         newService().delete(1L);
 
         verify(repository).deleteAllById(List.of(1L));
-        verify(appErrors).record(org.dual.replicate.domain.AppErrorSource.STORAGE, "deleteFile", locked, 1L, null);
+        verify(systemEvents).record(org.dual.replicate.domain.SystemEventSource.STORAGE, "deleteFile", locked, 1L, null);
     }
 }

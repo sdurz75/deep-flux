@@ -19,13 +19,13 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.OptionalLong;
 
 import jakarta.annotation.PreDestroy;
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteCaller;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
 import org.dual.replicate.remote.RestClientTranslator;
 import org.dual.replicate.remote.RetryPolicy;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,7 +59,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
     private final String baseUrl;
     private final ChunkedAesGcmCipher cipher;
     private final EncryptedBlobCache cache;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
     private final RestClientTranslator errors;
     private final RemoteCaller remote;
     private final Set<String> collectionsReady = ConcurrentHashMap.newKeySet();
@@ -78,7 +78,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             @Value("${storage.webdav.encryption-key:}") String encryptionKey,
             @Value("${storage.webdav.cache.dir:./data/cache}") String cacheDir,
             @Value("${storage.webdav.cache.max-size:2GB}") DataSize cacheMaxSize,
-            Messages messages, RestClient.Builder restClientBuilder, AppErrorService appErrors) throws IOException {
+            Messages messages, RestClient.Builder restClientBuilder, SystemEventService systemEvents) throws IOException {
         super(messages, restClientBuilder);
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("storage.type=webdav richiede storage.webdav.url");
@@ -86,7 +86,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         this.baseUrl = url.endsWith("/") ? url : url + "/";
         this.cipher = new ChunkedAesGcmCipher(ChunkedAesGcmCipher.keyFromBase64(encryptionKey));
         this.cache = new EncryptedBlobCache(Path.of(cacheDir), cacheMaxSize.toBytes());
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
         // Classificazione e retry condivisi con Replicate/SearXNG (vedi remote/). Le letture per /images/** non ritentano
         // (RetryPolicy.NONE di default): il browser riprova da se' e un retry allungherebbe la richiesta; le scritture,
         // le cancellazioni e gli HEAD della migrazione passano da retrying(). NoSuchFileException = "non esiste", non un errore.
@@ -183,7 +183,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
             cache.adopt(filename, temp);
         } catch (IOException | RuntimeException e) {
             // Il file e' su WebDAV: un problema di cache non deve far fallire il salvataggio.
-            appErrors.record(AppErrorSource.STORAGE, "cacheBlob", e);
+            systemEvents.record(SystemEventSource.STORAGE, "cacheBlob", e);
             Files.deleteIfExists(temp);
         }
     }
@@ -231,7 +231,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         } catch (NoSuchFileException e) {
             throw e;
         } catch (IOException | RuntimeException e) {
-            appErrors.record(AppErrorSource.STORAGE, "cacheBlob", e);
+            systemEvents.record(SystemEventSource.STORAGE, "cacheBlob", e);
             return remote;
         }
     }
@@ -252,7 +252,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
                 } catch (NoSuchFileException gone) {
                     // cancellato nel frattempo: niente da riscaldare
                 } catch (IOException | RuntimeException e) {
-                    appErrors.record(AppErrorSource.STORAGE, "warmCache", e);
+                    systemEvents.record(SystemEventSource.STORAGE, "warmCache", e);
                 } finally {
                     warming.remove(filename);
                 }
@@ -382,7 +382,7 @@ public class WebDavImageStorageService extends AbstractImageStorageService {
         try {
             deleteRemote(name);
         } catch (IOException | RuntimeException e) {
-            appErrors.record(AppErrorSource.STORAGE, "cleanupPart", e);
+            systemEvents.record(SystemEventSource.STORAGE, "cleanupPart", e);
         }
     }
 

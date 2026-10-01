@@ -1,0 +1,272 @@
+package org.dual.replicate.service;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
+
+import org.dual.replicate.domain.ApiToken;
+import org.dual.replicate.domain.ApiTokenProvider;
+import org.dual.replicate.domain.SystemEventSource;
+import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.repository.ApiTokenRepository;
+import org.dual.replicate.service.secret.SecretCipher;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+/**
+ * CRUD dei token API (CivitAI/HuggingFace) e loro uso nelle generazioni. Il token e' cifrato nel DB ({@link SecretCipher}) e il
+ * plaintext vive solo qui: la UI vede {@link TokenView} (nome, suffisso, scadenza, stato), le form/la chat scelgono il token
+ * per ID e {@link #resolveInto} lo sostituisce col plaintext nell'input per Replicate, mai nel PARAMETERS_JSON salvato.
+ * Mai il segreto in log, eventi, toast o modello Thymeleaf.
+ * <p>
+ * Scadenza (data inserita a mano): {@link #checkExpiries} registra un AVVISO (SystemEventService#warn, source TOKENS,
+ * subject {@code token:<id>}) per i token scaduti o in scadenza entro {@code app.tokens.expiry-warning-days}; vedi
+ * {@code ApiTokenExpiryService} per l'esecuzione periodica.
+ */
+@Service
+public class ApiTokenService {
+
+    public static final int MAX_NAME = 60;
+    public static final int MAX_TOKEN = 500;
+
+    /** Stato rispetto alla scadenza: OK (nessuna o lontana), EXPIRING (entro la soglia), EXPIRED (superata). */
+    public enum Status { OK, EXPIRING, EXPIRED }
+
+    /** Vista per la UI: niente segreto, solo il suffisso per riconoscerlo. */
+    public record TokenView(Long id, ApiTokenProvider provider, String name, String hint, LocalDate expiresAt, Status status) {
+    }
+
+    private final ApiTokenRepository repository;
+    private final SecretCipher cipher;
+    private final SystemEventService events;
+    private final Messages messages;
+    private final int warningDays;
+    private final Clock clock;
+
+    @Autowired
+    public ApiTokenService(ApiTokenRepository repository, SecretCipher cipher, SystemEventService events, Messages messages,
+                           @Value("${app.tokens.expiry-warning-days:15}") int warningDays) {
+        this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone());
+    }
+
+    ApiTokenService(ApiTokenRepository repository, SecretCipher cipher, SystemEventService events, Messages messages,
+                    int warningDays, Clock clock) {
+        this.repository = repository;
+        this.cipher = cipher;
+        this.events = events;
+        this.messages = messages;
+        this.warningDays = warningDays;
+        this.clock = clock;
+    }
+
+    /** {@code false} se manca la chiave di cifratura: la pagina /tokens lo segnala e creare/modificare e' rifiutato. */
+    public boolean isConfigured() {
+        return cipher.isConfigured();
+    }
+
+    public int warningDays() {
+        return warningDays;
+    }
+
+    public List<TokenView> list() {
+        return repository.findAllByOrderByProviderAscNameAsc().stream().map(this::view).toList();
+    }
+
+    /** Token del provider, per le select delle form di generazione (nome + scadenza, mai il segreto). */
+    public List<TokenView> options(ApiTokenProvider provider) {
+        return repository.findAllByProviderOrderByNameAsc(provider).stream().map(this::view).toList();
+    }
+
+    /**
+     * Attributi di Model per le select di token delle form di generazione ({@code hfTokens}, {@code civitaiTokens}): solo
+     * dove si renderizza il fragment dei parametri di un modello che li usa (FLUX_DEV_LORA), mai a ogni richiesta.
+     */
+    public Map<String, List<TokenView>> formOptions() {
+        return Map.of("hfTokens", options(ApiTokenProvider.HUGGINGFACE), "civitaiTokens", options(ApiTokenProvider.CIVITAI));
+    }
+
+    public TokenView get(Long id) {
+        return view(find(id));
+    }
+
+    public TokenView create(ApiTokenProvider provider, String name, String token, LocalDate expiresAt) {
+        String cleanName = validName(name);
+        if (provider == null) {
+            throw new TokenException(messages.get("tokens.error.providerRequired"));
+        }
+        if (repository.existsByProviderAndNameIgnoreCase(provider, cleanName)) {
+            throw new TokenException(messages.get("tokens.error.nameDuplicate", cleanName));
+        }
+        String cleanToken = validToken(token, true);
+        if (expiresAt != null && expiresAt.isBefore(today())) {
+            throw new TokenException(messages.get("tokens.error.expiryInPast"));
+        }
+        requireCipher();
+        Instant now = clock.instant();
+        ApiToken saved = repository.save(new ApiToken(provider, cleanName, cipher.encrypt(cleanToken), hint(cleanToken), expiresAt, now));
+        checkExpiry(saved);
+        return view(saved);
+    }
+
+    /** {@code token} vuoto/null = lascia il token com'e'. Rinnovare la scadenza toglie dalla campanella gli avvisi di questo token. */
+    public TokenView update(Long id, String name, String token, LocalDate expiresAt) {
+        ApiToken existing = find(id);
+        String cleanName = validName(name);
+        if (repository.existsByProviderAndNameIgnoreCaseAndIdNot(existing.getProvider(), cleanName, id)) {
+            throw new TokenException(messages.get("tokens.error.nameDuplicate", cleanName));
+        }
+        String cleanToken = validToken(token, false);
+        requireCipher();
+        Instant now = clock.instant();
+        existing.update(cleanName, expiresAt, now);
+        if (cleanToken != null) {
+            existing.replaceToken(cipher.encrypt(cleanToken), hint(cleanToken), now);
+        }
+        ApiToken saved = repository.save(existing);
+        events.markSeenBySubject(subject(saved));
+        checkExpiry(saved);
+        return view(saved);
+    }
+
+    public void delete(Long id) {
+        ApiToken existing = find(id);
+        repository.delete(existing);
+        events.markSeenBySubject(subject(existing));
+    }
+
+    /** Plaintext del token scelto, per Replicate. Inesistente o scaduto: rifiuto atteso (nessuna prediction a pagamento parte). */
+    public String resolve(Long id, ApiTokenProvider provider) {
+        ApiToken token = repository.findById(id)
+                .filter(t -> t.getProvider() == provider)
+                .orElseThrow(() -> new TokenException(messages.get("generation.error.tokenMissing", provider.name())));
+        if (isExpired(token)) {
+            throw new TokenException(messages.get("generation.error.tokenExpired", token.getName()));
+        }
+        return cipher.decrypt(token.getTokenEncrypted());
+    }
+
+    /**
+     * Sostituisce in {@code input} gli ID scelti ({@link ApiTokenProvider#idParam}) col token in chiaro sotto la chiave
+     * Replicate ({@link ApiTokenProvider#replicateParam}). Gli ID vengono sempre tolti dall'input (Replicate non li conosce).
+     */
+    public void resolveInto(Map<String, Object> input) {
+        for (ApiTokenProvider provider : ApiTokenProvider.values()) {
+            Object chosen = input.remove(provider.idParam());
+            Long id = asId(chosen);
+            if (id != null) {
+                input.put(provider.replicateParam(), resolve(id, provider));
+            }
+        }
+    }
+
+    /** Controllo di scadenza di tutti i token (job periodico, avvio): un avviso per ogni token scaduto o in scadenza. */
+    public int checkExpiries() {
+        int warned = 0;
+        for (ApiToken token : repository.findAll()) {
+            if (checkExpiry(token)) {
+                warned++;
+            }
+        }
+        return warned;
+    }
+
+    /** Registra l'avviso di scadenza del token, se serve. @return {@code true} se ne ha registrato uno. */
+    boolean checkExpiry(ApiToken token) {
+        if (token.getExpiresAt() == null) {
+            return false;
+        }
+        LocalDate today = today();
+        String provider = messages.get("tokens.provider." + token.getProvider().name());
+        if (today.isAfter(token.getExpiresAt())) {
+            events.warn(SystemEventSource.TOKENS, "tokenExpired", subject(token),
+                    messages.get("tokens.warning.expired", token.getName(), provider, token.getExpiresAt().toString()));
+            return true;
+        }
+        long days = ChronoUnit.DAYS.between(today, token.getExpiresAt());
+        if (days <= warningDays) {
+            events.warn(SystemEventSource.TOKENS, "tokenExpiring", subject(token),
+                    messages.get("tokens.warning.expiring", token.getName(), provider, token.getExpiresAt().toString(), days));
+            return true;
+        }
+        return false;
+    }
+
+    static String subject(ApiToken token) {
+        return "token:" + token.getId();
+    }
+
+    private TokenView view(ApiToken token) {
+        Status status = isExpired(token) ? Status.EXPIRED
+                : token.getExpiresAt() != null && ChronoUnit.DAYS.between(today(), token.getExpiresAt()) <= warningDays ? Status.EXPIRING
+                : Status.OK;
+        return new TokenView(token.getId(), token.getProvider(), token.getName(), token.getTokenHint(), token.getExpiresAt(), status);
+    }
+
+    private boolean isExpired(ApiToken token) {
+        return token.getExpiresAt() != null && today().isAfter(token.getExpiresAt());
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(clock);
+    }
+
+    private ApiToken find(Long id) {
+        return repository.findById(id).orElseThrow(() -> new TokenException(messages.get("tokens.error.notFound")));
+    }
+
+    private void requireCipher() {
+        if (!cipher.isConfigured()) {
+            // Stesso errore di SecretCipher (CONFIGURATION), sollevato PRIMA di toccare il DB.
+            cipher.encrypt("");
+        }
+    }
+
+    private String validName(String name) {
+        String clean = name == null ? "" : name.strip();
+        if (clean.isEmpty()) {
+            throw new TokenException(messages.get("tokens.error.nameRequired"));
+        }
+        if (clean.length() > MAX_NAME) {
+            throw new TokenException(messages.get("tokens.error.nameTooLong", MAX_NAME));
+        }
+        return clean;
+    }
+
+    /** {@code required}=false: vuoto = null (lascia invariato). */
+    private String validToken(String token, boolean required) {
+        String clean = token == null ? "" : token.strip();
+        if (clean.isEmpty()) {
+            if (required) {
+                throw new TokenException(messages.get("tokens.error.tokenRequired"));
+            }
+            return null;
+        }
+        if (clean.length() > MAX_TOKEN) {
+            throw new TokenException(messages.get("tokens.error.tokenTooLong", MAX_TOKEN));
+        }
+        return clean;
+    }
+
+    private static String hint(String token) {
+        return token.length() <= 4 ? token : token.substring(token.length() - 4);
+    }
+
+    /** L'ID arriva da JSON (numero) o da una form (stringa): vuoto/non valido = nessun token scelto. */
+    private static Long asId(Object value) {
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        if (value instanceof String s && !s.isBlank()) {
+            try {
+                return Long.valueOf(s.strip());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+}

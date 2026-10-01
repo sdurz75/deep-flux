@@ -16,7 +16,7 @@
 
   I modelli sono censiti in DB (REPLICATE_MODEL, vedi migrazione V6): un
   insieme chiuso, non piu' testo libero come nella vecchia versione, da
-  cui la <select> nativa al posto del vecchio combobox Alpine con
+  cui una select (<select> nativa nascosta + UI Pines, vedi fragments/select.html) al posto del vecchio combobox Alpine con
   ricerca/JSON bridge (quel bridge esisteva solo per due motivi ormai
   spariti: testo libero arbitrario, e ReplicateModelSummary non avendo
   getter JavaBean non era leggibile da un semplice th:each — ReplicateModel
@@ -36,14 +36,17 @@
 <th:block th:fragment="fields">
     <div class="relative">
         <label class="mt-0" for="image-model-input" th:text="#{generationParams.label.model}">Modello</label>
-        <select id="image-model-input" name="model" required
-                th:hx-get="@{/generations/params}"
-                hx-target="#generation-params-fields" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#generation-params-fields"
-                hx-params="not hf_api_token,civitai_api_token">
-            <option th:each="m : ${models}" th:value="${m.identifier}" th:text="${m.identifier}"
-                    th:title="${m.description}" th:selected="${m.identifier == model}"></option>
-        </select>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="image-model-input" name="model" required
+                    th:hx-get="@{/generations/params}"
+                    hx-target="#generation-params-fields" hx-swap="innerHTML"
+                    hx-trigger="change" hx-include="#generation-params-fields"
+                    class="sr-only" tabindex="-1" aria-hidden="true">
+                <option th:each="m : ${models}" th:value="${m.identifier}" th:text="${m.identifier}"
+                        th:title="${m.description}" th:selected="${m.identifier == model}"></option>
+            </select>
+            <div th:replace="~{fragments/select :: ui}"></div>
+        </div>
         <th:block th:if="${models.isEmpty()}">
             <p th:replace="~{fragments/alert :: error(text=#{generationParams.error.noModels})}">
                 Nessun modello Replicate censito nel catalogo.

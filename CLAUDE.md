@@ -55,10 +55,10 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `extra_lora` (+ scale: Replicate `owner/nome`, URL HuggingFace/CivitAI o `.safetensors`; vuoti = FLUX dev puro) e
   img2img OPZIONALE da upload (`sourceUpload`, `sourceImageParam()` = `image`, + `prompt_strength`; il blocco upload e'
   nascosto nel pannello di `/deep-chat`). NON ha overlay sui thumbnail: "Anima"/"Modifica" non portano a questo modello.
-  **Token** `hf_api_token`/`civitai_api_token` (campi password, per LoRA privati): non stanno nei default del handler, la
-  select modello li esclude da `hx-include` (`hx-params`), `GenerationService.SECRET_INPUT_KEYS` li toglie dal
-  `PARAMETERS_JSON` salvato (vanno solo a Replicate) e `deep-chat.html` (`sync()`) non li salva in `localStorage`:
-  mantenere i tre punti allineati se si aggiunge un altro segreto.
+  **Token** per i LoRA privati: NON si digitano nel form ma si scelgono PER NOME (select) fra quelli salvati in `/tokens`
+  (vedi "Token API"). Al server arriva l'ID (`hf_token_id`/`civitai_token_id`, in `PARAMETERS_JSON` resta l'ID): il token in
+  chiaro esiste solo in `GenerationService#doCreate`, che con `ApiTokenService#resolveInto` lo mette in `hf_api_token`/
+  `civitai_api_token` dell'input per Replicate, PRIMA di chiamarlo (un token inesistente o scaduto e' un rifiuto, nessuna prediction).
 - **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, una
   regola per modello censito — un nuovo modello richiede anche la sua regola) lo calcola da `PredictionResponse.metrics`;
   `GenerationService#refresh` lo salva in `GENERATION.COST_USD` (V13); assente per generazioni vecchie, fallite o senza regola.
@@ -136,10 +136,11 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
 - `controller/`: `GenerationController` (crea, polling/dettaglio, listato, cancellazioni, "AI enhance" `POST
   /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `DeepChatController` (route HTML `/deep-chat/*`),
   `DeepChatApiController` (JSON per `<deep-chat>`), `EventStreamController` (`GET /events`, unico push), `ImageController` (`GET /images/{file}`, unico punto da cui
-  escono i binari: dallo storage, con Range per il seek dei video ed ETag), `ErrorController`.
+  escono i binari: dallo storage, con Range per il seek dei video ed ETag), `SystemEventController`.
 - `domain/`: `Generation`, `ChatConversation`, `ChatMessage`, `ReplicateModel` (catalogo censito, V6),
   `GenerationFormType` (form/handler di un modello: FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO,
-  FLUX_KONTEXT_DEV, FLUX_DEV_LORA; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`.
+  FLUX_KONTEXT_DEV, FLUX_DEV_LORA; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`, `SystemEvent`/`SystemEventSeverity`/
+  `SystemEventSource` (registro eventi, V17/V21/V22), `ApiToken`/`ApiTokenProvider` (V23).
 - `replicate/`: `ReplicateClient`, `ReplicateModelCatalog`, `ReplicatePricing`, `TooManyPredictionsException` (troppe
   prediction in corso PER LO STESSO MODELLO, vedi `GenerationService#create`). `search/`: `SearxngClient` (Basic Auth).
 - `service/`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni
@@ -151,12 +152,13 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   OpenRouter non moderato `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del
   modello e' intercettato e non sovrascrive la textarea), `DeepChatService`, `DeepChatGenerationWatcher`,
   `WebSearchTool`, `ImageGenerationTool`, `GenerationResultHolder` (canale tool→`DeepChatService` via `ToolContext`: gli
-  id delle generazioni avviate nel turno), `AppErrorService`, `GenerationRecoveryService`, `DeepChatFailedException`.
+  id delle generazioni avviate nel turno), `SystemEventService` (+ `SystemEventController`, campanella), `ApiTokenService`/`ApiTokenExpiryService`/`TokenException`, `secret/SecretCipher`,
+  `GenerationRecoveryService`, `DeepChatFailedException`.
 - `search/vector/`: `H2VectorStore` (`VectorStore` su H2, tabella `VECTOR_DOC` V19), `ArchiveIndexService` (riconciliazione dell'indice),
   `SemanticSearchConfig`; `service/ArchiveSearchTool` (tool `searchArchive` della chat). Vedi "Ricerca semantica".
 - `remote/`: `RemoteServiceException`, `RemoteCaller`, `RetryPolicy`, `RestClientTranslator`, `RestRemoteClient` (vedi
   "Errori e retry generici"). `config/`: `TailwindAssets`, `UnhandledExceptionResolver`.
-- `db/migration/`: V1..V20, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
+- `db/migration/`: V1..V23, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
   modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
 - `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
   theme switch in uno slideover Pines, stato Alpine `navOpen`, `button.html :: navToggle`), `button.html` (bottoni +
@@ -290,13 +292,13 @@ Nessun file CSS: solo Tailwind, config inline in `fragments/layout.html`. Mai co
 - **Migrazione locale → WebDAV** (`LocalToWebDavMigrator`): una tantum, opt-in con
   `storage.migration.from-local.enabled=true` + `storage.type=webdav`; parte all'avvio (`ApplicationReadyEvent`) sui file
   di `storage.images-dir` (esclusi i `.part`), salta quelli gia' sul server (HEAD: riavviabile, idempotente), un file che
-  fallisce non ferma gli altri (`AppErrorService`, `migrateLocalToWebDav`). I locali restano, salvo
+  fallisce non ferma gli altri (`SystemEventService`, `migrateLocalToWebDav`). I locali restano, salvo
   `delete-local=true`: ognuno si elimina solo se la dimensione in chiaro riportata dal SERVER coincide. Finche' non ha
   finito, i file non migrati non sono serviti; a fine giro rimettere `enabled=false`.
 - **Cache locale** (`EncryptedBlobCache`, `storage.webdav.cache.*`, default 2 GB in `./data/cache`, `0` = off): tiene i
   blob CIFRATI (mai il chiaro), write-through alla scrittura e read-through su miss, eviction LRU, blob oltre il tetto
   letti a range direttamente da WebDAV. Nomi immutabili e unici: nessuna invalidazione se non su `delete`. Un errore di
-  cache non fa fallire la richiesta (registrato con `AppErrorSource.STORAGE`).
+  cache non fa fallire la richiesta (registrato con `SystemEventSource.STORAGE`).
 
 ## Convenzione: migrazioni database (Flyway)
 
@@ -330,18 +332,36 @@ switcher/cookie/sessione). Bundle: `messages.properties` (italiano, default/fall
   congelato); il catch-all di `DeepChatApiController` traduce solo il prefisso `"Errore nel contattare l'assistente: "`,
   non i messaggi di eccezioni di librerie terze.
 
-## Convenzione: errori delle chiamate remote e stati terminali
+## Convenzione: errori ed eventi di sistema, errori delle chiamate remote e stati terminali
 
-Ogni chiamata a Replicate, OpenRouter (Spring AI) o SearXNG, e ogni errore interno non gestito, passa da
-`AppErrorService#record(operation, throwable[, generationId, conversationId])` (la source si ricava da
+Il registro errori e' un **registro generico di eventi di sistema** (`SystemEvent`, tabella `SYSTEM_EVENT`, pagina `/system/events`;
+`/errors` reindirizza), classificati per severita': `ERROR` (gli errori di sempre) e `WARNING` (avvisi: oggi la scadenza dei token,
+altri seguiranno; `SystemEventSeverity#isAtLeast` per le soglie). Ogni evento ha source (`SystemEventSource`), `operation`, `subject`
+opzionale (a cosa si riferisce, es. `token:12`) e `acknowledgedAt` (visualizzato, per la campanella).
+
+- **ERRORI**: ogni chiamata a Replicate, OpenRouter (Spring AI) o SearXNG, e ogni errore interno non gestito, passa da
+`SystemEventService#record(operation, throwable[, generationId, conversationId])` (la source si ricava da
 `RemoteServiceException#source()`; la forma `record(source, ...)` resta per gli errori non remoti, `INTERNAL`): MAI un `catch`
-che ingoia o soltanto logga. `record` logga con stack, salva/aggiorna una riga `APP_ERROR` (V17, transazione propria, non lancia mai;
-consultabile da `/errors`, `ErrorController`) e alla prima occorrenza di una *serie* pubblica `ErrorToastEvent` → SSE
-`error-toast` → toast in tutte le tab con `live-events.html`. Serie = stesso (source, operation, generationId, tipo
+che ingoia o soltanto logga. `record` logga con stack, salva/aggiorna una riga `SYSTEM_EVENT` (transazione propria, non lancia mai;
+consultabile da `/system/events`, `SystemEventController`) e alla prima occorrenza di una *serie* pubblica `SystemToastEvent` → SSE
+`system-event` → toast in tutte le tab con `live-events.html`. Serie = stesso (severity, source, operation, generationId, subject, tipo
 eccezione) entro 5 minuti: aggiorna `occurrences`/`last_seen_at` invece di creare riga/toast a ogni poll durante un outage.
+La query di serie (`SystemEventRepository#findOpenSeries`) ha predicati null-safe scritti a mano su `generationId`/`subject`: un JPQL
+`= :x` con :x null non combacia mai e ogni evento senza quei campi creerebbe riga e toast nuovi.
+- **AVVISI**: `SystemEventService#warn(source, operation, subject, message)` (messaggio gia' tradotto), stessa semantica (non lancia,
+  un toast per serie) ma finestra di serie `app.events.warning-series-window` (24h): un controllo periodico non deve ripetere il toast
+  ogni pochi minuti. Toast con `severity` nel payload (`WARNING` = bordo `warning`, token colore in `tailwind.config.js`).
+- **Campanella** (`fragments/notification-bell.html`, nell'header fuori dallo slideover): si accende (badge, `danger` se c'e' un ERROR,
+  altrimenti `warning`) quando ci sono eventi NON visualizzati di severita' >= WARNING; il pannello elenca gli ultimi 5; il click
+  porta a `/system/events?event=<id>` (marca quell'evento come visualizzato e lo evidenzia). Il contenitore statico non viene mai
+  sostituito (stato Alpine `open`), il contenuto si ricarica da `GET /system/events/bell` al load, ogni 30s e sugli eventi client
+  `system-toast` (window) / `system-event` (body). "Segna tutti come letti" = `POST /system/events/seen`. Una ripetizione di una serie
+  gia' visualizzata NON torna non letta; chi rimuove la causa (token rinnovato/cancellato) chiama `SystemEventService#markSeenBySubject`.
+- **Eventi client**: `system-toast` (window, toast; anche via header `HX-Trigger`) e `system-event` (body, ricarica lista/campanella;
+  stesso nome dell'evento SSE).
 
-- **Toast** (`fragments/toast.html`, incluso da `layout.html`): ascolta l'evento window `app-error` ({key, message}),
-  dedupe per `key`. Sorgenti: SSE; header `HX-Trigger` (`AppErrorService#addToastHeader`, usato da `GenerationController`
+- **Toast** (`fragments/toast.html`, incluso da `layout.html`): ascolta l'evento window `system-toast` ({key, message, transient, severity}),
+  dedupe per `key`. Sorgenti: SSE; header `HX-Trigger` (`SystemEventService#addToastHeader`, usato da `GenerationController`
   create/enhance/cancel e `UnhandledExceptionResolver`); listener globali `htmx:responseError`/`htmx:sendError` (solo se
   la risposta non portava gia' un toast).
 - **Chi registra**: dove l'eccezione e' *gestita/ingoiata* (servizi in background, tool, watcher); se risale a un
@@ -368,7 +388,7 @@ eccezione) entro 5 minuti: aggiorna `occurrences`/`last_seen_at` invece di crear
 - **Timeout**: `spring.http.clients.connect-timeout/read-timeout` valgono per tutti i `RestClient.Builder`
   auto-configurati (Replicate, download, Spring AI); SearXNG ha un timeout piu' stretto proprio. Un nuovo client HTTP
   usa il `RestClient.Builder` iniettato, mai `RestClient.create()`.
-- **Locale**: `AppErrorService` risolve il toast con la locale del thread; un thread async la imposta prima
+- **Locale**: `SystemEventService` risolve il toast con la locale del thread; un thread async la imposta prima
   (`DeepChatGenerationWatcher#watch`), il recupero usa l'italiano.
 
 ### Errori e retry generici (`remote/`) e checklist "nuovo servizio remoto"
@@ -380,7 +400,7 @@ Un solo tipo, un solo esecutore, una sola traduzione HTTP:
   `CONFIGURATION` (token/credenziali mancanti), `REJECTED` (rifiuto applicativo ATTESO: validazione, "non trovato", rifiuto del
   modello). `isReportable()` = tutto tranne `REJECTED`: solo i reportable si registrano/notificano (`GenerationController#create`
   ne decide cosi' "toast o solo form"); il resolver risponde 502 (guasto di un servizio esterno), 422 (`REJECTED`, senza riga
-  in `APP_ERROR`, con un toast htmx del solo messaggio) o 500 (bug interno). `ReplicateException(String)` = `REJECTED`; con
+  in `SYSTEM_EVENT`, con un toast htmx del solo messaggio) o 500 (bug interno). `ReplicateException(String)` = `REJECTED`; con
   causa = `PERMANENT`: un errore vero senza causa va costruito con `Kind` esplicito.
 - **`RemoteCaller#call(operazione[, RetryPolicy], supplier)`**: traduce qualunque eccezione e ritenta solo i `TRANSIENT`.
   `RetryPolicy` sempre esplicita per le operazioni NON idempotenti/a pagamento: `RetryPolicy.NONE` (es. `createPrediction`: un
@@ -390,17 +410,55 @@ Un solo tipo, un solo esecutore, una sola traduzione HTTP:
 - **`RestClientTranslator`**: unica regola stato HTTP -> `Kind`; messaggi da `<prefix>.error.httpError|connectionFailed`.
 
 Per aggiungere un servizio remoto:
-1. Valore in `AppErrorSource` + `errors.source.<X>` nei due bundle.
+1. Valore in `SystemEventSource` + `events.source.<X>` nei due bundle.
 2. `class FooException extends RemoteServiceException` (costruttore `(String message, Throwable cause, Kind kind)`).
 3. Client `extends RestRemoteClient` con prefisso `foo` (chiavi `foo.error.httpError|connectionFailed` nei bundle), e ogni
    chiamata in `remote.call("operazione", () -> ...)` (`RetryPolicy.NONE` se non idempotente). Esempio minimo:
    `RestRemoteClientTest`.
-4. Chiamante in background: `appErrors.record("operazione", e, ...)`; controller: `appErrors.recordForHtmx(response, "operazione", e)`
+4. Chiamante in background: `systemEvents.record("operazione", e, ...)`; controller: `systemEvents.recordForHtmx(response, "operazione", e)`
    oppure lasciar risalire (il resolver registra con la source giusta). Niente `catch` che ingoia.
 - **Front end**: nessun codice per servizio. Il toast (`fragments/toast.html`) e' guidato dal payload `{key, message,
-  transient}`; `transient: true` aggiunge "Riprova tra qualche istante". `AppErrorService#addHxTrigger` FONDE gli eventi
+  transient}`; `transient: true` aggiunge "Riprova tra qualche istante". `SystemEventService#addHxTrigger` FONDE gli eventi
   nell'unico header `HX-Trigger` (un controller puo' emettere `gallery-update` e un toast insieme). Un bottone "Riprova" generico
   sul toast e' escluso di proposito: rieseguire una POST (`create`) creerebbe una seconda prediction a pagamento.
+
+## Token API (CivitAI, HuggingFace) e cifratura dei segreti
+
+CRUD in `/tokens` (`TokenController`, `ApiTokenService`, `fragments/tokens.html`: dialog Pines come le note di `/search`), per scaricare
+LoRA privati con flux-dev-lora. Il token si salva con un NOME (unico per provider) e una scadenza facoltativa (data inserita a mano:
+nessuno dei due servizi la espone), si sceglie per nome nelle select delle form (`hfTokens`/`civitaiTokens` nel Model, solo dove si
+renderizza il fragment del form-type: `GenerationController`, `DeepChatController`; `ApiTokenService#formOptions`). Dopo il salvataggio
+non si vede piu': la UI mostra solo gli ultimi 4 caratteri (`TOKEN_HINT`). Mai il segreto in log, eventi, toast o modello Thymeleaf.
+
+- **Cifratura**: `SecretCipher` usa la STESSA chiave e lo STESSO algoritmo dei binari WebDAV (`ChunkedAesGcmCipher`, AES-256-GCM;
+  `encryptBytes`/`decryptBytes` per i valori piccoli): `app.secrets.encryption-key` = `${storage.webdav.encryption-key}`, cioe'
+  `STORAGE_WEBDAV_ENCRYPTION_KEY`, nessun segreto nuovo. Con `storage.type=local` la chiave NON e' obbligatoria all'avvio (il segnaposto
+  di `.env.example` non e' base64 valido): senza, `SecretCipher#isConfigured()` e' falso, `/tokens` mostra un alert e salvare un token e'
+  un errore `CONFIGURATION`. Chiave persa = token irrecuperabili (come i binari); nessuna rotazione; il ciphertext non e' legato alla
+  riga. `pom.xml` fissa una chiave di test per Surefire (il `.env` reale non deve cifrare nei test).
+- **Uso**: `GenerationService#doCreate` -> `ApiTokenService#resolveInto(input)` (vedi "LoRA al volo"). Scaduto o inesistente =
+  `TokenException` `REJECTED`, nessuna prediction a pagamento parte.
+- **Scadenza**: `ApiTokenExpiryService` (all'avvio e ogni `app.tokens.expiry-check-interval`, spento nei test con
+  `app.tokens.expiry-check-enabled=false`) chiama `ApiTokenService#checkExpiries`: per i token scaduti o scadenti entro
+  `app.tokens.expiry-warning-days` (15) registra un AVVISO (`SystemEventSource.TOKENS`, operation `tokenExpiring`/`tokenExpired`, subject
+  `token:<id>`). Creare/modificare un token con scadenza vicina avvisa subito.
+
+## Convenzione: select (Pines)
+
+Mai una `<select>` nuda: ogni selezione usa il componente `fragments/select.html` (Alpine + Tailwind, stile Pines; test strutturale
+`everySelectIsWrappedByThePinesSelectComponent`). La `<select>` nativa RESTA nel DOM (`sr-only`) come fonte di verita': `FormData`,
+`hx-trigger="change"`/`hx-include`, `required`, `x-model`, il sync di `deep-chat.html` e i test sulle `<option selected>` non cambiano; il
+componente e' solo la UI, legge le `<option>` e scrive il valore con gli eventi nativi `input`+`change`. Uso:
+
+```html
+<div class="relative" x-data="pinesSelect" x-bind="root">
+    <select id="..." name="..." class="sr-only" tabindex="-1" aria-hidden="true"> ...<option>... </select>
+    <div th:replace="~{fragments/select :: ui}"></div>
+</div>
+```
+
+Un cambio di valore da codice (senza eventi) va annunciato con `select.dispatchEvent(new Event('pines-select:sync'))` (vedi `deep-chat.html`,
+`button :: resetToDefaults`). Se il pannello fosse tagliato da un contenitore con overflow: fallback `@alpinejs/anchor` o posizione `fixed`.
 
 ## Ricerca semantica (vector store su H2, embedding locali)
 
@@ -419,7 +477,7 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
 - **`ArchiveIndexService`** allinea l'indice con una riconciliazione idempotente (non ganci su ogni `save`): prompt delle generazioni
   SUCCEEDED (`type=generation`), messaggi di chat non d'errore (`chat`), titoli (`conversation`); aggiunge i mancanti/cambiati,
   rimuove i documenti la cui riga non esiste piu'. Gira in background all'avvio (backfill), ogni `app.search.reindex-interval` e a
-  ogni `GenerationCompletedEvent`. Un documento che fallisce e' registrato (`AppErrorService`) e non ferma gli altri.
+  ogni `GenerationCompletedEvent`. Un documento che fallisce e' registrato (`SystemEventService`) e non ferma gli altri.
 - **`ArchiveSearchTool`** (`searchArchive(query, type?)`) e' tra i tool di `DeepChatService` solo se `app.search.enabled`.
 - **Link alle generazioni in chat**: `searchArchive` restituisce al modello path assoluti (`/generations/12`). Dietro un reverse
   proxy su subpath non funzionerebbero, quindi `deep-chat.html` li riscrive SOLO in visualizzazione (`linkGenerations`, su
@@ -439,7 +497,7 @@ Nessun DB o servizio esterno. Chi vuole cercare per significato dipende SOLO dal
   `x-data="{ dialogOpen: false }"`, `x-trap.inert.noscroll`, senza teleport; bottoni `button :: dialogOpen|dialogClose|dialogCloseIcon`,
   che assumono `dialogOpen` su un antenato). `dialogOpen` con `hxGet` ricarica `#note-form` (`fragments/search :: noteForm`, vuoto per
   `GET /search/notes/new`, precompilato per `/search/notes/{id}/edit`) a ogni apertura. Al salvataggio riuscito il server emette
-  `HX-Trigger: note-saved` (`AppErrorService#addHxTrigger`) che chiude il dialog (risposta: elenco in creazione, riga `#doc-...`
+  `HX-Trigger: note-saved` (`SystemEventService#addHxTrigger`) che chiude il dialog (risposta: elenco in creazione, riga `#doc-...`
   in modifica); con un errore di validazione risponde col form (`HX-Retarget: #note-form`) e il dialog resta aperto. Le statistiche
   si aggiornano fuori banda (`hx-swap-oob`).
   La ricerca ha una **soglia di somiglianza minima** in % (`threshold`, 0..100, default `app.search.similarity-threshold-percent`=0):
@@ -475,3 +533,5 @@ un test che vuole WebDAV o la migrazione li sovrascrive con `@SpringBootTest(pro
 5. Tocca un'entity JPA → nuova migrazione Flyway, mai `ddl-auto`.
 6. Testo utente-visibile → chiave in entrambi i bundle, mai stringa hardcoded (template o eccezione).
 7. Serve un `<button>` → fragment di `button.html` (aggiungerne uno se nessuno calza), mai inline.
+8. Serve una `<select>` → wrapper `pinesSelect` (vedi "Convenzione: select (Pines)"), mai nuda.
+9. Un evento che l'utente deve notare → `SystemEventService#warn` (avviso) o `#record` (errore): finisce in `/system/events`, nel toast e nella campanella.

@@ -39,7 +39,7 @@
       dal controller (DeepChatController), qui solo JSON.parse. I
       modelli censiti (vedi ReplicateModelCatalog) non passano piu' da
       qui: sono letti direttamente dal Model in
-      fragments/generation-params.html (una select nativa su una vera
+      fragments/generation-params.html (una select Pines (con la <select> nativa nascosta come fonte di verita') su una vera
       entity JPA, niente piu' bridge JSON/data-*).
       deepChatConversationId identifica la conversazione corrente
       (attiva lato server, vedi DeepChatController): il
@@ -329,9 +329,6 @@
     <script>
         (function () {
             var SETTINGS_KEY = 'deepChat.generationSettings';
-            // Token dei LoRA privati (flux-dev-lora): vanno al server con ogni richiesta (window.deepChatSettings) ma
-            // MAI in localStorage. Stesso elenco di GenerationService.SECRET_INPUT_KEYS.
-            var SECRET_KEYS = ['hf_api_token', 'civitai_api_token'];
             var form = document.getElementById('generation-settings-form');
             var select = document.getElementById('image-model-input');
             var fieldsContainer = document.getElementById('generation-params-fields');
@@ -367,6 +364,8 @@
                         // lascerebbe la select senza selezione: si tiene il default.
                         if (Array.prototype.some.call(field.options, function (o) { return o.value === stored[name]; })) {
                             field.value = stored[name];
+                            // La UI Pines sopra la select nativa si rilegge solo su evento (vedi fragments/select.html).
+                            field.dispatchEvent(new Event('pines-select:sync'));
                         }
                     } else {
                         field.value = stored[name];
@@ -385,14 +384,8 @@
                     }
                 });
                 window.setDeepChatSettings(settings);
-                var persisted = {};
-                Object.keys(settings).forEach(function (key) {
-                    if (SECRET_KEYS.indexOf(key) === -1) {
-                        persisted[key] = settings[key];
-                    }
-                });
                 try {
-                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(persisted));
+                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
                 } catch (e) {
                     // localStorage non disponibile (privata/quota piena): la
                     // sessione corrente resta comunque funzionante, solo non persiste.
@@ -402,6 +395,7 @@
             var stored = readStoredSettings();
             if (stored && stored.model && stored.model !== select.value && hasModelOption(stored.model)) {
                 select.value = stored.model;
+                select.dispatchEvent(new Event('pines-select:sync'));
                 fetch(select.getAttribute('hx-get') + '?model=' + encodeURIComponent(stored.model))
                     .then(function (response) {
                         if (!response.ok) { throw new Error('HTTP ' + response.status); }
@@ -416,6 +410,7 @@
                         // Modello salvato non piu' disponibile / server non raggiungibile: si resta sui campi del
                         // modello di default (gia' renderizzati), senza scrivere un corpo d'errore nel pannello.
                         select.value = select.options[0] ? select.options[0].value : select.value;
+                        select.dispatchEvent(new Event('pines-select:sync'));
                         sync();
                     });
             } else {

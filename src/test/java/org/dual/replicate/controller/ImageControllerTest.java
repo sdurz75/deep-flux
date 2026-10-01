@@ -6,7 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.storage.AbstractImageStorageService;
 import org.dual.replicate.service.storage.LocalFsImageStorageService;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +35,7 @@ class ImageControllerTest {
         put("1-0.mp4", "0123456789");
         put("2-0.jpg", "jpeg-bytes");
         LocalFsImageStorageService storage = new LocalFsImageStorageService(dir.toString(), mock(Messages.class));
-        mvc = MockMvcBuilders.standaloneSetup(new ImageController(storage, mock(AppErrorService.class))).build();
+        mvc = MockMvcBuilders.standaloneSetup(new ImageController(storage, mock(SystemEventService.class))).build();
     }
 
     @Test

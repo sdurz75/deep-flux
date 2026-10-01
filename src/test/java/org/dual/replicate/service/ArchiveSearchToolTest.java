@@ -19,8 +19,8 @@ import static org.mockito.Mockito.when;
 class ArchiveSearchToolTest {
 
     private final VectorStore store = mock(VectorStore.class);
-    private final AppErrorService appErrors = mock(AppErrorService.class);
-    private final ArchiveSearchTool tool = new ArchiveSearchTool(store, appErrors, 3);
+    private final SystemEventService systemEvents = mock(SystemEventService.class);
+    private final ArchiveSearchTool tool = new ArchiveSearchTool(store, systemEvents, 3);
 
     private static Document hit(String id, String text, Map<String, Object> metadata) {
         return Document.builder().id(id).text(text).metadata(metadata).score(0.9).build();
@@ -67,6 +67,6 @@ class ArchiveSearchToolTest {
         String result = tool.searchArchive("gatto", null);
 
         assertThat(result).contains("non disponibile").contains("modello non caricato");
-        verify(appErrors).record("searchArchive", failure);
+        verify(systemEvents).record("searchArchive", failure);
     }
 }

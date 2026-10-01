@@ -16,7 +16,7 @@ import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.domain.GenerationKind;
@@ -51,13 +51,6 @@ public class GenerationService {
     /** Chiave dell'immagine sorgente quando il chiamante non ne specifica una (p-video, il primo modello con sorgente). */
     private static final String DEFAULT_SOURCE_IMAGE_PARAM = "image";
 
-    /**
-     * Chiavi di input che vanno a Replicate ma MAI in GENERATION.PARAMETERS_JSON (che il dettaglio mostra):
-     * i token con cui il modello scarica LoRA privati (flux-dev-lora). Vedi {@link #withoutSecrets}.
-     * Duplicate nell'array letterale di deep-chat.html (sync(): niente token in localStorage).
-     */
-    static final Set<String> SECRET_INPUT_KEYS = Set.of("hf_api_token", "civitai_api_token");
-
     /** Un video impiega piu' di un'immagine (fino a 20 s di clip): stessa logica di TIMEOUT, soglia piu' larga. */
     private static final Duration VIDEO_TIMEOUT = Duration.ofMinutes(15);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
@@ -84,7 +77,8 @@ public class GenerationService {
     private final ObjectMapper objectMapper;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
+    private final ApiTokenService apiTokens;
 
     public GenerationService(GenerationRepository repository,
                               ReplicateClient replicateClient,
@@ -92,14 +86,16 @@ public class GenerationService {
                               ObjectMapper objectMapper,
                               Messages messages,
                               ApplicationEventPublisher eventPublisher,
-                              AppErrorService appErrors) {
+                              SystemEventService systemEvents,
+                              ApiTokenService apiTokens) {
+        this.apiTokens = apiTokens;
         this.repository = repository;
         this.replicateClient = replicateClient;
         this.imageStorageService = imageStorageService;
         this.objectMapper = objectMapper;
         this.messages = messages;
         this.eventPublisher = eventPublisher;
-        this.appErrors = appErrors;
+        this.systemEvents = systemEvents;
     }
 
     /**
@@ -192,7 +188,9 @@ public class GenerationService {
         }
 
         Map<String, Object> input = parseParameters(parametersJson);
-        String persistedParametersJson = withoutSecrets(input, parametersJson);
+        // Gli ID dei token scelti (hf_token_id/civitai_token_id) diventano il token in chiaro SOLO nell'input per Replicate:
+        // parametersJson (salvato sotto) conserva gli ID. Un token inesistente/scaduto lancia un rifiuto PRIMA di spendere nulla.
+        apiTokens.resolveInto(input);
         input.put("prompt", prompt);
         if (kind == GenerationKind.IMAGE) {
             input.put("disable_safety_checker", true);
@@ -220,7 +218,7 @@ public class GenerationService {
             if (prediction.id() == null || prediction.id().isBlank()) {
                 throw new ReplicateException(messages.get("replicate.error.emptyResponse"), null, ReplicateException.Kind.PERMANENT);
             }
-            Generation generation = new Generation(prediction.id(), model, version, prompt, persistedParametersJson, seedOf(input));
+            Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
             generation.setKind(kind);
             generation.setSourceGenerationId(sourceGenerationId);
             generation.setSourceUploadFilename(sourceUploadFilename);
@@ -355,9 +353,9 @@ public class GenerationService {
                     }
                 }
                 generation.setImageFilenames(new ArrayList<>());
-                appErrors.record(AppErrorSource.STORAGE, "downloadOutput", e, generation.getId(), generation.getConversationId());
+                systemEvents.record(SystemEventSource.STORAGE, "downloadOutput", e, generation.getId(), generation.getConversationId());
                 generation.setStatus(GenerationStatus.FAILED);
-                generation.setErrorMessage(messages.get("generation.error.downloadFailed", AppErrorService.sanitize(e)));
+                generation.setErrorMessage(messages.get("generation.error.downloadFailed", SystemEventService.sanitize(e)));
             }
             generation.setCompletedAt(Instant.now());
         } else if (prediction.canceled()) {
@@ -395,18 +393,18 @@ public class GenerationService {
     }
 
     /**
-     * Il poll verso Replicate e' fallito (dopo i ritentativi). Sempre registrato ({@link AppErrorService}: la serie
+     * Il poll verso Replicate e' fallito (dopo i ritentativi). Sempre registrato ({@link SystemEventService}: la serie
      * evita righe/toast a ogni poll). Un errore PERMANENTE (token errato, 4xx, risposta illeggibile) fa fallire la
      * generazione subito; uno TRANSITORIO (rete, timeout, 5xx) la lascia in corso e riprova al prossimo poll — la
      * prediction su Replicate continua e il suo esito non va perso per un'interruzione di pochi secondi — ma il
      * timeout di business vale comunque, cosi' non esiste attesa infinita.
      */
     private Generation handlePollFailure(Generation generation, RuntimeException e) {
-        appErrors.record("getPrediction", e, generation.getId(), generation.getConversationId());
+        systemEvents.record("getPrediction", e, generation.getId(), generation.getConversationId());
         boolean permanent = e instanceof ReplicateException replicateException && !replicateException.isTransient();
         if (permanent) {
             generation.setStatus(GenerationStatus.FAILED);
-            generation.setErrorMessage(messages.get("generation.error.contactFailed", AppErrorService.sanitize(e)));
+            generation.setErrorMessage(messages.get("generation.error.contactFailed", SystemEventService.sanitize(e)));
             generation.setCompletedAt(Instant.now());
             // La riga diventa terminale e non verra' piu' interrogata: se la prediction gira ancora (risposta
             // illeggibile, non un 401/404) va fermata, altrimenti continua e costa.
@@ -435,7 +433,7 @@ public class GenerationService {
             if (e instanceof ReplicateException r && !r.isTransient()) {
                 log.info("Annullamento della prediction {} non necessario/riuscito: {}", externalId, e.getMessage());
             } else {
-                appErrors.record("cancelPrediction", e, generationId, conversationId);
+                systemEvents.record("cancelPrediction", e, generationId, conversationId);
             }
         }
     }
@@ -570,7 +568,7 @@ public class GenerationService {
                         try {
                             imageStorageService.delete(file);
                         } catch (RuntimeException e) {
-                            appErrors.record(AppErrorSource.STORAGE, "deleteFile", e, generation.getId(), generation.getConversationId());
+                            systemEvents.record(SystemEventSource.STORAGE, "deleteFile", e, generation.getId(), generation.getConversationId());
                         }
                     });
         });
@@ -665,16 +663,6 @@ public class GenerationService {
         generation.setFavouriteFilenames(favourites);
         repository.save(generation);
         return nowFavourite;
-    }
-
-    /** {@code parametersJson} da salvare: senza {@link #SECRET_INPUT_KEYS}, invariato (stessa stringa) se non ce ne sono. */
-    private String withoutSecrets(Map<String, Object> input, String parametersJson) {
-        if (input.keySet().stream().noneMatch(SECRET_INPUT_KEYS::contains)) {
-            return parametersJson;
-        }
-        Map<String, Object> persisted = new LinkedHashMap<>(input);
-        persisted.keySet().removeAll(SECRET_INPUT_KEYS);
-        return persisted.isEmpty() ? null : objectMapper.writeValueAsString(persisted);
     }
 
     private Map<String, Object> parseParameters(String parametersJson) {

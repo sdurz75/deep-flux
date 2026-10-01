@@ -65,17 +65,17 @@ class DeepChatServiceTest {
     private Messages i18n;
 
     @Mock
-    private AppErrorService appErrors;
+    private SystemEventService systemEvents;
 
     /** Con la ricerca semantica attiva il modello riceve anche searchArchive; senza, solo i due tool storici. */
     @Test
     void theArchiveSearchToolIsRegisteredOnlyWhenPresent() {
         ChatClient.Builder withTool = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         new DeepChatService(withTool, webSearchTool, imageGenerationTool, Optional.of(mock(ArchiveSearchTool.class)),
-                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, systemEvents, "guida");
         ChatClient.Builder without = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         new DeepChatService(without, webSearchTool, imageGenerationTool, Optional.empty(),
-                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
+                chatConversationRepository, chatMessageRepository, generationWatcher, i18n, systemEvents, "guida");
 
         org.mockito.Mockito.verify(withTool.defaultSystem(anyString())).defaultTools(any(), any(), any());
         org.mockito.Mockito.verify(without.defaultSystem(anyString())).defaultTools(any(), any());
@@ -85,7 +85,7 @@ class DeepChatServiceTest {
     void replyThrowsWhenConversationNotFound() {
         ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                Optional.empty(), chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
+                Optional.empty(), chatConversationRepository, chatMessageRepository, generationWatcher, i18n, systemEvents, "guida");
         when(chatConversationRepository.findById(1L)).thenReturn(Optional.empty());
         when(i18n.get("deepchat.error.conversationNotFound")).thenReturn("Conversazione non trovata");
 
@@ -105,7 +105,7 @@ class DeepChatServiceTest {
                 .thenReturn(chatResponse);
 
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                Optional.empty(), chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
+                Optional.empty(), chatConversationRepository, chatMessageRepository, generationWatcher, i18n, systemEvents, "guida");
 
         ChatConversation conversation = new ChatConversation();
         Instant createdAt = conversation.getUpdatedAt();
@@ -134,7 +134,7 @@ class DeepChatServiceTest {
                 .prompt().messages(anyList()).toolContext(anyMap()).call().chatResponse())
                 .thenThrow(outage);
         DeepChatService service = new DeepChatService(chatClientBuilder, webSearchTool, imageGenerationTool,
-                Optional.empty(), chatConversationRepository, chatMessageRepository, generationWatcher, i18n, appErrors, "guida");
+                Optional.empty(), chatConversationRepository, chatMessageRepository, generationWatcher, i18n, systemEvents, "guida");
         ChatConversation conversation = new ChatConversation();
         when(chatConversationRepository.findById(7L)).thenReturn(Optional.of(conversation));
         when(chatConversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -144,7 +144,7 @@ class DeepChatServiceTest {
                 .isInstanceOf(DeepChatFailedException.class)
                 .hasMessage("Errore assistente");
 
-        verify(appErrors).record(eq(org.dual.replicate.domain.AppErrorSource.OPENROUTER), eq("chatTurn"),
+        verify(systemEvents).record(eq(org.dual.replicate.domain.SystemEventSource.OPENROUTER), eq("chatTurn"),
                 org.mockito.ArgumentMatchers.argThat(e -> e instanceof OpenRouterException && e.getCause() == outage), eq(null), eq(conversation.getId()));
         org.mockito.ArgumentCaptor<org.dual.replicate.domain.ChatMessage> saved =
                 org.mockito.ArgumentCaptor.forClass(org.dual.replicate.domain.ChatMessage.class);

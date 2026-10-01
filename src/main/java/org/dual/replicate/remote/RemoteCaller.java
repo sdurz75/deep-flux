@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 /**
  * L'unico esecutore di chiamate remote: traduce qualunque eccezione in una {@link RemoteServiceException} e ritenta
  * (con {@link RetryPolicy}) solo quelle {@link RemoteServiceException#isTransient() transitorie}. Non registra nulla:
- * chi GESTISCE l'errore lo registra ({@code AppErrorService#record}), cosi' un ritentativo riuscito non lascia tracce e
+ * chi GESTISCE l'errore lo registra ({@code SystemEventService#record}), cosi' un ritentativo riuscito non lascia tracce e
  * un errore definitivo ne lascia una sola.
  *
  * <p>Oggetto semplice (nessun bean), costruito una volta per client:

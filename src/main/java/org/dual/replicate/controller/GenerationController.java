@@ -7,7 +7,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.domain.AppErrorSource;
+import org.dual.replicate.domain.SystemEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.GenerationKind;
@@ -17,7 +17,8 @@ import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.GenerationRepository;
-import org.dual.replicate.service.AppErrorService;
+import org.dual.replicate.service.ApiTokenService;
+import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
@@ -66,7 +67,8 @@ public class GenerationController {
     private final Messages messages;
     private final PromptEnhancementService promptEnhancementService;
     private final IImageStorageService imageStorageService;
-    private final AppErrorService appErrors;
+    private final SystemEventService systemEvents;
+    private final ApiTokenService apiTokens;
 
     public GenerationController(GenerationService generationService,
                                  GenerationRepository generationRepository,
@@ -76,8 +78,10 @@ public class GenerationController {
                                  Messages messages,
                                  PromptEnhancementService promptEnhancementService,
                                  IImageStorageService imageStorageService,
-                                 AppErrorService appErrors) {
-        this.appErrors = appErrors;
+                                 SystemEventService systemEvents,
+                                 ApiTokenService apiTokens) {
+        this.systemEvents = systemEvents;
+        this.apiTokens = apiTokens;
         this.generationService = generationService;
         this.generationRepository = generationRepository;
         this.modelCatalog = modelCatalog;
@@ -202,13 +206,13 @@ public class GenerationController {
             // causa: sono un rifiuto, non un errore di comunicazione, e restano solo nel form. Il resto
             // (chiamata a Replicate fallita, storage) e' registrato e notificato anche come toast.
             if (e.isReportable()) {
-                appErrors.recordForHtmx(response, "createGeneration", e);
+                systemEvents.recordForHtmx(response, "createGeneration", e);
             }
             return createFailed(e.getMessage(), version, prompt, model, allParams, uiModel);
         } catch (RuntimeException e) {
             // Errore inatteso (upload illeggibile, DB, serializzazione...): mai un 500 che htmx non renderizza.
-            appErrors.recordForHtmx(response, "createGeneration", e);
-            return createFailed(AppErrorService.sanitize(e), version, prompt, model, allParams, uiModel);
+            systemEvents.recordForHtmx(response, "createGeneration", e);
+            return createFailed(SystemEventService.sanitize(e), version, prompt, model, allParams, uiModel);
         }
     }
 
@@ -259,6 +263,7 @@ public class GenerationController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("generateForm.error.unknownModel", model)));
         GenerationParameterHandler handler = parameterHandlers.get(formType);
         populateFormTypeFields(uiModel, handler, allParams);
+        addTokenOptions(uiModel, handler);
         return handler.fragmentName();
     }
 
@@ -309,8 +314,8 @@ public class GenerationController {
                 // Rifiuto atteso (es. upload sorgente di tipo non valido): solo il messaggio, niente registro/toast.
                 uiModel.addAttribute("enhanceError", rejected.getMessage());
             } else {
-                appErrors.recordForHtmx(response, "enhancePrompt", e);
-                uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", AppErrorService.sanitize(e)));
+                systemEvents.recordForHtmx(response, "enhancePrompt", e);
+                uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceFailed", SystemEventService.sanitize(e)));
             }
         }
         return "fragments/generate-form :: promptField(prompt=${prompt}, enhanceError=${enhanceError})";
@@ -344,6 +349,14 @@ public class GenerationController {
         model.addAttribute("formType", handler == null ? null : handler.formType().name());
         if (handler != null) {
             populateFormTypeFields(model, handler, allParams);
+            addTokenOptions(model, handler);
+        }
+    }
+
+    /** I token salvati per le select del form-type che li usa (flux-dev-lora): solo dove serve, mai a ogni richiesta. */
+    private void addTokenOptions(Model model, GenerationParameterHandler handler) {
+        if (handler.formType() == GenerationFormType.FLUX_DEV_LORA) {
+            apiTokens.formOptions().forEach(model::addAttribute);
         }
     }
 
@@ -467,7 +480,7 @@ public class GenerationController {
                 // Errore VERO su una riga esistente: registrato (la serie evita righe/toast a ogni poll) e la
                 // pagina resta viva con lo stato attuale, invece di un 500 che htmx non renderizza e che il
                 // polling ripeterebbe identico ogni 2s. Il recupero (GenerationRecoveryService) la chiude.
-                appErrors.record(AppErrorSource.INTERNAL, "refreshGeneration", e, id, null);
+                systemEvents.record(SystemEventSource.INTERNAL, "refreshGeneration", e, id, null);
                 generation = generationRepository.findById(id).orElseThrow(() -> e);
                 return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
             }
@@ -526,9 +539,9 @@ public class GenerationController {
             // Un rifiuto perche' la prediction era gia' terminale non e' un errore da segnalare; se invece la
             // generazione e' ancora in corso il cancel e' davvero fallito: registrato e notificato.
             if (!generation.isTerminal()) {
-                AppErrorService.Recorded recorded = appErrors.record("cancelGeneration", e, id, conversationId);
+                SystemEventService.Recorded recorded = systemEvents.record("cancelGeneration", e, id, conversationId);
                 if (isHtmxRequest) {
-                    appErrors.addToastHeader(response, recorded);
+                    systemEvents.addToastHeader(response, recorded);
                 }
             }
         }
@@ -590,7 +603,7 @@ public class GenerationController {
         } catch (org.dual.replicate.service.storage.StorageException e) {
             // Lo storage non ha cancellato il file: il DB e' rimasto invariato (coerente), la griglia non cambia.
             // Registrato come STORAGE (non come 500 generico) e notificato con il toast.
-            appErrors.recordForHtmx(response, "deleteFile", e, id, conversationId);
+            systemEvents.recordForHtmx(response, "deleteFile", e, id, conversationId);
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, null, e);
         }
         if (cascaded) {
