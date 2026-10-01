@@ -17,22 +17,20 @@ import org.springframework.transaction.annotation.Transactional;
 public interface SystemEventRepository extends JpaRepository<SystemEvent, Long> {
 
     /**
-     * Serie "aperta" dello stesso evento (piu' recente prima; passare {@code Pageable.ofSize(1)}). I predicati su
-     * {@code generationId} e {@code subject} sono null-safe A MANO: un JPQL {@code e.x = :x} con :x null non combacia mai, e
-     * ogni evento senza generazione/subject creerebbe una riga e un toast nuovi (il metodo derivato dal nome lo faceva da se').
+     * Serie "aperta" dello stesso evento (piu' recente prima; passare {@code Pageable.ofSize(1)}). Il predicato su
+     * {@code subject} e' null-safe A MANO: un JPQL {@code e.x = :x} con :x null non combacia mai, e
+     * ogni evento senza subject creerebbe una riga e un toast nuovi (il metodo derivato dal nome lo faceva da se').
      */
     @Query("""
             select e from SystemEvent e
             where e.source = :source and e.operation = :operation and e.errorType = :errorType
               and e.severity = :severity and e.lastSeenAt > :after
-              and ((:generationId is null and e.generationId is null) or e.generationId = :generationId)
               and ((:subject is null and e.subject is null) or e.subject = :subject)
             order by e.id desc
             """)
     List<SystemEvent> findOpenSeries(@Param("source") String source, @Param("operation") String operation,
                                      @Param("errorType") String errorType, @Param("severity") SystemEventSeverity severity,
-                                     @Param("after") Instant after, @Param("generationId") Long generationId,
-                                     @Param("subject") String subject, Pageable pageable);
+                                     @Param("after") Instant after, @Param("subject") String subject, Pageable pageable);
 
     /** Listato di /system/events: ultimo avvistamento prima. */
     Page<SystemEvent> findAllByOrderByLastSeenAtDesc(Pageable pageable);

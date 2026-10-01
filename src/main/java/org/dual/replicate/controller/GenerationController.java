@@ -7,6 +7,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
@@ -485,7 +486,7 @@ public class GenerationController {
                 // Errore VERO su una riga esistente: registrato (la serie evita righe/toast a ogni poll) e la
                 // pagina resta viva con lo stato attuale, invece di un 500 che htmx non renderizza e che il
                 // polling ripeterebbe identico ogni 2s. Il recupero (GenerationRecoveryService) la chiude.
-                systemEvents.record(CoreEventSource.INTERNAL, "refreshGeneration", e, id, null);
+                systemEvents.record(CoreEventSource.INTERNAL, "refreshGeneration", e, AppEventSubjects.of(id, null));
                 generation = generationRepository.findById(id).orElseThrow(() -> e);
                 return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
             }
@@ -544,7 +545,7 @@ public class GenerationController {
             // Un rifiuto perche' la prediction era gia' terminale non e' un errore da segnalare; se invece la
             // generazione e' ancora in corso il cancel e' davvero fallito: registrato e notificato.
             if (!generation.isTerminal()) {
-                SystemEventService.Recorded recorded = systemEvents.record("cancelGeneration", e, id, conversationId);
+                SystemEventService.Recorded recorded = systemEvents.record("cancelGeneration", e, AppEventSubjects.of(id, conversationId));
                 if (isHtmxRequest) {
                     systemEvents.addToastHeader(response, recorded);
                 }
@@ -608,7 +609,7 @@ public class GenerationController {
         } catch (org.dual.replicate.service.storage.StorageException e) {
             // Lo storage non ha cancellato il file: il DB e' rimasto invariato (coerente), la griglia non cambia.
             // Registrato come STORAGE (non come 500 generico) e notificato con il toast.
-            systemEvents.recordForHtmx(response, "deleteFile", e, id, conversationId);
+            systemEvents.recordForHtmx(response, "deleteFile", e, AppEventSubjects.of(id, conversationId));
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, null, e);
         }
         if (cascaded) {

@@ -3,6 +3,7 @@ package org.dual.replicate.service;
 import java.time.Duration;
 import java.util.Locale;
 
+import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
@@ -87,7 +88,7 @@ public class DeepChatGenerationWatcher {
                 // Qualunque altro fallimento (DB, errore inatteso) NON e' una cancellazione: va registrato
                 // e mostrato. Il turno di esito lo scrive comunque GenerationRecoveryService (sweep), quindi il
                 // placeholder in chat non resta appeso per sempre.
-                systemEvents.record(CoreEventSource.INTERNAL, "watchGeneration", e, generationId, conversationId);
+                systemEvents.record(CoreEventSource.INTERNAL, "watchGeneration", e, AppEventSubjects.of(generationId, conversationId));
                 return;
             }
             if (!generation.isTerminal()) {
@@ -131,7 +132,7 @@ public class DeepChatGenerationWatcher {
                     conversationId, generation.getId(), text, DeepChatService.toFiles(generation)));
             return true;
         } catch (RuntimeException e) {
-            systemEvents.record(CoreEventSource.INTERNAL, "persistChatTurn", e, generation.getId(), conversationId);
+            systemEvents.record(CoreEventSource.INTERNAL, "persistChatTurn", e, AppEventSubjects.of(generation.getId(), conversationId));
             return false;
         }
     }

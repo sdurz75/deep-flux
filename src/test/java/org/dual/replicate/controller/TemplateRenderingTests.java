@@ -319,8 +319,9 @@ class TemplateRenderingTests {
     @Test
     @Transactional
     void errorsPageListsRecordedErrorsAndClearEmptiesTheLog() throws Exception {
-        systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(org.dual.replicate.app.AppEventSource.REPLICATE,
-                "getPrediction", "ReplicateException", "Replicate non risponde", "stack...", 42L, null, java.time.Instant.now()));
+        systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(org.dual.replicate.domain.SystemEventSeverity.ERROR,
+                org.dual.replicate.app.AppEventSource.REPLICATE, "getPrediction", "ReplicateException", "Replicate non risponde", "stack...",
+                "generation:42", java.time.Instant.now()));
 
         String page = mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String fragment = mockMvc.perform(get("/system/events").header("HX-Request", "true")).andExpect(status().isOk())
@@ -338,7 +339,7 @@ class TemplateRenderingTests {
     private org.dual.replicate.domain.SystemEvent savedEvent(org.dual.replicate.domain.SystemEventSeverity severity, String message,
                                                               String subject) {
         return systemEventRepository.save(new org.dual.replicate.domain.SystemEvent(severity,
-                org.dual.replicate.core.events.domain.CoreEventSource.TOKENS, "op", "T", message, null, null, null, subject,
+                org.dual.replicate.core.events.domain.CoreEventSource.TOKENS, "op", "T", message, null, subject,
                 java.time.Instant.now().minusSeconds(300)));
     }
 

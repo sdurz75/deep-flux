@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
+import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationStatus;
@@ -90,7 +91,7 @@ public class GenerationRecoveryService {
             }
         } catch (RuntimeException e) {
             if (generationService.exists(generation.getId())) {
-                systemEvents.record(CoreEventSource.INTERNAL, "recoverGeneration", e, generation.getId(), generation.getConversationId());
+                systemEvents.record(CoreEventSource.INTERNAL, "recoverGeneration", e, AppEventSubjects.of(generation.getId(), generation.getConversationId()));
             }
         }
     }

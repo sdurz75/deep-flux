@@ -17,7 +17,7 @@
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{events.intro}">Eventi di sistema.</p>
 
     <div id="events-content">
-        <div th:replace="~{fragments/system-events :: content(${events}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, ${severity}, ${highlightId}, ${unseenCount})}"></div>
+        <div th:replace="~{fragments/system-events :: content(${events}, ${eventLinks}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, ${severity}, ${highlightId}, ${unseenCount})}"></div>
     </div>
 
     <div th:replace="~{fragments/live-events :: connect}"></div>

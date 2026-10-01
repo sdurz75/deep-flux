@@ -58,10 +58,6 @@ public class SystemEvent {
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String details;
 
-    private Long generationId;
-
-    private Long conversationId;
-
     @Column(length = 100)
     private String subject;
 
@@ -72,13 +68,12 @@ public class SystemEvent {
     }
 
     /** Un ERROR senza subject (il caso di tutti gli errori registrati finora). */
-    public SystemEvent(EventSource source, String operation, String errorType, String message, String details,
-                    Long generationId, Long conversationId, Instant now) {
-        this(SystemEventSeverity.ERROR, source, operation, errorType, message, details, generationId, conversationId, null, now);
+    public SystemEvent(EventSource source, String operation, String errorType, String message, String details, Instant now) {
+        this(SystemEventSeverity.ERROR, source, operation, errorType, message, details, null, now);
     }
 
     public SystemEvent(SystemEventSeverity severity, EventSource source, String operation, String errorType, String message,
-                    String details, Long generationId, Long conversationId, String subject, Instant now) {
+                    String details, String subject, Instant now) {
         this.severity = severity;
         this.subject = subject;
         this.source = source.name();
@@ -86,8 +81,6 @@ public class SystemEvent {
         this.errorType = errorType;
         this.message = message;
         this.details = details;
-        this.generationId = generationId;
-        this.conversationId = conversationId;
         this.createdAt = now;
         this.lastSeenAt = now;
     }
@@ -141,14 +134,6 @@ public class SystemEvent {
 
     public String getDetails() {
         return details;
-    }
-
-    public Long getGenerationId() {
-        return generationId;
-    }
-
-    public Long getConversationId() {
-        return conversationId;
     }
 
     public SystemEventSeverity getSeverity() {

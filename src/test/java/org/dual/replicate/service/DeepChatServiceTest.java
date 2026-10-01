@@ -146,7 +146,7 @@ class DeepChatServiceTest {
                 .hasMessage("Errore assistente");
 
         verify(systemEvents).record(eq(org.dual.replicate.app.AppEventSource.OPENROUTER), eq("chatTurn"),
-                org.mockito.ArgumentMatchers.argThat(e -> e instanceof OpenRouterException && e.getCause() == outage), eq(null), eq(conversation.getId()));
+                org.mockito.ArgumentMatchers.argThat(e -> e instanceof OpenRouterException && e.getCause() == outage), org.mockito.ArgumentMatchers.isNull(String.class));
         org.mockito.ArgumentCaptor<org.dual.replicate.domain.ChatMessage> saved =
                 org.mockito.ArgumentCaptor.forClass(org.dual.replicate.domain.ChatMessage.class);
         verify(chatMessageRepository, org.mockito.Mockito.times(2)).save(saved.capture());

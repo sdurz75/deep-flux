@@ -42,7 +42,7 @@ import tools.jackson.databind.ObjectMapper;
  * mai: un fallimento del registro stesso viene solo loggato, altrimenti
  * il codice di gestione errori creerebbe nuovi errori.
  * <p>
- * Serie: lo stesso evento (severity+source+operation+generationId+subject+tipo di
+ * Serie: lo stesso evento (severity+source+operation+subject+tipo di
  * eccezione) ripetuto entro la finestra aggiorna la riga esistente (occurrences++) senza
  * nuovo toast: il polling di /generations/{id} ogni 2s durante un'outage non deve produrre
  * centinaia di righe/toast. La finestra e' {@link #SERIES_WINDOW} (5 min) per gli ERRORI e
@@ -104,20 +104,21 @@ public class SystemEventService {
      * deve conoscere il servizio da cui viene l'errore.
      */
     public Recorded record(String operation, Throwable error) {
-        return record(sourceOf(error), operation, error, null, null);
+        return record(sourceOf(error), operation, error, null);
     }
 
-    public Recorded record(String operation, Throwable error, Long generationId, Long conversationId) {
-        return record(sourceOf(error), operation, error, generationId, conversationId);
+    /** {@code subject}: a cosa si riferisce l'evento (es. {@code generation:12}, vedi {@link SystemEvent}), puo' essere {@code null}. */
+    public Recorded record(String operation, Throwable error, String subject) {
+        return record(sourceOf(error), operation, error, subject);
     }
 
-    /** {@link #record(String, Throwable, Long, Long)} + toast nella risposta htmx (il boilerplate dei controller). */
+    /** {@link #record(String, Throwable, String)} + toast nella risposta htmx (il boilerplate dei controller). */
     public Recorded recordForHtmx(HttpServletResponse response, String operation, Throwable error) {
-        return recordForHtmx(response, operation, error, null, null);
+        return recordForHtmx(response, operation, error, null);
     }
 
-    public Recorded recordForHtmx(HttpServletResponse response, String operation, Throwable error, Long generationId, Long conversationId) {
-        Recorded recorded = record(operation, error, generationId, conversationId);
+    public Recorded recordForHtmx(HttpServletResponse response, String operation, Throwable error, String subject) {
+        Recorded recorded = record(operation, error, subject);
         addToastHeader(response, recorded);
         return recorded;
     }
@@ -138,16 +139,16 @@ public class SystemEventService {
     }
 
     public Recorded record(EventSource source, String operation, Throwable error) {
-        return record(source, operation, error, null, null);
+        return record(source, operation, error, null);
     }
 
-    public Recorded record(EventSource source, String operation, Throwable error, Long generationId, Long conversationId) {
+    public Recorded record(EventSource source, String operation, Throwable error, String subject) {
         String type = error == null ? "Unknown" : error.getClass().getSimpleName();
         boolean transientFailure = remoteCause(error) != null && remoteCause(error).isTransient();
         String message = sanitize(error);
-        log.warn("Errore [{}] {} (generationId={}, conversationId={}): {}", source, operation, generationId, conversationId, message, error);
-        return store(SystemEventSeverity.ERROR, source, operation, type, message, stack(error), generationId, conversationId,
-                null, toast(source, message), transientFailure);
+        log.warn("Errore [{}] {} ({}): {}", source, operation, subject, message, error);
+        return store(SystemEventSeverity.ERROR, source, operation, type, message, stack(error), subject,
+                toast(source, message), transientFailure);
     }
 
     /**
@@ -159,20 +160,19 @@ public class SystemEventService {
     public Recorded warn(EventSource source, String operation, String subject, String message) {
         String text = sanitizeText(message);
         log.warn("Avviso [{}] {} ({}): {}", source, operation, subject, text);
-        return store(SystemEventSeverity.WARNING, source, operation, "Warning", text, null, null, null, subject,
+        return store(SystemEventSeverity.WARNING, source, operation, "Warning", text, null, subject,
                 toastWarning(source, text), false);
     }
 
     private Recorded store(SystemEventSeverity severity, EventSource source, String operation, String type, String message,
-                           String details, Long generationId, Long conversationId, String subject, String toastMessage,
-                           boolean transientFailure) {
+                           String details, String subject, String toastMessage, boolean transientFailure) {
         String key = UUID.randomUUID().toString();
         boolean first = true;
         try {
             Instant now = Instant.now();
             Duration window = severity == SystemEventSeverity.WARNING ? warningSeriesWindow : SERIES_WINDOW;
             Saved saved = transaction.execute(status -> {
-                var open = repository.findOpenSeries(source.name(), operation, type, severity, now.minus(window), generationId, subject,
+                var open = repository.findOpenSeries(source.name(), operation, type, severity, now.minus(window), subject,
                         Pageable.ofSize(1));
                 if (!open.isEmpty()) {
                     SystemEvent existing = open.get(0);
@@ -181,7 +181,7 @@ public class SystemEventService {
                     return new Saved(existing.getId(), false);
                 }
                 SystemEvent created = repository.save(new SystemEvent(severity, source, operation, type, message, details,
-                        generationId, conversationId, subject, now));
+                        subject, now));
                 return new Saved(created.getId(), true);
             });
             if (saved != null) {

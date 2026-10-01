@@ -10,7 +10,7 @@
   (che aggiornano il contatore ma non producono un nuovo evento).
   Ogni riga e' un <details> nativo (nessun JS): la sintesi sempre visibile, lo stack trace a richiesta.
 -->
-<th:block th:fragment="content(events, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, severity, highlightId, unseenCount)">
+<th:block th:fragment="content(events, eventLinks, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, severity, highlightId, unseenCount)">
     <div style="display:contents" th:hx-get="@{/system/events(page=${currentPage}, severity=${severity})}"
          th:with="basePath=(${severity == null} ? '/system/events' : '/system/events?severity=' + ${severity})"
          hx-trigger="system-event from:body, every 15s" hx-target="#events-content" hx-swap="innerHTML">
@@ -55,10 +55,7 @@
                     <span th:if="${e.occurrences > 1}" class="rounded-full px-2 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark"
                           th:text="'×' + ${e.occurrences}">×3</span>
                     <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${e.lastSeenAt}">data</span>
-                    <a th:if="${e.generationId != null}" th:href="@{'/generations/' + ${e.generationId}}"
-                       th:text="#{events.link.generation(${e.generationId})}">Generazione #1</a>
-                    <a th:if="${e.conversationId != null}" th:href="@{'/deep-chat/' + ${e.conversationId}}"
-                       th:text="#{events.link.conversation}">Conversazione</a>
+                    <a th:each="link : ${eventLinks.get(e.id)}" th:href="@{${link.path}}" th:text="${link.label}">Generazione #1</a>
                     <a th:if="${e.source == 'TOKENS'}" th:href="@{/tokens}" th:text="#{events.link.tokens}">Token</a>
                 </div>
                 <p class="mt-2 mb-0 break-words" th:text="${e.message}">messaggio</p>

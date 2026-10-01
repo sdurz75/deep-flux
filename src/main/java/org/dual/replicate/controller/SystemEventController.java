@@ -2,13 +2,19 @@ package org.dual.replicate.controller;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.core.events.domain.EventLink;
+import org.dual.replicate.core.events.port.out.IEventLinkResolver;
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.repository.SystemEventRepository;
 import org.dual.replicate.service.SystemEventService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Controller;
@@ -31,11 +37,14 @@ public class SystemEventController {
     private final SystemEventRepository repository;
     private final SystemEventService events;
     private final Messages messages;
+    private final ObjectProvider<IEventLinkResolver> linkResolver;
 
-    public SystemEventController(SystemEventRepository repository, SystemEventService events, Messages messages) {
+    public SystemEventController(SystemEventRepository repository, SystemEventService events, Messages messages,
+                                 ObjectProvider<IEventLinkResolver> linkResolver) {
         this.repository = repository;
         this.events = events;
         this.messages = messages;
+        this.linkResolver = linkResolver;
     }
 
     /** Vecchio indirizzo del registro (segnalibri): il nome di vista "redirect:" applica il context path/prefisso del proxy. */
@@ -126,6 +135,7 @@ public class SystemEventController {
         }
         int currentPage = pageIndex + 1;
         model.addAttribute("events", result.getContent());
+        model.addAttribute("eventLinks", linksOf(result.getContent()));
         model.addAttribute("severity", severity == null ? null : severity.name());
         model.addAttribute("highlightId", highlightId);
         model.addAttribute("unseenCount", events.unseen().count());
@@ -134,6 +144,16 @@ public class SystemEventController {
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
         model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.getTotalPages()));
+    }
+
+    /** I link "apri" per evento (id -> link), risolti dall'app tramite {@link IEventLinkResolver}; nessuna implementazione = nessun link. */
+    private Map<Long, List<EventLink>> linksOf(List<SystemEvent> content) {
+        IEventLinkResolver resolver = linkResolver.getIfAvailable();
+        Map<Long, List<EventLink>> links = new HashMap<>();
+        if (resolver != null) {
+            content.forEach(e -> links.put(e.getId(), resolver.resolve(e.getSubject())));
+        }
+        return links;
     }
 
     private Page<SystemEvent> find(SystemEventSeverity severity, int pageIndex) {
@@ -157,7 +177,7 @@ public class SystemEventController {
 
     // Viste di risposta diretta: parametri NOMINATI (vedi CLAUDE.md, "Pattern controller").
     private static String contentView() {
-        return "fragments/system-events :: content(events=${events}, currentPage=${currentPage}, totalPages=${totalPages}, "
+        return "fragments/system-events :: content(events=${events}, eventLinks=${eventLinks}, currentPage=${currentPage}, totalPages=${totalPages}, "
                 + "hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers}, severity=${severity}, "
                 + "highlightId=${highlightId}, unseenCount=${unseenCount})";
     }

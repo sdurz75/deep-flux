@@ -760,7 +760,7 @@ class GenerationServiceTest {
         Generation result = newService().refresh(1L);
 
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.PROCESSING);
-        verify(systemEvents).record("getPrediction", outage, 1L, null);
+        verify(systemEvents).record("getPrediction", outage, "generation:1");
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
@@ -776,7 +776,7 @@ class GenerationServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(GenerationStatus.FAILED);
         assertThat(result.getErrorMessage()).isEqualTo("contatto fallito");
-        verify(systemEvents).record(eq("getPrediction"), any(), eq(1L), any());
+        verify(systemEvents).record(eq("getPrediction"), any(), eq("generation:1"));
     }
 
     /** Anche con il poll che continua a fallire, il timeout di business chiude la generazione (e annulla la prediction). */
@@ -813,7 +813,7 @@ class GenerationServiceTest {
         assertThat(result.getImageFilenames()).isEmpty();
         assertThat(result.getCompletedAt()).isNotNull();
         verify(imageStorageService).delete("1-0.png");
-        verify(systemEvents).record(eq(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE), eq("downloadOutput"), any(), eq(1L), any());
+        verify(systemEvents).record(eq(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE), eq("downloadOutput"), any(), eq("generation:1"));
         verify(eventPublisher).publishEvent(any(GenerationCompletedEvent.class));
     }
 
@@ -923,6 +923,6 @@ class GenerationServiceTest {
         newService().delete(1L);
 
         verify(repository).deleteAllById(List.of(1L));
-        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE, "deleteFile", locked, 1L, null);
+        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE, "deleteFile", locked, "generation:1");
     }
 }

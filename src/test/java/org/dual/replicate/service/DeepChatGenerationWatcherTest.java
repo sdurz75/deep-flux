@@ -170,7 +170,7 @@ class DeepChatGenerationWatcherTest {
 
         watcher().watch(1L, 7L, Locale.ITALIAN);
 
-        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.INTERNAL, "watchGeneration", boom, 1L, 7L);
+        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.INTERNAL, "watchGeneration", boom, "generation:1");
         verify(chatMessageRepository, never()).save(any());
         verify(broadcaster, never()).broadcastChatMessage(any());
     }
@@ -213,6 +213,6 @@ class DeepChatGenerationWatcherTest {
 
         assertThat(watcher().persistOutcome(generation, 7L)).isFalse();
 
-        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.INTERNAL, "persistChatTurn", boom, 1L, 7L);
+        verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.INTERNAL, "persistChatTurn", boom, "generation:1");
     }
 }

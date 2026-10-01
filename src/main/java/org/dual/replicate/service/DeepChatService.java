@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.domain.ChatConversation;
@@ -220,7 +221,7 @@ public class DeepChatService {
                     generationWatcher.attachToConversation(id, conversation.getId());
                     generationWatcher.watch(id, conversation.getId(), locale);
                 } catch (RuntimeException e) {
-                    systemEvents.record(CoreEventSource.INTERNAL, "watchStart", e, id, conversation.getId());
+                    systemEvents.record(CoreEventSource.INTERNAL, "watchStart", e, AppEventSubjects.of(id, conversation.getId()));
                 }
             }
         }
@@ -232,7 +233,7 @@ public class DeepChatService {
      * da lanciare, gia' col messaggio per l'utente. Non lancia mai da se'.
      */
     private DeepChatFailedException failTurn(ChatConversation conversation, EventSource source, String operation, RuntimeException cause) {
-        systemEvents.record(source, operation, cause, null, conversation.getId());
+        systemEvents.record(source, operation, cause, AppEventSubjects.of(null, conversation.getId()));
         String userMessage = i18n.get("deepchat.error.contactAssistant", SystemEventService.sanitize(cause));
         try {
             chatMessageRepository.save(ChatMessage.errorTurn(conversation, userMessage));

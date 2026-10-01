@@ -88,7 +88,7 @@ class GenerationRecoveryServiceTest {
 
         service().recoverOnStartup();
 
-        verify(systemEvents).record(CoreEventSource.INTERNAL, "recoverGeneration", boom, 1L, null);
+        verify(systemEvents).record(CoreEventSource.INTERNAL, "recoverGeneration", boom, "generation:1");
         verify(generationService).refresh(2L);
     }
 

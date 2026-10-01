@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
@@ -353,7 +354,7 @@ public class GenerationService {
                     }
                 }
                 generation.setImageFilenames(new ArrayList<>());
-                systemEvents.record(CoreEventSource.STORAGE, "downloadOutput", e, generation.getId(), generation.getConversationId());
+                systemEvents.record(CoreEventSource.STORAGE, "downloadOutput", e, AppEventSubjects.of(generation.getId(), generation.getConversationId()));
                 generation.setStatus(GenerationStatus.FAILED);
                 generation.setErrorMessage(messages.get("generation.error.downloadFailed", SystemEventService.sanitize(e)));
             }
@@ -400,7 +401,7 @@ public class GenerationService {
      * timeout di business vale comunque, cosi' non esiste attesa infinita.
      */
     private Generation handlePollFailure(Generation generation, RuntimeException e) {
-        systemEvents.record("getPrediction", e, generation.getId(), generation.getConversationId());
+        systemEvents.record("getPrediction", e, AppEventSubjects.of(generation.getId(), generation.getConversationId()));
         boolean permanent = e instanceof ReplicateException replicateException && !replicateException.isTransient();
         if (permanent) {
             generation.setStatus(GenerationStatus.FAILED);
@@ -433,7 +434,7 @@ public class GenerationService {
             if (e instanceof ReplicateException r && !r.isTransient()) {
                 log.info("Annullamento della prediction {} non necessario/riuscito: {}", externalId, e.getMessage());
             } else {
-                systemEvents.record("cancelPrediction", e, generationId, conversationId);
+                systemEvents.record("cancelPrediction", e, AppEventSubjects.of(generationId, conversationId));
             }
         }
     }
@@ -568,7 +569,7 @@ public class GenerationService {
                         try {
                             imageStorageService.delete(file);
                         } catch (RuntimeException e) {
-                            systemEvents.record(CoreEventSource.STORAGE, "deleteFile", e, generation.getId(), generation.getConversationId());
+                            systemEvents.record(CoreEventSource.STORAGE, "deleteFile", e, AppEventSubjects.of(generation.getId(), generation.getConversationId()));
                         }
                     });
         });
