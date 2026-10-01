@@ -70,6 +70,20 @@ class TemplateRenderingTests {
     }
 
     /**
+     * fragments/live-events.html non ha nomi di eventi hardcoded: li legge da app.push.client-events / reconnect-events
+     * (core.push.PushModelAdvice), e "system-event" (toast) e' sempre gestito.
+     */
+    @Test
+    void liveEventsBridgeTakesTheAppEventNamesFromConfiguration() throws Exception {
+        String page = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(page).contains("new EventSource(eventsUrl)")
+                .containsPattern("appEvents = \\[\\s*\"gallery-update\",\\s*\"chat-message\"\\s*\\]")
+                .containsPattern("reconnectEvents = \\[\\s*\"gallery-update\"\\s*\\]")
+                .contains("addEventListener('system-event'");
+    }
+
+    /**
      * Regressione: th:case e th:replace sullo STESSO tag in
      * fragments/generation-params.html non filtravano nulla (l'ordine di
      * precedenza degli attributi di Thymeleaf processa th:replace PRIMA

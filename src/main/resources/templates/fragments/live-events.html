@@ -3,7 +3,7 @@
 <body>
 
 <!--
-  Unico punto che sa parlare SSE: apre GET /events (EventStreamController)
+  Unico punto che sa parlare SSE: apre GET /events (core.push EventStreamController)
   e ri-dispatcha ogni evento ricevuto come CustomEvent su document.body,
   cosi' ogni pagina/fragment decide cosa farne con gli strumenti che gia'
   usa altrove (htmx hx-trigger="nome-evento from:body" per un refresh,
@@ -17,38 +17,44 @@
   i browser concedono quando l'utente tiene piu' tab dell'app aperte
   contemporaneamente.
 
-  "gallery-update": nessun dettaglio, e' solo un segnale "qualcosa e'
-  cambiato, ricarica". "chat-message": il dettaglio e' il payload JSON
-  (conversationId/text/files) cosi' com'e' mandato da
-  GenerationEventBroadcaster.ChatMessagePushEvent.
+  I nomi degli eventi dell'app vengono da app.push.client-events (es. "gallery-update": solo un segnale "qualcosa e'
+  cambiato, ricarica"; "chat-message": il dettaglio e' il payload JSON cosi' com'e' mandato da GenerationEventBroadcaster);
+  "system-event" (toast) e' sempre gestito.
 -->
 <th:block th:fragment="connect">
     <script th:inline="javascript">
         (function () {
             var eventsUrl = /*[[@{/events}]]*/ '/events';
+            // Nomi degli eventi dell'app (app.push.client-events / reconnect-events, PushModelAdvice): niente e' hardcoded qui.
+            var appEvents = /*[[${pushEvents}]]*/ [];
+            var reconnectEvents = /*[[${pushReconnectEvents}]]*/ [];
             var source = new EventSource(eventsUrl);
             // EventSource si riconnette da solo ma gli eventi emessi nel frattempo sono persi (nessun replay):
-            // alla riconnessione si chiede un refresh delle viste che si aggiornano da "gallery-update".
+            // alla riconnessione si ri-dispatchano gli eventi "da refresh" (es. gallery-update).
             var dropped = false;
             source.addEventListener('error', function () { dropped = true; });
             source.addEventListener('open', function () {
                 if (dropped) {
                     dropped = false;
-                    document.body.dispatchEvent(new CustomEvent('gallery-update'));
+                    reconnectEvents.forEach(function (name) {
+                        document.body.dispatchEvent(new CustomEvent(name));
+                    });
                 }
             });
-            source.addEventListener('gallery-update', function () {
-                document.body.dispatchEvent(new CustomEvent('gallery-update'));
+            // Eventi dell'app: il payload (JSON) diventa il detail del CustomEvent su body.
+            appEvents.forEach(function (name) {
+                source.addEventListener(name, function (event) {
+                    var detail;
+                    try { detail = JSON.parse(event.data); } catch (e) { detail = event.data; }
+                    document.body.dispatchEvent(new CustomEvent(name, {detail: detail}));
+                });
             });
-            // Toast d'errore (SystemEventService): al contenitore di fragments/toast.html (evento window) e,
+            // Toast (SystemEventService), sempre gestito: al contenitore di fragments/toast.html (evento window) e,
             // come CustomEvent su body, alle liste che si aggiornano da sole (/system/events).
             source.addEventListener('system-event', function (event) {
                 var detail = JSON.parse(event.data);
                 window.dispatchEvent(new CustomEvent('system-toast', {detail: detail}));
                 document.body.dispatchEvent(new CustomEvent('system-event', {detail: detail}));
-            });
-            source.addEventListener('chat-message', function (event) {
-                document.body.dispatchEvent(new CustomEvent('chat-message', {detail: JSON.parse(event.data)}));
             });
         })();
     </script>

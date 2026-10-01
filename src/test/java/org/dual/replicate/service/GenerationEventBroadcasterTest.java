@@ -1,145 +1,60 @@
 package org.dual.replicate.service;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import java.util.List;
+
+import org.dual.replicate.core.push.port.in.IClientPush;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.event.ChatMessagePushEvent;
 import org.dual.replicate.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.domain.event.GenerationsDeletedEvent;
 import org.junit.jupiter.api.Test;
-import org.reactivestreams.Subscription;
 
-import reactor.core.publisher.BaseSubscriber;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-
-/**
- * ReactiveTypeHandler di Spring MVC (il consumatore reale di
- * GenerationEventBroadcaster.subscribe(), vedi EventStreamController)
- * chiede un elemento alla volta (request(1), poi ne richiede un altro
- * solo dopo aver spedito il precedente): un BaseSubscriber che fa lo
- * stesso riproduce esattamente quel pattern di domanda, senza bisogno
- * di reactor-test.
- */
+/** Gli eventi di dominio delle generazioni diventano i due eventi SSE dell'app; il trasporto e' di core.push (PushServiceTest). */
 class GenerationEventBroadcasterTest {
 
+    private final IClientPush push = mock(IClientPush.class);
+    private final GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster(push);
+
     @Test
-    void bufferPerSottoscrittoreConsegnaEntrambiGliEventiAncheConDomandaLimitata() {
-        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
-        List<String> receivedEventNames = new CopyOnWriteArrayList<>();
-        AtomicReference<Subscription> subscriptionRef = new AtomicReference<>();
-
-        broadcaster.subscribe().subscribe(new BaseSubscriber<>() {
-            @Override
-            protected void hookOnSubscribe(Subscription subscription) {
-                subscriptionRef.set(subscription);
-                subscription.request(1);
-            }
-
-            @Override
-            protected void hookOnNext(org.springframework.http.codec.ServerSentEvent<Object> value) {
-                receivedEventNames.add(value.event());
-                // Nessuna request(1) qui: simula la scrittura ancora in
-                // volo quando arriva il secondo evento, esattamente il
-                // punto che "directBestEffort" da solo (senza il buffer
-                // per-sottoscrittore in subscribe()) perderebbe.
-            }
-        });
-
+    void completedGenerationEmitsGalleryUpdate() {
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+
         broadcaster.onGenerationCompleted(new GenerationCompletedEvent(generation));
-        broadcaster.broadcastChatMessage(new ChatMessagePushEvent(1L, null, "Immagine pronta", null));
 
-        assertThat(receivedEventNames).containsExactly("gallery-update");
-
-        subscriptionRef.get().request(1);
-
-        assertThat(receivedEventNames).containsExactly("gallery-update", "chat-message");
-    }
-
-    @Test
-    void emitSenzaSottoscrittoriNonLanciaEccezioni() {
-        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
-
-        assertThatCode(() -> broadcaster.broadcastChatMessage(
-                new ChatMessagePushEvent(1L, null, "nessuno ascolta", null)))
-                .doesNotThrowAnyException();
+        verify(push).emit("gallery-update", "refresh");
+        verifyNoMoreInteractions(push);
     }
 
     /**
-     * Una cancellazione (singola o in blocco, vedi GenerationService
-     * #delete/#deleteAll) deve riusare lo stesso evento SSE del
-     * completamento: "gallery-update" e' generico ("qualcosa e'
-     * cambiato, ricarica"), sia la galleria globale sia quella
+     * Una cancellazione (singola o in blocco, vedi GenerationService #delete/#deleteAll) riusa lo stesso evento SSE del
+     * completamento: "gallery-update" e' generico ("qualcosa e' cambiato, ricarica"), sia la galleria globale sia quella
      * contestuale di /deep-chat lo ascoltano gia' per questo motivo.
      */
     @Test
-    void generationsDeletedEventEmetteGalleryUpdate() {
-        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
-        List<String> receivedEventNames = new CopyOnWriteArrayList<>();
-
-        broadcaster.subscribe().subscribe(new BaseSubscriber<>() {
-            @Override
-            protected void hookOnSubscribe(Subscription subscription) {
-                subscription.request(1);
-            }
-
-            @Override
-            protected void hookOnNext(org.springframework.http.codec.ServerSentEvent<Object> value) {
-                receivedEventNames.add(value.event());
-            }
-        });
-
+    void generationsDeletedEventEmitsGalleryUpdate() {
         broadcaster.onGenerationsDeleted(new GenerationsDeletedEvent(List.of(1L, 2L)));
 
-        assertThat(receivedEventNames).containsExactly("gallery-update");
+        verify(push).emit("gallery-update", "refresh");
     }
 
-    /**
-     * Cancellazione per-immagine NON a cascata (GenerationService#deleteImage,
-     * la generazione resta): stesso evento SSE generico "gallery-update"
-     * dei casi sopra, non un evento/tipo diverso - chi ascolta ri-fa
-     * semplicemente fetch della propria vista.
-     */
+    /** Cancellazione per-immagine NON a cascata (GenerationService#deleteImage): stesso evento generico, non un tipo diverso. */
     @Test
-    void generationImageDeletedEventEmetteGalleryUpdate() {
-        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
-        List<String> receivedEventNames = new CopyOnWriteArrayList<>();
-
-        broadcaster.subscribe().subscribe(new BaseSubscriber<>() {
-            @Override
-            protected void hookOnSubscribe(Subscription subscription) {
-                subscription.request(1);
-            }
-
-            @Override
-            protected void hookOnNext(org.springframework.http.codec.ServerSentEvent<Object> value) {
-                receivedEventNames.add(value.event());
-            }
-        });
-
+    void generationImageDeletedEventEmitsGalleryUpdate() {
         broadcaster.onGenerationImageDeleted(new GenerationImageDeletedEvent(1L));
 
-        assertThat(receivedEventNames).containsExactly("gallery-update");
+        verify(push).emit("gallery-update", "refresh");
     }
 
     @Test
-    void errorToastEventIsBroadcastAsErrorToastSseEvent() {
-        GenerationEventBroadcaster broadcaster = new GenerationEventBroadcaster();
-        List<String> names = new CopyOnWriteArrayList<>();
-        List<Object> payloads = new CopyOnWriteArrayList<>();
-        broadcaster.subscribe().subscribe(event -> {
-            names.add(event.event());
-            payloads.add(event.data());
-        });
+    void chatMessageIsEmittedWithItsPayload() {
+        ChatMessagePushEvent payload = new ChatMessagePushEvent(1L, null, "Immagine pronta", null);
 
-        org.dual.replicate.domain.event.SystemToastEvent toast = new org.dual.replicate.domain.event.SystemToastEvent("e1", "Errore Replicate: rete giu'");
-        broadcaster.onErrorToast(toast);
+        broadcaster.broadcastChatMessage(payload);
 
-        assertThat(names).containsExactly("system-event");
-        assertThat(payloads).containsExactly(toast);
+        verify(push).emit("chat-message", payload);
     }
 }

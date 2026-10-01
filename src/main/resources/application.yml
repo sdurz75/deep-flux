@@ -171,6 +171,11 @@ app:
     expiry-check-enabled: true
     expiry-check-interval: 1h
     expiry-warning-days: 15
+  push:
+    # Eventi SSE di GET /events che fragments/live-events.html ri-dispatcha come CustomEvent su document.body (oltre a
+    # "system-event", sempre gestito dal core). reconnect-events: quelli da ri-dispatchare alla riconnessione dell'EventSource.
+    client-events: gallery-update,chat-message
+    reconnect-events: gallery-update
   events:
     # Registro eventi di sistema (SystemEventService): gli AVVISI (severita' WARNING, es. token in scadenza) raggruppano le
     # ripetizioni dello stesso evento in questa finestra (un solo toast per serie); gli errori restano a 5 minuti.
