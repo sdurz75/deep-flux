@@ -1,7 +1,7 @@
 package org.dual.replicate.search;
 
 import org.dual.replicate.app.AppEventSource;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /**
  * Errore applicativo verso SearXNG (credenziali mancanti, istanza irraggiungibile, formato JSON non abilitato lato

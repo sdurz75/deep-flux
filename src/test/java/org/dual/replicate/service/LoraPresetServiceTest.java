@@ -1,6 +1,6 @@
 package org.dual.replicate.service;
 
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.repository.LoraPresetRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

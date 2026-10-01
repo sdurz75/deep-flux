@@ -1,4 +1,4 @@
-package org.dual.replicate.remote;
+package org.dual.replicate.core.kernel.remote;
 
 import org.dual.replicate.core.kernel.EventSource;
 

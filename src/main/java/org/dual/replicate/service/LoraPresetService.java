@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.dual.replicate.domain.LoraPreset;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.LoraPresetRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

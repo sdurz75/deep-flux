@@ -1,7 +1,7 @@
 package org.dual.replicate.service;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /**
  * Errore della gestione dei token API (CRUD, cifratura, risoluzione per una generazione). {@code Kind.REJECTED} per un esito

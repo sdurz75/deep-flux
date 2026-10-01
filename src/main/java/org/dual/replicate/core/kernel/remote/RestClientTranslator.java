@@ -1,8 +1,8 @@
-package org.dual.replicate.remote;
+package org.dual.replicate.core.kernel.remote;
 
 import java.util.function.Function;
 
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 

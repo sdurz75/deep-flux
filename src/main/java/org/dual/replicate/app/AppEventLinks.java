@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.port.out.IEventLinkResolver;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.springframework.stereotype.Component;
 
 /** Link dagli eventi alle pagine dell'app: {@code generation:<id>} -> /generations/{id}, {@code conversation:<id>} -> /deep-chat/{id}. */

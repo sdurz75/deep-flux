@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Random;
 
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.service.SystemEventService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

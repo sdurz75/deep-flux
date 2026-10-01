@@ -2,8 +2,8 @@ package org.dual.replicate.service.secret;
 
 import java.util.Base64;
 
-import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

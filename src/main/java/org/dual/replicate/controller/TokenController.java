@@ -6,8 +6,8 @@ import java.time.format.DateTimeParseException;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
-import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.service.ApiTokenService;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.TokenException;

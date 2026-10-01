@@ -1,7 +1,7 @@
 package org.dual.replicate.config;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.remote.RemoteServiceException.Kind;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.storage.StorageException;
 import org.junit.jupiter.api.Test;

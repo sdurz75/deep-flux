@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.service.ApiTokenService;
 import org.dual.replicate.service.TokenException;

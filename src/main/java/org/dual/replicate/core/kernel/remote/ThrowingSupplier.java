@@ -1,4 +1,4 @@
-package org.dual.replicate.remote;
+package org.dual.replicate.core.kernel.remote;
 
 /** Una chiamata remota: puo' lanciare qualunque eccezione, e' {@link RemoteCaller} a tradurla. */
 @FunctionalInterface

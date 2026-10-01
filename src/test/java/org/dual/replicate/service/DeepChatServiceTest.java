@@ -7,7 +7,7 @@ import java.util.Optional;
 
 import org.dual.replicate.app.AppEventSource;
 import org.dual.replicate.domain.ChatConversation;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.junit.jupiter.api.Test;

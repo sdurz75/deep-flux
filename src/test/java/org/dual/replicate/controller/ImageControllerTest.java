@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.service.SystemEventService;
 import org.dual.replicate.service.storage.AbstractImageStorageService;
 import org.dual.replicate.service.storage.LocalFsImageStorageService;

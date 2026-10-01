@@ -331,7 +331,7 @@ switcher/cookie/sessione). Bundle: `messages.properties` (italiano, default/fall
   (`#{key}`, `Messages.get(code)`) gli apostrofi restano letterali (`l'app`); con parametri (`#{key(${arg})}`,
   `Messages.get(code, args...)`) vanno raddoppiati (`''`) o spariscono. Argomenti numerici (id, durate) passano per
   `NumberFormat` con separatori di migliaia: usare `{0,number,#}`, non `{0}`.
-- **Lato Java**: iniettare `org.dual.replicate.i18n.Messages` (wrapper su `MessageSourceAccessor`, locale della richiesta
+- **Lato Java**: iniettare `org.dual.replicate.core.kernel.i18n.Messages` (wrapper su `MessageSourceAccessor`, locale della richiesta
   via `LocaleContextHolder`) ovunque un errore possa arrivare all'utente (oggi `ReplicateClient`, `SearxngClient`,
   `GenerationService`, `IImageStorageService`, `GenerationController`, `DeepChatApiController`, `DeepChatService`).
   Risolvere al call site, prima di costruire l'eccezione, mai nel costruttore. Se la classe ha gia' una variabile

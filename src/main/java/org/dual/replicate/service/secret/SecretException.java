@@ -1,7 +1,7 @@
 package org.dual.replicate.service.secret;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /**
  * Errore della cifratura dei segreti ({@link SecretCipher}): chiave di cifratura mancante/errata o dato manomesso, cioe'

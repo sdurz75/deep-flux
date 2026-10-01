@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.search.vector.ArchiveIndexService;
 import org.dual.replicate.service.SystemEventService;

@@ -8,7 +8,7 @@ import java.util.List;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.service.secret.SecretCipher;
 import org.springframework.beans.factory.annotation.Autowired;

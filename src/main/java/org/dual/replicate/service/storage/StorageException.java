@@ -1,7 +1,7 @@
 package org.dual.replicate.service.storage;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /**
  * Errore dello storage dei binari (filesystem locale o WebDAV): l'unico tipo che {@link IImageStorageService} lancia verso

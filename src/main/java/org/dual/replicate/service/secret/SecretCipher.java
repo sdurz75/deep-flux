@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import org.dual.replicate.core.kernel.crypto.ChunkedAesGcmCipher;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

@@ -1,6 +1,6 @@
-package org.dual.replicate.remote;
+package org.dual.replicate.core.kernel.remote;
 
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 
 /**
  * Base di un client HTTP verso un servizio esterno: cabla in un colpo solo traduzione degli errori, retry e i18n.

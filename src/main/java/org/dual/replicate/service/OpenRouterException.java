@@ -1,10 +1,10 @@
 package org.dual.replicate.service;
 
 import org.dual.replicate.app.AppEventSource;
-import org.dual.replicate.remote.RemoteCaller;
-import org.dual.replicate.remote.RemoteServiceException;
-import org.dual.replicate.remote.RetryPolicy;
-import org.dual.replicate.remote.RestClientTranslator;
+import org.dual.replicate.core.kernel.remote.RemoteCaller;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RetryPolicy;
+import org.dual.replicate.core.kernel.remote.RestClientTranslator;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 

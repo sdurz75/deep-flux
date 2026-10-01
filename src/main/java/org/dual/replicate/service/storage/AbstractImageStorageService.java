@@ -9,11 +9,11 @@ import java.util.Base64;
 import java.util.OptionalLong;
 
 import org.dual.replicate.core.storage.domain.SourceImage;
-import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.remote.RemoteServiceException.Kind;
-import org.dual.replicate.remote.RemoteCaller;
-import org.dual.replicate.remote.RestClientTranslator;
-import org.dual.replicate.remote.RetryPolicy;
+import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
+import org.dual.replicate.core.kernel.remote.RemoteCaller;
+import org.dual.replicate.core.kernel.remote.RestClientTranslator;
+import org.dual.replicate.core.kernel.remote.RetryPolicy;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.dual.replicate.service.PromptEnhancementService;

@@ -1,7 +1,7 @@
 package org.dual.replicate.service;
 
 import org.dual.replicate.app.AppEventSource;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /** Errore della gestione dei LoRA anagrafati: sempre un rifiuto atteso (validazione, "non trovato"), solo un messaggio all'utente. */
 public class LoraException extends RemoteServiceException {

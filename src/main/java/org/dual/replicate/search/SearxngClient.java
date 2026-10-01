@@ -2,9 +2,9 @@ package org.dual.replicate.search;
 
 import java.util.List;
 
-import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.remote.RestRemoteClient;
-import org.dual.replicate.remote.RetryPolicy;
+import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.kernel.remote.RestRemoteClient;
+import org.dual.replicate.core.kernel.remote.RetryPolicy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;

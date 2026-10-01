@@ -1,7 +1,7 @@
 package org.dual.replicate.service;
 
 import org.dual.replicate.domain.ChatConversation;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ChatConversationRepository;
 import org.dual.replicate.repository.ChatMessageRepository;
 import org.springframework.stereotype.Service;

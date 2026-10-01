@@ -16,7 +16,7 @@ import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
 import org.dual.replicate.domain.ReplicateModel;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateException;
 import org.dual.replicate.replicate.ReplicateModelCatalog;
 import org.dual.replicate.repository.GenerationRepository;
@@ -207,7 +207,7 @@ public class GenerationController {
             uiModel.addAttribute("conversationId", null);
             uiModel.addAttribute("generationsPage", null);
             return "fragments/generation :: status";
-        } catch (org.dual.replicate.remote.RemoteServiceException e) {
+        } catch (org.dual.replicate.core.kernel.remote.RemoteServiceException e) {
             // Validazioni applicative (modello sconosciuto, sorgente mancante, troppe in corso) non hanno una
             // causa: sono un rifiuto, non un errore di comunicazione, e restano solo nel form. Il resto
             // (chiamata a Replicate fallita, storage) e' registrato e notificato anche come toast.
@@ -316,7 +316,7 @@ public class GenerationController {
             uiModel.addAttribute("enhanceError", messages.get("generateForm.error.enhanceRefused"));
         } catch (Exception e) {
             uiModel.addAttribute("prompt", prompt);
-            if (e instanceof org.dual.replicate.remote.RemoteServiceException rejected && !rejected.isReportable()) {
+            if (e instanceof org.dual.replicate.core.kernel.remote.RemoteServiceException rejected && !rejected.isReportable()) {
                 // Rifiuto atteso (es. upload sorgente di tipo non valido): solo il messaggio, niente registro/toast.
                 uiModel.addAttribute("enhanceError", rejected.getMessage());
             } else {

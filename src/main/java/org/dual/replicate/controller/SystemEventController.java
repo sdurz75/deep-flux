@@ -11,7 +11,7 @@ import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.port.out.IEventLinkResolver;
 import org.dual.replicate.domain.SystemEvent;
 import org.dual.replicate.domain.SystemEventSeverity;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.SystemEventRepository;
 import org.dual.replicate.service.SystemEventService;
 import org.springframework.beans.factory.ObjectProvider;

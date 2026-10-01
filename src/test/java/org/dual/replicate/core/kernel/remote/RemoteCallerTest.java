@@ -1,4 +1,4 @@
-package org.dual.replicate.remote;
+package org.dual.replicate.core.kernel.remote;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -6,7 +6,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.remote.RemoteServiceException.Kind;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

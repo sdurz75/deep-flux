@@ -5,7 +5,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.service.SystemEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

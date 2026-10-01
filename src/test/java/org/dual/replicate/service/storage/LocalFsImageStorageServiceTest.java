@@ -7,7 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import com.sun.net.httpserver.HttpServer;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,7 +140,7 @@ class LocalFsImageStorageServiceTest {
 
     @Test
     void filesAreNestedByHashOfTheFilenameNotFlat() throws IOException {
-        new LocalFsImageStorageService(dir.toString(), org.mockito.Mockito.mock(org.dual.replicate.i18n.Messages.class));
+        new LocalFsImageStorageService(dir.toString(), org.mockito.Mockito.mock(org.dual.replicate.core.kernel.i18n.Messages.class));
         String path = AbstractImageStorageService.shardPath("12-0.png");
         assertThat(path).matches("[0-9a-f]{2}/[0-9a-f]{2}/12-0\\.png");
         assertThat(AbstractImageStorageService.shardPath("12-0.png")).isEqualTo(path);

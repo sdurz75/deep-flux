@@ -11,7 +11,7 @@ import org.dual.replicate.domain.Generation;
 import org.dual.replicate.service.storage.IImageStorageService;
 import org.dual.replicate.domain.GenerationKind;
 import org.dual.replicate.domain.GenerationStatus;
-import org.dual.replicate.i18n.Messages;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.replicate.PredictionResponse;
 import org.dual.replicate.replicate.ReplicateClient;
 import org.dual.replicate.replicate.ReplicateException;
@@ -278,7 +278,7 @@ class GenerationServiceTest {
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("gone.png"))
                 .thenThrow(new org.dual.replicate.service.storage.StorageException("missing", new java.io.IOException("nope"),
-                        org.dual.replicate.remote.RemoteServiceException.Kind.REJECTED));
+                        org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind.REJECTED));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> service.create("prunaai/p-video", null, "walks", null, GenerationKind.VIDEO, 7L, null))

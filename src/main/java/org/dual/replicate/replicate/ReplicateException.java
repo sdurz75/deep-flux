@@ -1,7 +1,7 @@
 package org.dual.replicate.replicate;
 
 import org.dual.replicate.app.AppEventSource;
-import org.dual.replicate.remote.RemoteServiceException;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /**
  * Errore applicativo verso Replicate (token mancante, modello non valido, chiamata HTTP fallita...) e, per estensione,
