@@ -15,7 +15,7 @@ import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.repository.ApiTokenRepository;
 import org.dual.replicate.repository.SystemEventRepository;
-import org.dual.replicate.service.secret.SecretCipher;
+import org.dual.replicate.core.secrets.application.SecretCipher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -190,7 +190,7 @@ class ApiTokenServiceTest {
 
         assertThat(unconfigured.isConfigured()).isFalse();
         assertThatThrownBy(() -> unconfigured.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null))
-                .isInstanceOf(org.dual.replicate.service.secret.SecretException.class)
+                .isInstanceOf(org.dual.replicate.core.secrets.domain.SecretException.class)
                 .extracting(e -> ((RemoteServiceException) e).kind()).isEqualTo(RemoteServiceException.Kind.CONFIGURATION);
         assertThat(repository.count()).isZero();
     }

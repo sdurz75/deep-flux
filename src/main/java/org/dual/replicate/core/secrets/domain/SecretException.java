@@ -1,4 +1,4 @@
-package org.dual.replicate.service.secret;
+package org.dual.replicate.core.secrets.domain;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;

@@ -1,10 +1,12 @@
-package org.dual.replicate.service.secret;
+package org.dual.replicate.core.secrets.application;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import org.dual.replicate.core.kernel.crypto.ChunkedAesGcmCipher;
 import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.secrets.domain.SecretException;
+import org.dual.replicate.core.secrets.port.in.ISecretCipher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +21,7 @@ import org.springframework.stereotype.Component;
  * (la pagina {@code /tokens} lo spiega all'utente). Persa la chiave, i segreti sono irrecuperabili, come i binari.
  */
 @Component
-public class SecretCipher {
+public class SecretCipher implements ISecretCipher {
 
     private final ChunkedAesGcmCipher cipher;
     private final String problem;
@@ -38,16 +40,18 @@ public class SecretCipher {
         this.problem = reason;
     }
 
-    /** {@code true} se c'e' una chiave valida da 32 byte. */
+    @Override
     public boolean isConfigured() {
         return cipher != null;
     }
 
+    @Override
     public byte[] encrypt(String plain) {
         requireConfigured();
         return cipher.encryptBytes(plain.getBytes(StandardCharsets.UTF_8));
     }
 
+    @Override
     public String decrypt(byte[] encrypted) {
         requireConfigured();
         try {

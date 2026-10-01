@@ -10,13 +10,13 @@ import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ApiToken;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.repository.ApiTokenRepository;
-import org.dual.replicate.service.secret.SecretCipher;
+import org.dual.replicate.core.secrets.port.in.ISecretCipher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * CRUD dei token API (CivitAI/HuggingFace) e loro uso nelle generazioni. Il token e' cifrato nel DB ({@link SecretCipher}) e il
+ * CRUD dei token API (CivitAI/HuggingFace) e loro uso nelle generazioni. Il token e' cifrato nel DB ({@link ISecretCipher}) e il
  * plaintext vive solo qui: la UI vede {@link TokenView} (nome, suffisso, scadenza, stato), le form/la chat scelgono il token
  * per ID e l'app lo risolve col plaintext con {@link #resolve} (vedi {@code TokenInputResolver}), mai nel PARAMETERS_JSON salvato.
  * Mai il segreto in log, eventi, toast o modello Thymeleaf.
@@ -39,19 +39,19 @@ public class ApiTokenService {
     }
 
     private final ApiTokenRepository repository;
-    private final SecretCipher cipher;
+    private final ISecretCipher cipher;
     private final SystemEventService events;
     private final Messages messages;
     private final int warningDays;
     private final Clock clock;
 
     @Autowired
-    public ApiTokenService(ApiTokenRepository repository, SecretCipher cipher, SystemEventService events, Messages messages,
+    public ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, SystemEventService events, Messages messages,
                            @Value("${app.tokens.expiry-warning-days:15}") int warningDays) {
         this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone());
     }
 
-    ApiTokenService(ApiTokenRepository repository, SecretCipher cipher, SystemEventService events, Messages messages,
+    ApiTokenService(ApiTokenRepository repository, ISecretCipher cipher, SystemEventService events, Messages messages,
                     int warningDays, Clock clock) {
         this.repository = repository;
         this.cipher = cipher;

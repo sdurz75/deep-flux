@@ -546,7 +546,7 @@ class TemplateRenderingTests {
     private org.dual.replicate.repository.ApiTokenRepository apiTokenRepository;
 
     @Autowired
-    private org.dual.replicate.service.secret.SecretCipher secretCipher;
+    private org.dual.replicate.core.secrets.application.SecretCipher secretCipher;
 
     @Autowired
     private org.dual.replicate.service.LoraPresetService loraPresetService;
