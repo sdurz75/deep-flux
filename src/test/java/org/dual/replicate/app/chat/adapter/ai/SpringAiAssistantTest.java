@@ -48,7 +48,7 @@ class SpringAiAssistantTest {
     private Messages i18n;
 
     private SpringAiAssistant assistant(ChatClient.Builder builder, Optional<ArchiveSearchTool> archive) {
-        return new SpringAiAssistant(builder, webSearchTool, imageGenerationTool, archive, i18n, "guida");
+        return new SpringAiAssistant(builder, webSearchTool, imageGenerationTool, archive, i18n, "contesto", "guida");
     }
 
     /** Con la ricerca semantica attiva il modello riceve anche searchArchive; senza, solo i due tool storici. */

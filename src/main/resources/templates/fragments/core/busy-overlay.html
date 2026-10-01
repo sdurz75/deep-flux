@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Overlay "operazione in corso" GENERICO, incluso una volta da fragments/core/layout.html (accanto ai toast). Impedisce ogni azione
+  dell'utente mentre un'operazione e' in attesa del server, cosi' un secondo click non innesca una seconda operazione (nel caso peggiore una
+  seconda prediction a pagamento).
+
+  QUANDO si attiva (htmx:beforeRequest dell'elemento che ha l'hx-*): di DEFAULT per ogni richiesta che NON e' un GET (POST/PUT/PATCH/DELETE:
+  modificano stato); i GET (polling, paginazione, refresh da SSE, ricerca live) no. Sull'elemento htmx, attributi facoltativi:
+    data-busy="off"   non bloccare (azione non-GET leggera/di sfondo)        data-busy="on"  bloccare anche un GET lento
+    data-busy-text    messaggio gia' tradotto (senza: `busy.default`)         data-busy-delay ms prima che l'overlay si veda (default 250)
+  Anche un <form method=post> NATIVO (senza htmx) blocca, fino allo scaricamento della pagina. I link e i GET nativi no.
+
+  COME: il blocco e' IMMEDIATO (`inert` su header/main/footer: niente click, niente tastiera, nemmeno nei dialog Pines aperti), la grafica
+  (sfondo + spinner + testo + barra indeterminata) compare solo se l'attesa supera data-busy-delay: le operazioni rapide (preferiti, "segna
+  come letti") non lampeggiano ma restano protette dal doppio invio. I toast stanno fuori da header/main/footer e restano visibili. Un
+  contatore regge richieste sovrapposte; a fine attesa il focus torna all'elemento che lo aveva (se e' ancora nel DOM).
+
+  QUANDO si chiude: `loadend` dell'XHR di QUELLA richiesta, che scatta sempre e dopo lo swap: successo, 4xx/5xx (`htmx:responseError`), rete
+  assente (`htmx:sendError`), timeout (`htmx:timeout`, vedi sotto) o abort. L'errore lo mostra lo stesso canale toast di toast.html
+  (header HX-Trigger system-toast o listener globali): qui basta che l'overlay sparisca. Ci si aggancia all'XHR e non a un evento htmx
+  sull'elemento perche' lo swap (es. outerHTML del bottone "AI enhance") lo stacca dal DOM prima di `htmx:afterRequest`.
+
+  NAVIGAZIONE: se la risposta dichiara una navigazione (header HX-Redirect, HX-Location o HX-Refresh: true) l'overlay NON si chiude e diventa
+  subito visibile: sparisce da solo quando il browser scarica la nuova pagina, senza uno spiraglio in cui i controlli tornano cliccabili.
+  `pageshow` con `persisted` (tasto Indietro, bfcache) azzera comunque lo stato. Un'operazione che resta nella pagina non manda questi header.
+
+  WATCHDOG: htmx.config.timeout (180 s, oltre il read-timeout del server) chiude l'XHR di una richiesta che non torna, cosi' l'overlay non
+  resta bloccato per sempre. Fuori scope: i turni di /deep-chat (fetch del Web Component, che disabilita da se' il proprio input).
+-->
+<div th:fragment="container"
+     x-data="{
+        pending: 0, visible: false, text: '', timer: null, focused: null, locked: [],
+        open(text, delay, navigating) {
+            if (this.pending++ === 0) {
+                this.text = text;
+                this.focused = document.activeElement;
+                // Solo cio' che NON e' gia' inert (un dialog Pines con x-trap.inert ha reso inert header/footer: non vanno riattivati da noi).
+                this.locked = Array.from(document.querySelectorAll('body > header, body > main, body > footer')).filter((n) => !n.inert);
+                this.locked.forEach((n) => { n.inert = true; });
+                this.timer = setTimeout(() => { this.visible = true; }, delay);
+            }
+            if (navigating) { this.show(); }
+        },
+        show() { clearTimeout(this.timer); this.visible = true; },
+        close() {
+            if (this.pending > 0 && --this.pending === 0) { this.reset(); }
+        },
+        reset() {
+            this.pending = 0;
+            clearTimeout(this.timer);
+            this.visible = false;
+            this.locked.forEach((n) => { n.inert = false; });
+            this.locked = [];
+            const previous = this.focused;
+            this.focused = null;
+            this.$nextTick(() => {
+                if (previous && previous.isConnected && previous !== document.body && previous.focus) { previous.focus({ preventScroll: true }); }
+            });
+        }
+     }"
+     x-init="
+        if (window.htmx) { htmx.config.timeout = 180000; }
+        document.body.addEventListener('htmx:beforeRequest', (e) => {
+            const trigger = e.detail.elt;
+            const xhr = e.detail.xhr;
+            if (!trigger || !xhr) { return; }
+            const verb = ((e.detail.requestConfig && e.detail.requestConfig.verb) || 'get').toLowerCase();
+            const mode = trigger.dataset.busy;
+            if (mode === 'off' || (mode !== 'on' && verb === 'get')) { return; }
+            open(trigger.dataset.busyText || $el.dataset.defaultText, Number(trigger.dataset.busyDelay) || 250, false);
+            xhr.addEventListener('loadend', () => {
+                const navigates = !!(xhr.getResponseHeader('HX-Redirect') || xhr.getResponseHeader('HX-Location')
+                                     || xhr.getResponseHeader('HX-Refresh') === 'true');
+                if (navigates) { show(); } else { close(); }
+            });
+        });
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (e.defaultPrevented || !form || (form.method || '').toLowerCase() !== 'post' || form.dataset.busy === 'off') { return; }
+            open(form.dataset.busyText || $el.dataset.defaultText, 0, true);
+        });
+     "
+     @pageshow.window="if ($event.persisted) { reset(); }"
+     th:data-default-text="#{busy.default}"
+     x-show="pending > 0" x-cloak
+     role="alertdialog" aria-modal="true" aria-live="polite" aria-busy="true"
+     class="fixed inset-0 z-[100] cursor-wait">
+    <div x-show="visible" x-transition.opacity.duration.150ms
+         class="absolute inset-0 flex items-center justify-center p-4 bg-canvas/80 dark:bg-canvas-dark/80 backdrop-blur-sm">
+        <div class="flex flex-col items-center gap-4 w-[min(22rem,100%)] rounded-lg border border-line dark:border-line-dark
+                    bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-lg px-6 py-8">
+            <div class="w-10 h-10 rounded-full border-4 border-line dark:border-line-dark
+                        border-t-accent dark:border-t-accent-dark animate-spin motion-reduce:animate-none"
+                 aria-hidden="true"></div>
+            <p class="m-0 text-center" x-text="text"></p>
+            <!-- Barra di progresso indeterminata (keyframes busy-slide in tailwind.config.js); con motion ridotto resta piena e ferma. -->
+            <div class="h-1 w-full overflow-hidden rounded-full bg-line dark:bg-line-dark" aria-hidden="true">
+                <div class="h-full w-1/3 rounded-full bg-accent dark:bg-accent-dark animate-busy-slide
+                            motion-reduce:animate-none motion-reduce:w-full"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

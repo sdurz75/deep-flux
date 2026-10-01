@@ -816,8 +816,8 @@ class TemplateRenderingTests {
 
     /**
      * Push di seed/prompt dal dettaglio (vedi fragments/app/generation.html
-     * :: status, ramo SUCCEEDED): il prompt punta sempre solo a
-     * /generations/new, il seed sia a /generations/new sia a /deep-chat -
+     * :: status, ramo SUCCEEDED): prompt, seed o entrambi verso /generations/new,
+     * il solo seed anche verso /deep-chat -
      * verso la STESSA conversazione quando conversationId e' presente
      * (arrivati dalla galleria contestuale), altrimenti verso /deep-chat
      * nudo (ultima conversazione attiva, risolta dal redirect di
@@ -836,6 +836,7 @@ class TemplateRenderingTests {
                 .andReturn().getResponse().getContentAsString();
         assertThat(fromGallery).contains("/generations/new?prompt=");
         assertThat(fromGallery).contains("/generations/new?seed=777");
+        assertThat(fromGallery).contains("/generations/new?prompt=a%20cat&amp;seed=777");
         assertThat(fromGallery).contains("href=\"/deep-chat?seed=777\"");
 
         String fromConversation = mockMvc.perform(get("/generations/" + withSeed.getId()).param("conversationId", "7"))
@@ -852,7 +853,8 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertThat(withoutSeedBody).contains("/generations/new?prompt=");
-        assertThat(withoutSeedBody).doesNotContain("/generations/new?seed=").doesNotContain("/deep-chat?seed=");
+        assertThat(withoutSeedBody).doesNotContain("/generations/new?seed=").doesNotContain("/deep-chat?seed=")
+                .doesNotContain("&amp;seed");
     }
 
     /** Push del seed dal dettaglio (vedi sopra): /generations/new lo pre-compila nel campo del form-type corrente. */
@@ -863,6 +865,32 @@ class TemplateRenderingTests {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
+    }
+
+    /**
+     * Overlay "operazione in corso" generico (fragments/core/busy-overlay.html): e' nel layout di ogni pagina, il form di creazione porta il
+     * proprio messaggio e non esiste piu' l'attributo opt-in {@code data-busy-overlay} (ora vale la regola "ogni non-GET blocca").
+     */
+    @Test
+    void busyOverlayIsInEveryPageAndNoLongerOptIn() throws Exception {
+        String body = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("role=\"alertdialog\"").contains("data-default-text=\"Operazione in corso...\"");
+        assertThat(body).contains("data-busy-text=\"Avvio della generazione...\"");
+        assertThat(body).contains("data-busy-text=\"Sto migliorando il prompt...\"").doesNotContain("data-busy-overlay");
+    }
+
+    /** Riuso di prompt E seed insieme: la form pre-compila entrambi. */
+    @Test
+    void generationFormPrefillsPromptAndSeedTogether() throws Exception {
+        String body = mockMvc.perform(get("/generations/new").param("prompt", "a red fox").param("seed", "777"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
+        assertThat(body).containsPattern("<textarea[^>]*id=\"prompt\"[^>]*>a red fox</textarea>");
     }
 
     /** Push del seed dal dettaglio verso /deep-chat nudo (nessuna conversazione di contesto): il redirect deve propagarlo. */

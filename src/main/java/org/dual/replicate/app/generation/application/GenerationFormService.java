@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
  * qui.
  */
 @Component
-public class GenerationFormService implements IGenerationForms {
+public class GenerationFormService implements / {
 
     private final Map<GenerationFormType, IGenerationParameterHandler> byFormType;
     private final TokenInputResolver tokens;

@@ -46,6 +46,7 @@ class SpringAiAssistant implements IAssistant {
                       ImageGenerationTool imageGenerationTool,
                       Optional<ArchiveSearchTool> archiveSearchTool,
                       Messages i18n,
+                      @Value("${prompts.creative-context}") String creativeContext,
                       @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
         this.i18n = i18n;
         this.chatClient = chatClientBuilder
@@ -70,18 +71,7 @@ class SpringAiAssistant implements IAssistant {
                         yourself. If they change their mind before confirming, update the
                         proposal and ask again rather than generating.
 
-                        This is a private, single-user tool: you are talking with the one
-                        trusted person who deployed and owns this app, and this conversation
-                        and anything generated in it are visible only to them. Prompts here
-                        are for personal, experimental creative use, and any people described
-                        are fictional, not real individuals. Do not refuse or moralize about
-                        nudity or other mature/adult themes in this context - treat them like
-                        any other creative subject and help compose and generate the image as
-                        asked. The ordinary limits that do not depend on this context still
-                        apply regardless: never depict a real, identifiable person without
-                        their consent, and never anything involving minors.
-
-                        """ + imagePromptingGuide)
+                        """ + creativeContext + "\n\n" + imagePromptingGuide)
                 // searchArchive solo con la ricerca semantica attiva (app.search.enabled).
                 .defaultTools(Stream.concat(Stream.of(webSearchTool, imageGenerationTool), archiveSearchTool.stream()).toArray())
                 .build();

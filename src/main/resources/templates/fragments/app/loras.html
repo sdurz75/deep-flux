@@ -51,8 +51,13 @@
         <input type="text" id="lora-name" name="name" class="w-full" maxlength="60" required th:value="${loraName}">
 
         <label for="lora-source" th:text="#{loras.form.source}">Sorgente</label>
-        <input type="text" id="lora-source" name="source" class="w-full" maxlength="500" required
-               th:placeholder="#{generationParams.placeholder.lora}" th:value="${loraSource}">
+        <input type="text" id="lora-source" name="source" class="w-full" maxlength="500" required th:value="${loraSource}">
+        <ul class="mt-1 mb-0 list-disc pl-5 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">
+            <li th:text="#{loras.form.sourceHelp.replicate}">Replicate</li>
+            <li th:text="#{loras.form.sourceHelp.huggingface}">HuggingFace</li>
+            <li th:text="#{loras.form.sourceHelp.civitai}">CivitAI</li>
+            <li th:text="#{loras.form.sourceHelp.url}">URL</li>
+        </ul>
 
         <label for="lora-scale" th:text="#{loras.form.scale}">Intensita' predefinita</label>
         <input type="number" id="lora-scale" name="scale" class="w-full" min="-1" max="3" step="0.1" th:value="${loraScale}">

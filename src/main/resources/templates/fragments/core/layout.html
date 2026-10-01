@@ -164,6 +164,7 @@
     <small th:text="#{app.footer}">Spring Boot &middot; Thymeleaf &middot; htmx &middot; Alpine.js</small>
 </footer>
 
+<div th:replace="~{fragments/core/busy-overlay :: container}"></div>
 <div th:replace="~{fragments/core/toast :: container}"></div>
 
 </body>

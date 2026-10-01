@@ -256,7 +256,9 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
 - `app.prompt`: `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
   `defaultTools`; `enhanceVideo`/`enhanceEdit` guardano l'immagine sorgente con un modello di visione OpenRouter non moderato
   `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del modello e' intercettato e non
-  sovrascrive la textarea).
+  sovrascrive la textarea, anche sul percorso solo-testo). Tono/contesto creativo: UNA clausola condivisa `prompts.creative-context` in
+  `prompts.properties`, inclusa (`${...}`) in tutte le guide dell'enhancer e nel system prompt della chat (`SpringAiAssistant`): enhancer e chat non
+  devono divergere in permissivita'; i limiti (persone reali identificabili, minori) stanno in quella clausola (`PromptGuidesTest`).
 - `app.search`: vedi "Ricerca semantica". `app.shared`: vedi "Dove sta cosa". Root `app`: `OpenRouterCalls` (`RemoteCaller` condiviso per OpenRouter),
   `AppStartupOrder` (ordine dei listener di `ApplicationReadyEvent`: prima il recupero delle generazioni, poi quello della chat).
 - Risorse: `application.yml` (SOLO config dell'app: Spring AI, `replicate.*`, `searxng.*`, `enhancer.*`, `app.recovery.*`, `app.search.*`,
@@ -493,6 +495,16 @@ La query di serie (`SystemEventRepository#findOpenSeries`, adapter `persistence`
 - **Eventi client**: `system-toast` (window, toast; anche via header `HX-Trigger`) e `system-event` (body, ricarica lista/campanella;
   stesso nome dell'evento SSE).
 
+- **Overlay "operazione in corso"** (`fragments/core/busy-overlay.html`, incluso da `layout.html`, core): blocca l'INTERA UI (`inert` su header/main/footer; i
+  toast restano fuori) finche' una richiesta non finisce, cosi' un secondo click non innesca una seconda operazione (es. una seconda prediction a
+  pagamento). Regola di DEFAULT: ogni richiesta htmx NON-GET blocca (i GET di polling/paginazione/SSE no); sull'elemento htmx `data-busy="off"|"on"`
+  (opt-out di un non-GET leggero / opt-in di un GET lento), `data-busy-text` (messaggio gia' tradotto, senza: `busy.default`), `data-busy-delay` (ms
+  prima che la grafica si veda, default 250: il blocco e' immediato, lo sfondo/spinner/barra compaiono solo se l'attesa e' lunga, niente lampeggio
+  sulle azioni rapide). Si chiude al `loadend` dell'XHR (successo, 4xx/5xx, rete, timeout, abort): il fallimento lo mostra il canale toast di sempre.
+  Se la risposta e' una navigazione (`HX-Redirect`/`HX-Location`/`HX-Refresh: true`) NON si chiude e diventa subito visibile: sparisce con la
+  pagina; `pageshow` persisted (bfcache) la azzera. Un `<form method=post>` nativo blocca fino all'unload. Watchdog `htmx.config.timeout` 180 s
+  (> read-timeout del server) + toast su `htmx:timeout`. Fuori scope: i turni di /deep-chat (fetch del Web Component, ha il proprio stato di attesa).
+  Un nuovo endpoint lento non richiede codice: basta un `hx-post/put/delete` (e un `data-busy-text` se serve un messaggio specifico).
 - **Toast** (`fragments/core/toast.html`, incluso da `layout.html`): ascolta l'evento window `system-toast` ({key, message, transient, severity}),
   dedupe per `key`. Sorgenti: SSE; header `HX-Trigger` (`HtmxEvents#addToastHeader(response, ToastMessage)` e `#addHxTrigger(response, event, detail)`,
   nel kit `core.web`: l'esito `ISystemEvents.Recorded` e' un `ToastMessage`; la porta `ISystemEvents` non conosce il protocollo HTTP;

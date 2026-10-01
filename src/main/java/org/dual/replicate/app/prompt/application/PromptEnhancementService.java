@@ -125,10 +125,14 @@ public class PromptEnhancementService implements IPromptEnhancer {
         return model.complete("enhanceVision", guide, text, visionModel, image);
     }
 
-    /** Una risposta vuota NON deve sovrascrivere la bozza dell'utente: e' trattata come un rifiuto (bozza conservata, errore mostrato). */
+    /**
+     * Una risposta vuota o un rifiuto ("I'm sorry, I can't...") NON devono sovrascrivere la bozza dell'utente: sono trattati come un
+     * rifiuto (bozza conservata, errore mostrato). Vale anche per il percorso solo-testo: prima li' si controllava solo il vuoto e un
+     * rifiuto finiva nella textarea come se fosse il prompt riscritto.
+     */
     private static String requireText(String result) {
-        if (result == null || result.isBlank()) {
-            throw new PromptEnhancementRefusedException("");
+        if (isRefusal(result)) {
+            throw new PromptEnhancementRefusedException(result == null ? "" : result.trim());
         }
         return result.trim();
     }

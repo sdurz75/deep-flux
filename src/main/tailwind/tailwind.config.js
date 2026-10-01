@@ -30,6 +30,17 @@ module.exports = {
                 scrim:             { DEFAULT: '#000000', dark: '#000000' },
                 'scrim-contrast':  { DEFAULT: '#ffffff', dark: '#ffffff' },
             },
+            // busy-slide: barra indeterminata dell'overlay "operazione in corso" (fragments/core/busy-overlay.html).
+            // La barra e' larga 1/3 della pista: 300% del proprio ingombro = tutta la pista.
+            keyframes: {
+                'busy-slide': {
+                    '0%': { transform: 'translateX(-100%)' },
+                    '100%': { transform: 'translateX(300%)' },
+                },
+            },
+            animation: {
+                'busy-slide': 'busy-slide 1.4s ease-in-out infinite',
+            },
             fontFamily: {
                 sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
                 mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],

@@ -9,8 +9,8 @@
      nati in thread async/watcher e nella chat, su ogni pagina che include live-events;
   2. header HX-Trigger {"system-toast": {...}} (SystemEventService#addToastHeader) sulle risposte htmx dei
      controller: htmx lo trasforma in un evento "system-toast" (con detail = l'oggetto) che risale a window;
-  3. listener globali htmx:responseError / htmx:sendError qui sotto (risposta 4xx/5xx o server non
-     raggiungibile), SOLO se la risposta non portava gia' un toast dal server (punto 2).
+  3. listener globali htmx:responseError / htmx:sendError / htmx:timeout qui sotto (risposta 4xx/5xx, server non
+     raggiungibile o richiesta scaduta: htmx.config.timeout, vedi busy-overlay.html), SOLO se la risposta non portava gia' un toast dal server (punto 2).
   Il payload ha `severity` ("ERROR" default | "WARNING": bordo warning invece di danger, es. token in scadenza).
   Il payload puo' avere `transient: true` (RemoteServiceException.Kind.TRANSIENT): si aggiunge il suggerimento di riprovare.
   Dedupe per `key`: lo stesso errore puo' arrivare da piu' sorgenti (SSE + HX-Trigger), va mostrato una volta.
@@ -38,6 +38,9 @@
                   message: $el.dataset.httpError.replace('{0}', e.detail.xhr.status) });
         });
         document.body.addEventListener('htmx:sendError', () => {
+            add({ key: 'send-' + Math.floor(Date.now() / 10000), message: $el.dataset.networkError });
+        });
+        document.body.addEventListener('htmx:timeout', () => {
             add({ key: 'send-' + Math.floor(Date.now() / 10000), message: $el.dataset.networkError });
         });
      "

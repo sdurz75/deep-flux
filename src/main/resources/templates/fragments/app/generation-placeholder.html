@@ -4,7 +4,7 @@
 
 <!--
   Placeholder di una generazione in corso: immagine dummy + spinner +
-  bottone "Interrompi". Usato in DUE contesti, da un solo markup:
+  bottone "Interrompi" (al CENTRO del riquadro, sotto lo spinner). Usato in DUE contesti, da un solo markup:
   - fragments/app/generation.html :: status (generate.html/generation-status.html,
     htmx: il bottone e' il fragment fragments/app/button-gen :: stop con i suoi hx-*);
   - /deep-chat (deep-chat.html): renderizzato una volta in un <template> con
@@ -36,11 +36,11 @@
             </svg>
             <span th:text="#{generationPlaceholder.generating}">Generazione in corso&hellip;</span>
         </span>
+        <button th:replace="~{fragments/app/button-gen :: stop(text=#{generationPlaceholder.button.cancel}, disabledText=#{generationPlaceholder.button.canceling},
+                    confirmText=#{generationPlaceholder.confirm.cancel}, failedText=#{generationPlaceholder.cancelFailed},
+                    url=@{/generations/{id}/cancel(id=${generationId}, conversationId=${conversationId}, generationsPage=${generationsPage})},
+                    disabled=${cancelDisabled})}">Interrompi</button>
     </div>
-    <button th:replace="~{fragments/app/button-gen :: stop(text=#{generationPlaceholder.button.cancel}, disabledText=#{generationPlaceholder.button.canceling},
-                confirmText=#{generationPlaceholder.confirm.cancel}, failedText=#{generationPlaceholder.cancelFailed},
-                url=@{/generations/{id}/cancel(id=${generationId}, conversationId=${conversationId}, generationsPage=${generationsPage})},
-                disabled=${cancelDisabled})}">Interrompi</button>
 </div>
 
 </body>

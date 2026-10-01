@@ -14,7 +14,8 @@
             <p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
         </th:block>
 
-        <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+        <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML" hx-encoding="multipart/form-data"
+              th:data-busy-text="#{generateForm.busy.create}">
             <div th:if="${sourceGeneration}" class="mb-4">
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">
                 <input type="hidden" name="sourceImage" th:value="${sourceImage}">

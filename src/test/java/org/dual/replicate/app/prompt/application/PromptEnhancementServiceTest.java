@@ -30,6 +30,14 @@ class PromptEnhancementServiceTest {
     }
 
     @Test
+    void enhanceTreatsATextRefusalAsARefusalInsteadOfWritingItIntoTheDraft() {
+        when(model.complete(anyString(), anyString(), anyString(), isNull(), isNull()))
+                .thenReturn("I'm sorry, but I can't help with that request.");
+
+        assertThatThrownBy(() -> service.enhance("gatto arancione")).isInstanceOf(PromptEnhancementRefusedException.class);
+    }
+
+    @Test
     void enhanceTreatsAnEmptyModelResponseAsARefusalInsteadOfOverwritingTheDraft() {
         when(model.complete(anyString(), anyString(), anyString(), isNull(), isNull())).thenReturn(null);
 

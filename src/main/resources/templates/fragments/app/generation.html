@@ -42,11 +42,7 @@
 
         <dl>
             <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.prompt})}">Prompt</dt>
-            <dd class="ms-0 mt-1">
-                <span th:text="${generation.prompt}">prompt</span>
-                <a th:href="@{/generations/new(prompt=${generation.prompt})}" class="ms-2 text-[0.85rem]"
-                   th:text="#{generationDetail.action.pushPrompt}">Usa in una nuova generazione</a>
-            </dd>
+            <dd class="ms-0 mt-1" th:text="${generation.prompt}">prompt</dd>
 
             <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>
             <dd class="ms-0 mt-1" th:text="${generation.model}">modello</dd>
@@ -80,17 +76,34 @@
               placeholder "casuale" e' piu' onesto di una riga che sparisce.
             -->
             <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.seed})}">Seed</dt>
-            <dd class="ms-0 mt-1">
-                <span class="font-mono" th:text="${generation.seed} ?: #{generationParams.placeholder.seed}">seed</span>
-                <th:block th:if="${generation.seed != null}">
-                    <a th:href="@{/generations/new(seed=${generation.seed})}" class="ms-2 text-[0.85rem]"
-                       th:text="#{generationDetail.action.pushSeedGenerations}">Usa in una nuova generazione</a>
-                    <a th:if="${conversationId != null}"
-                       th:href="@{/deep-chat/{id}(id=${conversationId}, seed=${generation.seed})}"
-                       class="ms-2 text-[0.85rem]" th:text="#{generationDetail.action.pushSeedDeepChat}">Usa in Deep Chat</a>
+            <dd class="ms-0 mt-1 font-mono" th:text="${generation.seed} ?: #{generationParams.placeholder.seed}">seed</dd>
+
+            <!--/*
+              Riuso di prompt e/o seed: UNA sola riga con le combinazioni, invece di un link per campo. La form (GenerationController#form)
+              accetta prompt e seed in query indipendentemente, quindi "entrambi" e' solo un link con i due parametri. Senza seed (ignoto) c'e'
+              solo il prompt. In Deep Chat si porta il solo seed: il prompt li' e' un messaggio, non un campo della form. Verso la STESSA
+              conversazione se conversationId e' presente (arrivati dalla galleria contestuale), altrimenti /deep-chat nudo (ultima attiva,
+              risolta dal redirect di DeepChatController#defaultConversation). I link "prompt" e "prompt e seed" non passano da
+              un parametro null: Thymeleaf lo renderizzerebbe come "&seed" senza valore.
+            */-->
+            <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.reuse})}">Riusa</dt>
+            <dd class="ms-0 mt-1 flex flex-col gap-1 text-[0.9rem]">
+                <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationDetail.reuse.newGeneration}">Nuova generazione:</span>
+                    <a th:href="@{/generations/new(prompt=${generation.prompt})}" th:text="#{generationDetail.reuse.prompt}">Prompt</a>
+                    <th:block th:if="${generation.seed != null}">
+                        <a th:href="@{/generations/new(seed=${generation.seed})}" th:text="#{generationDetail.reuse.seed}">Seed</a>
+                        <a th:href="@{/generations/new(prompt=${generation.prompt}, seed=${generation.seed})}"
+                           th:text="#{generationDetail.reuse.both}">Prompt e seed</a>
+                    </th:block>
+                </div>
+                <div th:if="${generation.seed != null}" class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationDetail.reuse.deepChat}">Deep Chat:</span>
+                    <a th:if="${conversationId != null}" th:href="@{/deep-chat/{id}(id=${conversationId}, seed=${generation.seed})}"
+                       th:text="#{generationDetail.reuse.seed}">Seed</a>
                     <a th:if="${conversationId == null}" th:href="@{/deep-chat(seed=${generation.seed})}"
-                       class="ms-2 text-[0.85rem]" th:text="#{generationDetail.action.pushSeedDeepChat}">Usa in Deep Chat</a>
-                </th:block>
+                       th:text="#{generationDetail.reuse.seed}">Seed</a>
+                </div>
             </dd>
 
             <th:block th:if="${generation.version}">

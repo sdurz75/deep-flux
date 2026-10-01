@@ -58,7 +58,10 @@
   vincerebbe per specificita' su una bare utility opacity-60. Lo stato
   disabled riusa invece l'esatto standard gia' in uso altrove
   (disabled:opacity-40 disabled:cursor-not-allowed, vedi dangerSelectable
-  sopra e generations-list.html).
+  sopra e generations-list.html). data-busy-text: e' un POST, quindi l'overlay generico
+  a tutto schermo (fragments/core/busy-overlay.html) blocca l'intera UI finche'
+  il modello (decine di secondi) non risponde, anche in caso di errore; qui si
+  fornisce solo il messaggio.
 -->
 <button th:fragment="aiEnhance(title)"
         type="button"
@@ -68,6 +71,7 @@
         hx-target="#prompt-field"
         hx-swap="outerHTML"
         hx-disabled-elt="this"
+        th:data-busy-text="#{generateForm.busy.enhance}"
         class="absolute right-2 top-2 bg-transparent border-0 p-1 leading-none cursor-pointer
                text-ink-muted dark:text-ink-muted-dark hover:text-accent dark:hover:text-accent-dark
                opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity
