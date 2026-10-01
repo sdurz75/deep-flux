@@ -20,6 +20,8 @@ import java.util.OptionalLong;
 
 import jakarta.annotation.PreDestroy;
 import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.kernel.crypto.ChunkedAesGcmCipher;
+import org.dual.replicate.core.kernel.crypto.EncryptedBlobSource;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteCaller;
 import org.dual.replicate.remote.RemoteServiceException.Kind;

@@ -8,6 +8,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.OptionalLong;
 
+import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException.Kind;
 import org.dual.replicate.remote.RemoteCaller;
@@ -98,14 +99,14 @@ public abstract class AbstractImageStorageService implements IImageStorageServic
     }
 
     @Override
-    public PromptEnhancementService.SourceImage inspectUpload(MultipartFile upload) {
+    public SourceImage inspectUpload(MultipartFile upload) {
         SourceUpload checked = checkUpload(upload);
-        return new PromptEnhancementService.SourceImage(checked.bytes(), IImageStorageService.mimeOf("x." + checked.extension()));
+        return new SourceImage(checked.bytes(), IImageStorageService.mimeOf("x." + checked.extension()));
     }
 
     @Override
-    public PromptEnhancementService.SourceImage read(String filename) {
-        return new PromptEnhancementService.SourceImage(readAllBytes(filename), IImageStorageService.mimeOf(filename));
+    public SourceImage read(String filename) {
+        return new SourceImage(readAllBytes(filename), IImageStorageService.mimeOf(filename));
     }
 
     @Override

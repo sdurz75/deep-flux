@@ -14,13 +14,14 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
+import org.dual.replicate.core.kernel.crypto.EncryptedBlobSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Cache su disco dei blob CIFRATI di WebDAV, con tetto di dimensione ed eliminazione LRU: evita il round trip verso
  * il server a ogni richiesta di un'immagine gia' vista. Contiene lo stesso formato cifrato di WebDAV (mai chiaro): il
- * cifrario decifra da cache o da server allo stesso modo ({@link EncryptedBlobSource}).
+ * cifrario decifra da cache o da server allo stesso modo ({@link org.dual.replicate.core.kernel.crypto.EncryptedBlobSource}).
  *
  * <p>I nomi dei file sono immutabili e unici, quindi non serve invalidazione se non su {@link #remove}. L'indice LRU
  * e' in memoria e all'avvio si ricostruisce scandendo la cartella per data di modifica (aggiornata a ogni accesso).

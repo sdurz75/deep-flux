@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 
+import org.dual.replicate.core.storage.domain.SourceImage;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,10 +29,6 @@ import org.springframework.util.MimeType;
  */
 @Service
 public class PromptEnhancementService {
-
-    /** Immagine sorgente di un img2video, come arriva al modello di visione. */
-    public record SourceImage(byte[] bytes, String mimeType) {
-    }
 
     /** Un rifiuto tipico ("I'm sorry, I can't...") o una risposta vuota. */
     private static final Pattern REFUSAL = Pattern.compile(

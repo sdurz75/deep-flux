@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.OptionalLong;
 
+import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.service.PromptEnhancementService;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,10 +36,10 @@ public interface IImageStorageService {
     String storeUpload(MultipartFile upload);
 
     /** Valida un upload SENZA salvarlo (AI enhance): stessi controlli di {@link #storeUpload}. */
-    PromptEnhancementService.SourceImage inspectUpload(MultipartFile upload);
+    SourceImage inspectUpload(MultipartFile upload);
 
     /** Legge {@code filename} come immagine sorgente (byte + mime dedotto dall'estensione). */
-    PromptEnhancementService.SourceImage read(String filename);
+    SourceImage read(String filename);
 
     /** Legge {@code filename} come data-URI: il modo di passare a Replicate un'immagine locale senza URL pubblico. */
     String readAsDataUri(String filename);

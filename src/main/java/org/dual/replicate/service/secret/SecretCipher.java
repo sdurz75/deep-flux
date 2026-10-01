@@ -3,9 +3,8 @@ package org.dual.replicate.service.secret;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import org.dual.replicate.core.kernel.crypto.ChunkedAesGcmCipher;
 import org.dual.replicate.i18n.Messages;
-import org.dual.replicate.service.TokenException;
-import org.dual.replicate.service.storage.ChunkedAesGcmCipher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>A differenza dello storage WebDAV, la chiave NON e' obbligatoria all'avvio (con {@code storage.type=local}, il default,
  * oggi puo' mancare, e il segnaposto di {@code .env.example} non e' base64 valido): il bean esiste sempre, e senza una
- * chiave valida {@link #isConfigured()} e' falso e cifrare/decifrare lancia {@link TokenException} di tipo CONFIGURATION
+ * chiave valida {@link #isConfigured()} e' falso e cifrare/decifrare lancia {@link SecretException} di tipo CONFIGURATION
  * (la pagina {@code /tokens} lo spiega all'utente). Persa la chiave, i segreti sono irrecuperabili, come i binari.
  */
 @Component
@@ -55,14 +54,13 @@ public class SecretCipher {
             return new String(cipher.decryptBytes(encrypted), StandardCharsets.UTF_8);
         } catch (IOException e) {
             // Manomesso o cifrato con un'altra chiave: non e' input dell'utente, e' un guasto di configurazione.
-            throw new TokenException(messages.get("tokens.error.cannotDecrypt"), e, TokenException.Kind.CONFIGURATION);
+            throw new SecretException(messages.get("tokens.error.cannotDecrypt"), e);
         }
     }
 
     private void requireConfigured() {
         if (cipher == null) {
-            throw new TokenException(messages.get("tokens.error.keyMissing", problem == null ? "" : problem), null,
-                    TokenException.Kind.CONFIGURATION);
+            throw new SecretException(messages.get("tokens.error.keyMissing", problem == null ? "" : problem), null);
         }
     }
 }

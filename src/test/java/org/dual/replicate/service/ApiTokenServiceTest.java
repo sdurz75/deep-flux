@@ -212,7 +212,7 @@ class ApiTokenServiceTest {
 
         assertThat(unconfigured.isConfigured()).isFalse();
         assertThatThrownBy(() -> unconfigured.create(ApiTokenProvider.HUGGINGFACE, "Personale", "hf_secret_abcd", null))
-                .isInstanceOf(TokenException.class)
+                .isInstanceOf(org.dual.replicate.service.secret.SecretException.class)
                 .extracting(e -> ((RemoteServiceException) e).kind()).isEqualTo(RemoteServiceException.Kind.CONFIGURATION);
         assertThat(repository.count()).isZero();
     }

@@ -4,7 +4,6 @@ import java.util.Base64;
 
 import org.dual.replicate.i18n.Messages;
 import org.dual.replicate.remote.RemoteServiceException;
-import org.dual.replicate.service.TokenException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,9 +36,9 @@ class SecretCipherTest {
             SecretCipher cipher = new SecretCipher(bad, messages);
 
             assertThat(cipher.isConfigured()).as("chiave %s", bad).isFalse();
-            assertThatThrownBy(() -> cipher.encrypt("x")).isInstanceOf(TokenException.class)
+            assertThatThrownBy(() -> cipher.encrypt("x")).isInstanceOf(SecretException.class)
                     .extracting(e -> ((RemoteServiceException) e).kind()).isEqualTo(RemoteServiceException.Kind.CONFIGURATION);
-            assertThatThrownBy(() -> cipher.decrypt(new byte[40])).isInstanceOf(TokenException.class);
+            assertThatThrownBy(() -> cipher.decrypt(new byte[40])).isInstanceOf(SecretException.class);
         }
     }
 
@@ -48,11 +47,11 @@ class SecretCipherTest {
         byte[] encrypted = new SecretCipher(KEY, messages).encrypt("secret");
         SecretCipher other = new SecretCipher(OTHER_KEY, messages);
 
-        assertThatThrownBy(() -> other.decrypt(encrypted)).isInstanceOf(TokenException.class)
+        assertThatThrownBy(() -> other.decrypt(encrypted)).isInstanceOf(SecretException.class)
                 .extracting(e -> ((RemoteServiceException) e).kind()).isEqualTo(RemoteServiceException.Kind.CONFIGURATION);
 
         byte[] tampered = encrypted.clone();
         tampered[tampered.length - 1] ^= 1;
-        assertThatThrownBy(() -> new SecretCipher(KEY, messages).decrypt(tampered)).isInstanceOf(TokenException.class);
+        assertThatThrownBy(() -> new SecretCipher(KEY, messages).decrypt(tampered)).isInstanceOf(SecretException.class);
     }
 }

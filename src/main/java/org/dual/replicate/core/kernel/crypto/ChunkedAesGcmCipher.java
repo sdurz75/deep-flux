@@ -1,4 +1,4 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.kernel.crypto;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -94,7 +94,7 @@ public final class ChunkedAesGcmCipher {
     }
 
     /** Legge {@code in} fino alla fine e scrive su {@code out} il blob cifrato. Non chiude nessuno dei due. */
-    void encrypt(InputStream in, OutputStream out) throws IOException {
+    public void encrypt(InputStream in, OutputStream out) throws IOException {
         byte[] header = newHeader();
         out.write(header);
         byte[] current = in.readNBytes(chunkSize);
@@ -113,7 +113,7 @@ public final class ChunkedAesGcmCipher {
     }
 
     /** Dimensione in chiaro del blob (legge solo l'header). */
-    long plainSize(EncryptedBlobSource source) throws IOException {
+    public long plainSize(EncryptedBlobSource source) throws IOException {
         long total = source.length();
         Layout layout = layout(total);
         return (layout.chunks - 1) * (long) chunkSize + (layout.lastEncrypted - TAG_LENGTH);
@@ -123,7 +123,7 @@ public final class ChunkedAesGcmCipher {
      * {@code length} byte in chiaro a partire da {@code offset} (meno, se il blob finisce prima), decifrati e
      * autenticati chunk per chunk. Un errore di autenticazione arriva come {@link IOException} durante la lettura.
      */
-    InputStream decryptRange(EncryptedBlobSource source, long offset, long length) throws IOException {
+    public InputStream decryptRange(EncryptedBlobSource source, long offset, long length) throws IOException {
         long total = source.length();
         byte[] header = readHeader(source);
         Layout layout = layout(total);

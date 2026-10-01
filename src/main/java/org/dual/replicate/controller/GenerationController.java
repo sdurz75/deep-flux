@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.app.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.domain.Generation;
 import org.dual.replicate.domain.GenerationFormType;
 import org.dual.replicate.domain.GenerationKind;
@@ -230,7 +231,7 @@ public class GenerationController {
         return "fragments/generate-form :: form";
     }
 
-    private PromptEnhancementService.SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
+    private SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
         if (upload != null && !upload.isEmpty()) {
             return imageStorageService.inspectUpload(upload);
         }
@@ -299,7 +300,7 @@ public class GenerationController {
         // Modifica: l'enhancer guarda la stessa sorgente ma serve una bozza (cosa cambiare).
         boolean edit = model != null && modelCatalog.containsEdit(model);
         try {
-            PromptEnhancementService.SourceImage image = (video || edit) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
+            SourceImage image = (video || edit) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
             if (edit) {
                 uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceEdit(draft, image));
             } else if (draft.isEmpty() && image == null) {

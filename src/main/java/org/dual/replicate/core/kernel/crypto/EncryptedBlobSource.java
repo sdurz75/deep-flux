@@ -1,13 +1,13 @@
-package org.dual.replicate.service.storage;
+package org.dual.replicate.core.kernel.crypto;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Dove stanno i byte CIFRATI di un blob: la cache locale ({@link FileBlobSource}) o il server WebDAV. Il cifrario
+ * Dove stanno i byte CIFRATI di un blob: la cache locale o il server WebDAV. Il cifrario
  * ({@link ChunkedAesGcmCipher}) decifra da qualunque sorgente allo stesso modo, leggendo solo i range che gli servono.
  */
-interface EncryptedBlobSource {
+public interface EncryptedBlobSource {
 
     /** Lunghezza totale del blob cifrato. {@link java.nio.file.NoSuchFileException} se non esiste. */
     long length() throws IOException;

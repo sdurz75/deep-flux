@@ -1,5 +1,6 @@
 package org.dual.replicate.service.storage;
 
+import org.dual.replicate.core.kernel.crypto.EncryptedBlobSource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
