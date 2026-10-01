@@ -46,6 +46,19 @@ class ReplicateModelCatalogTest {
     }
 
     @Test
+    void devLoraIsAnImageModelWithOptionalSourceAndNoVersion() {
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-dev-lora")).contains(GenerationFormType.FLUX_DEV_LORA);
+        assertThat(catalog.versionOf("black-forest-labs/flux-dev-lora")).isEmpty();
+        assertThat(catalog.contains("black-forest-labs/flux-dev-lora", GenerationKind.IMAGE)).isTrue();
+        assertThat(catalog.containsEdit("black-forest-labs/flux-dev-lora")).isFalse();
+        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
+                .contains("black-forest-labs/flux-dev-lora");
+        assertThat(catalog.editModels()).extracting(ReplicateModel::getIdentifier)
+                .doesNotContain("black-forest-labs/flux-dev-lora");
+        assertThat(catalog.defaultModel().orElseThrow().getIdentifier()).isNotEqualTo("black-forest-labs/flux-dev-lora");
+    }
+
+    @Test
     void videoModelIsInCatalogButNotTheDefaultNorAnImageModel() {
         assertThat(catalog.formTypeOf("prunaai/p-video")).contains(GenerationFormType.P_VIDEO);
         assertThat(catalog.versionOf("prunaai/p-video")).isEmpty();

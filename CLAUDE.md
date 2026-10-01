@@ -50,6 +50,15 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `GenerationService#create` fallisce prima di chiamare Replicate. "AI enhance" usa
   `PromptEnhancementService#enhanceEdit` (visione sulla sorgente, guida `generateForm.edit-prompt-enhancement-guide`;
   serve una bozza). Un'immagine modificata e' una normale immagine (ri-modificabile/animabile).
+- **LoRA al volo (flux-dev-lora)**: `black-forest-labs/flux-dev-lora` (`GenerationFormType#FLUX_DEV_LORA`, V20,
+  `FluxDevLoraParameterHandler`) e' un normale modello IMAGE (compare nel combobox e in `/deep-chat`) con `lora_weights`/
+  `extra_lora` (+ scale: Replicate `owner/nome`, URL HuggingFace/CivitAI o `.safetensors`; vuoti = FLUX dev puro) e
+  img2img OPZIONALE da upload (`sourceUpload`, `sourceImageParam()` = `image`, + `prompt_strength`; il blocco upload e'
+  nascosto nel pannello di `/deep-chat`). NON ha overlay sui thumbnail: "Anima"/"Modifica" non portano a questo modello.
+  **Token** `hf_api_token`/`civitai_api_token` (campi password, per LoRA privati): non stanno nei default del handler, la
+  select modello li esclude da `hx-include` (`hx-params`), `GenerationService.SECRET_INPUT_KEYS` li toglie dal
+  `PARAMETERS_JSON` salvato (vanno solo a Replicate) e `deep-chat.html` (`sync()`) non li salva in `localStorage`:
+  mantenere i tre punti allineati se si aggiunge un altro segreto.
 - **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, una
   regola per modello censito — un nuovo modello richiede anche la sua regola) lo calcola da `PredictionResponse.metrics`;
   `GenerationService#refresh` lo salva in `GENERATION.COST_USD` (V13); assente per generazioni vecchie, fallite o senza regola.
@@ -130,7 +139,7 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   escono i binari: dallo storage, con Range per il seek dei video ed ETag), `ErrorController`.
 - `domain/`: `Generation`, `ChatConversation`, `ChatMessage`, `ReplicateModel` (catalogo censito, V6),
   `GenerationFormType` (form/handler di un modello: FLUX_LORA_FF3, FLUX_2_KLEIN_9B, FLUX_KREA_DEV, P_VIDEO,
-  FLUX_KONTEXT_DEV; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`.
+  FLUX_KONTEXT_DEV, FLUX_DEV_LORA; `kind()`, `sourceImageParam()`, `isEdit()`), `GenerationKind`.
 - `replicate/`: `ReplicateClient`, `ReplicateModelCatalog`, `ReplicatePricing`, `TooManyPredictionsException` (troppe
   prediction in corso PER LO STESSO MODELLO, vedi `GenerationService#create`). `search/`: `SearxngClient` (Basic Auth).
 - `service/`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni
@@ -147,7 +156,7 @@ Ricavabile dal repo; qui solo cio' che non e' ovvio.
   `SemanticSearchConfig`; `service/ArchiveSearchTool` (tool `searchArchive` della chat). Vedi "Ricerca semantica".
 - `remote/`: `RemoteServiceException`, `RemoteCaller`, `RetryPolicy`, `RestClientTranslator`, `RestRemoteClient` (vedi
   "Errori e retry generici"). `config/`: `TailwindAssets`, `UnhandledExceptionResolver`.
-- `db/migration/`: V1..V19, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
+- `db/migration/`: V1..V20, una per modifica di schema (vedi "Convenzione: migrazioni"). Le migrazioni che aggiungono un
   modello estendono l'ENUM `FORM_TYPE` e fanno il seed in `REPLICATE_MODEL` (`VERSION NULL` = "ultima versione").
 - `templates/fragments/`: `layout.html` (shell, config Tailwind, `@layer base`), `header.html` (sticky; sotto `md` link e
   theme switch in uno slideover Pines, stato Alpine `navOpen`, `button.html :: navToggle`), `button.html` (bottoni +

@@ -39,7 +39,8 @@
         <select id="image-model-input" name="model" required
                 th:hx-get="@{/generations/params}"
                 hx-target="#generation-params-fields" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#generation-params-fields">
+                hx-trigger="change" hx-include="#generation-params-fields"
+                hx-params="not hf_api_token,civitai_api_token">
             <option th:each="m : ${models}" th:value="${m.identifier}" th:text="${m.identifier}"
                     th:title="${m.description}" th:selected="${m.identifier == model}"></option>
         </select>
@@ -95,6 +96,9 @@
             </th:block>
             <th:block th:case="'FLUX_KONTEXT_DEV'">
                 <th:block th:replace="~{fragments/generation-params-flux-kontext-dev :: fields}"></th:block>
+            </th:block>
+            <th:block th:case="'FLUX_DEV_LORA'">
+                <th:block th:replace="~{fragments/generation-params-flux-dev-lora :: fields}"></th:block>
             </th:block>
         </th:block>
     </div>

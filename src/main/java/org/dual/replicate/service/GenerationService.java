@@ -51,6 +51,13 @@ public class GenerationService {
     /** Chiave dell'immagine sorgente quando il chiamante non ne specifica una (p-video, il primo modello con sorgente). */
     private static final String DEFAULT_SOURCE_IMAGE_PARAM = "image";
 
+    /**
+     * Chiavi di input che vanno a Replicate ma MAI in GENERATION.PARAMETERS_JSON (che il dettaglio mostra):
+     * i token con cui il modello scarica LoRA privati (flux-dev-lora). Vedi {@link #withoutSecrets}.
+     * Duplicate nell'array letterale di deep-chat.html (sync(): niente token in localStorage).
+     */
+    static final Set<String> SECRET_INPUT_KEYS = Set.of("hf_api_token", "civitai_api_token");
+
     /** Un video impiega piu' di un'immagine (fino a 20 s di clip): stessa logica di TIMEOUT, soglia piu' larga. */
     private static final Duration VIDEO_TIMEOUT = Duration.ofMinutes(15);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(2);
@@ -185,6 +192,7 @@ public class GenerationService {
         }
 
         Map<String, Object> input = parseParameters(parametersJson);
+        String persistedParametersJson = withoutSecrets(input, parametersJson);
         input.put("prompt", prompt);
         if (kind == GenerationKind.IMAGE) {
             input.put("disable_safety_checker", true);
@@ -212,7 +220,7 @@ public class GenerationService {
             if (prediction.id() == null || prediction.id().isBlank()) {
                 throw new ReplicateException(messages.get("replicate.error.emptyResponse"), null, ReplicateException.Kind.PERMANENT);
             }
-            Generation generation = new Generation(prediction.id(), model, version, prompt, parametersJson, seedOf(input));
+            Generation generation = new Generation(prediction.id(), model, version, prompt, persistedParametersJson, seedOf(input));
             generation.setKind(kind);
             generation.setSourceGenerationId(sourceGenerationId);
             generation.setSourceUploadFilename(sourceUploadFilename);
@@ -657,6 +665,16 @@ public class GenerationService {
         generation.setFavouriteFilenames(favourites);
         repository.save(generation);
         return nowFavourite;
+    }
+
+    /** {@code parametersJson} da salvare: senza {@link #SECRET_INPUT_KEYS}, invariato (stessa stringa) se non ce ne sono. */
+    private String withoutSecrets(Map<String, Object> input, String parametersJson) {
+        if (input.keySet().stream().noneMatch(SECRET_INPUT_KEYS::contains)) {
+            return parametersJson;
+        }
+        Map<String, Object> persisted = new LinkedHashMap<>(input);
+        persisted.keySet().removeAll(SECRET_INPUT_KEYS);
+        return persisted.isEmpty() ? null : objectMapper.writeValueAsString(persisted);
     }
 
     private Map<String, Object> parseParameters(String parametersJson) {

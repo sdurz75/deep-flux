@@ -106,6 +106,39 @@ class GenerationServiceTest {
         assertThat(inputCaptor.getValue()).containsEntry("disable_safety_checker", true);
     }
 
+    /** I token dei LoRA privati vanno a Replicate ma non nel PARAMETERS_JSON salvato (mostrato nel dettaglio). */
+    @Test
+    void createSendsSecretTokensToReplicateButDoesNotPersistThem() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-s", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("black-forest-labs/flux-dev-lora", null, "a cat",
+                "{\"lora_weights\": \"owner/lora\", \"hf_api_token\": \"hf_secret\", \"civitai_api_token\": \"cv_secret\"}");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("hf_api_token", "hf_secret")
+                .containsEntry("civitai_api_token", "cv_secret").containsEntry("lora_weights", "owner/lora");
+        assertThat(result.getParametersJson()).contains("owner/lora").doesNotContain("hf_secret", "cv_secret", "api_token");
+    }
+
+    @Test
+    void createWithOnlyTokensPersistsNoParameters() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, appErrors);
+
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new PredictionResponse("pred-t", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.create("black-forest-labs/flux-dev-lora", null, "a cat", "{\"hf_api_token\": \"hf_secret\"}");
+
+        assertThat(result.getParametersJson()).isNull();
+    }
+
     /** Un video non riceve disable_safety_checker (p-video non lo dichiara), ma ricorda kind e sorgente. */
     @Test
     void createForVideoOmitsDisableSafetyCheckerAndRecordsKindAndSource() {

@@ -37,6 +37,12 @@ class ReplicatePricingTest {
     }
 
     @Test
+    void devLoraIsChargedPerOutputImageLikeFluxDev() {
+        assertThat(cost("black-forest-labs/flux-dev-lora", Map.of("image_output_count", 2))).isEqualByComparingTo("0.05");
+        assertThat(ReplicatePricing.estimate("black-forest-labs/flux-dev-lora", Map.of())).isEmpty();
+    }
+
+    @Test
     void fluxLoraFf3IsChargedByH100ComputeTime() {
         assertThat(cost("sdurz75/flux-lora-ff3", Map.of("predict_time", 6.009804301)))
                 .isEqualByComparingTo("0.009165");

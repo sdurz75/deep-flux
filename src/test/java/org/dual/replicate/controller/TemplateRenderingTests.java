@@ -424,6 +424,36 @@ class TemplateRenderingTests {
     }
 
     /**
+     * Form-type FLUX_DEV_LORA (migrazione V20/FluxDevLoraParameterHandler): campi LoRA, upload img2img opzionale,
+     * token come password SENZA valore, solo i propri campi (nessuno di quelli di flux-lora-ff3).
+     */
+    @Test
+    void paramsEndpointRendersFieldsForFluxDevLora() throws Exception {
+        String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-dev-lora")
+                        .param("hf_api_token", "hf_must_not_echo"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("name=\"lora_weights\"", "name=\"lora_scale\"", "name=\"extra_lora\"",
+                "name=\"extra_lora_scale\"", "name=\"prompt_strength\"", "name=\"sourceUpload\"",
+                "name=\"aspect_ratio\"", "name=\"megapixels\"", "name=\"go_fast\"", "name=\"num_outputs\"");
+        assertThat(body).doesNotContain("name=\"flux_model\"", "name=\"width\"", "value=\"match_input_image\"");
+        assertThat(body).containsPattern("<input type=\"password\"[^>]*name=\"hf_api_token\"");
+        assertThat(body).containsPattern("<input type=\"password\"[^>]*name=\"civitai_api_token\"");
+        assertThat(body).doesNotContain("hf_must_not_echo");
+        assertThat(body).containsPattern("name=\"lora_scale\"[^>]*value=\"1(\\.0)?\"");
+    }
+
+    /** La select modello esclude i token da hx-include: mai nella query string di GET /generations/params. */
+    @Test
+    void modelSelectNeverSendsTokensInTheParamsRequest() throws Exception {
+        String body = mockMvc.perform(get("/generations/new")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("hx-params=\"not hf_api_token,civitai_api_token\"");
+    }
+
+    /**
      * Prompt vuoto/solo spazi: PromptEnhancementService non va chiamato
      * (draft.isEmpty() nel controller lo evita) - l'unico path
      * dell'endpoint di enhance sicuro da esercitare qui a contesto Spring
