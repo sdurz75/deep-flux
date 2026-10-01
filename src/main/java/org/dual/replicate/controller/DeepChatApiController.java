@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.replicate.ReplicateModelCatalog;

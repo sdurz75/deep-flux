@@ -1,4 +1,4 @@
-package org.dual.replicate.app;
+package org.dual.replicate.app.shared.domain;
 
 import org.dual.replicate.core.kernel.EventSource;
 

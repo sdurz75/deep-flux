@@ -12,7 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;

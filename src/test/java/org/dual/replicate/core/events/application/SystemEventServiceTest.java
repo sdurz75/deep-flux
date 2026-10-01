@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;

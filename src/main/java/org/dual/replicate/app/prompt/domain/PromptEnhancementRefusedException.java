@@ -1,4 +1,6 @@
-package org.dual.replicate.service;
+package org.dual.replicate.app.prompt.domain;
+
+import org.dual.replicate.app.shared.domain.OpenRouterException;
 
 /**
  * Il modello di visione (e il suo fallback) ha rifiutato di descrivere l'immagine:

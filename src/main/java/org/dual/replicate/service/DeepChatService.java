@@ -10,8 +10,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import org.dual.replicate.app.AppEventSource;
-import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.shared.domain.AppEventSource;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
+import org.dual.replicate.app.OpenRouterCalls;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.EventSource;
@@ -178,7 +179,7 @@ public class DeepChatService {
             try {
                 ChatResponse chatResponse;
                 try {
-                    chatResponse = OpenRouterException.CALLER.call("chatTurn", () -> chatClient.prompt()
+                    chatResponse = OpenRouterCalls.CALLER.call("chatTurn", () -> chatClient.prompt()
                             .messages(messages)
                             .toolContext(toolContext)
                             .call()

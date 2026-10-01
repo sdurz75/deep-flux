@@ -5,7 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.app.shared.domain.AppEventSource;
+import org.dual.replicate.app.shared.domain.OpenRouterException;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -146,7 +147,7 @@ class DeepChatServiceTest {
                 .isInstanceOf(DeepChatFailedException.class)
                 .hasMessage("Errore assistente");
 
-        verify(systemEvents).record(eq(org.dual.replicate.app.AppEventSource.OPENROUTER), eq("chatTurn"),
+        verify(systemEvents).record(eq(org.dual.replicate.app.shared.domain.AppEventSource.OPENROUTER), eq("chatTurn"),
                 org.mockito.ArgumentMatchers.argThat(e -> e instanceof OpenRouterException && e.getCause() == outage), org.mockito.ArgumentMatchers.isNull(String.class));
         org.mockito.ArgumentCaptor<org.dual.replicate.domain.ChatMessage> saved =
                 org.mockito.ArgumentCaptor.forClass(org.dual.replicate.domain.ChatMessage.class);

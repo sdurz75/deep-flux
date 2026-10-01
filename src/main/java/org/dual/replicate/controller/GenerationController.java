@@ -7,7 +7,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.TokenInputResolver;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.storage.domain.UploadedFile;
@@ -29,8 +29,8 @@ import org.dual.replicate.service.GenerationParameterHandler;
 import org.dual.replicate.service.GenerationParameterHandlers;
 import org.dual.replicate.service.GenerationService;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
-import org.dual.replicate.service.PromptEnhancementRefusedException;
-import org.dual.replicate.service.PromptEnhancementService;
+import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
+import org.dual.replicate.app.prompt.port.in.IPromptEnhancer;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -71,7 +71,7 @@ public class GenerationController {
     private final GenerationParameterHandlers parameterHandlers;
     private final ObjectMapper objectMapper;
     private final Messages messages;
-    private final PromptEnhancementService promptEnhancementService;
+    private final IPromptEnhancer promptEnhancementService;
     private final IImageStorageService imageStorageService;
     private final ISystemEvents systemEvents;
     private final HtmxEvents htmx;
@@ -84,7 +84,7 @@ public class GenerationController {
                                  GenerationParameterHandlers parameterHandlers,
                                  ObjectMapper objectMapper,
                                  Messages messages,
-                                 PromptEnhancementService promptEnhancementService,
+                                 IPromptEnhancer promptEnhancementService,
                                  IImageStorageService imageStorageService,
                                  ISystemEvents systemEvents, HtmxEvents htmx,
                                  TokenInputResolver apiTokens,

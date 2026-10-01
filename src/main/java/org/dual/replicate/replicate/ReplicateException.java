@@ -1,6 +1,6 @@
 package org.dual.replicate.replicate;
 
-import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 
 /**

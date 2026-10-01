@@ -5,7 +5,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
 
-import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.ChatConversation;
 import org.dual.replicate.domain.ChatMessage;
@@ -334,7 +334,7 @@ class TemplateRenderingTests {
     @Transactional
     void errorsPageListsRecordedErrorsAndClearEmptiesTheLog() throws Exception {
         systemEventRepository.save(new org.dual.replicate.core.events.domain.SystemEvent(org.dual.replicate.core.events.domain.SystemEventSeverity.ERROR,
-                org.dual.replicate.app.AppEventSource.REPLICATE, "getPrediction", "ReplicateException", "Replicate non risponde", "stack...",
+                org.dual.replicate.app.shared.domain.AppEventSource.REPLICATE, "getPrediction", "ReplicateException", "Replicate non risponde", "stack...",
                 "generation:42", java.time.Instant.now()));
 
         String page = mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();

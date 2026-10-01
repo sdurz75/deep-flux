@@ -1,4 +1,4 @@
-package org.dual.replicate.service;
+package org.dual.replicate.app.prompt.application;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -7,28 +7,23 @@ import java.io.IOException;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 
+import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
 import org.dual.replicate.core.storage.domain.SourceImage;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.openai.OpenAiChatOptions;
+import org.dual.replicate.service.DeepChatService;
+import org.dual.replicate.service.ImageGenerationTool;
+import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
+import org.dual.replicate.app.prompt.port.in.IPromptEnhancer;
+import org.dual.replicate.app.prompt.port.out.IPromptModel;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
-import org.springframework.util.MimeType;
 
 /**
- * Riscrittura one-shot di una bozza di prompt (anche in italiano) in un
- * prompt Flux ben formato in inglese, per l'icona "AI enhance" accanto
- * alla textarea di /generations/new (fragments/app/generate-form.html ::
- * promptField, GenerationController#enhancePrompt). A differenza di
- * DeepChatService non c'e' conversazione ne' tool: {@link ChatClient.Builder}
- * e' prototype-scoped (verificato in ChatClientAutoConfiguration di
- * spring-ai-autoconfigure-model-chat-client), quindi questa istanza,
- * costruita senza defaultTools(...), non puo' in alcun modo invocare
- * ImageGenerationTool - nessun rischio di avviare una generazione Replicate
- * (spesa reale) da una semplice richiesta di riscrittura testo.
+ * Use case dell'"AI enhance": riscrittura one-shot di una bozza di prompt (anche in italiano) in un prompt Flux ben formato in
+ * inglese (fragments/app/generate-form.html :: promptField, GenerationController#enhancePrompt). Le guide, la scelta fra modello di
+ * testo e di visione, il fallback e il riconoscimento dei rifiuti sono qui; la chiamata al modello e' dietro {@link IPromptModel}.
  */
 @Service
-public class PromptEnhancementService {
+public class PromptEnhancementService implements IPromptEnhancer {
 
     /** Un rifiuto tipico ("I'm sorry, I can't...") o una risposta vuota. */
     private static final Pattern REFUSAL = Pattern.compile(
@@ -39,28 +34,30 @@ public class PromptEnhancementService {
     private static final int DOWNSCALE_ABOVE_BYTES = 1_500_000;
     private static final int MAX_SIDE = 1024;
 
-    private final ChatClient chatClient;
+    private final IPromptModel model;
+    private final String imageGuide;
     private final String videoGuide;
     private final String editGuide;
     private final String visionModel;
     private final String visionFallbackModel;
 
-    public PromptEnhancementService(ChatClient.Builder chatClientBuilder,
+    public PromptEnhancementService(IPromptModel model,
                                      @Value("${generateForm.prompt-enhancement-guide}") String promptEnhancementGuide,
                                      @Value("${generateForm.video-prompt-enhancement-guide}") String videoGuide,
                                      @Value("${generateForm.edit-prompt-enhancement-guide}") String editGuide,
                                      @Value("${enhancer.vision-model}") String visionModel,
                                      @Value("${enhancer.vision-fallback-model}") String visionFallbackModel) {
-        this.chatClient = chatClientBuilder.defaultSystem(promptEnhancementGuide).build();
+        this.model = model;
+        this.imageGuide = promptEnhancementGuide;
         this.videoGuide = videoGuide;
         this.editGuide = editGuide;
         this.visionModel = visionModel;
         this.visionFallbackModel = visionFallbackModel;
     }
 
+    @Override
     public String enhance(String draftPrompt) {
-        String result = OpenRouterException.CALLER.call("enhance", () -> chatClient.prompt().user(draftPrompt).call().content());
-        return requireText(result);
+        return requireText(model.complete("enhance", imageGuide, draftPrompt, null, null));
     }
 
     /**
@@ -69,6 +66,7 @@ public class PromptEnhancementService {
      * reali; senza, riscrive solo la bozza col modello di testo. Rifiuti gestiti come in
      * {@link #enhanceVideo}.
      */
+    @Override
     public String enhanceEdit(String draft, SourceImage image) {
         return rewriteWithVision(editGuide, draft, image);
     }
@@ -80,6 +78,7 @@ public class PromptEnhancementService {
      * visione rifiuta si riprova UNA volta col fallback, poi
      * {@link PromptEnhancementRefusedException}.
      */
+    @Override
     public String enhanceVideo(String draft, SourceImage image) {
         String text = (draft == null || draft.isBlank())
                 ? "Propose an animation prompt for this image." : draft;
@@ -88,8 +87,7 @@ public class PromptEnhancementService {
 
     private String rewriteWithVision(String guide, String text, SourceImage image) {
         if (image == null) {
-            String result = OpenRouterException.CALLER.call("enhance", () -> chatClient.prompt().system(guide).user(text).call().content());
-            return requireText(result);
+            return requireText(model.complete("enhance", guide, text, null, null));
         }
         SourceImage sized = downscale(image);
         boolean fallbackAvailable = !visionFallbackModel.isBlank() && !visionFallbackModel.equals(visionModel);
@@ -123,12 +121,8 @@ public class PromptEnhancementService {
         return result.trim();
     }
 
-    private String askVision(String guide, String model, String text, SourceImage image) {
-        return OpenRouterException.CALLER.call("enhanceVision", () -> chatClient.prompt()
-                .system(guide)
-                .options(OpenAiChatOptions.builder().model(model))
-                .user(u -> u.text(text).media(MimeType.valueOf(image.mimeType()), new ByteArrayResource(image.bytes())))
-                .call().content());
+    private String askVision(String guide, String visionModel, String text, SourceImage image) {
+        return model.complete("enhanceVision", guide, text, visionModel, image);
     }
 
     /** Una risposta vuota NON deve sovrascrivere la bozza dell'utente: e' trattata come un rifiuto (bozza conservata, errore mostrato). */

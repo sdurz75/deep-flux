@@ -1,27 +1,27 @@
-package org.dual.replicate.service;
+package org.dual.replicate.app;
 
-import org.dual.replicate.app.AppEventSource;
+import org.dual.replicate.app.shared.domain.OpenRouterException;
 import org.dual.replicate.core.kernel.remote.RemoteCaller;
-import org.dual.replicate.core.kernel.remote.RemoteServiceException;
-import org.dual.replicate.core.kernel.remote.RetryPolicy;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
 import org.dual.replicate.core.kernel.remote.RestClientTranslator;
+import org.dual.replicate.core.kernel.remote.RetryPolicy;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Errore di una chiamata all'LLM (OpenRouter via Spring AI). Spring AI ritenta GIA' da se' gli errori transitori dentro il
- * proprio retry (a livello HTTP, prima che qualunque tool venga eseguito; {@code spring.ai.retry.*}): qui non si aggiunge un secondo
- * strato ({@link RetryPolicy#NONE}, un ritentativo dell'intero turno rieseguirebbe i tool, cioe' generazioni a pagamento),
- * ci si limita a dare a ogni errore il tipo/la source/il {@link Kind} comuni.
+ * Esecutore delle chiamate a {@code ChatClient} (OpenRouter), condiviso dagli adapter AI di chat e prompt. Spring AI ritenta GIA' da
+ * se' gli errori transitori dentro il proprio retry (a livello HTTP, prima che qualunque tool venga eseguito;
+ * {@code spring.ai.retry.*}): qui non si aggiunge un secondo strato ({@link RetryPolicy#NONE}, un ritentativo dell'intero turno
+ * rieseguirebbe i tool, cioe' generazioni a pagamento), ci si limita a dare a ogni errore il tipo/la source/il {@link Kind} comuni.
+ * Sta nel package radice dell'app (non in una feature) proprio perche' e' di entrambe.
  */
-public class OpenRouterException extends RemoteServiceException {
+public final class OpenRouterCalls {
 
-    /** Da usare per ogni chiamata a {@code ChatClient}: {@code OpenRouterException.CALLER.call("chatTurn", () -> ...)}. */
-    public static final RemoteCaller CALLER = RemoteCaller.builder(OpenRouterException::translate)
+    /** Da usare per ogni chiamata a {@code ChatClient}: {@code OpenRouterCalls.CALLER.call("chatTurn", () -> ...)}. */
+    public static final RemoteCaller CALLER = RemoteCaller.builder(OpenRouterCalls::translate)
             .retry(RetryPolicy.NONE).build();
 
-    public OpenRouterException(String message, Throwable cause, Kind kind) {
-        super(AppEventSource.OPENROUTER, kind, message, cause);
+    private OpenRouterCalls() {
     }
 
     /**

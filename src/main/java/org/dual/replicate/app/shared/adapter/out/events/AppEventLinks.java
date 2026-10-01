@@ -1,7 +1,8 @@
-package org.dual.replicate.app;
+package org.dual.replicate.app.shared.adapter.out.events;
 
 import java.util.List;
 
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.port.out.IEventLinkResolver;
 import org.dual.replicate.core.kernel.i18n.Messages;

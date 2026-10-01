@@ -2,7 +2,7 @@ package org.dual.replicate.service;
 
 import java.util.List;
 
-import org.dual.replicate.app.AppEventSubjects;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.domain.Generation;

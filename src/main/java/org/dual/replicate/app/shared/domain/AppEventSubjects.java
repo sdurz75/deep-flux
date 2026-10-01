@@ -1,4 +1,6 @@
-package org.dual.replicate.app;
+package org.dual.replicate.app.shared.domain;
+
+import org.dual.replicate.app.shared.adapter.out.events.AppEventLinks;
 
 /**
  * Il {@code subject} degli eventi di sistema per le entita' dell'app ({@code generation:12}, {@code conversation:5}), nello
