@@ -1671,6 +1671,93 @@ class TemplateRenderingTests {
         assertThat(images).contains("/generations/new?kind=edit");
     }
 
+    /** flux-fill-pro: stesso editor della maschera, ma senza LoRA ne' numero di immagini (una prediction = un'immagine). */
+    @Test
+    @Transactional
+    void fillProFormHasTheMaskEditorButNoLoraOrOutputCount() throws Exception {
+        String pro = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-pro"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(pro).contains("name=\"maskUpload\"").contains("x-data=\"maskEditor\"").contains("name=\"steps\"")
+                .contains("name=\"guidance\"").contains("name=\"prompt_upsampling\"")
+                .contains("name=\"output_format\"").contains("name=\"seed\"");
+        assertThat(pro).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        assertThat(pro).doesNotContain("name=\"lora_weights\"").doesNotContain("name=\"lora_scale\"").doesNotContain("name=\"num_outputs\"")
+                .doesNotContain("name=\"megapixels\"").doesNotContain("name=\"outpaint\"").doesNotContain("name=\"mask\"")
+                // La tolleranza di sicurezza e' forzata al massimo dal servizio: non e' esposta all'utente.
+                .doesNotContain("safety_tolerance");
+    }
+
+    private Generation inpainting(String suffix, String sourceUpload, String sourceImage) {
+        Generation source = new Generation("pred-inp-src-" + suffix, "owner/model", null, "a woman", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("src-" + suffix + ".png")));
+        source = repository.save(source);
+        Generation fill = new Generation("pred-inp-" + suffix, "black-forest-labs/flux-fill-dev", null, "a smiling face", null);
+        fill.setStatus(GenerationStatus.SUCCEEDED);
+        fill.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("out-" + suffix + ".png")));
+        fill.setMaskUploadFilename("mask-" + suffix + ".png");
+        fill.setSourceUploadFilename(sourceUpload);
+        if (sourceImage != null) {
+            fill.setSourceGenerationId(source.getId());
+            fill.setSourceImageFilename(sourceImage);
+        }
+        return repository.save(fill);
+    }
+
+    /** Il dettaglio mostra la maschera SOPRA la sorgente (overlay col filtro SVG), non una miniatura bianco/nero a parte. */
+    @Test
+    @Transactional
+    void detailShowsTheMaskOverTheSourceImage() throws Exception {
+        Generation fromUpload = inpainting("up", "upload-up.png", null);
+        Generation fromGeneration = inpainting("gen", null, "src-gen.png");
+
+        String upload = mockMvc.perform(get("/generations/" + fromUpload.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String generation = mockMvc.perform(get("/generations/" + fromGeneration.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(upload).contains("/images/upload-up.png").contains("/images/mask-up.png").contains("id=\"mask-tint\"")
+                .contains("filter: url(#mask-tint)").contains("opacity-50");
+        assertThat(generation).contains("/images/src-gen.png").contains("/images/mask-gen.png").contains("id=\"mask-tint\"");
+        // La vecchia miniatura bianco/nero (h-24 con bordo) non c'e' piu'.
+        assertThat(upload).doesNotContain("h-24 w-auto rounded-md border");
+    }
+
+    /** Senza sapere su quale file e' stata dipinta (righe precedenti) non c'e' nulla su cui sovrapporre la maschera. */
+    @Test
+    @Transactional
+    void detailHidesTheMaskWhenTheSourceFileIsUnknown() throws Exception {
+        Generation old = inpainting("old", null, null);
+        old.setSourceGenerationId(1L);
+        old = repository.save(old);
+
+        String body = mockMvc.perform(get("/generations/" + old.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("/images/mask-old.png").doesNotContain("mask-tint");
+    }
+
+    /** Nel form la maschera si sovrappone all'anteprima della sorgente (evento `mask-changed` dell'editor), non e' una miniatura. */
+    @Test
+    @Transactional
+    void editFormOverlaysTheMaskOnTheSourcePreview() throws Exception {
+        Generation image = new Generation("pred-ov-src", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("5-0.png")));
+        image = repository.save(image);
+
+        String fromGeneration = mockMvc.perform(get("/generations/new").param("kind", "edit")
+                        .param("source", String.valueOf(image.getId())).param("sourceImage", "5-0.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String fromUpload = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(fromGeneration).contains("@mask-changed.window=\"mask = $event.detail\"").contains("id=\"mask-tint\"");
+        assertThat(fromUpload).contains("@mask-changed.window").contains("id=\"mask-tint\"").contains("preview &amp;&amp; mask")
+                .doesNotContain("h-12 w-auto rounded border");
+    }
+
     /** Inpainting: il modello sta fra i modelli di modifica, con editor maschera e un solo LoRA (senza token); non compare altrove. */
     @Test
     @Transactional
@@ -1685,11 +1772,13 @@ class TemplateRenderingTests {
         String fill = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(edit).contains("black-forest-labs/flux-fill-dev").contains("black-forest-labs/flux-kontext-dev");
+        assertThat(edit).contains("black-forest-labs/flux-fill-dev").contains("black-forest-labs/flux-fill-pro")
+                .contains("black-forest-labs/flux-kontext-dev");
         // Il componente Alpine e' registrato a livello di pagina (il fragment dei campi viene sostituito al cambio modello).
         assertThat(edit).contains("Alpine.data('maskEditor'");
-        assertThat(images).doesNotContain("black-forest-labs/flux-fill-dev");
-        assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("maskUpload");
+        assertThat(images).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro");
+        assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro")
+                .doesNotContain("maskUpload");
 
         assertThat(fill).contains("name=\"maskUpload\"").contains("x-data=\"maskEditor\"").contains("data-action=\"brush\"")
                 .contains("data-action=\"eraser\"").contains("data-action=\"ellipse\"").contains("data-action=\"undo\"")

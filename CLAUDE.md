@@ -75,9 +75,11 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `name` compila testo e scala (restano modificabili, "testo libero" non tocca nulla) e mostra le trigger words con "Aggiungi al prompt"
   (`button-gen :: addToPrompt`, solo se c'e' `#prompt`: non nel pannello di `/deep-chat`). E' un aiuto lato client: al server arrivano
   sempre testo e scala, nessuna FK dalla `Generation`, cancellare/modificare un preset non tocca le generazioni passate.
-- **Inpainting (flux-fill-dev)**: `black-forest-labs/flux-fill-dev` (`GenerationFormType#FLUX_FILL_DEV`, `FluxFillDevParameterHandler`) e' un
+- **Inpainting (flux-fill-dev, flux-fill-pro)**: `black-forest-labs/flux-fill-dev` (`GenerationFormType#FLUX_FILL_DEV`, `FluxFillDevParameterHandler`) e' un
   secondo modello *edit* (`isEdit`, stessa pagina `?kind=edit`, compare nel suo select; preselezionato resta kontext, `sort_order` 6): sorgente
-  E maschera OBBLIGATORIE (`GenerationFormType#maskParam()` = `mask`, `takesMask()`; `image` per la sorgente). Il flux-dev-lora NON ha `mask` (schema
+  E maschera OBBLIGATORIE (`GenerationFormType#maskParam()` = `mask`, `takesMask()`; `image` per la sorgente). `black-forest-labs/flux-fill-pro` (`FLUX_FILL_PRO`, `FluxFillProParameterHandler`, `sort_order` 7) e' lo stesso flusso a qualita' massima ma SENZA LoRA ne'
+  `num_outputs` (una prediction = un'immagine, ~0,05 $, `ReplicatePricing` a prezzo fisso); non ha `disable_safety_checker` (`GenerationFormType#hasDisableSafetyChecker()`) ma
+  `safety_tolerance` (`safetyToleranceParam()`), che `GenerationService` forza SEMPRE a 6 (il piu' permissivo) e che non e' un campo del form. Il flux-dev-lora NON ha `mask` (schema
   letto da Replicate): per l'inpainting col proprio LoRA si usa Fill, che ha UN solo `lora_weights`/`lora_scale` (niente `extra_lora`, niente token:
   solo LoRA pubblici) e la select dei preset `/loras` come per dev-lora. La maschera (PNG, BIANCO = da ridipingere, NERO = da preservare) si DIPINGE nel
   browser con l'editor `fragments/app/mask-editor.html` (componente Alpine `maskEditor`, registrato nello `:: script` incluso da `generate.html` e
@@ -88,7 +90,7 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   (`UploadedFile`) la salva `GenerationService#create` solo se `takesMask()`, la manda come `mask` data-URI e la traccia in `Generation.maskUploadFilename`
   (`generation.mask_upload_filename`, mostrata nel dettaglio); si elimina con la generazione o se la creazione fallisce, come l'upload sorgente. Senza
   maschera `generation.error.maskRequired` PRIMA di chiamare Replicate. Nessun controllo lato server che maschera e sorgente abbiano le stesse dimensioni
-  (l'editor le garantisce). "AI enhance" per i modelli con maschera usa la riscrittura solo-testo (`IPromptEnhancer#enhance`, descrive cosa renderizzare
+  (l'editor le garantisce). **Anteprima**: la maschera si vede SOPRA l'immagine originale (50%, trasparente fuori area), mai come miniatura bianco/nero: `fragments/app/mask-overlay.html` (`layer` per il dettaglio, `layerBound` per il form) converte al volo il PNG bianco/nero in colore `favourite` con alpha = luminanza con un filtro SVG (`feColorMatrix luminanceToAlpha`; NON `mask-mode: luminance`, rotto su Safari, ne' `mix-blend-mode`, che sparisce su immagini chiare/scure). Nel form l'editor annuncia l'URL del PNG con l'evento window `mask-changed` (null = nessuna maschera, anche da `destroy()` allo swap del fragment) e le due anteprime della sorgente (`generate-form.html` per una generazione, `generation-params-source-upload.html` per un upload) ci sovrappongono l'overlay; nel dettaglio serve `Generation.sourceImageFilename` (`generation.source_image_filename`: il file scelto fra quelli della generazione sorgente, null con un upload o per le righe precedenti, senza cui non si mostra la maschera). "AI enhance" per i modelli con maschera usa la riscrittura solo-testo (`IPromptEnhancer#enhance`, descrive cosa renderizzare
   nella zona), NON `enhanceEdit` di Kontext. Fuori scope per ora: ritaglio+ricomposizione attorno alla maschera (per volti piccoli in figure intere
   l'inpainting a immagine intera rigenera alla stessa risoluzione), overlay "Inpaint" sui thumbnail, feather/espansione della maschera.
 - **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, in

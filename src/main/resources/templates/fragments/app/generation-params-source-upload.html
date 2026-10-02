@@ -10,7 +10,7 @@
   generazione esistente ("Anima"/"Modifica": sourceGeneration nel Model).
   Parametri nominati (vedi CLAUDE.md, pattern controller/fragment).
 -->
-<div th:fragment="field(label, required)" th:unless="${sourceGeneration}" x-data="{ preview: null }">
+<div th:fragment="field(label, required)" th:unless="${sourceGeneration}" x-data="{ preview: null, mask: null }" @mask-changed.window="mask = $event.detail">
     <label for="param-source-upload" th:text="${label}">Immagine di partenza (opzionale)</label>
     <!--/* Controllo dimensione anche lato client (setCustomValidity blocca il submit del form htmx): il limite e il messaggio arrivano dal server via data-*, il controllo vero resta IImageStorageService#storeUpload. */-->
     <input type="file" id="param-source-upload" class="block w-full max-w-full min-w-0 text-sm" name="sourceUpload" accept="image/png,image/jpeg,image/webp"
@@ -21,7 +21,11 @@
                     $el.setCustomValidity(f && f.size > Number($el.dataset.maxBytes) ? $el.dataset.tooLarge : '');
                     $el.reportValidity();
                     preview = f ? URL.createObjectURL(f) : null">
-    <img x-show="preview" x-cloak :src="preview" alt="" class="mt-2 h-32 w-auto rounded-md">
+    <!--/* La maschera dell'inpainting (mask-editor.html, evento `mask-changed`) si sovrappone a questa anteprima. */-->
+    <div x-show="preview" x-cloak class="relative mt-2 inline-block">
+        <img :src="preview" alt="" class="block h-32 w-auto rounded-md">
+        <span th:replace="~{fragments/app/mask-overlay :: layerBound(show='preview && mask')}"></span>
+    </div>
 </div>
 
 </body>

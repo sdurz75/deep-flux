@@ -73,10 +73,16 @@
                 </dd>
             </th:block>
 
-            <th:block th:if="${generation.maskUploadFilename != null}">
+            <!--/* Maschera di inpainting: SOPRA l'immagine su cui e' stata dipinta (upload, altrimenti il file scelto dalla generazione sorgente), 50%
+                 e trasparente fuori area (mask-overlay.html). Senza sapere quale sia la sorgente (righe precedenti) non c'e' nulla da sovrapporre. */-->
+            <th:block th:if="${generation.maskUploadFilename != null and (generation.sourceUploadFilename != null or generation.sourceImageFilename != null)}">
                 <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.mask})}">Maschera</dt>
                 <dd class="ms-0 mt-1">
-                    <img th:src="@{'/images/' + ${generation.maskUploadFilename}}" alt="" class="h-24 w-auto rounded-md border border-line dark:border-line-dark">
+                    <div class="relative inline-block">
+                        <img th:src="@{'/images/' + ${generation.sourceUploadFilename != null ? generation.sourceUploadFilename : generation.sourceImageFilename}}" alt=""
+                             class="block h-24 w-auto rounded-md" onerror="this.parentElement.style.visibility='hidden'">
+                        <span th:replace="~{fragments/app/mask-overlay :: layer(maskSrc=@{'/images/' + ${generation.maskUploadFilename}})}"></span>
+                    </div>
                 </dd>
             </th:block>
 

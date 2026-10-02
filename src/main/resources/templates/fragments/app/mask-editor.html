@@ -15,7 +15,8 @@
   preservare, BIANCO = da ridipingere, convenzione di flux-fill-dev) e la mette in `<input type=file name=maskUpload>` via DataTransfer: viaggia nel
   multipart del form come la sorgente, e lo script di persistenza non la scrive in localStorage (e' un File, non una stringa). La sorgente si legge
   dal DOM all'apertura (file scelto in sourceUpload, altrimenti l'anteprima #generate-source-preview): il fragment non conosce `sourceGeneration`
-  dopo uno swap. Se la sorgente cambia la maschera si azzera. Niente `[[` nello script: Thymeleaf lo leggerebbe come inlining.
+  dopo uno swap. Se la sorgente cambia la maschera si azzera. Dopo Applica la maschera si vede SOPRA l'anteprima della sorgente del form (50%,
+  trasparente fuori area, fragments/app/mask-overlay.html): il componente annuncia l'URL del PNG con l'evento window `mask-changed` (null = nessuna maschera). Niente `[[` nello script: Thymeleaf lo leggerebbe come inlining.
 -->
 <th:block th:fragment="script">
     <script th:inline="none">
@@ -28,6 +29,7 @@
                 let mh = 0;
                 let tint = 'rgb(236, 72, 153)';
                 let objectUrl = null;
+                let objectKey = null;
                 const MAX_SIDE = 4096;
 
                 return {
@@ -53,9 +55,14 @@
                         const input = document.querySelector('input[name=sourceUpload]');
                         const file = input && input.files && input.files[0];
                         if (file) {
-                            if (objectUrl) URL.revokeObjectURL(objectUrl);
-                            objectUrl = URL.createObjectURL(file);
-                            return { key: 'f:' + file.name + ':' + file.size + ':' + file.lastModified, url: objectUrl };
+                            const key = 'f:' + file.name + ':' + file.size + ':' + file.lastModified;
+                            // Lo stesso file riusa lo stesso object URL: revocarlo a ogni apertura romperebbe le immagini che lo mostrano ancora.
+                            if (key !== objectKey) {
+                                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                                objectUrl = URL.createObjectURL(file);
+                                objectKey = key;
+                            }
+                            return { key, url: objectUrl };
                         }
                         const img = document.getElementById('generate-source-preview');
                         return img ? { key: 'g:' + img.getAttribute('src'), url: img.src } : null;
@@ -71,6 +78,7 @@
                         }
                         // Il tint e' il token `favourite` del tema (letto da un elemento nascosto): niente colori hardcoded.
                         tint = getComputedStyle(this.$refs.tint).backgroundColor;
+                        this.$refs.base.src = src.url;
                         this.dialogOpen = true;
                         if (this.ready) {
                             this.$nextTick(() => this.redraw());
@@ -87,7 +95,6 @@
                             this.redraw();
                         };
                         im.src = src.url;
-                        this.$refs.base.src = src.url;
                     },
 
                     // Nuova sorgente o "Rimuovi": via operazioni, file e anteprima.
@@ -97,10 +104,25 @@
                         this.ready = false;
                         this.sourceKey = null;
                         this.hasMask = false;
+                        // Prima si annuncia "nessuna maschera" (le anteprime smettono di usare l'URL), poi lo si revoca.
+                        this.announce(null);
                         if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
                         this.previewUrl = null;
                         this.$refs.file.value = '';
                         if (this.$refs.canvas) this.redraw();
+                    },
+
+                    // Le anteprime della sorgente (generate-form.html, generation-params-source-upload.html) ci sovrappongono la maschera:
+                    // detail = URL del PNG bianco/nero, o null. Evento di window perche' stanno fuori da questo componente.
+                    announce(url) {
+                        window.dispatchEvent(new CustomEvent('mask-changed', { detail: url }));
+                    },
+
+                    // Il fragment dei campi viene sostituito al cambio modello: l'anteprima della generazione-sorgente sta fuori e deve ripulirsi.
+                    destroy() {
+                        this.announce(null);
+                        if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+                        if (objectUrl) URL.revokeObjectURL(objectUrl);
                     },
 
                     sourceChanged(event) {
@@ -216,6 +238,7 @@
                             this.$refs.file.files = dt.files;
                             if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
                             this.previewUrl = URL.createObjectURL(blob);
+                            this.announce(this.previewUrl);
                             this.hasMask = true;
                             this.dialogOpen = false;
                         }, 'image/png');
@@ -241,7 +264,7 @@
             <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.draw}, action='open', extraClass=null)}">Disegna maschera</button>
         </span>
         <span x-show="hasMask" x-cloak class="flex flex-wrap items-center gap-2">
-            <img :src="previewUrl" alt="" class="h-12 w-auto rounded border border-line dark:border-line-dark">
+            <span class="text-[0.85rem]" th:text="#{generationParams.mask.applied}">Maschera impostata</span>
             <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.edit}, action='open', extraClass=null)}">Modifica maschera</button>
             <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.remove}, action='remove', extraClass=null)}">Rimuovi</button>
         </span>
@@ -281,7 +304,7 @@
             <div class="mt-3 text-center">
                 <div class="relative inline-block max-w-full select-none">
                     <img x-ref="base" alt="" draggable="false" class="block h-auto max-h-[60vh] w-auto max-w-full">
-                    <canvas x-ref="canvas" class="absolute inset-0 h-full w-full cursor-crosshair touch-none opacity-60"
+                    <canvas x-ref="canvas" class="absolute inset-0 h-full w-full cursor-crosshair touch-none opacity-50"
                             @pointerdown="down($event)" @pointermove="move($event)" @pointerup="up()" @pointercancel="up()"></canvas>
                 </div>
             </div>

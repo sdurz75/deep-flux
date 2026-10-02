@@ -909,6 +909,8 @@ class GenerationServiceTest {
 
         assertThat(result.getKind()).isEqualTo(GenerationKind.IMAGE);
         assertThat(result.getSourceGenerationId()).isEqualTo(7L);
+        // Il file scelto sul thumbnail e' tracciato (serve al dettaglio per sovrapporci la maschera).
+        assertThat(result.getSourceImageFilename()).isEqualTo("7-0.png");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
@@ -957,6 +959,8 @@ class GenerationServiceTest {
         assertThat(result.getKind()).isEqualTo(GenerationKind.IMAGE);
         assertThat(result.getSourceUploadFilename()).isEqualTo("src.png");
         assertThat(result.getMaskUploadFilename()).isEqualTo("mask-a.png");
+        // Con un upload la sorgente non e' una generazione: nessun file sorgente da tracciare.
+        assertThat(result.getSourceImageFilename()).isNull();
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
@@ -964,6 +968,27 @@ class GenerationServiceTest {
                 .containsEntry("mask", "data:image/png;base64,MMMM").containsEntry("disable_safety_checker", true);
         // I data-URI non finiscono mai nel DB: parametersJson e' salvato prima.
         assertThat(result.getParametersJson()).isNull();
+    }
+
+    /** flux-fill-pro non ha disable_safety_checker: non si invia; ha safety_tolerance, forzata al massimo (6) e mai nei parametri salvati. */
+    @Test
+    void createForFillProDoesNotSendDisableSafetyChecker() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        when(imageStorageService.readAsDataUri("src.png")).thenReturn("data:image/png;base64,SSSS");
+        when(imageStorageService.readAsDataUri("mask-p.png")).thenReturn("data:image/png;base64,MMMM");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-p", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("black-forest-labs/flux-fill-pro", GenerationFormType.FLUX_FILL_PRO);
+
+        service.create(commandWithMask("black-forest-labs/flux-fill-pro", "src.png", "mask-p.png"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,SSSS")
+                .containsEntry("mask", "data:image/png;base64,MMMM").containsEntry("prompt", "a face")
+                .containsEntry("safety_tolerance", 6).doesNotContainKey("disable_safety_checker");
     }
 
     /** Senza maschera l'inpainting non parte (nessuna prediction a pagamento) e la sorgente gia' salvata viene ripulita. */

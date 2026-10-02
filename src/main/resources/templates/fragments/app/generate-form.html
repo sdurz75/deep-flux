@@ -31,7 +31,11 @@
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">
                 <input type="hidden" name="sourceImage" th:value="${sourceImage}">
                 <p th:text="${editPage} ? #{generateForm.label.editSource(${sourceGeneration.id})} : #{generateForm.label.sourceImage(${sourceGeneration.id})}">Animazione della generazione</p>
-                <img id="generate-source-preview" th:src="@{'/images/' + ${sourceImage}}" alt="" class="mt-1 h-32 w-auto rounded-md">
+                <!--/* L'editor della maschera (mask-editor.html) annuncia la maschera con l'evento window `mask-changed` (URL del blob o null): qui si sovrappone all'anteprima. */-->
+                <div class="relative mt-1 inline-block" x-data="{ mask: null }" @mask-changed.window="mask = $event.detail">
+                    <img id="generate-source-preview" th:src="@{'/images/' + ${sourceImage}}" alt="" class="block h-32 w-auto rounded-md">
+                    <span th:replace="~{fragments/app/mask-overlay :: layerBound(show='mask')}"></span>
+                </div>
             </div>
 
             <div th:replace="~{fragments/app/generation-params :: fields}"></div>

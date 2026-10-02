@@ -13,7 +13,7 @@ package org.dual.replicate.app.generation.domain;
  * fragments/app/generation-params.html. Ogni form-type dichiara anche il
  * {@link GenerationKind} del media che produce e, se prende un'immagine
  * sorgente, la chiave Replicate sotto cui va inviata ({@link #sourceImageParam()}:
- * "image" per p-video, flux-dev-lora e flux-fill-dev, "input_image" per kontext-dev) e, per l'inpainting,
+ * "image" per p-video, flux-dev-lora, flux-fill-dev e flux-fill-pro, "input_image" per kontext-dev) e, per l'inpainting,
  * quella della maschera ({@link #maskParam()}). {@link #isEdit()}
  * distingue i modelli di modifica (sorgente obbligatoria, output immagine)
  * dai text-to-image: hanno la loro pagina e non compaiono ne' nel combobox
@@ -26,7 +26,8 @@ public enum GenerationFormType {
     P_VIDEO(GenerationKind.VIDEO, "image", null, false),
     FLUX_KONTEXT_DEV(GenerationKind.IMAGE, "input_image", null, true),
     FLUX_DEV_LORA(GenerationKind.IMAGE, "image", null, false),
-    FLUX_FILL_DEV(GenerationKind.IMAGE, "image", "mask", true);
+    FLUX_FILL_DEV(GenerationKind.IMAGE, "image", "mask", true),
+    FLUX_FILL_PRO(GenerationKind.IMAGE, "image", "mask", true);
 
     private final GenerationKind kind;
     private final String sourceImageParam;
@@ -62,6 +63,22 @@ public enum GenerationFormType {
     /** True per i modelli di modifica immagine: sorgente obbligatoria. */
     public boolean isEdit() {
         return edit;
+    }
+
+    /**
+     * True se il modello ha l'input {@code disable_safety_checker}, che {@code GenerationService} forza per ogni immagine. flux-fill-pro
+     * non ce l'ha: ha {@code safety_tolerance} ({@link #safetyToleranceParam()}), e inviare un input sconosciuto a Replicate sarebbe un rischio inutile.
+     */
+    public boolean hasDisableSafetyChecker() {
+        return this != FLUX_FILL_PRO;
+    }
+
+    /**
+     * Chiave dell'input Replicate per la tolleranza del controllo di sicurezza, o null se il modello usa {@code disable_safety_checker}.
+     * Come quel flag NON e' un campo del form: la forza {@code GenerationService} al massimo (il piu' permissivo), l'utente non la vede.
+     */
+    public String safetyToleranceParam() {
+        return this == FLUX_FILL_PRO ? "safety_tolerance" : null;
     }
 
     /** True se il modello accetta un'immagine sorgente (img2video, modifica o img2img opzionale). */

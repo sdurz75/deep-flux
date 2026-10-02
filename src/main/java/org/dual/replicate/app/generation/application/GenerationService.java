@@ -64,6 +64,8 @@ public class GenerationService implements IGenerations {
 
     /** Chiave dell'immagine sorgente quando il chiamante non ne specifica una (p-video, il primo modello con sorgente). */
     private static final String DEFAULT_SOURCE_IMAGE_PARAM = "image";
+    /** safety_tolerance di flux-fill-pro va da 1 (rigido) a 6 (permissivo): come disable_safety_checker, l'app usa sempre il piu' permissivo. */
+    private static final int MOST_PERMISSIVE_SAFETY_TOLERANCE = 6;
 
     /** Un video impiega piu' di un'immagine (fino a 20 s di clip): stessa logica di TIMEOUT, soglia piu' larga. */
     private static final Duration VIDEO_TIMEOUT = Duration.ofMinutes(15);
@@ -229,7 +231,11 @@ public class GenerationService implements IGenerations {
         // parametersJson (salvato sotto) conserva gli ID. Un token inesistente/scaduto lancia un rifiuto PRIMA di spendere nulla.
         apiTokens.resolveInto(input);
         input.put("prompt", prompt);
-        if (kind == GenerationKind.IMAGE) {
+        if (kind == GenerationKind.IMAGE && formType != null && formType.safetyToleranceParam() != null) {
+            // Il modello non ha disable_safety_checker ma una tolleranza 1-6: sempre la piu' permissiva, mai esposta all'utente.
+            input.put(formType.safetyToleranceParam(), MOST_PERMISSIVE_SAFETY_TOLERANCE);
+        }
+        if (kind == GenerationKind.IMAGE && (formType == null || formType.hasDisableSafetyChecker())) {
             input.put("disable_safety_checker", true);
         }
         // Sorgente: un'immagine caricata ha la precedenza su quella di una generazione. I modelli
@@ -266,6 +272,8 @@ public class GenerationService implements IGenerations {
             generation.setKind(kind);
             generation.setSourceGenerationId(sourceGenerationId);
             generation.setSourceUploadFilename(sourceUploadFilename);
+            // Il file preciso scelto fra quelli della generazione sorgente (null se la sorgente e' un upload: sourceGenerationId e' gia' azzerato).
+            generation.setSourceImageFilename(sourceGenerationId != null ? sourceImage : null);
             generation.setMaskUploadFilename(storedMask);
             // Una prediction gia' terminale alla risposta del POST (cache, fallimento immediato) NON va salvata
             // terminale: senza download ne' errorMessage nessuno la completerebbe mai (refresh() salta le righe

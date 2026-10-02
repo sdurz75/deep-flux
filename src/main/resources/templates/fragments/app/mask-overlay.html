@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Maschera di inpainting SOPRA un'immagine (anteprima nel form, dettaglio di una generazione): colore del tema con trasparenza fuori dall'area e
+  opacita' 50%. La maschera vera (bianco = da ridipingere, nero = da preservare, quella che parte per Replicate) resta bianco/nero: qui la si converte
+  al volo con un filtro SVG (luminanza -> alpha, poi colorata col token `favourite` via currentColor). Niente mask-mode: luminance (Safari) ne'
+  mix-blend-mode (l'overlay sparirebbe su immagini molto chiare o scure), niente canvas JS (il dettaglio e' sostituito dal polling htmx).
+  Da mettere dentro un contenitore `relative` grande quanto l'immagine sorgente (la maschera ha lo stesso aspetto, quindi h-full w-full combacia).
+  L'<svg> NON e' display:none (i filtri di un svg nascosto non si applicano) e il suo id si ripete fra istanze: in una pagina ce n'e' una sola alla volta.
+  Due varianti dello stesso markup: layer (Thymeleaf, file nello storage) e layerBound (Alpine: legge `mask`, l'URL del blob o null, dell'antenato x-data;
+  `show` e' l'espressione Alpine di x-show).
+-->
+<span th:fragment="layer(maskSrc)" class="pointer-events-none absolute inset-0 text-favourite dark:text-favourite-dark">
+    <svg width="0" height="0" class="absolute" aria-hidden="true" focusable="false">
+        <filter id="mask-tint" color-interpolation-filters="sRGB">
+            <feFlood flood-color="currentColor" result="tint"></feFlood>
+            <feColorMatrix in="SourceGraphic" type="luminanceToAlpha" result="alpha"></feColorMatrix>
+            <feComposite in="tint" in2="alpha" operator="in"></feComposite>
+        </filter>
+    </svg>
+    <img th:src="${maskSrc}" alt="" class="h-full w-full opacity-50" style="filter: url(#mask-tint)">
+</span>
+
+<span th:fragment="layerBound(show)" th:x-show="${show}" x-cloak class="pointer-events-none absolute inset-0 text-favourite dark:text-favourite-dark">
+    <svg width="0" height="0" class="absolute" aria-hidden="true" focusable="false">
+        <filter id="mask-tint" color-interpolation-filters="sRGB">
+            <feFlood flood-color="currentColor" result="tint"></feFlood>
+            <feColorMatrix in="SourceGraphic" type="luminanceToAlpha" result="alpha"></feColorMatrix>
+            <feComposite in="tint" in2="alpha" operator="in"></feComposite>
+        </filter>
+    </svg>
+    <img :src="mask" alt="" class="h-full w-full opacity-50" style="filter: url(#mask-tint)">
+</span>
+
+</body>
+</html>

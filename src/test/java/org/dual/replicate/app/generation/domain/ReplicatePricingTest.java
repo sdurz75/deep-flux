@@ -62,6 +62,13 @@ class ReplicatePricingTest {
         assertThat(cost("black-forest-labs/flux-kontext-dev", Map.of("image_output_count", 2))).isEqualByComparingTo("0.05");
     }
 
+    /** Una prediction = un'immagine: il prezzo non dipende dalle metriche (che su questo modello non sono verificate). */
+    @Test
+    void fillProIsChargedPerImageRegardlessOfMetrics() {
+        assertThat(cost("black-forest-labs/flux-fill-pro", Map.of("predict_time", 12))).isEqualByComparingTo("0.05");
+        assertThat(cost("black-forest-labs/flux-fill-pro", Map.of())).isEqualByComparingTo("0.05");
+    }
+
     @Test
     void fillDevIsChargedPerOutputImage() {
         assertThat(cost("black-forest-labs/flux-fill-dev", Map.of("image_output_count", 2))).isEqualByComparingTo("0.05");
