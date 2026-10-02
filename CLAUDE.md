@@ -299,10 +299,10 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   capacita' sempre disponibili; archivio e note si menzionano nelle sezioni `archive`/`notes`, condizionali a `app.search.enabled`); `ActionProposalTool` (`proposeCancel|Delete|
   RegenerateWithSeed`: NON eseguono, leggono e depositano una `ChatAction` in `ActionProposalHolder`; arriva in `ChatReply#actions` e in `Reply.actions`
   e il client la rende come bottone `button-gen :: chatAction` (classe `chat-action`, handler in `htmlClassUtilities` di `deep-chat.html`, un
-  `<template>` per tipo): annulla/cancella = POST a `/generations/{id}/cancel|delete` dopo `window.confirm`, rigenera = scrive prompt+seed nello slot
-  globale `generation.shared` e apre `/generations/new` (la prediction parte solo col "Genera" li'). Le azioni NON sono persistite: al reload il bot le ripropone),
+  `<template>` per tipo): annulla/cancella = POST a `/generations/{id}/cancel|delete` dopo `window.confirm`, rigenera = apre
+  `/generations/new?config=<id>&file=<file>` ("Usa configurazione", vedi "Convenzione: stato delle form": il server ricostruisce modello, LoRA, parametri, prompt e seed; la prediction parte solo col "Genera" li'). `ChatAction.regenerate` porta solo id, file e modello. Le azioni NON sono persistite: al reload il bot le ripropone),
   `GenerationResultHolder` (canale tool→assistente via `ToolContext`: gli id delle generazioni avviate nel turno); `adapter.out.searxng`: `SearxngClient` (Basic Auth,
-  impl di `IWebSearchGateway`), `ChatPushNotifier`, `ChatSearchSource`, store JPA. Domain: `ChatConversation`, `ChatMessage`, `FileRef`,
+  impl di `IWebSearchGateway`), `ChatPushNotifier`, `ChatSearchSource`, store JPA. Domain: `ChatConversation` (con `generationSettingsJson`, vedi "Form per conversazione"), `ChatMessage`, `FileRef`,
   `ChatTurn`, `ChatReply`, `DeepChatFailedException`, `AssistantException`.
 - `app.prompt`: `PromptEnhancementService` (one-shot; la riduzione delle immagini grandi per il modello di visione sta dietro `ISourceImageScaler`, adapter
   `AwtSourceImageScaler` con `ImageIO`: un png/jpeg illeggibile e' un errore `ImageScalingException`, non si invia l'originale; webp passa invariato; senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
@@ -683,8 +683,9 @@ Un cambio di valore da codice (senza eventi) va annunciato con `select.dispatchE
 
 ## Convenzione: stato delle form di parametri di generazione (client)
 
-Modello + parametri (+ prompt in `/generations/new`) sono una preferenza del browser, non dati applicativi: stanno in `localStorage` e cambiano
-SOLO per modifica dell'utente o "Reimposta ai default" esplicito, mai per una navigazione. Un solo script, `fragments/app/generation-settings-persist.html :: script`
+In `/generations/new` modello + parametri + prompt sono una preferenza del browser, non dati applicativi: stanno in `localStorage` e cambiano
+SOLO per modifica dell'utente o "Reimposta ai default" esplicito, mai per una navigazione. In `/deep-chat` invece il form e' PER CONVERSAZIONE e vive sul
+server (vedi "Form per conversazione" sotto): localStorage resta solo come fonte per le conversazioni precedenti alla persistenza lato server. Un solo script, `fragments/app/generation-settings-persist.html :: script`
 (da includere DOPO il markup), attivo su ogni `form[data-persist-key]`: `/deep-chat` (`deepChat.generationSettings`) e `/generations/new`
 (`generate.image|video|edit`, una chiave per tipo di pagina, separata dalla chat). Configurazione via `data-*` sul form:
 `data-persist-key`, `data-persist-no-restore` (campi che il server ha valorizzato da un link esplicito, il prompt di "Anima": non si
@@ -693,6 +694,18 @@ pagamento). A ogni sync il form emette `generation-settings:sync` (detail = tutt
 `window.setDeepChatSettings`, registrando il listener PRIMA dell'include. Il listener `input` e' delegato su `document` perche' il form di
 `/generations/new` viene ri-renderizzato dopo un create rifiutato (`createFailed` rimette il `seed` nel Model: non e' fra i `defaultFields`). Non
 persistiti: file `sourceUpload`, hidden. Un nuovo form-type non richiede nulla qui.
+
+**Form per conversazione** (`/deep-chat`): la configurazione del form (modello, LoRA, tutti i parametri) si salva con la `ChatConversation`
+(colonna `generation_settings_json`, testo JSON GREZZO che la chat non interpreta: lo stesso snapshot che lo script scrive in localStorage, `data-persist-ignore`
+applicato) e scegliere una conversazione la ripristina. `DeepChatController#page` mette lo stato nel Model; il `<form>` porta `data-persist-server-state` (JSON,
+attributo assente se NULL) e `data-persist-save-url` (`@{/deep-chat/{id}/settings}`). Semantica: `NULL` = conversazione precedente alla migrazione (il restore adotta
+localStorage e lo salva SUBITO sul server, non alla prima modifica); `"{}"` = default del catalogo (ogni conversazione nuova: lo scrive il costruttore dell'entity,
+quindi OGNI percorso di creazione); oggetto pieno = stato salvato, che e' l'UNICA fonte del restore (localStorage ignorato). Lo script ripristina da
+`readState(form)`, emette `generation-settings:restored` a restore finito e SOLO da li' salva (`fetch` keepalive `POST /deep-chat/{id}/settings`, JSON, debounce
+800 ms, flush su `pagehide`/`visibilitychange`, nessuna richiesta se lo snapshot e' invariato): lo stato intermedio di un cambio modello non sovrascrive quello della
+conversazione. NON htmx (un non-GET attiverebbe l'overlay "operazione in corso"). `IChatConversations#saveGenerationSettings` valida (oggetto JSON, max
+`MAX_SETTINGS_BYTES` = 16 KB, 422 altrimenti) e NON chiama `touch()` (la sidebar non si riordina per un cambio di parametri). Due tab sulla stessa
+conversazione: vince l'ultimo salvataggio.
 
 **Slot globale prompt/seed** (`localStorage['generation.shared']` = `{prompt?, seed?}`): "Usa prompt" (uno per generazione) e "Usa seed" (PER FILE, nella
 griglia del dettaglio; `button-gen :: pushShared`, scrittura in `fragments/app/generation-shared-slot.html :: pusher`) NON aprono un caso d'uso: spingono nello
@@ -703,6 +716,18 @@ riproduce SOLO la prima immagine (verificato con due prediction su flux-lora-ff3
 riporta, e non e' seed+1): la prima mostra `(batch)` col bottone, le altre NESSUNA riga seed (il seed del batch non e' il loro). Un seed vero per ogni immagine richiede
 una prediction per immagine (`num_outputs=1`), non implementato.
 La chiave dello slot e' duplicata nei due script: tenerle allineate.
+
+**"Usa configurazione"** (dettaglio di OGNI generazione, `button-gen :: reuseConfig`; "Rigenera" della chat): NON passa dallo slot ma da un link
+`/generations/new?config=<id>[&file=<file>]` e il SERVER compila il form (`GenerationController#form` → `reuseForm`). I dati sono quelli GIA' salvati, nessuna
+colonna in piu': `IGenerations#reuseConfig(id, file)` → `GenerationConfig` (modello, prompt, seed di quel file via `reusableSeedOf`, `parametersJson` nel
+vocabolario del provider, sorgente solo se ancora un'immagine valida per `findAnimatableSource`); i parametri diventano campi di form con l'inverso degli
+handler (`IGenerationParameterHandler#toFormFields`, esposto da `IGenerationForms#formFields`: boolean come `"true"`/`"false"`, FF3 rimappa `model`→`flux_model`,
+le chiavi non note al form-type si scartano). Un campo di un fragment `generation-params-<form-type>.html` deve stare fra i `defaultFields()` del suo handler, altrimenti
+sparisce in silenzio (`GenerationFormFieldsCompletenessTest` lo impone). La pagina e' quella del tipo del modello (immagini/video/edit), con `data-persist-fresh` sul
+form: arrivandoci lo script di persistenza non ripristina nulla (ne' modello, ne' campi, ne' slot) ma scrive subito lo stato. **La `version` non si spinge MAI**
+(il campo sta fuori dai campi del form-type: con un cambio di modello partirebbe, e verrebbe fatturato, l'hash del modello sbagliato). Con `file` (solo la chat "Rigenera", per file) `num_outputs`=1 e il seed e' quello del file; il dettaglio NON passa `file`: `num_outputs` com'era e seed della prima immagine.
+Non riproducibili: la maschera di inpainting e una sorgente da upload (un `<input type=file>` non si valorizza); un modello disattivato o una generazione
+sparita danno la pagina normale con un messaggio (`generateForm.error.reuse*`). "Usa prompt"/"Usa seed" restano (slot).
 
 ## Ricerca semantica (PgVectorStore su PostgreSQL+pgvector, embedding locali)
 

@@ -109,7 +109,7 @@
 <!--
   Bottone di un'azione PROPOSTA dall'assistente in chat (ActionProposalTool): annulla, cancella, rigenera. Come "Interrompi", vive nello
   shadow DOM di <deep-chat>: stili INLINE e click via htmlClassUtilities 'chat-action' in deep-chat.html (qui nessun hx-*). Renderizzato
-  una volta per tipo in un <template> con generationId='GENID' (e, per la rigenerazione, i segnaposto del prompt/seed riempiti dal client).
+  una volta per tipo in un <template> con generationId='GENID' (e, per la rigenerazione, id e file riempiti dal client per aprire /generations/new?config=).
   url: endpoint da chiamare con POST (annulla/cancella) o pagina da aprire (rigenera); confirmText null = nessuna conferma (rigenera
   apre solo una form: la prediction parte dal "Genera" li'). danger: bordo rosso per le azioni distruttive.
 -->
@@ -239,6 +239,15 @@
         th:classappend="${extraClass}"
         th:data-shared-prompt="${prompt}" th:data-shared-seed="${seed}" th:data-shared-done="${doneText}"
         th:text="${text}">Usa</button>
+
+<!--
+  reuseConfig(url, text): "Usa configurazione" nel dettaglio di una generazione. E' un <a> (navigazione GET verso
+  /generations/new?config=<id>[&file=<file>]): il server ricostruisce dalla generazione modello, LoRA, parametri, prompt e seed e
+  riempie il form (a differenza di pushShared, che scrive solo prompt/seed nello slot localStorage). url e' gia' risolto con @{...}.
+-->
+<a th:fragment="reuseConfig(url, text)" th:href="${url}"
+   class="inline-block bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-0.5 text-[0.8rem] no-underline"
+   th:text="${text}">Usa configurazione</a>
 
 <!--
   Editor della maschera di inpainting (fragments/app/mask-editor.html): bottoni di strumento e azione. L'azione viaggia in data-action

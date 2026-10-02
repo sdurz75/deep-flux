@@ -47,6 +47,10 @@
                 <span th:text="${generation.prompt}">prompt</span>
                 <button th:replace="~{fragments/app/button-gen :: pushShared(text=#{generationDetail.shared.usePrompt}, doneText=#{generationDetail.shared.done},
                             prompt=${generation.prompt}, seed=null, extraClass=null)}">Usa prompt</button>
+                <!--/* Configurazione completa (modello, LoRA, parametri, prompt, seed): link, il server compila il form. Senza `file`: num_outputs resta com'era e il seed e' quello della prima immagine (la rigenerazione per file e' della chat). */-->
+                <a th:replace="~{fragments/app/button-gen :: reuseConfig(
+                        url=@{/generations/new(config=${generation.id})},
+                        text=#{generationDetail.button.reuseConfig})}">Usa configurazione</a>
             </dd>
 
             <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.model})}">Modello</dt>

@@ -18,11 +18,13 @@ import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -70,8 +72,10 @@ public class DeepChatController {
 
     @GetMapping("/deep-chat/{id}")
     public String page(@PathVariable Long id, Model model) {
-        conversations.find(id)
+        ChatConversation conversation = conversations.find(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("deepchat.error.conversationNotFound")));
+        // Form di generazione di QUESTA conversazione (NULL = precedente alla persistenza lato server: il form adotta quello del browser).
+        model.addAttribute("generationSettingsJson", conversation.getGenerationSettingsJson());
 
         // chatHistoryJson e' serializzata qui (non nel template) come
         // stringa JSON gia' pronta: il template la inlinea via Thymeleaf
@@ -95,6 +99,23 @@ public class DeepChatController {
         model.addAttribute("formType", defaultModel.map(m -> m.getFormType().name()).orElse(null));
         defaultModel.ifPresent(m -> forms.formModel(m.getFormType()).forEach(model::addAttribute));
         return "app/deep-chat";
+    }
+
+    /**
+     * Salva lo stato del form di generazione della conversazione (fetch dello script di persistenza, best effort: nessuna UI da aggiornare,
+     * quindi 204). Il corpo e' JSON grezzo, la chat non lo interpreta.
+     */
+    @PostMapping(value = "/deep-chat/{id}/settings", consumes = "application/json")
+    public ResponseEntity<Void> saveSettings(@PathVariable Long id, @RequestBody String json) {
+        if (conversations.find(id).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("deepchat.error.conversationNotFound"));
+        }
+        try {
+            conversations.saveGenerationSettings(id, json);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+        }
+        return ResponseEntity.noContent().build();
     }
 
     /**

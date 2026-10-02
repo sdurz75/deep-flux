@@ -132,7 +132,9 @@
                   davvero (vedi fragments/app/generate-form.html).
                 -->
                 <div id="generation-settings-panel">
-                    <form id="generation-settings-form" data-persist-key="deepChat.generationSettings" onsubmit="return false;">
+                    <form id="generation-settings-form" data-persist-key="deepChat.generationSettings" onsubmit="return false;"
+                          th:data-persist-server-state="${generationSettingsJson}"
+                          th:data-persist-save-url="@{/deep-chat/{id}/settings(id=${activeConversationId})}">
                         <div th:replace="~{fragments/app/generation-params :: fields}"></div>
                     </form>
                     <button th:replace="~{fragments/app/button-gen :: resetToDefaults(text=#{deepChat.button.resetSettings}, hxGet=@{/generations/params(model=${model})}, defaultModel=${model}, extraClass='w-full text-[0.85rem] py-1.5 mt-2')}">Reimposta ai default</button>
@@ -262,7 +264,8 @@
     </th:block>
 
     <!--
-      Persistenza modello + parametri (localStorage, chiave del data-persist-key sul <form>) e inoltro a
+      Persistenza modello + parametri PER CONVERSAZIONE (stato sul server: data-persist-server-state/-save-url sul <form>; per le
+      conversazioni precedenti alla migrazione, che non ne hanno, localStorage con la chiave del data-persist-key) e inoltro a
       window.setDeepChatSettings: la logica e' nel fragment condiviso con /generations/new (vedi li' le motivazioni). Il
       listener va registrato PRIMA dell'include: il primo sync e' sincrono. Il payload e' TUTTO il form (hidden inclusi),
       che DeepChatApiController riceve come impostazioni del turno.
@@ -474,8 +477,8 @@
                     return '';
                 }
                 if (action.type === 'REGENERATE') {
-                    button.dataset.sharedPrompt = action.prompt || '';
-                    button.dataset.sharedSeed = String(action.seed);
+                    button.dataset.generationId = String(action.generationId);
+                    button.dataset.configFile = action.filename || '';
                 }
                 return holder.innerHTML;
             };
@@ -502,9 +505,9 @@
                     }
                 },
                 // Azioni PROPOSTE dall'assistente (ActionProposalTool, button-gen :: chatAction): il click dell'utente e' l'unico
-                // consenso. Annulla/cancella = POST all'endpoint esistente dopo conferma; rigenera = scrive prompt+seed nello slot
-                // globale (stessa chiave di generation-shared-slot.html, duplicata: tenerle allineate) e apre la form, dove la
-                // prediction parte solo con "Genera". Un errore (azione gia' compiuta, id sparito) resta scritto sul bottone.
+                // consenso. Annulla/cancella = POST all'endpoint esistente dopo conferma; rigenera = apre /generations/new?config=<id>&file=<file>:
+                // il server ricostruisce dalla generazione modello, LoRA, parametri, prompt e seed di quel file (nessuno slot localStorage), e la
+                // prediction parte solo con "Genera" nella form. Un errore (azione gia' compiuta, id sparito) resta scritto sul bottone.
                 'chat-action': {
                     events: {
                         click: (event) => {
@@ -513,17 +516,9 @@
                                 return;
                             }
                             if (button.dataset.actionType === 'REGENERATE') {
-                                try {
-                                    const slot = JSON.parse(localStorage.getItem('generation.shared') || '{}');
-                                    slot.prompt = button.dataset.sharedPrompt;
-                                    slot.seed = button.dataset.sharedSeed;
-                                    localStorage.setItem('generation.shared', JSON.stringify(slot));
-                                } catch (e) {
-                                    button.disabled = true;
-                                    button.textContent = button.dataset.failedText;
-                                    return;
-                                }
-                                window.location.href = button.dataset.url;
+                                const file = button.dataset.configFile;
+                                window.location.href = button.dataset.url + '?config=' + encodeURIComponent(button.dataset.generationId)
+                                    + (file ? '&file=' + encodeURIComponent(file) : '');
                                 return;
                             }
                             if (!window.confirm(button.dataset.confirm)) {

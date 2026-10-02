@@ -33,6 +33,7 @@ import org.dual.replicate.core.kernel.Paged;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationConfig;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.GenerationKind;
@@ -165,6 +166,41 @@ public class GenerationService implements IGenerations {
     public Optional<Generation> findAnimatableSource(Long id, String image) {
         return id == null || image == null ? Optional.empty()
                 : repository.findById(id).filter(g -> isAnimatable(g) && g.getImageFilenames().contains(image));
+    }
+
+    @Override
+    public Optional<GenerationConfig> reuseConfig(Long id, String file) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        return repository.findById(id).map(generation -> {
+            boolean ofFile = file != null && generation.getImageFilenames().contains(file);
+            Map<String, Object> parameters = storedParameters(generation);
+            if (ofFile && parameters.containsKey("num_outputs")) {
+                parameters.put("num_outputs", 1);
+            }
+            String seedFile = ofFile ? file : generation.getImageFilenames().stream().findFirst().orElse(null);
+            Long seed = seedFile == null ? null : generation.reusableSeedOf(seedFile);
+            Long sourceId = generation.getSourceGenerationId();
+            String sourceImage = generation.getSourceImageFilename();
+            boolean sourceValid = findAnimatableSource(sourceId, sourceImage).isPresent();
+            return new GenerationConfig(generation.getModel(), generation.getPrompt(), seed, parameters,
+                    sourceValid ? sourceId : null, sourceValid ? sourceImage : null);
+        });
+    }
+
+    /** I parametri salvati (vocabolario del provider); assenti o illeggibili = nessuno, mai un errore. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> storedParameters(Generation generation) {
+        String json = generation.getParametersJson();
+        if (json == null || json.isBlank()) {
+            return new LinkedHashMap<>();
+        }
+        try {
+            return new LinkedHashMap<>(objectMapper.readValue(json, Map.class));
+        } catch (RuntimeException e) {
+            return new LinkedHashMap<>();
+        }
     }
 
     /** Un'immagine riuscita: l'unica generazione che puo' fare da sorgente (animazione, modifica). */

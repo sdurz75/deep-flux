@@ -8,6 +8,7 @@ import org.dual.replicate.app.chat.domain.ChatConversation;
 import org.dual.replicate.app.chat.domain.ChatMessage;
 import org.dual.replicate.app.chat.domain.ChatMessageRole;
 import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.app.chat.port.in.IChatConversations;
 import org.dual.replicate.app.chat.port.out.IChatConversationStore;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.chat.port.out.IChatMessageStore;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,7 +41,7 @@ class ChatConversationServiceTest {
 
     @Test
     void resolveDefaultReturnsMostRecentWhenPresent() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
         ChatConversation existing = new ChatConversation();
         when(conversationRepository.findMostRecent()).thenReturn(Optional.of(existing));
 
@@ -51,7 +53,7 @@ class ChatConversationServiceTest {
 
     @Test
     void resolveDefaultCreatesNewWhenNoneExist() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
         when(conversationRepository.findMostRecent()).thenReturn(Optional.empty());
         when(conversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -64,7 +66,7 @@ class ChatConversationServiceTest {
     /** Rinominare non e' attivita' di chat: non deve riordinare la sidebar per recenza (vedi ChatConversationService). */
     @Test
     void renameSetsTitleWithoutTouchingUpdatedAt() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
         ChatConversation conversation = new ChatConversation();
         Instant originalUpdatedAt = conversation.getUpdatedAt();
         when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
@@ -86,7 +88,7 @@ class ChatConversationServiceTest {
      */
     @Test
     void renameWithBlankTitleNormalizesToNull() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
         ChatConversation conversation = new ChatConversation();
         when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
         when(conversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -99,7 +101,7 @@ class ChatConversationServiceTest {
     /** Le Generation appartengono al registro globale della galleria: non si cancellano, si scollegano soltanto dalla conversazione (vedi CLAUDE.md, Scopo). */
     @Test
     void deleteRemovesMessagesBeforeConversationAndOnlyDetachesGenerations() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
         ChatConversation conversation = new ChatConversation();
         ChatMessage message = new ChatMessage(conversation, ChatMessageRole.USER, "ciao", null);
         when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
@@ -111,5 +113,44 @@ class ChatConversationServiceTest {
         verify(generations).detachFromConversation(1L);
         verify(conversationRepository).delete(conversation);
         verify(generations, org.mockito.Mockito.never()).delete(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    private ChatConversationService settingsService() {
+        lenient().when(messages.get("deepchat.error.settingsInvalid")).thenReturn("non valida");
+        return new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+    }
+
+    /** Ogni conversazione nuova parte dai default del catalogo ("{}"); NULL esiste solo per le righe precedenti alla migrazione. */
+    @Test
+    void aNewConversationStartsWithEmptySettings() {
+        assertThat(new ChatConversation().getGenerationSettingsJson()).isEqualTo("{}");
+    }
+
+    @Test
+    void saveGenerationSettingsStoresTheRawJsonWithoutTouchingTheRecency() {
+        ChatConversation conversation = new ChatConversation();
+        java.time.Instant before = conversation.getUpdatedAt();
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conversation));
+        String json = "{\"model\":\"owner/m\",\"lora_weights\":\"me/face\"}";
+
+        settingsService().saveGenerationSettings(5L, json);
+
+        assertThat(conversation.getGenerationSettingsJson()).isEqualTo(json);
+        assertThat(conversation.getUpdatedAt()).isEqualTo(before);
+        verify(conversationRepository).save(conversation);
+    }
+
+    @Test
+    void saveGenerationSettingsRejectsNonObjectsMalformedAndOversizedJson() {
+        ChatConversation conversation = new ChatConversation();
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conversation));
+        String oversized = "{\"x\":\"" + "a".repeat(IChatConversations.MAX_SETTINGS_BYTES) + "\"}";
+
+        for (String invalid : new String[]{"[1,2]", "\"text\"", "42", "{non json", "", null, oversized}) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> settingsService().saveGenerationSettings(5L, invalid))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThat(conversation.getGenerationSettingsJson()).isEqualTo("{}");
+        verify(conversationRepository, never()).save(any());
     }
 }

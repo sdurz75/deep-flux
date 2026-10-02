@@ -12,6 +12,8 @@ import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * CRUD delle conversazioni di /deep-chat (creazione, rinomina,
@@ -35,11 +37,14 @@ public class ChatConversationService implements IChatConversations {
     private final IChatMessageStore chatMessageRepository;
     private final IGenerations generations;
     private final Messages messages;
+    private final ObjectMapper objectMapper;
 
     public ChatConversationService(IChatConversationStore conversationRepository,
                                     IChatMessageStore chatMessageRepository,
                                     IGenerations generations,
-                                    Messages messages) {
+                                    Messages messages,
+                                    ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         this.generations = generations;
         this.conversationRepository = conversationRepository;
         this.chatMessageRepository = chatMessageRepository;
@@ -92,6 +97,25 @@ public class ChatConversationService implements IChatConversations {
         ChatConversation conversation = getOrThrow(id);
         conversation.setTitle(normalizeTitle(title));
         return conversationRepository.save(conversation);
+    }
+
+    /** Come {@link #rename}: non chiama touch(), un cambio di parametri non riordina la sidebar. */
+    @Override
+    public void saveGenerationSettings(Long id, String json) {
+        ChatConversation conversation = getOrThrow(id);
+        if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_SETTINGS_BYTES || !isJsonObject(json)) {
+            throw new IllegalArgumentException(messages.get("deepchat.error.settingsInvalid"));
+        }
+        conversation.setGenerationSettingsJson(json);
+        conversationRepository.save(conversation);
+    }
+
+    private boolean isJsonObject(String json) {
+        try {
+            return objectMapper.readTree(json).isObject();
+        } catch (JacksonException e) {
+            return false;
+        }
     }
 
     private static String normalizeTitle(String title) {

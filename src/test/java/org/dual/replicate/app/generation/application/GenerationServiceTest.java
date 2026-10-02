@@ -1327,4 +1327,74 @@ class GenerationServiceTest {
         verify(repository).deleteAllById(List.of(1L));
         verify(systemEvents).record(org.dual.replicate.core.events.domain.CoreEventSource.STORAGE, "deleteFile", locked, "generation:1");
     }
+
+    private GenerationService reuseService() {
+        return new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+    }
+
+    private Generation stored(Long id, String json, Long seed, List<String> files) {
+        Generation generation = new Generation("pred", "owner/model", "hash", "a face", json, seed);
+        ReflectionTestUtils.setField(generation, "id", id);
+        generation.setStatus(GenerationStatus.SUCCEEDED);
+        generation.setImageFilenames(files);
+        return generation;
+    }
+
+    @Test
+    void reuseConfigRebuildsModelPromptParametersAndTheSeedOfTheChosenFile() {
+        Generation generation = stored(5L, "{\"lora_weights\":\"me/face\",\"num_outputs\":3}", 100L, List.of("a.png", "b.png", "c.png"));
+        generation.setImageSeeds(Map.of("b.png", 222L));
+        when(repository.findById(5L)).thenReturn(Optional.of(generation));
+
+        var withFile = reuseService().reuseConfig(5L, "b.png").orElseThrow();
+        assertThat(withFile.model()).isEqualTo("owner/model");
+        assertThat(withFile.prompt()).isEqualTo("a face");
+        assertThat(withFile.seed()).isEqualTo(222L);
+        // Una rigenerazione per file e' UN file: num_outputs si abbassa a 1.
+        assertThat(withFile.parameters()).containsEntry("lora_weights", "me/face").containsEntry("num_outputs", 1);
+
+        // Senza file: prima immagine (il seed del batch la riproduce) e num_outputs com'era.
+        var first = reuseService().reuseConfig(5L, null).orElseThrow();
+        assertThat(first.seed()).isEqualTo(100L);
+        assertThat(first.parameters()).containsEntry("num_outputs", 3);
+
+        // File del batch senza seed proprio: nessun seed lo riproduce da solo, il campo resta vuoto.
+        assertThat(reuseService().reuseConfig(5L, "c.png").orElseThrow().seed()).isNull();
+        // Un file che non e' della generazione equivale a nessun file.
+        assertThat(reuseService().reuseConfig(5L, "altro.png").orElseThrow().seed()).isEqualTo(100L);
+    }
+
+    @Test
+    void reuseConfigToleratesMissingOrMalformedParametersAndUnknownGenerations() {
+        when(repository.findById(6L)).thenReturn(Optional.of(stored(6L, null, null, List.of())));
+        when(repository.findById(7L)).thenReturn(Optional.of(stored(7L, "{non json", 1L, List.of("x.png"))));
+        when(repository.findById(8L)).thenReturn(Optional.empty());
+
+        assertThat(reuseService().reuseConfig(6L, null).orElseThrow().parameters()).isEmpty();
+        assertThat(reuseService().reuseConfig(6L, null).orElseThrow().seed()).isNull();
+        assertThat(reuseService().reuseConfig(7L, "x.png").orElseThrow().parameters()).isEmpty();
+        assertThat(reuseService().reuseConfig(8L, null)).isEmpty();
+        assertThat(reuseService().reuseConfig(null, null)).isEmpty();
+    }
+
+    @Test
+    void reuseConfigKeepsTheSourceOnlyWhileItIsStillAValidImage() {
+        Generation animation = stored(9L, "{}", 1L, List.of("v.mp4"));
+        animation.setSourceGenerationId(3L);
+        animation.setSourceImageFilename("src.png");
+        Generation source = stored(3L, "{}", 1L, List.of("src.png"));
+        source.setKind(GenerationKind.IMAGE);
+        when(repository.findById(9L)).thenReturn(Optional.of(animation));
+        when(repository.findById(3L)).thenReturn(Optional.of(source));
+
+        var valid = reuseService().reuseConfig(9L, null).orElseThrow();
+        assertThat(valid.sourceGenerationId()).isEqualTo(3L);
+        assertThat(valid.sourceImage()).isEqualTo("src.png");
+
+        // Sorgente cancellata: non si puo' riproporre (e un upload non ha mai un id).
+        when(repository.findById(3L)).thenReturn(Optional.empty());
+        var gone = reuseService().reuseConfig(9L, null).orElseThrow();
+        assertThat(gone.sourceGenerationId()).isNull();
+        assertThat(gone.sourceImage()).isNull();
+    }
 }

@@ -82,12 +82,12 @@ class ActionProposalToolTest {
     }
 
     @Test
-    void proposeRegenerateCarriesPromptSeedAndModel() {
+    void proposeRegenerateCarriesTheFileAndTheModel() {
         generation(true);
 
         tool.proposeRegenerateWithSeed(12L, "a.png", context);
 
-        assertThat(holder.getActions()).containsExactly(ChatAction.regenerate(12L, "a cat", 42L, "owner/model"));
+        assertThat(holder.getActions()).containsExactly(ChatAction.regenerate(12L, "a.png", "owner/model"));
     }
 
     @Test

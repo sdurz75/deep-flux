@@ -51,8 +51,8 @@ public class ActionProposalTool {
     }
 
     @Tool(description = "Propose to regenerate an image with the same prompt and the same seed. This does NOT generate "
-            + "anything: it shows the user a button that opens the generation form pre-filled; the user picks the model and "
-            + "presses Generate there (the result is reproducible only with the same model as the original).")
+            + "anything: it shows the user a button that opens the generation form pre-filled with the original model, LoRA, "
+            + "parameters, prompt and seed; the user presses Generate there.")
     public String proposeRegenerateWithSeed(
             @ToolParam(description = "The generation id, without the hash") Long generationId,
             @ToolParam(description = "The exact file name whose seed to reuse, from getGeneration or conversationGallery") String filename,
@@ -68,8 +68,7 @@ public class ActionProposalTool {
                 return "That file has no reproducible seed.";
             }
             return null;
-        }, generation -> ChatAction.regenerate(generationId, generation.getPrompt(), generation.reusableSeedOf(filename),
-                generation.getModel()));
+        }, generation -> ChatAction.regenerate(generationId, filename, generation.getModel()));
     }
 
     private String propose(String operation, Long generationId, ToolContext toolContext,

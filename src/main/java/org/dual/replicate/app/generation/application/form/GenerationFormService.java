@@ -76,6 +76,11 @@ public class GenerationFormService implements IGenerationForms {
     }
 
     @Override
+    public Map<String, String> formFields(GenerationFormType formType, Map<String, Object> parameters) {
+        return handler(formType).toFormFields(parameters);
+    }
+
+    @Override
     public Map<String, Object> formModel(GenerationFormType formType) {
         Map<String, Object> model = new LinkedHashMap<>(defaultFields(formType));
         model.putAll(extraFormOptions(formType));
