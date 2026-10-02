@@ -22,7 +22,9 @@ import java.util.Optional;
  * default); flux-lora-ff3 (fine-tune community su hardware H100) a tempo
  * di calcolo, tariffa da replicate.com/pricing; flux-dev-lora (2026-10-01) STIMATO uguale a flux-dev
  * ($0.025 per immagine, scelta dell'utente: la pagina del modello non riporta il prezzo) e la metrica
- * image_output_count non e' stata verificata su quel modello.
+ * image_output_count non e' stata verificata su quel modello. flux-fill-dev (2026-10-02): $0.025 per immagine dalla
+ * pagina del modello, metrica image_output_count idem non verificata.
+ * flux-fill-pro (2026-10-02): $0.05 per immagine (prezzo BFL/Replicate indicato per 1 MP, non verificato per risoluzioni maggiori), una prediction = un'immagine.
  */
 public final class ReplicatePricing {
 
@@ -30,6 +32,8 @@ public final class ReplicatePricing {
     static final BigDecimal KLEIN_9B_PER_IMAGE = new BigDecimal("0.02");
     static final BigDecimal KONTEXT_DEV_PER_IMAGE = new BigDecimal("0.025");
     static final BigDecimal DEV_LORA_PER_IMAGE = new BigDecimal("0.025");
+    static final BigDecimal FILL_DEV_PER_IMAGE = new BigDecimal("0.025");
+    static final BigDecimal FILL_PRO_PER_IMAGE = new BigDecimal("0.05");
     static final BigDecimal H100_PER_SECOND = new BigDecimal("0.001525");
 
     private static final BigDecimal P_VIDEO_DRAFT_720P = new BigDecimal("0.005");
@@ -53,6 +57,10 @@ public final class ReplicatePricing {
                     number(metrics, "image_output_count").map(n -> n.multiply(KONTEXT_DEV_PER_IMAGE));
             case "black-forest-labs/flux-dev-lora" ->
                     number(metrics, "image_output_count").map(n -> n.multiply(DEV_LORA_PER_IMAGE));
+            case "black-forest-labs/flux-fill-dev" ->
+                    number(metrics, "image_output_count").map(n -> n.multiply(FILL_DEV_PER_IMAGE));
+            // Una prediction = un'immagine: nessuna metrica da leggere (image_output_count non e' verificata su questo modello).
+            case "black-forest-labs/flux-fill-pro" -> Optional.of(FILL_PRO_PER_IMAGE);
             case "sdurz75/flux-lora-ff3" ->
                     number(metrics, "predict_time").map(n -> n.multiply(H100_PER_SECOND));
             case "prunaai/p-video" -> pVideo(metrics);

@@ -23,7 +23,7 @@ class PromptEnhancementServiceTest {
 
     private final IPromptModel model = mock(IPromptModel.class);
     private final ISourceImageScaler scaler = mock(ISourceImageScaler.class);
-    private final PromptEnhancementService service = new PromptEnhancementService(model, scaler, "guida", "video", "modifica", "vision", "fallback");
+    private final PromptEnhancementService service = new PromptEnhancementService(model, scaler, "guida", "video", "modifica", "inpaint", "vision", "fallback");
 
     @BeforeEach
     void scalerPassesTheImageThrough() {
@@ -42,6 +42,30 @@ class PromptEnhancementServiceTest {
         when(scaler.fitForVision(original)).thenThrow(new ImageScalingException("corrotta", new RuntimeException()));
         assertThatThrownBy(() -> service.enhanceVideo("", original)).isInstanceOf(ImageScalingException.class);
         verify(model, org.mockito.Mockito.times(1)).complete(eq("enhanceVision"), anyString(), anyString(), anyString(), any());
+    }
+
+    /** L'inpainting usa la SUA guida (solo il contenuto della zona), non quella generica text-to-image ne' quella di Kontext; l'immagine va al modello di visione. */
+    @Test
+    void enhanceInpaintUsesTheInpaintGuideAndLooksAtTheSourceImage() {
+        SourceImage image = new SourceImage(new byte[]{1}, "image/png");
+        when(model.complete(eq("enhanceVision"), eq("inpaint"), eq("sks, volto sorridente"), eq("vision"), eq(image)))
+                .thenReturn("  sks, a smiling woman in her thirties looking at the camera  ");
+
+        assertThat(service.enhanceInpaint("sks, volto sorridente", image))
+                .isEqualTo("sks, a smiling woman in her thirties looking at the camera");
+        verify(model, org.mockito.Mockito.never()).complete(anyString(), eq("guida"), anyString(), any(), any());
+        verify(model, org.mockito.Mockito.never()).complete(anyString(), eq("modifica"), anyString(), any(), any());
+    }
+
+    /** Senza immagine (nessuna sorgente ancora) riscrive solo la bozza, sempre con la guida dell'inpainting; un rifiuto non sovrascrive la bozza. */
+    @Test
+    void enhanceInpaintWithoutAnImageRewritesTheDraftAndTreatsRefusalsAsRefusals() {
+        when(model.complete(eq("enhance"), eq("inpaint"), eq("occhiali"), isNull(), isNull())).thenReturn("round tortoiseshell glasses");
+
+        assertThat(service.enhanceInpaint("occhiali", null)).isEqualTo("round tortoiseshell glasses");
+
+        when(model.complete(eq("enhance"), eq("inpaint"), eq("x"), isNull(), isNull())).thenReturn("I'm sorry, I can't help with that.");
+        assertThatThrownBy(() -> service.enhanceInpaint("x", null)).isInstanceOf(PromptEnhancementRefusedException.class);
     }
 
     @Test

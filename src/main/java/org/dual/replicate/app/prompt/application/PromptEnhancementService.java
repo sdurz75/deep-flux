@@ -28,6 +28,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
     private final String imageGuide;
     private final String videoGuide;
     private final String editGuide;
+    private final String inpaintGuide;
     private final String visionModel;
     private final String visionFallbackModel;
 
@@ -36,6 +37,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
                                      @Value("${generateForm.prompt-enhancement-guide}") String promptEnhancementGuide,
                                      @Value("${generateForm.video-prompt-enhancement-guide}") String videoGuide,
                                      @Value("${generateForm.edit-prompt-enhancement-guide}") String editGuide,
+                                     @Value("${generateForm.inpaint-prompt-enhancement-guide}") String inpaintGuide,
                                      @Value("${enhancer.vision-model}") String visionModel,
                                      @Value("${enhancer.vision-fallback-model}") String visionFallbackModel) {
         this.model = model;
@@ -43,6 +45,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
         this.imageGuide = promptEnhancementGuide;
         this.videoGuide = videoGuide;
         this.editGuide = editGuide;
+        this.inpaintGuide = inpaintGuide;
         this.visionModel = visionModel;
         this.visionFallbackModel = visionFallbackModel;
     }
@@ -61,6 +64,17 @@ public class PromptEnhancementService implements IPromptEnhancer {
     @Override
     public String enhanceEdit(String draft, SourceImage image) {
         return rewriteWithVision(editGuide, draft, image);
+    }
+
+    /**
+     * Prompt per un inpainting (flux-fill-dev/pro): descrive SOLO cio' che compare nella zona dipinta (le fonti concordano: una descrizione
+     * dell'intera scena crea cuciture e segnali in conflitto con i bordi), con i pochi indizi di integrazione che l'immagine suggerisce
+     * (luce, prospettiva, orientamento del volto, stile). Il modello di visione non vede la zona dipinta: la deduce dalla bozza.
+     * Rifiuti gestiti come in {@link #enhanceVideo}.
+     */
+    @Override
+    public String enhanceInpaint(String draft, SourceImage image) {
+        return rewriteWithVision(inpaintGuide, draft, image);
     }
 
     /**

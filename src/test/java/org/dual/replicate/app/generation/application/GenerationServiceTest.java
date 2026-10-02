@@ -91,7 +91,7 @@ class GenerationServiceTest {
             upload = UploadedFile.of("foto.png", new byte[]{1, 2, 3});
             when(imageStorageService.storeUpload(upload)).thenReturn(storedUploadName);
         }
-        return new IGenerations.CreateCommand(model, null, prompt, parameters, sourceGenerationId, sourceImage, upload);
+        return new IGenerations.CreateCommand(model, null, prompt, parameters, sourceGenerationId, sourceImage, upload, null);
     }
 
     @Test
@@ -573,6 +573,26 @@ class GenerationServiceTest {
         verify(replicateClient, org.mockito.Mockito.never()).getPrediction(anyString());
     }
 
+    /** Sorgente e maschera caricate dall'utente si eliminano insieme alle immagini della generazione. */
+    @Test
+    void deleteAlsoRemovesTheUploadedSourceAndMask() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation generation = new Generation("pred-1", "owner/model", null, "a face", null);
+        ReflectionTestUtils.setField(generation, "id", 1L);
+        generation.setImageFilenames(List.of("1-0.png"));
+        generation.setSourceUploadFilename("src.png");
+        generation.setMaskUploadFilename("mask-a.png");
+        when(repository.findById(1L)).thenReturn(Optional.of(generation));
+
+        service.delete(1L);
+
+        verify(imageStorageService).delete("1-0.png");
+        verify(imageStorageService).delete("src.png");
+        verify(imageStorageService).delete("mask-a.png");
+        verify(repository).deleteAllById(List.of(1L));
+    }
+
     @Test
     void deleteRemovesImageFileAndRepositoryRow() {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
@@ -889,6 +909,8 @@ class GenerationServiceTest {
 
         assertThat(result.getKind()).isEqualTo(GenerationKind.IMAGE);
         assertThat(result.getSourceGenerationId()).isEqualTo(7L);
+        // Il file scelto sul thumbnail e' tracciato (serve al dettaglio per sovrapporci la maschera).
+        assertThat(result.getSourceImageFilename()).isEqualTo("7-0.png");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
         verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
@@ -907,6 +929,119 @@ class GenerationServiceTest {
                         "make it red", null, null, null, null)))
                 .isInstanceOf(org.dual.replicate.app.generation.domain.ReplicateException.class);
         org.mockito.Mockito.verifyNoInteractions(replicateClient);
+    }
+
+    /** Comando con sorgente caricata e maschera: lo storage (finto) li salva con i nomi dati. */
+    private IGenerations.CreateCommand commandWithMask(String model, String storedSourceName, String storedMaskName) {
+        UploadedFile source = UploadedFile.of("foto.png", new byte[]{1, 2, 3});
+        when(imageStorageService.storeUpload(source)).thenReturn(storedSourceName);
+        UploadedFile mask = null;
+        if (storedMaskName != null) {
+            mask = UploadedFile.of("mask.png", new byte[]{4, 5, 6});
+            when(imageStorageService.storeUpload(mask)).thenReturn(storedMaskName);
+        }
+        return new IGenerations.CreateCommand(model, null, "a face", null, null, null, source, mask);
+    }
+
+    /** Inpainting: sorgente sotto image e maschera sotto mask (data-URI), la maschera e' tracciata sulla generazione. */
+    @Test
+    void createForInpaintingModelSendsImageAndMask() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        when(imageStorageService.readAsDataUri("src.png")).thenReturn("data:image/png;base64,SSSS");
+        when(imageStorageService.readAsDataUri("mask-a.png")).thenReturn("data:image/png;base64,MMMM");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-f", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("black-forest-labs/flux-fill-dev", GenerationFormType.FLUX_FILL_DEV);
+
+        Generation result = service.create(commandWithMask("black-forest-labs/flux-fill-dev", "src.png", "mask-a.png"));
+
+        assertThat(result.getKind()).isEqualTo(GenerationKind.IMAGE);
+        assertThat(result.getSourceUploadFilename()).isEqualTo("src.png");
+        assertThat(result.getMaskUploadFilename()).isEqualTo("mask-a.png");
+        // Con un upload la sorgente non e' una generazione: nessun file sorgente da tracciare.
+        assertThat(result.getSourceImageFilename()).isNull();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,SSSS")
+                .containsEntry("mask", "data:image/png;base64,MMMM").containsEntry("disable_safety_checker", true);
+        // I data-URI non finiscono mai nel DB: parametersJson e' salvato prima.
+        assertThat(result.getParametersJson()).isNull();
+    }
+
+    /** flux-fill-pro non ha disable_safety_checker: non si invia; ha safety_tolerance, forzata al massimo (6) e mai nei parametri salvati. */
+    @Test
+    void createForFillProDoesNotSendDisableSafetyChecker() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        when(imageStorageService.readAsDataUri("src.png")).thenReturn("data:image/png;base64,SSSS");
+        when(imageStorageService.readAsDataUri("mask-p.png")).thenReturn("data:image/png;base64,MMMM");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-p", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("black-forest-labs/flux-fill-pro", GenerationFormType.FLUX_FILL_PRO);
+
+        service.create(commandWithMask("black-forest-labs/flux-fill-pro", "src.png", "mask-p.png"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,SSSS")
+                .containsEntry("mask", "data:image/png;base64,MMMM").containsEntry("prompt", "a face")
+                .containsEntry("safety_tolerance", 6).doesNotContainKey("disable_safety_checker");
+    }
+
+    /** Senza maschera l'inpainting non parte (nessuna prediction a pagamento) e la sorgente gia' salvata viene ripulita. */
+    @Test
+    void createForInpaintingModelWithoutMaskFailsBeforeCallingReplicate() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        when(imageStorageService.readAsDataUri("src.png")).thenReturn("data:image/png;base64,SSSS");
+        formTypeOf("black-forest-labs/flux-fill-dev", GenerationFormType.FLUX_FILL_DEV);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(commandWithMask("black-forest-labs/flux-fill-dev", "src.png", null)))
+                .isInstanceOf(org.dual.replicate.app.generation.domain.ReplicateException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(replicateClient);
+        verify(imageStorageService).delete("src.png");
+    }
+
+    /** Se la creazione fallisce si eliminano sia la sorgente sia la maschera caricate. */
+    @Test
+    void createDeletesSourceAndMaskWhenCreationFails() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        when(imageStorageService.readAsDataUri(anyString())).thenReturn("data:image/png;base64,XXXX");
+        when(replicateClient.createPrediction(anyString(), any(), any())).thenThrow(new RuntimeException("boom"));
+        formTypeOf("black-forest-labs/flux-fill-dev", GenerationFormType.FLUX_FILL_DEV);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(commandWithMask("black-forest-labs/flux-fill-dev", "src.png", "mask-a.png")))
+                .hasMessage("boom");
+
+        verify(imageStorageService).delete("src.png");
+        verify(imageStorageService).delete("mask-a.png");
+    }
+
+    /** Un modello che non prende una maschera non la salva nemmeno (nessuna Generation la possiederebbe). */
+    @Test
+    void createIgnoresTheMaskForAModelThatTakesNone() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        when(imageStorageService.readAsDataUri("src.png")).thenReturn("data:image/png;base64,SSSS");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-k", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("black-forest-labs/flux-kontext-dev", GenerationFormType.FLUX_KONTEXT_DEV);
+        UploadedFile source = UploadedFile.of("foto.png", new byte[]{1, 2, 3});
+        when(imageStorageService.storeUpload(source)).thenReturn("src.png");
+        UploadedFile mask = UploadedFile.of("mask.png", new byte[]{4, 5, 6});
+
+        Generation result = service.create(new IGenerations.CreateCommand("black-forest-labs/flux-kontext-dev", null, "make it red",
+                null, null, null, source, mask));
+
+        assertThat(result.getMaskUploadFilename()).isNull();
+        verify(imageStorageService, org.mockito.Mockito.never()).storeUpload(mask);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).doesNotContainKey("mask");
     }
 
     /** Con un'immagine in input p-video ignora aspect_ratio: non va inviato ne' salvato. kontext-dev invece lo onora. */
@@ -942,7 +1077,7 @@ class GenerationServiceTest {
                 .thenReturn(new Prediction("pred-t", "starting", null, null, null, null));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         IGenerations.CreateCommand command = new IGenerations.CreateCommand("black-forest-labs/flux-krea-dev", null, "a cat", null,
-                7L, "7-0.png", UploadedFile.of("foto.png", new byte[]{1, 2, 3}));
+                7L, "7-0.png", UploadedFile.of("foto.png", new byte[]{1, 2, 3}), null);
 
         Generation result = service.create(command);
 

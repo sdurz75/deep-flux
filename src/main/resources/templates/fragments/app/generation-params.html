@@ -103,6 +103,12 @@
             <th:block th:case="'FLUX_DEV_LORA'">
                 <th:block th:replace="~{fragments/app/generation-params-flux-dev-lora :: fields}"></th:block>
             </th:block>
+            <th:block th:case="'FLUX_FILL_DEV'">
+                <th:block th:replace="~{fragments/app/generation-params-flux-fill-dev :: fields}"></th:block>
+            </th:block>
+            <th:block th:case="'FLUX_FILL_PRO'">
+                <th:block th:replace="~{fragments/app/generation-params-flux-fill-pro :: fields}"></th:block>
+            </th:block>
         </th:block>
     </div>
 </th:block>

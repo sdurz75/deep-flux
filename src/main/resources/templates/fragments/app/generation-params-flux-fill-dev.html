@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campi del form-type FLUX_FILL_DEV (vedi GenerationFormType/FluxFillDevParameterHandler): inpainting con black-forest-labs/flux-fill-dev
+  (schema letto da Replicate il 2026-10-02). "image" (sorgente) e "mask" sono obbligatorie: la sorgente e' l'immagine caricata qui (sourceUpload)
+  o una generazione esistente (sourceGeneration nel Model, hidden in generate-form.html); la maschera si dipinge nell'editor
+  (fragments/app/mask-editor.html) e arriva come file maskUpload. GenerationService le aggiunge a Replicate; "disable_safety_checker" lo forza il service.
+
+  UN solo LoRA (lora_weights/lora_scale) e nessun token: il modello non ha extra_lora ne' hf_api_token/civitai_api_token, quindi vanno bene solo
+  LoRA pubblici. La select dei preset (CRUD /loras, `loraPresets` nel Model) e' lo stesso aiuto di compilazione di flux-dev-lora.
+-->
+<th:block th:fragment="fields">
+
+    <div th:replace="~{fragments/app/generation-params-source-upload :: field(label=#{generationParams.label.editSourceUpload}, required=true)}"></div>
+
+    <div th:replace="~{fragments/app/mask-editor :: field}"></div>
+
+    <!--/* Preset (CRUD /loras): aiuto di compilazione, la select NON ha name (non viaggia col form ne' finisce in localStorage). Scegliere un
+         preset copia sorgente e intensita' nei campi sotto (restano modificabili) e mostra le trigger words; "testo libero" non tocca nulla. */-->
+    <div x-data="{ words: '' }"
+         @change="const o = $event.target.selectedOptions[0]; if (o && o.value) { const f = document.getElementById('param-lora-weights'); f.value = o.dataset.source; f.dispatchEvent(new Event('input', { bubbles: true })); const s = document.getElementById('param-lora-scale'); s.value = o.dataset.scale; s.dispatchEvent(new Event('input', { bubbles: true })) }; words = o ? (o.dataset.triggerWords || '') : ''">
+        <label for="param-lora-preset" th:text="#{generationParams.label.loraPreset}">LoRA predefinito</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-lora-preset" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="" th:text="#{generationParams.option.freeText}">— testo libero —</option>
+                <option th:each="p : ${loraPresets}" th:value="${p.id}" th:text="${p.name}"
+                        th:data-source="${p.source}" th:data-scale="${p.scale}" th:data-trigger-words="${p.triggerWords}">nome</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+        <p x-show="words" x-cloak class="mt-1 mb-0 flex flex-wrap items-center gap-2 text-[0.8rem]">
+            <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationParams.label.triggerWords}">Trigger words</span>
+            <code x-text="words"></code>
+            <button th:replace="~{fragments/app/button-gen :: addToPrompt(text=#{generationParams.button.addTriggerWords})}">Aggiungi al prompt</button>
+        </p>
+    </div>
+
+    <div>
+        <label for="param-lora-weights" th:text="#{generationParams.label.loraWeights}">LoRA</label>
+        <input type="text" id="param-lora-weights" name="lora_weights" autocomplete="off" th:value="${lora_weights}">
+    </div>
+
+    <div>
+        <label for="param-lora-scale" th:text="#{generationParams.label.loraScale}">Intensita' LoRA</label>
+        <input type="number" id="param-lora-scale" name="lora_scale" min="-1" max="3" step="0.1" th:value="${lora_scale}">
+    </div>
+    <p class="-mt-1 mb-0 text-[0.8rem]"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
+
+    <div>
+        <label for="param-megapixels" th:text="#{generationParams.label.megapixels}">Megapixel</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-megapixels" name="megapixels" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="match_input" th:selected="${megapixels == 'match_input'}" th:text="#{generationParams.option.matchInputImage}">Come l'immagine originale</option>
+                <option value="1" th:selected="${megapixels == '1'}">1</option>
+                <option value="0.25" th:selected="${megapixels == '0.25'}">0.25</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+    </div>
+
+    <div>
+        <label for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
+        <input type="number" id="param-num-outputs" name="num_outputs" min="1" th:max="${T(org.dual.replicate.app.generation.port.in.IGenerationForms).MAX_NUM_OUTPUTS}" th:value="${num_outputs}">
+    </div>
+
+    <div>
+        <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
+        <input type="number" id="param-steps" name="num_inference_steps" min="1" max="50" th:value="${num_inference_steps}">
+    </div>
+
+    <div>
+        <label for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
+        <input type="number" id="param-guidance" name="guidance" min="0" max="100" step="1" th:value="${guidance}">
+    </div>
+
+    <div>
+        <label for="param-output-format" th:text="#{generationParams.label.format}">Formato</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="param-output-format" name="output_format" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="jpg" th:selected="${output_format == 'jpg'}">jpg</option>
+                <option value="webp" th:selected="${output_format == 'webp'}">webp</option>
+                <option value="png" th:selected="${output_format == 'png'}">png</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+    </div>
+
+    <div>
+        <label for="param-output-quality" th:text="#{generationParams.label.quality}">Qualita'</label>
+        <input type="number" id="param-output-quality" name="output_quality" min="0" max="100" th:value="${output_quality}">
+    </div>
+
+    <div>
+        <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
+        <input type="number" id="param-seed" name="seed" class="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
+    </div>
+
+</th:block>
+
+</body>
+</html>

@@ -142,6 +142,7 @@ public class GenerationController {
                           @RequestParam(required = false) Long sourceGenerationId,
                           @RequestParam(required = false) String sourceImage,
                           @RequestParam(required = false) MultipartFile sourceUpload,
+                          @RequestParam(required = false) MultipartFile maskUpload,
                           @RequestParam Map<String, String> allParams,
                           Model uiModel, HttpServletResponse response) {
         // Solo per ri-renderizzare la form (anteprima della sorgente): la regola e la precedenza upload > sorgente sono in IGenerations#create.
@@ -160,8 +161,10 @@ public class GenerationController {
             // img2video / modifica: sorgente (upload o generazione "Anima"/"Modifica"), precedenza, validita' e salvataggio dell'upload
             // li decide il servizio (ignorata da un text-to-image); qui si passa solo cio' che ha inviato il form.
             UploadedFile upload = sourceUpload == null || sourceUpload.isEmpty() ? null : uploaded(sourceUpload);
+            // Inpainting: la maschera disegnata nell'editor arriva come file PNG (campo maskUpload), stessa via della sorgente.
+            UploadedFile mask = maskUpload == null || maskUpload.isEmpty() ? null : uploaded(maskUpload);
             Generation generation = generationService.create(new IGenerations.CreateCommand(model, resolvedVersion, prompt,
-                    parameters, sourceGenerationId, sourceImage, upload));
+                    parameters, sourceGenerationId, sourceImage, upload, mask));
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
@@ -266,10 +269,15 @@ public class GenerationController {
         // di create) e propone il movimento; con l'immagine anche la bozza vuota e' ammessa.
         boolean video = model != null && modelCatalog.contains(model, GenerationKind.VIDEO);
         // Modifica: l'enhancer guarda la stessa sorgente ma serve una bozza (cosa cambiare).
-        boolean edit = model != null && modelCatalog.containsEdit(model);
+        // Inpainting (maschera): il prompt descrive SOLO cosa renderizzare nella zona dipinta (guida dedicata, non quella di Kontext ne' quella
+        // generica text-to-image che chiederebbe scena, luce e inquadratura); l'enhancer guarda la sorgente per adattare luce/orientamento/stile.
+        boolean inpaint = model != null && modelCatalog.formTypeOf(model).map(GenerationFormType::takesMask).orElse(false);
+        boolean edit = model != null && !inpaint && modelCatalog.containsEdit(model);
         try {
-            SourceImage image = (video || edit) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
-            if (edit) {
+            SourceImage image = (video || edit || inpaint) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
+            if (inpaint) {
+                uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceInpaint(draft, image));
+            } else if (edit) {
                 uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceEdit(draft, image));
             } else if (draft.isEmpty() && image == null) {
                 uiModel.addAttribute("prompt", prompt);

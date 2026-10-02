@@ -18,13 +18,22 @@ class PromptGuidesTest {
     @Autowired
     Environment env;
 
+    /** La guida dell'inpainting codifica le pratiche (solo il contenuto della zona, niente negazioni, trigger word intatta): una modifica non deve perderle. */
+    @Test
+    void inpaintGuideKeepsTheInpaintingPractices() {
+        String guide = env.getRequiredProperty("generateForm.inpaint-prompt-enhancement-guide");
+
+        assertThat(guide).contains("ONLY what goes inside the painted region").contains("Never describe the rest of the scene")
+                .contains("negative instruction").contains("trigger word").contains("verbatim");
+    }
+
     @Test
     void everyEnhancementGuideEmbedsTheSharedCreativeContext() {
         String context = env.getRequiredProperty("prompts.creative-context");
         assertThat(context).contains("never anything involving minors");
 
         for (String key : new String[]{"generateForm.prompt-enhancement-guide", "generateForm.video-prompt-enhancement-guide",
-                "generateForm.edit-prompt-enhancement-guide"}) {
+                "generateForm.edit-prompt-enhancement-guide", "generateForm.inpaint-prompt-enhancement-guide"}) {
             assertThat(env.getRequiredProperty(key)).as(key).contains(context).doesNotContain("${");
         }
     }

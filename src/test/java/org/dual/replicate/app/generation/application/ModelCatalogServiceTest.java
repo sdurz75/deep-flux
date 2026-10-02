@@ -96,7 +96,14 @@ class ModelCatalogServiceTest {
         assertThat(catalog.containsEdit("black-forest-labs/flux-kontext-dev")).isTrue();
         assertThat(catalog.containsEdit("black-forest-labs/flux-krea-dev")).isFalse();
         assertThat(catalog.editModels()).extracting(ReplicateModel::getIdentifier)
-                .containsExactly("black-forest-labs/flux-kontext-dev");
+                .containsExactly("black-forest-labs/flux-kontext-dev", "black-forest-labs/flux-fill-dev", "black-forest-labs/flux-fill-pro");
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-fill-pro")).contains(GenerationFormType.FLUX_FILL_PRO);
+        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
+                .doesNotContain("black-forest-labs/flux-fill-pro");
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-fill-dev")).contains(GenerationFormType.FLUX_FILL_DEV);
+        assertThat(catalog.containsEdit("black-forest-labs/flux-fill-dev")).isTrue();
+        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
+                .doesNotContain("black-forest-labs/flux-fill-dev");
         // Ne' i modelli immagine (chat, /generations/new) ne' il default lo includono.
         assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
                 .doesNotContain("black-forest-labs/flux-kontext-dev");

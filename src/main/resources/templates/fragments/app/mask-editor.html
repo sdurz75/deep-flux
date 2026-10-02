@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Editor della maschera di inpainting (form-type FLUX_FILL_DEV, vedi GenerationFormType#takesMask). Due pezzi:
+
+  - `script`: registra UNA volta il componente Alpine `maskEditor` (alpine:init, come `pinesSelect` in fragments/core/select.html). Va incluso a
+    livello di PAGINA (templates/app/generate.html), NON nel fragment dei campi: quello viene sostituito da /generations/params a ogni cambio di
+    modello e alpine:init non riparte.
+  - `field`: il markup (riga "Disegna maschera", input file nascosto `maskUpload`, dialog modale Pines) che sta nel fragment dei campi.
+
+  Funzionamento: la maschera si dipinge su un canvas grande quanto l'immagine sorgente (tetto 4096 px sul lato lungo, stesso aspetto), con
+  pennello/gomma/ellisse come LISTA di operazioni (l'annulla le ridisegna: niente snapshot di pixel). Applica la esporta in PNG (NERO = da
+  preservare, BIANCO = da ridipingere, convenzione di flux-fill-dev; i bordi sono SFUMATI, grigi, col raggio dello slider "Sfumatura": box blur a tre
+  passate sull'alpha, indipendente dal browser, con la stessa sigma mostrata dal CSS blur nel canvas) e la mette in `<input type=file name=maskUpload>` via DataTransfer: viaggia nel
+  multipart del form come la sorgente, e lo script di persistenza non la scrive in localStorage (e' un File, non una stringa). La sorgente si legge
+  dal DOM all'apertura (file scelto in sourceUpload, altrimenti l'anteprima #generate-source-preview): il fragment non conosce `sourceGeneration`
+  dopo uno swap. Se la sorgente cambia la maschera si azzera. Dopo Applica la maschera si vede SOPRA l'anteprima della sorgente del form (50%,
+  trasparente fuori area, fragments/app/mask-overlay.html): il componente annuncia l'URL del PNG con l'evento window `mask-changed` (null = nessuna maschera). Niente `[[` nello script: Thymeleaf lo leggerebbe come inlining.
+-->
+<th:block th:fragment="script">
+    <script th:inline="none">
+        // feather:begin
+        // Sfumatura dei bordi: tre passate di box blur per asse approssimano una gaussiana con sigma ~ r (varianza r*r + r). Lavora sul solo
+        // canale alpha della maschera (Uint8Array w*h) ed e' indipendente dal browser: ctx.filter manca su Safari vecchi. Fuori dall'immagine il
+        // bordo si replica (una maschera che tocca il bordo resta piena fino al bordo).
+        function boxBlurPass(src, dst, w, h, r, horizontal) {
+            const len = horizontal ? w : h;
+            const lines = horizontal ? h : w;
+            const step = horizontal ? 1 : w;
+            const lineStep = horizontal ? w : 1;
+            const size = 2 * r + 1;
+            const last = len - 1;
+            for (let l = 0; l < lines; l++) {
+                const base = l * lineStep;
+                let sum = 0;
+                for (let i = -r; i <= r; i++) sum += src[base + Math.min(last, Math.max(0, i)) * step];
+                for (let i = 0; i < len; i++) {
+                    // Il Uint8Array tronca: sommare meta' della finestra arrotonda.
+                    dst[base + i * step] = (sum + (size >> 1)) / size;
+                    sum += src[base + Math.min(last, i + r + 1) * step] - src[base + Math.max(0, i - r) * step];
+                }
+            }
+        }
+
+        function featherAlpha(alpha, w, h, r) {
+            if (r < 1) return alpha;
+            let a = new Uint8Array(alpha);
+            let b = new Uint8Array(alpha.length);
+            for (let k = 0; k < 3; k++) {
+                boxBlurPass(a, b, w, h, r, true);
+                boxBlurPass(b, a, w, h, r, false);
+            }
+            return a;
+        }
+        // feather:end
+
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('maskEditor', () => {
+                // Operazioni e tratto corrente fuori dallo stato reattivo: migliaia di punti in un Proxy Alpine rallenterebbero ogni mossa.
+                let ops = [];
+                let cur = null;
+                let mw = 0;
+                let mh = 0;
+                let tint = 'rgb(236, 72, 153)';
+                let objectUrl = null;
+                let objectKey = null;
+                const MAX_SIDE = 4096;
+
+                return {
+                    dialogOpen: false,
+                    tool: 'brush',
+                    size: 40,
+                    // Sfumatura in PIXEL del canvas, 0-25 (sigma della gaussiana): oltre non ha senso. Default 8 px (~0,75% di un'immagine da 1 MP).
+                    feather: 8,
+                    // Rapporto fra pixel CSS e pixel del canvas: serve a mostrare la stessa sfumatura nell'anteprima (CSS blur).
+                    scale: 1,
+                    // Dimensioni mostrate all'utente (reattive; mw/mh della closure non lo sono): immagine sorgente e canvas/maschera (ridotto sopra MAX_SIDE).
+                    imgW: 0,
+                    imgH: 0,
+                    maskW: 0,
+                    maskH: 0,
+                    noSource: false,
+                    hasMask: false,
+                    previewUrl: null,
+                    ready: false,
+                    sourceKey: null,
+
+                    act(action) {
+                        if (action === 'open') this.open();
+                        else if (action === 'remove') this.resetAll();
+                        else if (action === 'undo') { ops.pop(); this.redraw(); }
+                        else if (action === 'clear') { ops = []; this.redraw(); }
+                        else this.tool = action;
+                    },
+
+                    // Sorgente corrente: il file scelto (ha la precedenza, come in GenerationService) oppure l'immagine di una generazione.
+                    resolveSource() {
+                        const input = document.querySelector('input[name=sourceUpload]');
+                        const file = input && input.files && input.files[0];
+                        if (file) {
+                            const key = 'f:' + file.name + ':' + file.size + ':' + file.lastModified;
+                            // Lo stesso file riusa lo stesso object URL: revocarlo a ogni apertura romperebbe le immagini che lo mostrano ancora.
+                            if (key !== objectKey) {
+                                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                                objectUrl = URL.createObjectURL(file);
+                                objectKey = key;
+                            }
+                            return { key, url: objectUrl };
+                        }
+                        const img = document.getElementById('generate-source-preview');
+                        return img ? { key: 'g:' + img.getAttribute('src'), url: img.src } : null;
+                    },
+
+                    open() {
+                        const src = this.resolveSource();
+                        this.noSource = !src;
+                        if (!src) return;
+                        if (src.key !== this.sourceKey) {
+                            this.resetAll();
+                            this.sourceKey = src.key;
+                        }
+                        // Il tint e' il token `favourite` del tema (letto da un elemento nascosto): niente colori hardcoded.
+                        tint = getComputedStyle(this.$refs.tint).backgroundColor;
+                        this.$refs.base.src = src.url;
+                        this.dialogOpen = true;
+                        if (this.ready) {
+                            this.$nextTick(() => { this.measure(); this.redraw(); });
+                            return;
+                        }
+                        const im = new Image();
+                        im.onload = () => {
+                            const scale = Math.min(1, MAX_SIDE / Math.max(im.naturalWidth, im.naturalHeight));
+                            mw = Math.max(1, Math.round(im.naturalWidth * scale));
+                            mh = Math.max(1, Math.round(im.naturalHeight * scale));
+                            this.$refs.canvas.width = mw;
+                            this.$refs.canvas.height = mh;
+                            this.imgW = im.naturalWidth;
+                            this.imgH = im.naturalHeight;
+                            this.maskW = mw;
+                            this.maskH = mh;
+                            this.ready = true;
+                            this.redraw();
+                            this.$nextTick(() => this.measure());
+                        };
+                        im.src = src.url;
+                    },
+
+                    // Nuova sorgente o "Rimuovi": via operazioni, file e anteprima.
+                    resetAll() {
+                        ops = [];
+                        cur = null;
+                        this.ready = false;
+                        this.sourceKey = null;
+                        this.hasMask = false;
+                        // Prima si annuncia "nessuna maschera" (le anteprime smettono di usare l'URL), poi lo si revoca.
+                        this.announce(null);
+                        if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+                        this.previewUrl = null;
+                        this.$refs.file.value = '';
+                        if (this.$refs.canvas) this.redraw();
+                    },
+
+                    // Le anteprime della sorgente (generate-form.html, generation-params-source-upload.html) ci sovrappongono la maschera:
+                    // detail = URL del PNG bianco/nero, o null. Evento di window perche' stanno fuori da questo componente.
+                    announce(url) {
+                        window.dispatchEvent(new CustomEvent('mask-changed', { detail: url }));
+                    },
+
+                    // Il fragment dei campi viene sostituito al cambio modello: l'anteprima della generazione-sorgente sta fuori e deve ripulirsi.
+                    destroy() {
+                        this.announce(null);
+                        if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+                        if (objectUrl) URL.revokeObjectURL(objectUrl);
+                    },
+
+                    sourceChanged(event) {
+                        if (event.target && event.target.name === 'sourceUpload') this.resetAll();
+                    },
+
+                    ctx() {
+                        return this.$refs.canvas.getContext('2d');
+                    },
+
+                    featherRadius() {
+                        return Math.max(0, Math.min(25, Math.round(this.feather)));
+                    },
+
+                    // offsetWidth e non getBoundingClientRect: ignora la transizione scale-95 dell'apertura del dialog.
+                    measure() {
+                        const c = this.$refs.canvas;
+                        if (mw && c && c.offsetWidth > 0) this.scale = c.offsetWidth / mw;
+                    },
+
+                    // Anteprima della sfumatura nell'editor: stessa sigma dell'export, in pixel CSS (il canvas e' scalato).
+                    blurCss() {
+                        const px = this.featherRadius() * this.scale;
+                        return px >= 0.5 ? 'blur(' + px.toFixed(1) + 'px)' : 'none';
+                    },
+
+                    // Etichette accanto agli slider: pixel del canvas, cioe' dell'immagine (la maschera esportata ha le stesse dimensioni del canvas).
+                    diameterLabel() {
+                        return this.ready ? this.diameter() + ' px' : '';
+                    },
+
+                    featherLabel() {
+                        return this.ready ? this.featherRadius() + ' px' : '';
+                    },
+
+                    diameter() {
+                        return Math.max(2, Math.round(Math.max(mw, mh) * this.size / 500));
+                    },
+
+                    drawOp(ctx, op, color) {
+                        ctx.save();
+                        ctx.fillStyle = color;
+                        ctx.strokeStyle = color;
+                        if (op.t === 'o') {
+                            ctx.beginPath();
+                            ctx.ellipse((op.x0 + op.x1) / 2, (op.y0 + op.y1) / 2, Math.abs(op.x1 - op.x0) / 2, Math.abs(op.y1 - op.y0) / 2, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else {
+                            ctx.globalCompositeOperation = op.t === 'e' ? 'destination-out' : 'source-over';
+                            ctx.lineCap = 'round';
+                            ctx.lineJoin = 'round';
+                            ctx.lineWidth = op.d;
+                            const p = op.pts;
+                            ctx.beginPath();
+                            if (p.length === 1) {
+                                ctx.arc(p[0][0], p[0][1], op.d / 2, 0, Math.PI * 2);
+                                ctx.fill();
+                            } else {
+                                ctx.moveTo(p[0][0], p[0][1]);
+                                for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+                                ctx.stroke();
+                            }
+                        }
+                        ctx.restore();
+                    },
+
+                    redraw() {
+                        if (!mw) return;
+                        const ctx = this.ctx();
+                        ctx.clearRect(0, 0, mw, mh);
+                        for (const op of ops) this.drawOp(ctx, op, tint);
+                    },
+
+                    // Coordinate del puntatore nello spazio del canvas (il canvas e' scalato via CSS).
+                    pos(e) {
+                        const r = this.$refs.canvas.getBoundingClientRect();
+                        return [(e.clientX - r.left) * mw / r.width, (e.clientY - r.top) * mh / r.height];
+                    },
+
+                    down(e) {
+                        if (!this.ready) return;
+                        e.preventDefault();
+                        this.$refs.canvas.setPointerCapture(e.pointerId);
+                        const p = this.pos(e);
+                        cur = this.tool === 'ellipse'
+                            ? { t: 'o', x0: p[0], y0: p[1], x1: p[0], y1: p[1] }
+                            : { t: this.tool === 'eraser' ? 'e' : 'b', d: this.diameter(), pts: [p] };
+                        ops.push(cur);
+                        if (cur.t !== 'o') this.drawOp(this.ctx(), cur, tint);
+                    },
+
+                    move(e) {
+                        if (!cur) return;
+                        const p = this.pos(e);
+                        if (cur.t === 'o') {
+                            cur.x1 = p[0];
+                            cur.y1 = p[1];
+                            this.redraw();
+                            return;
+                        }
+                        const last = cur.pts[cur.pts.length - 1];
+                        cur.pts.push(p);
+                        // Solo il nuovo segmento: il canvas e' cumulativo, ridisegnare tutto a ogni mossa costerebbe O(punti).
+                        this.drawOp(this.ctx(), { t: cur.t, d: cur.d, pts: [last, p] }, tint);
+                    },
+
+                    up() {
+                        // Un'ellisse senza trascinamento (un click) non e' una zona: si scarta.
+                        if (cur && cur.t === 'o' && Math.abs(cur.x1 - cur.x0) < 2 && Math.abs(cur.y1 - cur.y0) < 2) {
+                            ops.pop();
+                            this.redraw();
+                        }
+                        cur = null;
+                    },
+
+                    // Esporta: operazioni in BIANCO su trasparente; la loro alpha, sfumata, diventa la maschera in scala di grigi (bianco = da ridipingere,
+                    // nero = da preservare, grigi = bordo sfumato).
+                    apply() {
+                        if (!this.ready || ops.every(op => op.t === 'e')) {
+                            this.resetAll();
+                            this.dialogOpen = false;
+                            return;
+                        }
+                        const paint = document.createElement('canvas');
+                        paint.width = mw;
+                        paint.height = mh;
+                        const pctx = paint.getContext('2d');
+                        for (const op of ops) this.drawOp(pctx, op, '#ffffff');
+                        const painted = pctx.getImageData(0, 0, mw, mh).data;
+                        const alpha = new Uint8Array(mw * mh);
+                        for (let i = 0; i < alpha.length; i++) alpha[i] = painted[i * 4 + 3];
+                        const soft = featherAlpha(alpha, mw, mh, this.featherRadius());
+                        const out = document.createElement('canvas');
+                        out.width = mw;
+                        out.height = mh;
+                        const octx = out.getContext('2d');
+                        const gray = octx.createImageData(mw, mh);
+                        for (let i = 0; i < soft.length; i++) {
+                            const o = i * 4;
+                            gray.data[o] = soft[i];
+                            gray.data[o + 1] = soft[i];
+                            gray.data[o + 2] = soft[i];
+                            gray.data[o + 3] = 255;
+                        }
+                        octx.putImageData(gray, 0, 0);
+                        out.toBlob(blob => {
+                            const dt = new DataTransfer();
+                            dt.items.add(new File([blob], 'mask.png', { type: 'image/png' }));
+                            this.$refs.file.files = dt.files;
+                            if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+                            this.previewUrl = URL.createObjectURL(blob);
+                            this.announce(this.previewUrl);
+                            this.hasMask = true;
+                            this.dialogOpen = false;
+                        }, 'image/png');
+                    }
+                };
+            });
+        });
+    </script>
+</th:block>
+
+<!--
+  field: riga "Disegna maschera" + dialog. Il dialog e' un modale Pines come quello delle note di /search (x-trap.inert.noscroll, niente
+  teleport); `dialogOpen` e' lo stato Alpine che leggono button :: dialogClose/dialogCloseIcon. Dentro un <form>: tutti i bottoni sono type=button
+  e l'unico input con valore e' maskUpload (lo slider non ha name, non viaggia).
+-->
+<div th:fragment="field" x-data="maskEditor" @change.window="sourceChanged($event)" @keydown.escape.window="dialogOpen = false" @resize.window="measure()">
+    <span x-ref="tint" class="hidden bg-favourite" aria-hidden="true"></span>
+    <label th:text="#{generationParams.label.mask}">Maschera</label>
+    <!--/* Attributi in quest'ordine apposta: la guardia everySelectIsWrappedByThePinesSelectComponent conta le select sr-only con la sequenza class/tabindex/aria-hidden. */-->
+    <input type="file" name="maskUpload" x-ref="file" aria-hidden="true" tabindex="-1" accept="image/png" class="sr-only">
+    <div class="flex flex-wrap items-center gap-2">
+        <span x-show="!hasMask" x-cloak>
+            <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.draw}, action='open', extraClass=null)}">Disegna maschera</button>
+        </span>
+        <span x-show="hasMask" x-cloak class="flex flex-wrap items-center gap-2">
+            <span class="text-[0.85rem]" th:text="#{generationParams.mask.applied}">Maschera impostata</span>
+            <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.edit}, action='open', extraClass=null)}">Modifica maschera</button>
+            <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.remove}, action='remove', extraClass=null)}">Rimuovi</button>
+        </span>
+    </div>
+    <p x-show="noSource" x-cloak class="mt-1 mb-0 text-[0.8rem] text-danger dark:text-danger-dark" th:text="#{generationParams.mask.noSource}">Scegli prima l'immagine di partenza.</p>
+    <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{generationParams.mask.hint}">Dipingi la zona da rigenerare.</p>
+
+    <div x-show="dialogOpen" x-cloak x-trap.inert.noscroll="dialogOpen"
+         class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+         role="dialog" aria-modal="true" aria-labelledby="mask-dialog-title">
+        <div class="absolute inset-0 bg-scrim/50" @click="dialogOpen = false" x-show="dialogOpen" x-transition.opacity></div>
+        <div class="relative w-full max-w-4xl max-h-full overflow-y-auto rounded-lg p-5 shadow-xl
+                    bg-surface dark:bg-surface-dark border border-line dark:border-line-dark"
+             x-show="dialogOpen"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+            <div class="flex items-center justify-between gap-3">
+                <h2 id="mask-dialog-title" class="m-0" th:text="#{generationParams.mask.dialogTitle}">Maschera di inpainting</h2>
+                <button th:replace="~{fragments/core/button :: dialogCloseIcon(title=#{generationParams.mask.cancel})}">&times;</button>
+            </div>
+            <p class="mt-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{generationParams.mask.help}">Pennello ed ellisse aggiungono, la gomma toglie.</p>
+
+            <!--/* Dimensione dell'immagine in pixel; la maschera (stesse dimensioni del canvas) compare solo se e' stata ridotta (tetto 4096 px sul lato lungo). */-->
+            <p x-show="ready" x-cloak class="mt-1 mb-0 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">
+                <span th:text="#{generationParams.mask.imageSize}">Immagine</span>:
+                <span class="tabular-nums" x-text="imgW + ' x ' + imgH + ' px'"></span>
+                <span x-show="maskW !== imgW || maskH !== imgH">
+                    &middot; <span th:text="#{generationParams.mask.maskSize}">Maschera</span>:
+                    <span class="tabular-nums" x-text="maskW + ' x ' + maskH + ' px'"></span>
+                </span>
+            </p>
+
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+                <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.tool.brush}, action='brush', extraClass=null)}">Pennello</button>
+                <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.tool.eraser}, action='eraser', extraClass=null)}">Gomma</button>
+                <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.tool.ellipse}, action='ellipse', extraClass=null)}">Ellisse</button>
+                <label class="m-0 flex items-center gap-2 text-[0.85rem]">
+                    <span th:text="#{generationParams.mask.size}">Dimensione</span>
+                    <input type="range" min="1" max="100" x-model.number="size" class="w-32 p-0">
+                    <span class="w-14 tabular-nums text-ink-muted dark:text-ink-muted-dark" x-text="diameterLabel()"></span>
+                </label>
+                <label class="m-0 flex items-center gap-2 text-[0.85rem]">
+                    <span th:text="#{generationParams.mask.feather}">Sfumatura</span>
+                    <input type="range" min="0" max="25" step="1" x-model.number="feather" class="w-32 p-0">
+                    <span class="w-14 tabular-nums text-ink-muted dark:text-ink-muted-dark" x-text="featherLabel()"></span>
+                </label>
+                <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.undo}, action='undo', extraClass=null)}">Annulla</button>
+                <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.clear}, action='clear', extraClass=null)}">Azzera</button>
+            </div>
+
+            <!--/* Immagine e canvas sovrapposti: il canvas ha la risoluzione naturale, qui e' scalato alla stessa dimensione dell'immagine. */-->
+            <div class="mt-3 text-center">
+                <div class="relative inline-block max-w-full select-none">
+                    <img x-ref="base" alt="" draggable="false" class="block h-auto max-h-[60vh] w-auto max-w-full">
+                    <canvas x-ref="canvas" class="absolute inset-0 h-full w-full cursor-crosshair touch-none opacity-50"
+                            :style="{ filter: blurCss() }"
+                            @pointerdown="down($event)" @pointermove="move($event)" @pointerup="up()" @pointercancel="up()"></canvas>
+                </div>
+            </div>
+
+            <div class="mt-4 flex justify-end gap-2">
+                <button th:replace="~{fragments/core/button :: dialogClose(text=#{generationParams.mask.cancel}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Chiudi</button>
+                <button th:replace="~{fragments/app/button-gen :: maskApply(text=#{generationParams.mask.apply})}">Applica</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
