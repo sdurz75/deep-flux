@@ -18,6 +18,12 @@ import org.dual.replicate.app.generation.domain.GenerationFormType;
  */
 public interface IGenerationParameterHandler {
 
+    /**
+     * Limite GLOBALE di immagini per richiesta ({@code num_outputs}) per ogni form-type che ne accetta piu' d'una: Replicate non ne
+     * supporta di piu'. Lo usano sia {@link #asNumOutputs} (lato server) sia l'attributo {@code max} dei fragment dei form-type.
+     */
+    int MAX_NUM_OUTPUTS = 4;
+
     GenerationFormType formType();
 
     /** Solo i campi presenti in {@code submittedFields} finiscono nella mappa: un modello che non supporta un parametro non lo riceve. */
@@ -63,6 +69,16 @@ public interface IGenerationParameterHandler {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * {@code num_outputs} limitato a 1..{@link #MAX_NUM_OUTPUTS}, o {@code null} se assente/non numerico. Il {@code max} HTML non basta: il
+     * pannello impostazioni di /deep-chat non passa da nessuna validazione del browser e il valore puo' arrivare da uno stato salvato.
+     * Un valore fuori range e' riportato al limite (non scartato): ogni output in piu' e' a pagamento, ma Replicate rifiuterebbe comunque.
+     */
+    default Integer asNumOutputs(String value) {
+        Integer parsed = asInteger(value);
+        return parsed == null ? null : Math.max(1, Math.min(MAX_NUM_OUTPUTS, parsed));
     }
 
     default Long asLong(String value) {

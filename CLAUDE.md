@@ -247,6 +247,8 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `Flux2Klein9bParameterHandler`, `FluxKreaDevParameterHandler`, `PVideoParameterHandler`, `FluxKontextDevParameterHandler`,
   `FluxDevLoraParameterHandler`; `image` di p-video e `input_image` di kontext le aggiunge `GenerationService`). L'esagono riceve la
   conversione gia' fatta: `IGenerations#create(CreateCommand)` prende una `Map<String,Object>` tipizzata (vocabolario Replicate), mai JSON o campi di form;
+  `num_outputs` e' limitato a `IGenerationParameterHandler.MAX_NUM_OUTPUTS` (4, limite di Replicate, GLOBALE per ogni form-type con piu' immagini:
+  ff3, krea, dev-lora) sia dal `max` dei fragment sia da `asNumOutputs` (clamp 1..4 lato server: il pannello della chat non passa da validazione HTML);
   kind, chiave della sorgente e `aspect_ratio` dei video con sorgente li decide `GenerationService` dal form-type,
   `ModelCatalogService` (impl di `IModelCatalog`, catalogo censito in `replicate_model`), `TokenInputResolver`, adapter `replicate`
   (`ReplicateClient`, `ReplicatePredictionGateway`, `PredictionResponse`), `GalleryPushNotifier`, `AppTokenProviders`,

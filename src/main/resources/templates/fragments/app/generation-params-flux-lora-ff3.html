@@ -23,7 +23,7 @@
 
     <div>
         <label for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
-        <input type="number" id="param-num-outputs" name="num_outputs" min="1" max="4" th:value="${num_outputs}">
+        <input type="number" id="param-num-outputs" name="num_outputs" min="1" th:max="${T(org.dual.replicate.app.generation.adapter.in.web.form.IGenerationParameterHandler).MAX_NUM_OUTPUTS}" th:value="${num_outputs}">
     </div>
 
     <div class="flex gap-2">

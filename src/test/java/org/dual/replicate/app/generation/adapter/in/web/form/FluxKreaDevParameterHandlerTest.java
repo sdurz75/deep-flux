@@ -29,6 +29,12 @@ class FluxKreaDevParameterHandlerTest {
     }
 
     @Test
+    void numOutputsIsClampedToTheGlobalLimit() {
+        assertThat(handler.toParameterMap(Map.of("num_outputs", "9"))).containsEntry("num_outputs", IGenerationParameterHandler.MAX_NUM_OUTPUTS);
+        assertThat(handler.toParameterMap(Map.of("num_outputs", "0"))).containsEntry("num_outputs", 1);
+    }
+
+    @Test
     void guidanceIsParsedAsDouble() {
         assertThat(handler.toParameterMap(Map.of("guidance", "2.5"))).containsEntry("guidance", 2.5);
         assertThat(handler.toParameterMap(Map.of())).doesNotContainKey("guidance");

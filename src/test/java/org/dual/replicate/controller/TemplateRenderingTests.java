@@ -615,6 +615,18 @@ class TemplateRenderingTests {
         assertThat(body).doesNotContain("value=\"0.5\"", "value=\"2\"", "value=\"4\"");
     }
 
+    /** Ogni form-type con piu' immagini per richiesta ha lo stesso limite globale (4) nel campo, preso dalla costante dell'handler. */
+    @Test
+    void everyMultiOutputFormCapsNumOutputsAtTheGlobalLimit() throws Exception {
+        for (String model : List.of("sdurz75/flux-lora-ff3", "black-forest-labs/flux-krea-dev", "black-forest-labs/flux-dev-lora")) {
+            String body = mockMvc.perform(get("/generations/params").param("model", model))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(body).as(model).containsPattern("name=\"num_outputs\"[^>]*min=\"1\"[^>]*max=\"4\"");
+        }
+    }
+
     @Autowired
     private org.dual.replicate.core.tokens.port.in.IApiTokens apiTokenService;
 

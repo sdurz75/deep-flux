@@ -65,7 +65,7 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
         params.put("go_fast", submittedFields.containsKey("go_fast"));
         putIfPresent(params, "guidance", asDouble(submittedFields.get("guidance")));
         putIfPresent(params, "prompt_strength", asDouble(submittedFields.get("prompt_strength")));
-        putIfPresent(params, "num_outputs", asInteger(submittedFields.get("num_outputs")));
+        putIfPresent(params, "num_outputs", asNumOutputs(submittedFields.get("num_outputs")));
         putIfPresent(params, "output_format", submittedFields.get("output_format"));
         putIfPresent(params, "output_quality", asInteger(submittedFields.get("output_quality")));
         putIfPresent(params, "num_inference_steps", asInteger(submittedFields.get("num_inference_steps")));

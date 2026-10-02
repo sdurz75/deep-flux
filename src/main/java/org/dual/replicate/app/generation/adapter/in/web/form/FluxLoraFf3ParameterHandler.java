@@ -54,7 +54,7 @@ public class FluxLoraFf3ParameterHandler implements IGenerationParameterHandler 
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
         putIfPresent(params, "lora_scale", asDouble(submittedFields.get("lora_scale")));
         putIfPresent(params, "model", submittedFields.get("flux_model"));
-        putIfPresent(params, "num_outputs", asInteger(submittedFields.get("num_outputs")));
+        putIfPresent(params, "num_outputs", asNumOutputs(submittedFields.get("num_outputs")));
         return params;
     }
 
