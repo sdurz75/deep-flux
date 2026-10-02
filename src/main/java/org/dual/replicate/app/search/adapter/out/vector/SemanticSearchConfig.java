@@ -1,6 +1,5 @@
 package org.dual.replicate.app.search.adapter.out.vector;
 
-import org.dual.replicate.app.search.application.ArchiveIndexService;
 import org.dual.replicate.app.search.port.out.IVectorIndex;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.VectorStore;

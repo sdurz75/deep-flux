@@ -30,8 +30,6 @@ import org.dual.replicate.app.generation.domain.event.GenerationFavouriteToggled
 import org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.core.kernel.Paged;
-import org.dual.replicate.app.chat.application.ChatGenerationWatcher;
-import org.dual.replicate.app.chat.adapter.ai.ImageGenerationTool;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;

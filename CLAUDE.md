@@ -155,7 +155,7 @@ rispettare l'architettura; Maven; Java 21.
 
 Ogni sottosistema e' un **esagono** (ports & adapters *pragmatico*) e sta o in `org.dual.replicate.core.<sottosistema>` (generico,
 riusabile da ogni webapp costruita su questo template) o in `org.dual.replicate.app.<sottosistema>` (specifico di questa app).
-Dipendenza solo `app → core`, mai il contrario. `Application` (root) e `support` (solo test: `PostgresTestContainerInitializer`) sono
+Dipendenza solo `app → core`, mai il contrario. `Application` (root, nessuna configurazione: `@EnableAsync`/`@EnableScheduling` stanno in `core.kernel.ExecutionConfig`) e `support` (solo test: `PostgresTestContainerInitializer`) sono
 le uniche classi fuori da `core`/`app`.
 
 ```
@@ -182,8 +182,8 @@ le uniche classi fuori da `core`/`app`.
   `Paged`, `ToastMessage`, `ChunkedAesGcmCipher`) e il **kit UI** (`core.web`: `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo`) sono
   condivisi, non esagoni. Una classe nel package radice `app` (`OpenRouterCalls`, `AppStartupOrder`) non appartiene a nessuna slice
   ed e' condivisa fra feature. Il kernel non dipende da nessun sottosistema. Nessun ciclo fra sottosistemi.
-- **Punti di estensione**: un'implementazione dell'app puo' implementare una `port.out` del core: `IEventLinkResolver` (`AppEventLinks`),
-  `ITokenProviderCatalog` (`AppTokenProviders`); `EventSource` (kernel) e' implementata da `CoreEventSource` e `AppEventSource`.
+- **Punti di estensione**: un'implementazione dell'app puo' implementare SOLO queste `port.out` del core (elenco chiuso, `ArchitectureTest.CORE_EXTENSION_POINTS`): `IEventLinkResolver` (`AppEventLinks`),
+  `ITokenProviderCatalog` (`AppTokenProviders`); ogni altra `port.out` del core (store, `IBlobBackend`...) per l'app non esiste; `EventSource` (kernel) e' implementata da `CoreEventSource` e `AppEventSource`.
 - **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`;
   `generation` NON conosce `chat` (solo `Generation.conversationId`, un `Long`). `search` NON conosce `generation` ne' `chat`: legge i
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
@@ -195,7 +195,10 @@ le uniche classi fuori da `core`/`app`.
   `subsystemsOnlyUseEachOthersPortsIn`, `coreSubsystemsHaveNoCycles`, `appFeaturesHaveNoCycles` e la regola di **chiusura**
   `nothingOutsideCoreAndApp` (ATTIVA: nessuna classe fuori da `core..`, `app..`, `support..` e `Application`: niente package per layer
   `controller/service/repository...`). Le regole ammettono package vuoti (`allowEmptyShould`). Una violazione si corregge nel codice,
-  non allentando la regola.
+  non allentando la regola. `applicationDoesNotTouchInfrastructure` vieta anche `org.springframework.jdbc` e `java.sql`.
+  **`SourceImportsTest`** (stessa cartella) applica le stesse regole di strato al SORGENTE: ArchUnit lavora sul bytecode e non vede gli import usati solo in
+  Javadoc (javac li scarta), che pero' restano una dipendenza dichiarata. Vale per import E nomi qualificati nei commenti: per citare una classe di un altro
+  strato o sottosistema in un commento usare `{@code Nome}` senza import, mai `{@link}` (e nemmeno il nome qualificato).
 
 ### Dove sta cosa
 
@@ -478,6 +481,8 @@ switcher/cookie/sessione). Bundle (`spring.messages.basename: messages,messages-
   `toast.*`, `pagination.*`, `tokens.*`, `imagestorage.*`, `webdav.*`...) e le etichette delle sorgenti del core (`events.source.STORAGE|TOKENS|INTERNAL`);
 - `messages.properties` (italiano, default/fallback anche per locale non mappate) / `messages_en.properties`: l'app (incl. `app.brand|title|footer`,
   `events.source.REPLICATE|OPENROUTER|SEARXNG|LORAS`, `events.link.generation|conversation`).
+Il testo del core NON nomina servizi o provider dell'app (`events.intro`, `tokens.intro` sono generici): le pagine del core mostrano in piu' la riga facoltativa
+`events.intro.app`/`tokens.intro.app` se l'app la definisce nel suo bundle (`#messages.msgOrNull`).
 Le chiavi dei due bundle sono **DISGIUNTE** (niente shadowing: lo impone `TemplateRenderingTests.coreAndAppBundlesDefineDisjointKeys`); una chiave
 nuova va nel bundle del lato a cui appartiene il codice che la usa. Nuova lingua: nuovi `messages_<locale>.properties` e
 `messages-core_<locale>.properties` con le stesse chiavi e aggiornare `TemplateRenderingTests.messageBundlesHaveMatchingKeys`. Chiavi

@@ -1,9 +1,6 @@
 package org.dual.replicate.app.generation.domain.event;
 
-import org.dual.replicate.app.generation.adapter.out.push.GalleryPushNotifier;
-import org.dual.replicate.app.generation.application.GenerationService;
 import org.dual.replicate.app.generation.domain.Generation;
-import org.dual.replicate.app.chat.application.ChatGenerationWatcher;
 
 /**
  * Pubblicato da GenerationService esattamente nel momento in cui una

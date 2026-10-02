@@ -1,6 +1,5 @@
 package org.dual.replicate.app.chat.domain;
 
-import org.dual.replicate.core.events.port.in.ISystemEvents;
 
 /**
  * Il turno di /deep-chat e' fallito ed e' GIA' stato registrato (ISystemEvents) e

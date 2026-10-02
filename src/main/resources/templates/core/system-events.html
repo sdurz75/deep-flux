@@ -17,7 +17,11 @@
                     extraClass='px-3 py-1.5 text-[0.85rem]')}">Svuota</button>
     </div>
 
-    <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{events.intro}">Eventi di sistema.</p>
+    <p class="text-ink-muted dark:text-ink-muted-dark">
+        <span th:text="#{events.intro}">Eventi di sistema.</span>
+        <!--/* Riga facoltativa dell'app (chiave events.intro.app nel suo bundle): senza, il core non dice nulla dei servizi. */-->
+        <span th:with="appIntro=${#messages.msgOrNull('events.intro.app')}" th:if="${appIntro != null}" th:text="${appIntro}"></span>
+    </p>
 
     <div id="events-content">
         <div th:replace="~{fragments/core/system-events :: content(${events}, ${eventLinks}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, ${severity}, ${highlightId}, ${unseenCount})}"></div>

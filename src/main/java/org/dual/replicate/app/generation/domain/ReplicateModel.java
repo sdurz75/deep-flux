@@ -15,7 +15,7 @@ import jakarta.persistence.Table;
  * Un modello Replicate censito a mano (vedi migrazione V6: nessuna UI di
  * amministrazione in questo progetto, il censimento e' un INSERT/UPDATE
  * di migrazione) e associato alla propria form di generazione
- * ({@link #formType}, vedi org.dual.replicate.app.generation.adapter.in.web.form.IGenerationParameterHandler).
+ * ({@link #formType}, vedi {@code IGenerationParameterHandler} nell'adapter web di generation).
  * Sostituisce il fetch live da Replicate (GET /collections/{slug},
  * GET /models/{owner}/{name}) che alimentava la vecchia
  * ModelCatalogService: {@link #version} e' ora il valore censito qui,

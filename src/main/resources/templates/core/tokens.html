@@ -22,7 +22,11 @@
                         hxTarget='#token-form', hxSwap='outerHTML', neutral=false, extraClass='px-3 py-1.5 text-[0.85rem]')}">Nuovo token</button>
         </div>
 
-        <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{tokens.intro}">Token per i LoRA privati.</p>
+        <p class="text-ink-muted dark:text-ink-muted-dark">
+            <!--/* Riga facoltativa dell'app (chiave tokens.intro.app nel suo bundle): il core non conosce i servizi. */-->
+            <span th:with="appIntro=${#messages.msgOrNull('tokens.intro.app')}" th:if="${appIntro != null}" th:text="${appIntro}"></span>
+            <span th:text="#{tokens.intro}">Token API per servizi esterni.</span>
+        </p>
 
         <div x-show="dialogOpen" x-cloak x-trap.inert.noscroll="dialogOpen"
              class="fixed inset-0 z-[100] flex items-center justify-center p-4"

@@ -1,5 +1,6 @@
 package org.dual.replicate.architecture;
 
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +37,14 @@ class ArchitectureTest {
     /** Sottosistemi condivisi da tutti: il kernel e il kit UI. Non sono esagoni, ci si puo' dipendere da qualunque parte. */
     private static final String[] SHARED = {"kernel", "web"};
 
+    /**
+     * Le uniche porte in uscita del core che l'app puo' implementare (punti di estensione, FQN). Qualunque altra {@code port.out} del
+     * core (store, backend blob...) resta invisibile all'app: per i binari c'e' {@code IImageStorageService}, non {@code IBlobBackend}.
+     */
+    static final Set<String> CORE_EXTENSION_POINTS = Set.of(
+            ROOT + ".core.events.port.out.IEventLinkResolver",
+            ROOT + ".core.tokens.port.out.ITokenProviderCatalog");
+
     @ArchTest
     static final ArchRule domainStaysPure = classes()
             .that().resideInAnyPackage(ROOT + ".core..domain..", ROOT + ".app..domain..")
@@ -52,7 +61,7 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..adapter..",
                     "org.springframework.web..", "org.springframework.http..", "org.springframework.ai..",
-                    "org.springframework.data..", "jakarta.servlet..", "java.net.http..")
+                    "org.springframework.data..", "org.springframework.jdbc..", "java.sql..", "jakarta.servlet..", "java.net.http..")
             .allowEmptyShould(true);
 
     @ArchTest
@@ -127,7 +136,7 @@ class ArchitectureTest {
     /**
      * Tra sottosistemi (anche tra core e app, e tra feature dell'app) si dipende solo da {@code port.in} e {@code domain}
      * dell'altro: mai dalla sua application ne' dai suoi adapter. Il kernel e il kit UI ({@link #SHARED}) sono eccettuati,
-     * e un adapter dell'app puo' implementare le porte in uscita del core (punti di estensione).
+     * e un adapter dell'app puo' implementare le sole porte in uscita del core elencate in {@link #CORE_EXTENSION_POINTS}.
      */
     private static ArchCondition<JavaClass> onlyUseOtherSubsystemsThroughPortInAndDomain() {
         return new ArchCondition<>("use other subsystems only through their port.in or domain") {
@@ -149,7 +158,7 @@ class ArchitectureTest {
                     String rest = to.group(3) == null ? "" : to.group(3);
                     boolean allowed = rest.equals("domain") || rest.startsWith("domain.")
                             || rest.equals("port.in") || rest.startsWith("port.in.")
-                            || implementsCoreExtensionPoint(from, to, rest);
+                            || implementsCoreExtensionPoint(from, to, dependency.getTargetClass());
                     if (!allowed) {
                         events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                     }
@@ -158,11 +167,11 @@ class ArchitectureTest {
         };
     }
 
-    /** Un adapter dell'app puo' implementare una porta in uscita del core: e' il punto di estensione (es. {@code IEventLinkResolver}). */
-    private static boolean implementsCoreExtensionPoint(Matcher from, Matcher to, String targetRest) {
+    /** Un adapter dell'app puo' implementare SOLO le porte in uscita del core elencate in {@link #CORE_EXTENSION_POINTS}. */
+    private static boolean implementsCoreExtensionPoint(Matcher from, Matcher to, JavaClass target) {
         String originRest = from.group(3) == null ? "" : from.group(3);
         return from.group(1).equals("app") && to.group(1).equals("core") && originRest.startsWith("adapter.")
-                && (targetRest.equals("port.out") || targetRest.startsWith("port.out."));
+                && CORE_EXTENSION_POINTS.contains(target.getName());
     }
 
     private static boolean isShared(String layer, String slice) {

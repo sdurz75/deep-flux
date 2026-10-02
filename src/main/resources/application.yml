@@ -19,6 +19,9 @@ spring:
     locations: classpath:db/migration/core,classpath:db/migration/app
   ai:
     openai:
+      # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone un'API OpenAI-compatibile
+      # (https://openrouter.ai/docs): basta puntare lo starter Spring AI per OpenAI sul suo base-url, nessun client custom.
+      # Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_API_TOKEN=sk-or-...
       api-key: ${OPENROUTER_API_TOKEN:}
       base-url: https://openrouter.ai/api/v1
       chat:

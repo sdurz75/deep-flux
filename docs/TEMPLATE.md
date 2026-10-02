@@ -36,9 +36,11 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/replic
 
 - `<pkg>/app/` per intero (`chat`, `generation`, `prompt`, `search`, `shared`, `OpenRouterCalls`, `AppStartupOrder`). Attenzione: `app/shared`
   contiene anche `HomeController` (route `/` -> vista `app/index`), `AppEventSource`, `AppEventLinks`: vanno riscritti nella nuova app.
-- `<pkg>/Application.java` resta, ma il suo javadoc cita classi dell'app (`ChatGenerationWatcher`, `GenerationRecoveryService`):
-  aggiornarlo. `@EnableAsync` e `@EnableScheduling` stanno li' (non nel core): il core ne ha bisogno (`TokenExpiryScheduler` e
-  `@Async` dei listener), tenerli.
+- `<pkg>/Application.java` resta (non cita nulla dell'app). `@EnableAsync` e `@EnableScheduling` stanno nel core
+  (`core.kernel.ExecutionConfig`): il core ne ha bisogno (`TokenExpiryScheduler` e `@Async` dei listener).
+- Bundle: le pagine del core mostrano, se presenti nel bundle dell'app, le righe `events.intro.app` e `tokens.intro.app` (testo
+  specifico dell'app: servizi e provider); in un'app nuova si riscrivono o si omettono.
+- `tailwind.config.js` e' condiviso: il token colore `favourite` e' dell'app (stella dei preferiti), toglierlo se non serve.
 
 **Template e fragment**
 

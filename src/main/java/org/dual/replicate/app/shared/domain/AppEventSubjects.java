@@ -1,11 +1,10 @@
 package org.dual.replicate.app.shared.domain;
 
-import org.dual.replicate.app.shared.adapter.out.events.AppEventLinks;
 
 /**
  * Il {@code subject} degli eventi di sistema per le entita' dell'app ({@code generation:12}, {@code conversation:5}), nello
  * stesso formato di {@code token:12} del core: a cosa si riferisce l'evento ed entra nella chiave di serie. Il link "apri"
- * nella pagina eventi lo risolve {@link AppEventLinks}.
+ * nella pagina eventi lo risolve {@code AppEventLinks}.
  */
 public final class AppEventSubjects {
 

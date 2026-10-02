@@ -6,8 +6,8 @@ server:
   # Senza questo, dietro un reverse proxy (nginx, Traefik, ...) che
   # termina TLS e/o inoltra su un path diverso, l'app vede scheme/host
   # "interni" (es. http://127.0.0.1:8080) invece di quelli pubblici: i
-  # redirect generati con "redirect:..." (vedi GenerationController,
-  # GalleryController) verrebbero assolutizzati dal container Servlet
+  # redirect generati con "redirect:..." (i controller
+  # delle pagine) verrebbero assolutizzati dal container Servlet
   # con l'host sbagliato, mandando il browser fuori strada. "framework"
   # attiva Spring's ForwardedHeaderFilter, che legge X-Forwarded-Proto/
   # Host/Port/Prefix e corregge scheme/host/contextPath visti
@@ -30,12 +30,12 @@ spring:
     # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
     cache: false
   http:
-    # Timeout di TUTTI i client HTTP auto-configurati (RestClient.Builder: Replicate, SearXNG, download
-    # immagini/video, e il client di Spring AI verso OpenRouter). Senza, una connessione appesa blocca il
+    # Timeout di TUTTI i client HTTP auto-configurati (RestClient.Builder: servizi esterni dell'app, download
+    # di binari, client di Spring AI). Senza, una connessione appesa blocca il
     # thread per sempre (un poll che non torna non lascia mai lo stato "in corso"). Il read-timeout e' per
     # singola lettura del socket, non per l'intera risposta: 120s copre anche un turno LLM lento o il
     # download di un mp4 senza troncarlo. Nomi verificati in spring-boot-http-client 4.1.1
-    # (spring.http.clients.*); SearXNG ha in piu' un timeout piu' stretto proprio (SearxngClient).
+    # (spring.http.clients.*); un client puo' avere in piu' un timeout piu' stretto proprio.
     clients:
       connect-timeout: 10s
       read-timeout: 120s
@@ -78,11 +78,6 @@ spring:
     # Una locale non mappata (es. "de") ricade sul bundle di base
     # (italiano), non sul default della JVM che ospita il processo.
     fallback-to-system-locale: false
-  # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone
-  # un'API OpenAI-compatibile (https://openrouter.ai/docs): basta puntare lo
-  # starter Spring AI per OpenAI sul suo base-url, nessun client custom.
-  # Da esportare come variabile d'ambiente, mai committato:
-  #   export OPENROUTER_API_TOKEN=sk-or-...
 app:
   secrets:
     # Chiave AES-256 (base64) che cifra i token API nel DB (SecretCipher): la STESSA dei binari su WebDAV, nessun segreto nuovo.
@@ -104,7 +99,7 @@ storage:
   #   local  = filesystem locale sotto images-dir (default)
   #   webdav = server WebDAV, contenuti SEMPRE cifrati con chiave simmetrica (AES-256-GCM)
   type: local
-  # Directory locale (type=local) dove vengono salvate le immagini scaricate da Replicate.
+  # Directory locale (type=local) dove vengono salvate le immagini/video scaricati.
   images-dir: ./data/images
   webdav:
     # Collezione WebDAV che contiene i blob (es. https://host/remote.php/dav/files/utente/deep-flux/).

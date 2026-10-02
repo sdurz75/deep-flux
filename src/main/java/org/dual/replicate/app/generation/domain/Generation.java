@@ -24,7 +24,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.OrderColumn;
-import org.dual.replicate.app.chat.domain.ChatMessage;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 

@@ -3,7 +3,6 @@ package org.dual.replicate.app.generation.adapter.in.web;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
-import org.dual.replicate.core.tokens.adapter.in.web.TokenController;
 import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.app.generation.domain.LoraException;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
@@ -19,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * CRUD dei LoRA anagrafati ({@link ILoraPresets}): pagina {@code /loras} con l'elenco e un dialog Pines per
- * creare/modificare, stessa meccanica di {@link TokenController} (al salvataggio riuscito {@code HX-Trigger: lora-saved}
+ * creare/modificare, stessa meccanica di {@code TokenController} (al salvataggio riuscito {@code HX-Trigger: lora-saved}
  * chiude il dialog; con un errore il form si rimpiazza da se' via {@code HX-Retarget} e il dialog resta aperto).
  */
 @Controller
