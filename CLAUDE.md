@@ -22,7 +22,8 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   e il risultato arriva come nuovo turno di chat via SSE (`GET /events`, `EventStreamController`, `IClientPush`; il lato chat e'
   `ChatPushNotifier`): nessun polling client-side per la chat.
 - **Placeholder** mentre una generazione e' in corso (chat e `/generations/{id}`): `fragments/app/generation-placeholder.html`
-  (immagine dummy + "Interrompi", stili INLINE perche' finisce anche nello shadow DOM di `<deep-chat>`). Il bottone chiede
+  (immagine dummy + "Interrompi", stili INLINE perche' finisce anche nello shadow DOM di `<deep-chat>`). In `/generations/{id}` i riquadri sono tanti quanti i file richiesti (`Generation#getRequestedOutputs`, da `num_outputs` in
+  `parametersJson`; 1 se assente) con UN solo "Interrompi" in una riga sotto, centrato (anche con un file). In chat resta un riquadro (il template non conosce il numero). Il bottone chiede
   conferma e fa `POST /generations/{id}/cancel` (`IGenerations#cancel`): esito `FAILED` "annullata"; se il cancel
   fallisce il bottone si disabilita e si attende la fine naturale. In chat i placeholder viaggiano nella risposta del
   turno (`generationIds`) e al reload si ripristinano via `Generation.conversationId`. A fine generazione il
@@ -178,7 +179,7 @@ le uniche classi fuori da `core`/`app`.
   `adapter.ai` (ne' `in` ne' `out`: ChatClient + tool, bidirezionale) e' l'unico nome che sfugge a quest'ultima regola.
 - **Fra sottosistemi** (anche core↔app e feature↔feature) si dipende SOLO da `port.in` e `domain` dell'altro, mai da `application` o
   `adapter`. Eccezioni: il **kernel** (`core.kernel`: `RemoteServiceException`/`RemoteCaller`/`RetryPolicy`, `Messages`, `EventSource`,
-  `Paged`, `ToastMessage`, `ChunkedAesGcmCipher`) e il **kit UI** (`core.web`: `HtmxEvents`, `PaginationSupport`, `TailwindAssets`) sono
+  `Paged`, `ToastMessage`, `ChunkedAesGcmCipher`) e il **kit UI** (`core.web`: `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo`) sono
   condivisi, non esagoni. Una classe nel package radice `app` (`OpenRouterCalls`, `AppStartupOrder`) non appartiene a nessuna slice
   ed e' condivisa fra feature. Il kernel non dipende da nessun sottosistema. Nessun ciclo fra sottosistemi.
 - **Punti di estensione**: un'implementazione dell'app puo' implementare una `port.out` del core: `IEventLinkResolver` (`AppEventLinks`),
@@ -201,7 +202,7 @@ le uniche classi fuori da `core`/`app`.
 | Sottosistema | Responsabilita' | Porte principali |
 |---|---|---|
 | `core.kernel` (+ `.remote`, `.i18n`, `.crypto`) | errori/retry remoti, `Messages`, cifratura a chunk, `Paged`, `EventSource` | (shared kernel, niente porte) |
-| `core.web` | kit UI: `HtmxEvents` (header `HX-Trigger`/toast), `PaginationSupport`, `TailwindAssets` | (shared, niente porte) |
+| `core.web` | kit UI: `HtmxEvents` (header `HX-Trigger`/toast), `PaginationSupport`, `TailwindAssets`, `BuildInfo` (ora+commit del badge di build) | (shared, niente porte) |
 | `core.events` | registro eventi di sistema (errori/avvisi), campanella, pagina `/system/events`, toast, `UnhandledExceptionResolver` | in `ISystemEvents`; out `ISystemEventStore`, `IToastNotifier`, `IEventLinkResolver` (app) |
 | `core.push` | SSE verso le tab (`GET /events`), `PushService` (`Sinks`) | in `IClientPush`, `IClientPushStream` |
 | `core.secrets` | cifratura dei segreti a riposo | in `ISecretCipher` |
@@ -258,8 +259,19 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
 - `app.chat`: `ChatService` (un turno: persiste, chiede la risposta a `IAssistant`, avvia i watcher), `ChatConversationService`,
   `ChatGenerationWatcher` (`watch` `@Async`, `persistOutcome` idempotente; il legame generazione↔conversazione lo scrive `ChatService` con `IGenerations#attachToConversation`, sincrono, prima che la risposta del turno raggiunga il client), `ChatRecoveryService` (+
   `ChatRecoveryScheduler`), `DeepChatController` (route HTML `/deep-chat/*`), `DeepChatApiController` (JSON per `<deep-chat>`),
-  `adapter.ai`: `SpringAiAssistant` (`ChatClient`), `WebSearchTool`, `ImageGenerationTool`, `ArchiveSearchTool`, `GenerationResultHolder`
-  (canale tool→assistente via `ToolContext`: gli id delle generazioni avviate nel turno); `adapter.out.searxng`: `SearxngClient` (Basic Auth,
+  `adapter.ai`: `SpringAiAssistant` (`ChatClient`; system prompt a SEZIONI in `prompts.properties`, `deep-chat.section.core|guidance|web|library|archive|edit|actions|notes|generation`,
+  assemblate solo per i tool registrati, poi `prompts.creative-context` e la guida immagini), `WebSearchTool`, `ImageGenerationTool`, `ArchiveSearchTool`,
+  `LibraryTool` (SOLA LETTURA sull'app via `port.in`: `listModels`, `listLoraPresets`, `getGeneration`, `conversationGallery`, `recentEvents`; niente
+  sorgenti dei LoRA, parametri grezzi o segreti nell'output; `getGeneration` elenca i NOMI dei file con star e seed riproducibile di ciascuno, perche' `setFavourite`/`proposeRegenerateWithSeed` li vogliono esatti; un id nullo dal modello e' un messaggio di ritorno, non un errore registrato; `IAssistant#respond` riceve la `conversationId`, che arriva ai tool via `ToolContext`),
+  `FavouriteTool` (`setFavourite`: IDEMPOTENTE, riceve lo stato voluto, mai un toggle) e `NoteTool` (`saveNote`, solo con `app.search.enabled`): uniche mutazioni
+  leggere ammesse alla chat, solo su richiesta esplicita; la sezione `guidance` rende il bot moderatamente PROATIVO nel far scoprire cio' che sa fare
+  (cenno iniziale, al massimo UN suggerimento pertinente a fine richiesta, solo su capacita' reali dei tool: la sezione `guidance` e' sempre presente, quindi cita solo
+  capacita' sempre disponibili; archivio e note si menzionano nelle sezioni `archive`/`notes`, condizionali a `app.search.enabled`); `ActionProposalTool` (`proposeCancel|Delete|
+  RegenerateWithSeed`: NON eseguono, leggono e depositano una `ChatAction` in `ActionProposalHolder`; arriva in `ChatReply#actions` e in `Reply.actions`
+  e il client la rende come bottone `button-gen :: chatAction` (classe `chat-action`, handler in `htmlClassUtilities` di `deep-chat.html`, un
+  `<template>` per tipo): annulla/cancella = POST a `/generations/{id}/cancel|delete` dopo `window.confirm`, rigenera = scrive prompt+seed nello slot
+  globale `generation.shared` e apre `/generations/new` (la prediction parte solo col "Genera" li'). Le azioni NON sono persistite: al reload il bot le ripropone),
+  `GenerationResultHolder` (canale tool→assistente via `ToolContext`: gli id delle generazioni avviate nel turno); `adapter.out.searxng`: `SearxngClient` (Basic Auth,
   impl di `IWebSearchGateway`), `ChatPushNotifier`, `ChatSearchSource`, store JPA. Domain: `ChatConversation`, `ChatMessage`, `FileRef`,
   `ChatTurn`, `ChatReply`, `DeepChatFailedException`, `AssistantException`.
 - `app.prompt`: `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
@@ -275,14 +287,28 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `prompts.properties`; le chiavi dei due file sono disgiunte (un file importato ha la precedenza su quello che lo importa). Bundle
   `messages-core(.en).properties` + `messages(.en).properties` (app). `db/migration/core` + `db/migration/app`.
 - `templates/`: `fragments/core/` (`layout`, `header`, `button`, `alert`, `select`, `toast`, `notification-bell`, `live-events`, `pagination`,
-  `description-list`, `system-events`, `tokens`), `fragments/app/` (tutto il resto, incl. `nav.html`, `button-gen.html`, un
+  `build-badge`, `breadcrumbs`, `description-list`, `system-events`, `tokens`), `fragments/app/` (tutto il resto, incl. `nav.html`, `button-gen.html`, un
   `generation-params-<form-type>.html` per form-type, `generation-params-source-upload.html`), pagine `templates/core/` (`system-events`, `tokens`) e
   `templates/app/` (`index`, `generate`, `generation-status`, `generations-list`, `gallery`, `deep-chat`, `loras`, `search`).
   `header.html` e' sticky; sotto `md` link e theme switch stanno in uno slideover Pines (stato Alpine `navOpen`, `button :: navToggle`);
   le voci di navigazione le mette l'app in `fragments/app/nav.html :: links(inline)` (punto di estensione). `layout.html` legge brand/titolo/footer dalle
-  chiavi `app.brand|title|footer` del bundle dell'app. `generate-form.html`: `promptField` e' il blocco textarea+"AI enhance",
+  chiavi `app.brand|title|footer` del bundle dell'app.
+  **Menu** (`nav.html`): azioni frequenti come link diretti (Deep Chat, Galleria, Ricerca), poi `Crea ▾` (immagine/video/modifica) e `Gestione ▾`
+  (Generazioni, LoRA, Eventi, Token, tema); niente piu' "Archivio". `header.menu.manage` sta in `messages-core` perche' le pagine core
+  (Token, Eventi) lo usano nelle breadcrumbs; `header.menu.create` e' dell'app.
+  **Breadcrumbs** (`fragments/core/breadcrumbs.html :: trail(group, parentPath, parentText, current)`): su OGNI pagina tranne la Home, nello slot
+  `layout:fragment="breadcrumbs"` di `<main>`: Home › gruppo di menu (solo testo) › un livello intermedio linkato › pagina corrente (`aria-current`).
+  Parametri nominati e tutti passati (inutilizzati a `null`); `parentPath` e' un path grezzo (il fragment applica `@{...}` una volta sola, come `navLink`).
+  Il dettaglio generazione (`generation-status.html`) ricava il livello intermedio da dove si arriva (`conversationId` → conversazione, `generationsPage` →
+  listato, altrimenti `/gallery`) e sostituisce i vecchi link "Torna a…". Un test (`everyPageButHomeShowsBreadcrumbs`) copre le pagine esistenti. `generate-form.html`: `promptField` e' il blocco textarea+"AI enhance",
   risostituito in outerHTML da `enhance-prompt`; `generation-params.html` e' il guscio condiviso da form e chat (select modello + campi del form-type).
   `live-events.html`: SSE `GET /events` ri-dispatchata come CustomEvent su `document.body`.
+
+**Badge di build** (`fragments/core/build-badge.html`, bean `BuildInfo`): ora e commit in basso a sinistra, sempre visibili, per sapere quale build
+sta girando. Da classi sciolte (IntelliJ, `spring-boot:run`) l'ora e' la modifica piu' recente in `target/classes` e il commit viene da `git describe`
+(`-dirty` se ci sono modifiche): `build-info.properties` NON si usa li', perche' IntelliJ non esegue i plugin Maven e ne resterebbe una copia vecchia.
+Da jar li porta `BuildProperties` (goal `build-info`); il commit solo con `mvn package -Dbuild.commit=<hash>` (il plugin `git-commit-id` non si
+risolve dal mirror aziendale, quindi non e' usato).
 
 Le immagini generate vivono in `./data/images` e il DB di sviluppo (container Postgres) in `./data/postgres`, entrambi fuori da git. Nessun CSS in `static/`: `static/css/tailwind.css` esiste
 solo se generato dal profilo `tailwind` (in `target/`, mai committato).
@@ -638,7 +664,7 @@ slot. Lo legge `applySharedSlot` nello script di persistenza (avvio, evento `sto
 resta se il form non la accetta, non ha il campo (il prompt in Deep Chat) o il server l'ha gia' valorizzata da un link ("Anima" vince). Il seed per file e'
 `Generation#reusableSeedOf` (tabella `generation_image_seed`, solo se i log hanno un "seed" per output). Altrimenti c'e' un solo seed di batch, e
 riproduce SOLO la prima immagine (verificato con due prediction su flux-lora-ff3: la seconda immagine di un batch nasce da un seed derivato che nessun log
-riporta, e non e' seed+1): la prima mostra `(batch)` col bottone, le altre "non riproducibile da sola" senza bottone. Un seed vero per ogni immagine richiede
+riporta, e non e' seed+1): la prima mostra `(batch)` col bottone, le altre NESSUNA riga seed (il seed del batch non e' il loro). Un seed vero per ogni immagine richiede
 una prediction per immagine (`num_outputs=1`), non implementato.
 La chiave dello slot e' duplicata nei due script: tenerle allineate.
 
@@ -660,9 +686,19 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   Punteggio = `1 - distanza coseno`. **Nessun indice ANN** (HNSW/IVFFlat) di proposito: `/search` vuole TUTTA la classifica sopra soglia
   (`IArchiveSearch#searchAll`: `topK` = numero di documenti) e un indice approssimato tronca a `ef_search` (40); lo scan esatto costa pochi ms a decine di migliaia
   di righe. Cambiare il modello con dimensioni diverse da 384 = nuova migrazione `ALTER ... TYPE vector(N)` (dopo aver svuotato la
-  tabella) + reindicizzazione. Il filtro (`DocumentFilter`: `type`, `from`/`to` su `createdAt`) e' tradotto da `PgVectorIndex` in un `Filter.Expression` Spring AI
+  tabella) + reindicizzazione. Il filtro (`DocumentFilter`: `type`, `from`/`to` su `createdAt`, `kind` IMAGE/VIDEO, `favouriteOnly`; gli ultimi due combaciano solo con le generazioni,
+  e la UI con "media"/"preferiti" e tipo "tutti" restringe a `type=generation`) e' tradotto da `PgVectorIndex` in un `Filter.Expression` Spring AI
   e da questo in jsonpath: operatori **EQ, NE, IN, NIN, AND, OR, GT/GTE/LT/LTE** (NON NOT ne' ISNULL/ISNOTNULL); numeri solo per i
   confronti, una chiave assente non combacia. Soglia 0 = esclude solo la similarita' esattamente 0 (distanza `<` stretta).
+- **Generazioni = artefatti ricercabili**: UN documento per generazione riuscita (`GenerationSearchSource`), non uno per file. Il testo embeddato
+  e' il prompt + (dopo `DocumentTypes.TAGS_SEPARATOR`, `\n\n#tags: `) tag d'indice it/en prodotte da `GenerationSearchText` (tipo di media,
+  modello, orientamento da `aspect_ratio`/`width`x`height`, risoluzione, nomi dei LoRA + nome/trigger words del preset che ne ha la stessa
+  sorgente, "animazione/modifica di un'immagine" se derivata); seed, costo, passi NON entrano. Le tag sono vocabolario d'indice, NON testo per
+  l'utente: UI e `ArchiveSearchTool` mostrano `DocumentTypes.visibleText` (`IndexedDocument#visibleContent`); solo il `<pre>` "Dettagli" e' grezzo.
+  Il prompt cede spazio alle tag sotto `MAX_CHARS`. Metadata aggiuntivi (non embeddati, quindi un cambio non ri-embedda): `model`, `favourite`
+  (bool, almeno un file con la star), `outputs`, `files` (max 4, i preferiti per primi) e `favouriteFiles`: `/search` ne ricava le miniature
+  (`<img>`/`<video>` da `/images/{file}`, `onerror` nasconde un file appena cancellato) senza conoscere `generation`. I `<video>` prendono la `src` solo
+  quando entrano nel viewport (`x-intersect.once`, plugin Alpine `intersect` in `layout.html`): una pagina di 20 risultati non apre decine di Range request.
 - **Metadata**: ogni documento ha `type` (stringa, vedi `DocumentTypes`: `generation`, `chat`, `conversation`, `note`) e `refId` (numero), opzionali
   `conversationId`, `role`, `kind`, `title` e `createdAt` (epoch millis della CREAZIONE del contenuto; `SearchableDocument#of` li costruisce), piu' le
   chiavi **riservate** scritte da `VectorIndexer`: `contentHash` (SHA-256 del testo), `embeddingModel` (URI ONNX) e `indexedAt` (ultima
@@ -675,8 +711,9 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   bean `ISearchableSource` i loro documenti (generation: prompt delle generazioni SUCCEEDED, `type=generation`; chat: messaggi non d'errore,
   `chat`, e titoli, `conversation`), aggiunge i mancanti/cambiati, rimuove i documenti dei `types()` dichiarati dalle sorgenti la cui
   riga non esiste piu'; la lettura delle sorgenti sta in una transazione read-only, le scritture sull'indice no. Gira in background
-  (`ArchiveIndexScheduler`: all'avvio come backfill e ogni `app.search.reindex-interval`) e a ogni `GenerationCompletedEvent` (lo
-  ascolta `GenerationSearchSource`, che chiama `IArchiveIndex#reindexAsync` solo se la ricerca e' attiva). Un documento che fallisce e'
+  (`ArchiveIndexScheduler`: all'avvio come backfill e ogni `app.search.reindex-interval`) e quando i dati indicizzati cambiano: `GenerationCompletedEvent`, `GenerationImageDeletedEvent`, `GenerationsDeletedEvent`,
+  `GenerationFavouriteToggledEvent` (li ascolta `GenerationSearchSource` con `@TransactionalEventListener(fallbackExecution = true)`, cioe' DOPO il commit:
+  la riconciliazione gira su un altro thread; chiama `IArchiveIndex#reindexAsync` solo se la ricerca e' attiva). Un documento che fallisce e'
   registrato (`ISystemEvents`) e non ferma gli altri. Una nuova fonte ricercabile = un nuovo `ISearchableSource` nel suo sottosistema.
 - **`ArchiveSearchTool`** (`searchArchive(query, type?)`, in `chat.adapter.ai`, sopra `IArchiveSearch`) e' tra i tool di `SpringAiAssistant` solo se `app.search.enabled`.
 - **Link alle generazioni in chat**: `searchArchive` restituisce al modello path assoluti (`/generations/12`). Dietro un reverse
@@ -687,7 +724,8 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   (`spring.ai.model.embedding=none`): `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`).
   Prove reali, opt-in: `mvn test -Dtest='E5ModelSmokeTest,SemanticSearchWiringTest' -Dsemantic.model.test=true`.
 - **UI `/search`** (`SemanticSearchController`, `templates/app/search.html` + `fragments/app/search.html`; link nell'header solo con `app.search.enabled`):
-  **UN solo form** (testo, tipo, periodo dal/al, soglia) e **UNA sola lista paginata** (`GET /search/results`, target `#search-results`,
+  **UN solo form** (testo, tipo, media immagini/video, solo preferiti, periodo dal/al, soglia; a card in stile Pines: riga di ricerca con lente, filtri in griglia, soglia
+  come slider con valore live (Alpine) e "solo preferiti" come toggle `peer` su checkbox nativo `sr-only`, "Azzera filtri" = link a `/search`) e **UNA sola lista paginata** (`GET /search/results`, target `#search-results`,
   20 per pagina): con testo e' la classifica per significato (punteggi in %, TUTTA la classifica sopra la
   soglia: nessun top-K nella UI, `app.search.top-k` resta solo per il tool della chat), senza testo si sfogliano i documenti, i piu'
   recenti prima (per `createdAt`); in entrambi i casi filtrati per tipo e per periodo di creazione (date ISO, estremi inclusi, fuso del
@@ -710,7 +748,7 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   `HX-Trigger: note-saved` (`HtmxEvents#addHxTrigger`) che chiude il dialog (risposta: solo le statistiche in creazione, riga `#doc-...`
   in modifica); con un errore di validazione risponde col form (`HX-Retarget: #note-form`) e il dialog resta aperto. Le statistiche
   si aggiornano fuori banda (`hx-swap-oob`).
-  La ricerca ha una **soglia di somiglianza minima** in % (`threshold`, 0..100, default `app.search.similarity-threshold-percent`=0):
+  La ricerca ha una **soglia di somiglianza minima** in % (`threshold`, 0..100, default `app.search.similarity-threshold-percent`=80; solo con testo, la navigazione senza testo non filtra per punteggio):
   i punteggi e5 sono compressi (tipicamente 70-90%), quindi la soglia utile e' alta.
   Test del controller con embedding finto: `SemanticSearchControllerTest`.
 - Fuori scope per ora: ricerca semantica nelle liste/galleria esistenti, descrizioni delle immagini con un modello di visione.
@@ -741,7 +779,8 @@ un test che vuole WebDAV o la migrazione li sovrascrive con `@SpringBootTest(pro
 ## Checklist per una nuova pagina/feature
 
 1. Solo navigazione → nuovo controller in `adapter/in/web` del sottosistema giusto (che parla solo con le porte `in`) + template `templates/app/<pagina>.html`
-   (o `templates/core/` se generico) col pattern layout manager; la voce di menu in `fragments/app/nav.html`.
+   (o `templates/core/` se generico) col pattern layout manager; la voce di menu in `fragments/app/nav.html` e le breadcrumbs
+   (`layout:fragment="breadcrumbs"` con `fragments/core/breadcrumbs :: trail(...)`, vedi "Struttura del progetto").
 2. Aggiornamento parziale (ricerca live, paginazione, form senza reload) → estrarre un fragment in
    `fragments/app/<nome>.html` (o `fragments/core/`); il controller lo restituisce se `HX-Request`, la pagina intera altrimenti.
 3. Solo interattivita' locale → Alpine (`x-data`/`x-show`/`x-on`) nel template, senza controller.

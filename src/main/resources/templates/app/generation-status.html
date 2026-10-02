@@ -5,19 +5,15 @@
     <title th:text="#{generationStatus.heading(${generation.id})}">Generazione #1</title>
 </head>
 <body>
+<!--
+  Il livello intermedio dipende da dove si e' arrivati (vedi GenerationController#status): dalla galleria contestuale di una
+  conversazione /deep-chat (conversationId presente) la conversazione, dal listato /generations (generationsPage presente) la pagina del
+  listato da cui si e' cliccato, altrimenti (galleria globale o generazione appena creata dal form diretto) /gallery.
+-->
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=${conversationId != null} ? '/deep-chat/' + ${conversationId} : (${generationsPage != null} ? '/generations?page=' + ${generationsPage} : '/gallery'), parentText=${conversationId != null} ? #{header.nav.deepChat} : (${generationsPage != null} ? #{header.nav.generations} : #{header.nav.gallery}), current=#{generationStatus.heading(${generation.id})})}"></nav>
+</div>
 <div layout:fragment="content">
-    <!--
-      "Indietro" dipende da dove si e' arrivati (vedi
-      GenerationController#status): dalla galleria contestuale di una
-      conversazione /deep-chat (conversationId presente) torna li', dal
-      listato /generations (generationsPage presente) torna alla pagina
-      da cui si e' cliccato, altrimenti (galleria globale o generazione
-      appena creata dal form diretto) torna a /gallery.
-    -->
-    <p th:if="${conversationId != null}"><a th:href="@{/deep-chat/{id}(id=${conversationId})}">&larr; <span th:text="#{generationDetail.backLink.deepChat}">Torna alla conversazione</span></a></p>
-    <p th:if="${conversationId == null and generationsPage != null}"><a th:href="@{/generations(page=${generationsPage})}">&larr; <span th:text="#{generationDetail.backLink.generations}">Torna al listato</span></a></p>
-    <p th:if="${conversationId == null and generationsPage == null}"><a th:href="@{/gallery}">&larr; <span th:text="#{generationDetail.backLink}">Torna alla galleria</span></a></p>
-
     <h1 th:text="#{generationStatus.heading(${generation.id})}">Generazione #1</h1>
     <p><em th:text="${generation.prompt}">prompt</em></p>
 

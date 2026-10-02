@@ -46,6 +46,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class SemanticSearchController {
 
     static final int PAGE_SIZE = 20;
+    /** Filtro "media" della form (solo generazioni): valori ammessi, il resto e' ignorato come "tutti". */
+    static final List<String> MEDIA = List.of("all", "image", "video");
     static final List<String> TYPES = List.of("all", DocumentTypes.GENERATION, DocumentTypes.CHAT, DocumentTypes.CONVERSATION,
             DocumentTypes.NOTE);
 
@@ -61,7 +63,7 @@ public class SemanticSearchController {
     private final int defaultThresholdPercent;
 
     public SemanticSearchController(IArchiveSearch search, IArchiveNotes notes, IArchiveIndex index, Messages messages,
-                                    HtmxEvents htmx, @Value("${app.search.similarity-threshold-percent:0}") int defaultThresholdPercent) {
+                                    HtmxEvents htmx, @Value("${app.search.similarity-threshold-percent:80}") int defaultThresholdPercent) {
         this.search = search;
         this.notes = notes;
         this.index = index;
@@ -76,15 +78,19 @@ public class SemanticSearchController {
     @GetMapping
     public String page(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String type,
                        @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
-                       @RequestParam(required = false) Integer threshold, Model model) {
+                       @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "all") String media,
+                       @RequestParam(defaultValue = "false") boolean favourites, Model model) {
         model.addAttribute("stats", stats());
         model.addAttribute("types", TYPES);
+        model.addAttribute("mediaOptions", MEDIA);
+        model.addAttribute("media", media);
+        model.addAttribute("favourites", favourites);
         model.addAttribute("q", q.strip());
         model.addAttribute("type", type);
         model.addAttribute("from", from);
         model.addAttribute("to", to);
         model.addAttribute("threshold", threshold == null ? defaultThresholdPercent : threshold);
-        populateResults(q, type, from, to, threshold, 1, model);
+        populateResults(q, type, from, to, threshold, media, favourites, 1, model);
         model.addAttribute("noteError", null);
         model.addAttribute("noteText", "");
         model.addAttribute("noteTitle", "");
@@ -99,9 +105,10 @@ public class SemanticSearchController {
     @GetMapping("/results")
     public String results(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String type,
                           @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
-                          @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "1") int page,
+                          @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "all") String media,
+                          @RequestParam(defaultValue = "false") boolean favourites, @RequestParam(defaultValue = "1") int page,
                           Model model) {
-        populateResults(q, type, from, to, threshold, page, model);
+        populateResults(q, type, from, to, threshold, media, favourites, page, model);
         return "fragments/app/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
                 + "currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, "
                 + "pageNumbers=${pageNumbers})";
@@ -189,14 +196,15 @@ public class SemanticSearchController {
         return search.stats();
     }
 
-    private void populateResults(String q, String type, String from, String to, Integer threshold, int page, Model model) {
+    private void populateResults(String q, String type, String from, String to, Integer threshold, String media, boolean favourites,
+                                 int page, Model model) {
         String query = q.strip();
         int minPercent = threshold == null ? defaultThresholdPercent : threshold;
         model.addAttribute("query", query);
         model.addAttribute("error", null);
         model.addAttribute("hits", List.of());
         model.addAttribute("total", 0L);
-        model.addAttribute("baseQuery", baseQuery(query, type, from, to, minPercent));
+        model.addAttribute("baseQuery", baseQuery(query, type, from, to, minPercent, media, favourites));
         model.addAttribute("currentPage", 1);
         model.addAttribute("totalPages", 1);
         model.addAttribute("hasPrevious", false);
@@ -223,7 +231,13 @@ public class SemanticSearchController {
             return;
         }
 
-        DocumentFilter filter = new DocumentFilter(type.isBlank() || "all".equals(type) ? null : type, start, end);
+        // Media/preferiti sono metadata delle sole generazioni: con uno dei due il tipo "tutti" diventa "generazioni".
+        String kind = "image".equals(media) ? "IMAGE" : "video".equals(media) ? "VIDEO" : null;
+        String wantedType = type.isBlank() || "all".equals(type) ? null : type;
+        if (wantedType == null && (kind != null || favourites)) {
+            wantedType = DocumentTypes.GENERATION;
+        }
+        DocumentFilter filter = new DocumentFilter(wantedType, start, end, kind, favourites);
         List<Hit> hits;
         long total;
         int current;
@@ -254,11 +268,12 @@ public class SemanticSearchController {
     }
 
     /** Query string (gia' codificata) dei filtri correnti: la paginazione ci accoda {@code page=N} e non li perde. */
-    private static String baseQuery(String q, String type, String from, String to, int threshold) {
+    private static String baseQuery(String q, String type, String from, String to, int threshold, String media, boolean favourites) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance().queryParam("q", "{q}").queryParam("type", "{type}")
-                .queryParam("from", "{from}").queryParam("to", "{to}").queryParam("threshold", "{threshold}");
-        String query = builder.encode().build(Map.of("q", q, "type", type, "from", from, "to", to, "threshold", threshold))
-                .getRawQuery();
+                .queryParam("from", "{from}").queryParam("to", "{to}").queryParam("threshold", "{threshold}")
+                .queryParam("media", "{media}").queryParam("favourites", "{favourites}");
+        String query = builder.encode().build(Map.of("q", q, "type", type, "from", from, "to", to, "threshold", threshold,
+                "media", media, "favourites", favourites)).getRawQuery();
         return query == null ? "" : query;
     }
 

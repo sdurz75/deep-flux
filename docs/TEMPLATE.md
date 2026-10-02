@@ -21,7 +21,7 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.secrets` | `ISecretCipher` (AES-256-GCM, stessa chiave dei binari WebDAV) | - |
 | `core.tokens` | CRUD token API cifrati in `/tokens`, scadenza con avvisi (`TokenExpiryScheduler`) | opzionale `ITokenProviderCatalog` (senza: nessun provider selezionabile) |
 | `core.storage` | `IImageStorageService` (binari su filesystem locale o WebDAV cifrato, cache, migrazione), `ImageController` (`/images/**`) | - |
-| `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets` | - |
+| `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo` | - |
 | template e bundle | `templates/fragments/core/*` (layout, header, bottoni, select Pines, toast, paginazione...), `templates/core/*` (`/system/events`, `/tokens`), `messages-core(.en).properties` | vedi "Punti di estensione" |
 | config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
 | Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token` | - |
@@ -47,8 +47,8 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/replic
 - `src/main/resources/templates/fragments/app/` (23 file). Da **riscrivere**, non solo cancellare: `fragments/app/nav.html`
   (vedi sotto). Le pagine app decorano `fragments/core/layout` con `layout:decorate`: la nuova pagina iniziale va fatta allo stesso modo.
 - `src/main/resources/templates/core/` e `fragments/core/` restano.
-- `fragments/core/layout.html` carica da CDN i plugin Alpine `focus` e `collapse` (commenti: lightbox della galleria e accordion della
-  chat). Sono utili al core solo se la nuova app usa quei componenti; altrimenti si possono togliere (lasciare `x-collapse`/`x-trap` ai
+- `fragments/core/layout.html` carica da CDN i plugin Alpine `focus`, `collapse` e `intersect` (commenti: lightbox della galleria, accordion della
+  chat, miniature video lazy di `/search`). Sono utili al core solo se la nuova app usa quei componenti; altrimenti si possono togliere (lasciare `x-collapse`/`x-trap`/`x-intersect` ai
   fragment che li usano).
 
 **Bundle i18n**
@@ -107,7 +107,10 @@ del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential so
 
 1. **Navigazione**: `templates/fragments/app/nav.html`, fragment `links(inline)`. `fragments/core/header.html` lo include due volte
    (barra con `inline=false`, slideover sotto `md` con `inline=true`). Si compone con i fragment del core `header :: navMenu`,
-   `navLink`, `navSystemCore` (voci Eventi e Token), `navTheme`. Senza questo file il core non rende.
+   `navLink`, `navSystemCore` (voci Eventi e Token), `navTheme`. Senza questo file il core non rende. Le pagine di sistema del core
+   (Token, Eventi) mostrano nelle breadcrumbs il gruppo "Gestione" (`header.menu.manage` in `messages-core`), cioe' il menu che ospita
+   `navSystemCore`/`navTheme`: una nuova app mantiene quel raggruppamento o cambia le breadcrumbs di quelle due pagine.
+   Ogni pagina (tranne la Home) usa `fragments/core/breadcrumbs :: trail(...)` nello slot `breadcrumbs` del layout.
 2. **Chiavi di bundle `app.brand`, `app.title`, `app.footer`** nel bundle dell'app (le uniche chiavi dell'app richieste da template del core).
 3. **Pagina iniziale**: il core non ha una route `/` (il link del brand punta a `@{/}`): serve un controller dell'app (oggi `HomeController`)
    e una pagina che decori `fragments/core/layout`.

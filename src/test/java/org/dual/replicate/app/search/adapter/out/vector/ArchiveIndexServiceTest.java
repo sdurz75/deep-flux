@@ -115,6 +115,30 @@ class ArchiveIndexServiceTest {
     }
 
     @Test
+    void generationDocumentsCarryTagsAndArtifactMetadataAndASecondReconcileChangesNothing() {
+        Generation g = new Generation("pred-art", "owner/model-x", null, "una volpe", "{\"aspect_ratio\":\"9:16\"}");
+        g.setStatus(GenerationStatus.SUCCEEDED);
+        g.setImageFilenames(new java.util.ArrayList<>(List.of("a.png", "b.png", "c.png")));
+        g.setFavouriteFilenames(new java.util.LinkedHashSet<>(List.of("c.png")));
+        g = generations.save(g);
+
+        service.reconcile();
+
+        var stored = documents.find("generation:" + g.getId()).orElseThrow();
+        assertThat(stored.content()).startsWith("una volpe" + DocumentTypes.TAGS_SEPARATOR).contains("verticale").contains("owner/model-x");
+        assertThat(stored.visibleContent()).isEqualTo("una volpe");
+        assertThat(stored.metadata()).containsEntry("kind", "IMAGE").containsEntry("model", "owner/model-x").containsEntry("favourite", true)
+                .containsEntry("outputs", 3).containsEntry("files", List.of("c.png", "a.png", "b.png")) // la star per prima
+                .containsEntry("favouriteFiles", List.of("c.png"));
+
+        int embedded = embedding.embedded.get();
+        long indexedAt = ((Number) stored.metadata().get("indexedAt")).longValue();
+        service.reconcile();
+        assertThat(embedding.embedded.get()).isEqualTo(embedded);
+        assertThat(((Number) documents.find("generation:" + g.getId()).orElseThrow().metadata().get("indexedAt")).longValue()).isEqualTo(indexedAt);
+    }
+
+    @Test
     void documentsCarryTheCreationDateOfTheirSourceAndLegacyOnesGetItWithoutReEmbedding() {
         Generation g = generation("gatto", GenerationStatus.SUCCEEDED);
         ChatConversation conversation = new ChatConversation();
@@ -130,7 +154,8 @@ class ArchiveIndexServiceTest {
 
         service.reconcile();
 
-        assertThat(embedding.embedded.get()).isEqualTo(before + 2); // solo conversazione e messaggio: gli altri solo metadata
+        // conversazione e messaggio (nuovi) + la generazione (il testo ora porta anche le tag d'indice: nuovo hash); la nota vecchia solo metadata
+        assertThat(embedding.embedded.get()).isEqualTo(before + 3);
         assertThat(documents.find("generation:" + g.getId()).orElseThrow().metadata()).containsEntry("createdAt", g.getCreatedAt().toEpochMilli());
         assertThat(documents.find("chatmessage:" + message.getId()).orElseThrow().createdAt()).isEqualTo(message.getCreatedAt().truncatedTo(java.time.temporal.ChronoUnit.MILLIS));
         assertThat(documents.find("conversation:" + conversation.getId()).orElseThrow().metadata()).containsKey("createdAt");
@@ -203,7 +228,8 @@ class ArchiveIndexServiceTest {
     /** L'indice reale (store pgvector) con le sorgenti vere di generation e chat, sopra lo stesso DB di test. */
     @SuppressWarnings("unchecked")
     private ArchiveIndexService serviceOver(VectorIndexer over) {
-        var generationsSource = new GenerationSearchSource(generationsPort(), org.mockito.Mockito.mock(ObjectProvider.class));
+        var generationsSource = new GenerationSearchSource(generationsPort(), mock(org.dual.replicate.app.generation.port.in.ILoraPresets.class),
+                org.mockito.Mockito.mock(ObjectProvider.class), objectMapper);
         return new ArchiveIndexService(new PgVectorIndex(vectorStore, over, documents),
                 List.of(generationsSource, new ChatSearchSource(messages, conversations)), systemEvents, transactionManager);
     }

@@ -83,8 +83,9 @@ app:
     enabled: true
     reindex-interval: 5m
     top-k: 5
-    # Soglia di somiglianza minima (%, 0..100) di default della ricerca in /search (i punteggi e5 sono compressi: 70-90%).
-    similarity-threshold-percent: 0
+    # Soglia di somiglianza minima (%, 0..100) di default della ricerca in /search (i punteggi e5 sono compressi: 70-90%, quindi 80 taglia il rumore
+    # senza svuotare i risultati); la form la mostra e l'utente la cambia per ricerca. Non vale per la tool della chat (top-k).
+    similarity-threshold-percent: 80
   push:
     # Gli eventi SSE dell'app (il core gestisce solo "system-event"): ri-dispatchati da fragments/core/live-events.html come CustomEvent
     # su document.body. reconnect-events: quelli da ri-dispatchare alla riconnessione dell'EventSource (PushModelAdvice).

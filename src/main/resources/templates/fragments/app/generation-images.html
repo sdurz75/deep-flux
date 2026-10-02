@@ -80,7 +80,9 @@
      }"
      @keyup.right.window="imageGalleryNext()"
      @keyup.left.window="imageGalleryPrev()">
-    <div th:each="filename : ${generation.imageFilenames}" class="relative group" th:classappend="${generation.video} ? 'col-span-full'">
+    <div th:each="filename : ${generation.imageFilenames}" th:classappend="${generation.video} ? 'col-span-full'">
+        <!-- Contenitore relative SOLO del thumbnail: gli overlay (stella in basso a destra inclusa) si ancorano all'immagine, non alla riga del seed sotto. -->
+        <div class="relative group">
         <!-- Video: un solo elemento a larghezza piena con i controlli nativi, fuori dalla lightbox ('.generation-image' e' solo delle <img>). -->
         <video th:if="${generation.video}" th:src="@{'/images/' + ${filename}}" controls playsinline preload="metadata"
                class="w-full max-h-[70vh] bg-black rounded-md border border-line dark:border-line-dark block"></video>
@@ -97,12 +99,21 @@
         <!-- "Scarica" questo file; dopo Modifica e Anima per le immagini, in alto a sinistra per il video (niente "Anima"). -->
         <a th:replace="~{fragments/app/button-gen :: downloadOverlay(url=@{'/images/' + ${filename}}, filename=${filename}, title=#{gallery.card.download}, extraClass=${generation.video} ? 'top-1 left-1' : 'top-1 left-[4.75rem]')}"></a>
         <button th:replace="~{fragments/app/button-gen :: starOverlay(generationId=${generation.id}, filename=${filename}, favourite=${generation.favouriteFilenames.contains(filename)}, refresh=false, variant=${generation.video} ? 'detail-video' : 'detail')}"></button>
+        <button th:replace="~{fragments/core/button :: danger(type='button', text=#{gallery.button.deleteImage},
+                    hxPost=null,
+                    hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                    hxConfirm=${generation.imageFilenames.size() == 1} ? #{gallery.confirm.deleteLastImage} : #{gallery.confirm.deleteImage},
+                    hxSwap='outerHTML', hxTarget='#generation-images-grid',
+                    extraClass='absolute top-1 right-1 px-1.5 py-0.5 text-[0.75rem]')}">Elimina</button>
+        </div>
         <!--/*
           Seed di QUESTO file. Riproducibile da solo (Generation#reusableSeedOf): quello suo se i log ne davano uno per file, altrimenti il
           seed del batch SOLO per la prima immagine ("(batch)" se i file sono piu' d'uno): e' l'unica che riproduce (verificato su ff3). Le
-          altre immagini di un batch nascono da un seed derivato che nessun log riporta: niente numero ne' bottone. "casuale" se ignoto.
+          altre immagini di un batch nascono da un seed derivato che nessun log riporta: NESSUNA riga (il seed del batch non e' il loro).
+          "casuale" se non c'e' nessun seed.
         */-->
-        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem]">
+        <div th:if="${generation.reusableSeedOf(filename) != null or generation.seedOf(filename) == null}"
+             class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem]">
             <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationDetail.label.seed}">Seed</span>
             <th:block th:if="${generation.reusableSeedOf(filename) != null}">
                 <span class="font-mono" th:text="${generation.reusableSeedOf(filename)}">123</span>
@@ -111,16 +122,8 @@
                 <button th:replace="~{fragments/app/button-gen :: pushShared(text=#{generationDetail.shared.useSeed}, doneText=#{generationDetail.shared.done},
                             prompt=null, seed=${generation.reusableSeedOf(filename)}, extraClass=null)}">Usa seed</button>
             </th:block>
-            <span th:if="${generation.reusableSeedOf(filename) == null and generation.seedOf(filename) != null}"
-                  class="text-ink-muted dark:text-ink-muted-dark" th:text="#{generationDetail.seed.notReproducible}">non riproducibile da sola</span>
             <span th:if="${generation.seedOf(filename) == null}" class="font-mono" th:text="#{generationParams.placeholder.seed}">casuale</span>
         </div>
-        <button th:replace="~{fragments/core/button :: danger(type='button', text=#{gallery.button.deleteImage},
-                    hxPost=null,
-                    hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},
-                    hxConfirm=${generation.imageFilenames.size() == 1} ? #{gallery.confirm.deleteLastImage} : #{gallery.confirm.deleteImage},
-                    hxSwap='outerHTML', hxTarget='#generation-images-grid',
-                    extraClass='absolute top-1 right-1 px-1.5 py-0.5 text-[0.75rem]')}">Elimina</button>
     </div>
 
     <!-- Lightbox fullscreen, stesso markup di fragments/app/gallery.html :: grid. -->

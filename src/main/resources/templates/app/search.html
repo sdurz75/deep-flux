@@ -5,6 +5,9 @@
     <title th:text="#{search.title}">Ricerca semantica</title>
 </head>
 <body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{search.title})}"></nav>
+</div>
 <div layout:fragment="content">
     <h1 th:text="#{search.title}">Ricerca semantica</h1>
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.intro}">Interroga e gestisci il vector store.</p>
@@ -28,36 +31,81 @@
                         hxTarget='#note-form', hxSwap='outerHTML', neutral=false, extraClass='px-3 py-1.5 text-[0.85rem]')}">Nuova nota</button>
         </div>
 
+        <!--
+          Form a card (stile Pines): riga di ricerca (campo con lente + bottone), poi i filtri in griglia (tipo, media, periodo), poi soglia di
+          somiglianza (slider con valore live, Alpine) e "solo preferiti" (toggle a peer, checkbox nativo sr-only: FormData e hx-trigger invariati).
+          Le label sovrascrivono il margine di base (mt-0): in griglia stanno a filo del campo.
+        -->
         <form id="search-form" th:hx-get="@{/search/results}" hx-target="#search-results" hx-swap="innerHTML"
               hx-trigger="submit, input changed delay:500ms, change, note-saved from:body"
-              class="mt-3 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
-            <div class="flex-1 md:min-w-[16rem]">
-                <label for="search-q" th:text="#{search.query.label}">Cerca</label>
-                <input type="search" id="search-q" name="q" class="w-full" autocomplete="off" th:value="${q}"
-                       th:placeholder="#{search.query.placeholder}">
+              class="mt-3 flex flex-col gap-5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4 sm:p-5">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div class="relative flex-1">
+                    <label for="search-q" class="sr-only" th:text="#{search.query.label}">Cerca</label>
+                    <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark"
+                         xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                    <input type="search" id="search-q" name="q" class="w-full pl-10 py-2.5" autocomplete="off" th:value="${q}"
+                           th:placeholder="#{search.query.placeholder}">
+                </div>
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{search.query.button}, extraClass='w-full sm:w-auto py-2.5')}">Cerca</button>
             </div>
-            <div>
-                <label for="search-type" th:text="#{search.query.type}">Tipo</label>
-                <div class="relative" x-data="pinesSelect" x-bind="root">
-                    <select id="search-type" name="type" class="sr-only" tabindex="-1" aria-hidden="true">
-                        <option th:each="t : ${types}" th:value="${t}" th:selected="${t == type}" th:text="#{'search.type.' + ${t}}">Tutti</option>
-                    </select>
-                    <div th:replace="~{fragments/core/select :: ui}"></div>
+
+            <div class="border-t border-line dark:border-line-dark pt-4">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <span class="text-[0.75rem] font-semibold uppercase tracking-wide text-ink-muted dark:text-ink-muted-dark" th:text="#{search.query.filters}">Filtri</span>
+                    <a th:href="@{/search}" class="text-[0.8rem]" th:text="#{search.query.reset}">Azzera filtri</a>
+                </div>
+                <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <label for="search-type" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.type}">Tipo</label>
+                        <div class="relative" x-data="pinesSelect" x-bind="root">
+                            <select id="search-type" name="type" class="sr-only" tabindex="-1" aria-hidden="true">
+                                <option th:each="t : ${types}" th:value="${t}" th:selected="${t == type}" th:text="#{'search.type.' + ${t}}">Tutti</option>
+                            </select>
+                            <div th:replace="~{fragments/core/select :: ui}"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="search-media" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.media}" th:title="#{search.query.mediaHelp}">Media</label>
+                        <div class="relative" x-data="pinesSelect" x-bind="root">
+                            <select id="search-media" name="media" class="sr-only" tabindex="-1" aria-hidden="true" th:title="#{search.query.mediaHelp}">
+                                <option th:each="m : ${mediaOptions}" th:value="${m}" th:selected="${m == media}" th:text="#{'search.media.' + ${m}}">Tutti</option>
+                            </select>
+                            <div th:replace="~{fragments/core/select :: ui}"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="search-from" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.from}">Dal</label>
+                        <input type="date" id="search-from" name="from" th:value="${from}">
+                    </div>
+                    <div>
+                        <label for="search-to" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.to}">Al</label>
+                        <input type="date" id="search-to" name="to" th:value="${to}">
+                    </div>
                 </div>
             </div>
-            <div>
-                <label for="search-from" th:text="#{search.query.from}">Dal</label>
-                <input type="date" id="search-from" name="from" th:value="${from}">
+
+            <div class="grid items-center gap-x-8 gap-y-4 border-t border-line dark:border-line-dark pt-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <div x-data="{ value: Number($el.dataset.value) }" th:data-value="${threshold}">
+                    <div class="mb-1.5 flex items-baseline justify-between gap-3">
+                        <label for="search-threshold" class="m-0 font-medium" th:text="#{search.query.threshold}">Somiglianza minima (%)</label>
+                        <output for="search-threshold" class="text-[0.9rem] font-semibold tabular-nums" x-text="value + '%'" th:text="${threshold} + '%'">80%</output>
+                    </div>
+                    <input type="range" id="search-threshold" name="threshold" min="0" max="100" step="1" x-model.number="value" th:value="${threshold}"
+                           class="block h-2 w-full cursor-pointer appearance-none rounded-full bg-line dark:bg-line-dark accent-accent dark:accent-accent-dark p-0 border-0">
+                </div>
+                <label for="search-favourites" class="m-0 flex cursor-pointer items-center gap-3 text-ink dark:text-ink-dark" th:title="#{search.query.mediaHelp}">
+                    <input type="checkbox" id="search-favourites" name="favourites" value="true" class="peer sr-only" th:checked="${favourites}">
+                    <span class="relative h-6 w-11 shrink-0 rounded-full bg-line dark:bg-line-dark transition-colors duration-150
+                                 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-canvas dark:after:bg-canvas-dark
+                                 after:shadow after:transition-transform after:duration-150 after:content-['']
+                                 peer-checked:bg-accent dark:peer-checked:bg-accent-dark peer-checked:after:translate-x-5
+                                 peer-focus-visible:ring-2 peer-focus-visible:ring-accent dark:peer-focus-visible:ring-accent-dark"></span>
+                    <span class="text-sm" th:text="#{search.query.favourites}">Solo preferiti</span>
+                </label>
             </div>
-            <div>
-                <label for="search-to" th:text="#{search.query.to}">Al</label>
-                <input type="date" id="search-to" name="to" th:value="${to}">
-            </div>
-            <div>
-                <label for="search-threshold" th:text="#{search.query.threshold}">Somiglianza minima (%)</label>
-                <input type="number" id="search-threshold" name="threshold" min="0" max="100" th:value="${threshold}" class="w-24">
-            </div>
-            <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{search.query.button}, extraClass=null)}">Cerca</button>
         </form>
 
         <div x-show="dialogOpen" x-cloak x-trap.inert.noscroll="dialogOpen"

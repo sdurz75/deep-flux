@@ -14,10 +14,11 @@ import org.dual.replicate.app.chat.domain.ChatTurn;
 public interface IAssistant {
 
     /**
+     * @param conversationId la conversazione del turno (per i tool che ragionano sulla conversazione corrente)
      * @param history la cronologia completa del turno, l'ultimo e' quello a cui rispondere
      * @param selectedModel il modello di generazione scelto nella UI (nota di contesto per l'LLM e modello usato dal tool)
      * @param generationParameters i parametri del pannello impostazioni, nel vocabolario Replicate (mai visti dall'LLM)
      * @throws AssistantException se la chiamata fallisce; porta gli id delle generazioni gia' avviate
      */
-    ChatReply respond(List<ChatTurn> history, String selectedModel, Map<String, Object> generationParameters);
+    ChatReply respond(Long conversationId, List<ChatTurn> history, String selectedModel, Map<String, Object> generationParameters);
 }

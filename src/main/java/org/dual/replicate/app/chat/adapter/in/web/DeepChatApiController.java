@@ -10,6 +10,7 @@ import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.app.chat.domain.ChatAction;
 import org.dual.replicate.app.chat.domain.ChatReply;
 import org.dual.replicate.app.chat.domain.ChatTurn;
 import org.dual.replicate.app.chat.domain.FileRef;
@@ -69,14 +70,15 @@ public class DeepChatApiController {
             ChatReply reply = chat.reply(
                     request.conversationId(), request.messages(), request.model(), toGenerationParameters(request));
             return new Reply(reply.text(), null, null,
-                    reply.startedGenerationIds().isEmpty() ? null : reply.startedGenerationIds());
+                    reply.startedGenerationIds().isEmpty() ? null : reply.startedGenerationIds(),
+                    reply.actions().isEmpty() ? null : reply.actions());
         } catch (DeepChatFailedException e) {
             // Gia' registrato (tabella errori + toast) e scritto in cronologia da ChatService#reply.
-            return new Reply(null, e.getMessage(), null, null);
+            return new Reply(null, e.getMessage(), null, null, null);
         } catch (Exception e) {
             // Fallimento prima/fuori dalla chiamata LLM (conversazione inesistente, parametri non validi...).
             systemEvents.record(CoreEventSource.INTERNAL, "chatRequest", e, AppEventSubjects.of(null, request.conversationId()));
-            return new Reply(null, messages.get("deepchat.error.contactAssistant", ISystemEvents.sanitize(e)), null, null);
+            return new Reply(null, messages.get("deepchat.error.contactAssistant", ISystemEvents.sanitize(e)), null, null, null);
         }
     }
 
@@ -114,6 +116,6 @@ public class DeepChatApiController {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Reply(String text, String error, List<FileRef> files, List<Long> generationIds) {
+    public record Reply(String text, String error, List<FileRef> files, List<Long> generationIds, List<ChatAction> actions) {
     }
 }

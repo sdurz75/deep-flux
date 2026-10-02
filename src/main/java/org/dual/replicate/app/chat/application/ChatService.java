@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.dual.replicate.app.chat.domain.AssistantException;
+import org.dual.replicate.app.chat.domain.ChatAction;
 import org.dual.replicate.app.chat.domain.ChatConversation;
 import org.dual.replicate.app.chat.domain.ChatMessage;
 import org.dual.replicate.app.chat.domain.ChatMessageRole;
@@ -92,11 +93,13 @@ public class ChatService implements IChat {
         // avviati piu' sotto girano su thread @Async, dove LocaleContextHolder e' vuoto e cadrebbe sulla locale della JVM.
         Locale locale = LocaleContextHolder.getLocale();
         List<Long> started = List.of();
+        List<ChatAction> actions = List.of();
         try {
             String text;
             try {
-                ChatReply answer = assistant.respond(history, selectedModel, generationParameters);
+                ChatReply answer = assistant.respond(conversation.getId(), history, selectedModel, generationParameters);
                 started = answer.startedGenerationIds();
+                actions = answer.actions();
                 text = answer.text();
             } catch (RuntimeException e) {
                 Throwable cause = e;
@@ -112,7 +115,7 @@ public class ChatService implements IChat {
             } catch (RuntimeException e) {
                 throw failTurn(conversation, CoreEventSource.INTERNAL, "saveChatTurn", e);
             }
-            return new ChatReply(text, started);
+            return new ChatReply(text, started, actions);
         } finally {
             // Nel finally PIU' ESTERNO, dopo aver salvato il turno AI (non solo sul percorso di successo: una generazione gia'
             // avviata dal tool deve arrivare comunque via push anche se la chiamata all'LLM fallisce dopo) cosi' l'ordine

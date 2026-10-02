@@ -97,7 +97,7 @@ class PgVectorIndex implements IVectorIndex {
         return VectorIndexer.DIMENSIONS;
     }
 
-    /** {@code type} AND {@code createdAt} nel periodo; {@code null} se nessun vincolo. */
+    /** {@code type} AND {@code createdAt} nel periodo AND {@code kind} AND {@code favourite}; {@code null} se nessun vincolo. */
     static Filter.Expression expression(DocumentFilter filter) {
         if (filter == null) {
             return null;
@@ -113,6 +113,12 @@ class PgVectorIndex implements IVectorIndex {
         if (filter.to() != null) {
             result = and(result, new Filter.Expression(Filter.ExpressionType.LTE, new Filter.Key("createdAt"),
                     new Filter.Value(filter.to().toEpochMilli())));
+        }
+        if (filter.kind() != null && !filter.kind().isBlank()) {
+            result = and(result, new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("kind"), new Filter.Value(filter.kind())));
+        }
+        if (filter.favouriteOnly()) {
+            result = and(result, new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("favourite"), new Filter.Value(true)));
         }
         return result;
     }

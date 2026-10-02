@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.dual.replicate.app.OpenRouterCalls;
@@ -24,12 +26,13 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * L'assistente di /deep-chat sul {@code ChatClient} di Spring AI (OpenRouter). Il modello ha tre tool (WebSearchTool via SearXNG,
- * ImageGenerationTool via Replicate, ArchiveSearchTool se la ricerca semantica e' attiva) che decide da solo se e quando usare.
+ * L'assistente di /deep-chat sul {@code ChatClient} di Spring AI (OpenRouter). Il modello ha i tool WebSearchTool (SearXNG),
+ * ImageGenerationTool (Replicate), LibraryTool (sola lettura sull'app), FavouriteTool (mutazione leggera), ActionProposalTool (proposte con bottone, mai eseguite) e, se la ricerca semantica e'
+ * attiva, ArchiveSearchTool e NoteTool: decide da solo se e quando usarli.
  * Qui sta tutto cio' che e' Spring AI: il system prompt, i tool, il {@code ToolContext} (modello e parametri scelti nella UI, e il
  * canale {@link GenerationResultHolder} da cui escono gli id delle generazioni avviate dal tool).
  */
@@ -44,47 +47,50 @@ class SpringAiAssistant implements IAssistant {
     SpringAiAssistant(ChatClient.Builder chatClientBuilder,
                       WebSearchTool webSearchTool,
                       ImageGenerationTool imageGenerationTool,
+                      LibraryTool libraryTool,
+                      FavouriteTool favouriteTool,
+                      ActionProposalTool actionProposalTool,
                       Optional<ArchiveSearchTool> archiveSearchTool,
+                      Optional<NoteTool> noteTool,
                       Messages i18n,
-                      @Value("${prompts.creative-context}") String creativeContext,
-                      @Value("${deep-chat.image-prompting-guide}") String imagePromptingGuide) {
+                      Environment env) {
         this.i18n = i18n;
+        // Il system prompt e' assemblato a sezioni (prompts.properties): il nucleo c'e' sempre, la sezione di un gruppo di tool solo
+        // se il gruppo e' registrato (searchArchive solo con la ricerca semantica attiva, app.search.enabled).
+        String systemPrompt = Stream.of(
+                        env.getRequiredProperty("deep-chat.section.core"),
+                        env.getRequiredProperty("deep-chat.section.guidance"),
+                        env.getRequiredProperty("deep-chat.section.web"),
+                        env.getRequiredProperty("deep-chat.section.library"),
+                        archiveSearchTool.isPresent() ? env.getRequiredProperty("deep-chat.section.archive") : null,
+                        env.getRequiredProperty("deep-chat.section.edit"),
+                        env.getRequiredProperty("deep-chat.section.actions"),
+                        noteTool.isPresent() ? env.getRequiredProperty("deep-chat.section.notes") : null,
+                        env.getRequiredProperty("deep-chat.section.generation"),
+                        env.getRequiredProperty("prompts.creative-context"),
+                        env.getRequiredProperty("deep-chat.image-prompting-guide"))
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining("\n\n"));
         this.chatClient = chatClientBuilder
-                .defaultSystem("""
-                        You are a helpful, friendly assistant. You can search the public web
-                        with the searchWeb tool whenever a question needs current information
-                        or facts you may not know. You can search the user's own archive of past
-                        generations and conversations by meaning with the searchArchive tool
-                        (when the user refers to something made or discussed before). You can also generate images with the
-                        generateImage tool: it always uses the model currently selected in the
-                        UI (you are told which one in a system note), there is no way to pick a
-                        different one for it - if the user asks for a different model, tell them
-                        to change the selection in the UI first.
-
-                        Never call generateImage right after the user's first mention of
-                        wanting an image. First discuss and refine what they want - subject,
-                        style, setting, mood, anything relevant - asking clarifying questions
-                        if the request is vague, and propose the actual prompt you intend to
-                        use. Only call generateImage once the user has clearly confirmed that
-                        exact prompt (e.g. "yes", "go", "generate it", or an explicit edit
-                        they then approve) - never on an implicit go-ahead you inferred
-                        yourself. If they change their mind before confirming, update the
-                        proposal and ask again rather than generating.
-
-                        """ + creativeContext + "\n\n" + imagePromptingGuide)
-                // searchArchive solo con la ricerca semantica attiva (app.search.enabled).
-                .defaultTools(Stream.concat(Stream.of(webSearchTool, imageGenerationTool), archiveSearchTool.stream()).toArray())
+                .defaultSystem(systemPrompt)
+                .defaultTools(Stream.of(Stream.of(webSearchTool, imageGenerationTool, libraryTool, favouriteTool, actionProposalTool), archiveSearchTool.stream(), noteTool.stream())
+                        .flatMap(tools -> tools).toArray())
                 .build();
     }
 
     @Override
-    public ChatReply respond(List<ChatTurn> history, String selectedModel, Map<String, Object> generationParameters) {
+    public ChatReply respond(Long conversationId, List<ChatTurn> history, String selectedModel, Map<String, Object> generationParameters) {
         GenerationResultHolder resultHolder = new GenerationResultHolder();
+        ActionProposalHolder proposals = new ActionProposalHolder();
         Instant start = Instant.now();
         try {
             List<Message> messages = buildMessages(history, selectedModel);
             Map<String, Object> toolContext = new HashMap<>();
             toolContext.put(GenerationResultHolder.CONTEXT_KEY, resultHolder);
+            toolContext.put(ActionProposalHolder.CONTEXT_KEY, proposals);
+            if (conversationId != null) {
+                toolContext.put(LibraryTool.CONVERSATION_ID_CONTEXT_KEY, conversationId);
+            }
             toolContext.put(ImageGenerationTool.PARAMETERS_CONTEXT_KEY, generationParameters);
             toolContext.put(ImageGenerationTool.MODEL_CONTEXT_KEY, selectedModel);
 
@@ -108,7 +114,7 @@ class SpringAiAssistant implements IAssistant {
             }
             logChatResponse(chatResponse, elapsed);
             return new ChatReply(chatResponse.getResult().getOutput().getText(),
-                    List.copyOf(resultHolder.getStartedGenerationIds()));
+                    List.copyOf(resultHolder.getStartedGenerationIds()), List.copyOf(proposals.getActions()));
         } catch (RuntimeException e) {
             // Le generazioni gia' avviate dal tool devono avere comunque il loro watcher: viaggiano con l'eccezione.
             throw new AssistantException(e, resultHolder.getStartedGenerationIds());
@@ -140,7 +146,7 @@ class SpringAiAssistant implements IAssistant {
         List<Message> messages = new ArrayList<>();
         if (selectedModel != null && !selectedModel.isBlank()) {
             messages.add(new SystemMessage(
-                    "Modello di generazione immagini attualmente selezionato nella UI: " + selectedModel));
+                    "Image generation model currently selected in the UI: " + selectedModel));
         }
         history.forEach(turn -> messages.add("ai".equals(turn.role())
                 ? new AssistantMessage(turn.text())

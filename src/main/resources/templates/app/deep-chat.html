@@ -5,6 +5,9 @@
     <title>Deep Flux</title>
 </head>
 <body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{header.nav.deepChat})}"></nav>
+</div>
 <div layout:fragment="content">
     <h1>Deep Chat</h1>
     <p>
@@ -452,6 +455,33 @@
                 return deepChat.getMessages().findIndex((m) => m.html && m.html.includes(marker));
             };
 
+            // Bottoni delle azioni proposte: un <template> per tipo (stessa fonte Thymeleaf per testi e URL), riempito qui.
+            const actionTemplates = {
+                CANCEL: document.getElementById('chat-action-cancel-tpl').innerHTML,
+                DELETE: document.getElementById('chat-action-delete-tpl').innerHTML,
+                REGENERATE: document.getElementById('chat-action-regenerate-tpl').innerHTML
+            };
+            const actionButtonHtml = (action) => {
+                const source = actionTemplates[action.type];
+                if (!source) {
+                    return '';
+                }
+                const holder = document.createElement('template');
+                holder.innerHTML = source.replace(/GENID/g, String(action.generationId))
+                    .replace(/ACTMODEL/g, () => escapeHtml(action.model));
+                const button = holder.content.querySelector('.chat-action');
+                if (!button) {
+                    return '';
+                }
+                if (action.type === 'REGENERATE') {
+                    button.dataset.sharedPrompt = action.prompt || '';
+                    button.dataset.sharedSeed = String(action.seed);
+                }
+                return holder.innerHTML;
+            };
+            const actionsHtml = (actions) => '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'
+                + actions.map(actionButtonHtml).join('') + '</div>';
+
             deepChat.htmlClassUtilities = {
                 'gen-toggle': {
                     events: {
@@ -468,6 +498,46 @@
                             if (generationId) {
                                 rememberHidden(generationId, hidden);
                             }
+                        }
+                    }
+                },
+                // Azioni PROPOSTE dall'assistente (ActionProposalTool, button-gen :: chatAction): il click dell'utente e' l'unico
+                // consenso. Annulla/cancella = POST all'endpoint esistente dopo conferma; rigenera = scrive prompt+seed nello slot
+                // globale (stessa chiave di generation-shared-slot.html, duplicata: tenerle allineate) e apre la form, dove la
+                // prediction parte solo con "Genera". Un errore (azione gia' compiuta, id sparito) resta scritto sul bottone.
+                'chat-action': {
+                    events: {
+                        click: (event) => {
+                            const button = event.target.closest('.chat-action');
+                            if (!button || button.disabled) {
+                                return;
+                            }
+                            if (button.dataset.actionType === 'REGENERATE') {
+                                try {
+                                    const slot = JSON.parse(localStorage.getItem('generation.shared') || '{}');
+                                    slot.prompt = button.dataset.sharedPrompt;
+                                    slot.seed = button.dataset.sharedSeed;
+                                    localStorage.setItem('generation.shared', JSON.stringify(slot));
+                                } catch (e) {
+                                    button.disabled = true;
+                                    button.textContent = button.dataset.failedText;
+                                    return;
+                                }
+                                window.location.href = button.dataset.url;
+                                return;
+                            }
+                            if (!window.confirm(button.dataset.confirm)) {
+                                return;
+                            }
+                            button.disabled = true;
+                            fetch(button.dataset.url, {method: 'POST'})
+                                .then((response) => {
+                                    if (!response.ok) {
+                                        throw new Error('action failed');
+                                    }
+                                    button.textContent = button.dataset.doneText;
+                                })
+                                .catch(() => { button.textContent = button.dataset.failedText; });
                         }
                     }
                 },
@@ -499,8 +569,16 @@
                 if (response && response.text) {
                     response.text = linkGenerations(response.text);
                 }
+                // I placeholder delle generazioni avviate e i bottoni delle azioni proposte vanno nella stessa bolla.
+                let extra = '';
                 if (response && response.generationIds && response.generationIds.length) {
-                    response.html = response.generationIds.map(placeholderHtml).join('');
+                    extra += response.generationIds.map(placeholderHtml).join('');
+                }
+                if (response && response.actions && response.actions.length) {
+                    extra += actionsHtml(response.actions);
+                }
+                if (extra) {
+                    response.html = extra;
                 }
                 return response;
             };
@@ -518,7 +596,23 @@
       GENID -> id reale (vedi lo script module sopra).
     -->
     <template id="generation-placeholder-tpl">
-        <div th:replace="~{fragments/app/generation-placeholder :: placeholder(generationId='GENID', conversationId=null, generationsPage=null, cancelDisabled=false)}"></div>
+        <div th:replace="~{fragments/app/generation-placeholder :: placeholder(generationId='GENID', conversationId=null, generationsPage=null, cancelDisabled=false, count=1)}"></div>
+    </template>
+
+    <!-- Bottoni delle azioni proposte dall'assistente (button-gen :: chatAction), uno per tipo: GENID/ACTMODEL li riempie il client. -->
+    <template id="chat-action-cancel-tpl">
+        <button th:replace="~{fragments/app/button-gen :: chatAction(type='CANCEL', text=#{chatAction.cancel.text('GENID')},
+                    doneText=#{chatAction.cancel.done}, failedText=#{chatAction.cancel.failed},
+                    confirmText=#{chatAction.cancel.confirm('GENID')}, url=@{/generations/{id}/cancel(id='GENID')}, danger=true)}">x</button>
+    </template>
+    <template id="chat-action-delete-tpl">
+        <button th:replace="~{fragments/app/button-gen :: chatAction(type='DELETE', text=#{chatAction.delete.text('GENID')},
+                    doneText=#{chatAction.delete.done}, failedText=#{chatAction.delete.failed},
+                    confirmText=#{chatAction.delete.confirm('GENID')}, url=@{/generations/{id}/delete(id='GENID')}, danger=true)}">x</button>
+    </template>
+    <template id="chat-action-regenerate-tpl">
+        <button th:replace="~{fragments/app/button-gen :: chatAction(type='REGENERATE', text=#{chatAction.regenerate.text('GENID', 'ACTMODEL')},
+                    doneText=null, failedText=#{chatAction.regenerate.failed}, confirmText=null, url=@{/generations/new}, danger=false)}">x</button>
     </template>
 
     <template id="generation-result-tpl">

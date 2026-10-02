@@ -5,8 +5,14 @@
     <title th:text="#{gallery.title}">Galleria</title>
 </head>
 <body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{gallery.title})}"></nav>
+</div>
 <div layout:fragment="content">
-    <h1 th:text="#{gallery.title}">Galleria</h1>
+    <div class="flex items-baseline justify-between gap-3 flex-wrap">
+        <h1 th:text="#{gallery.title}">Galleria</h1>
+        <a th:href="@{/generations}" th:text="#{gallery.link.generations}" class="text-[0.9rem]">Tutte le generazioni</a>
+    </div>
 
     <!-- Messaggio "galleria vuota" spostato dentro fragments/app/gallery :: content, vedi commento li'. -->
     <div id="gallery-content">

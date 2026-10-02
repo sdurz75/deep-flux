@@ -11,6 +11,9 @@
   stato (deleteAllOpen/confirmText) deve stare su un antenato comune a
   entrambi, non dentro il contenuto che un refresh SSE ri-renderizza.
 -->
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{generations.title})}"></nav>
+</div>
 <div layout:fragment="content" x-data="{ deleteAllOpen: false, confirmText: '' }">
     <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
         <h1 th:text="#{generations.title}">Generazioni</h1>

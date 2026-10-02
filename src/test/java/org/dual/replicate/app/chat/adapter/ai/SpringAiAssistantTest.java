@@ -17,6 +17,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,8 +48,35 @@ class SpringAiAssistantTest {
     @Mock
     private Messages i18n;
 
+    @Mock
+    private LibraryTool libraryTool;
+
+    private static MockEnvironment promptEnvironment() {
+        return new MockEnvironment()
+                .withProperty("deep-chat.section.core", "SEZIONE-CORE")
+                .withProperty("deep-chat.section.guidance", "SEZIONE-GUIDANCE")
+                .withProperty("deep-chat.section.web", "SEZIONE-WEB")
+                .withProperty("deep-chat.section.library", "SEZIONE-LIBRARY")
+                .withProperty("deep-chat.section.archive", "SEZIONE-ARCHIVE")
+                .withProperty("deep-chat.section.edit", "SEZIONE-EDIT")
+                .withProperty("deep-chat.section.actions", "SEZIONE-ACTIONS")
+                .withProperty("deep-chat.section.notes", "SEZIONE-NOTES")
+                .withProperty("deep-chat.section.generation", "SEZIONE-GENERATION")
+                .withProperty("prompts.creative-context", "contesto")
+                .withProperty("deep-chat.image-prompting-guide", "guida");
+    }
+
+    @Mock
+    private FavouriteTool favouriteTool;
+
+    @Mock
+    private ActionProposalTool actionProposalTool;
+
     private SpringAiAssistant assistant(ChatClient.Builder builder, Optional<ArchiveSearchTool> archive) {
-        return new SpringAiAssistant(builder, webSearchTool, imageGenerationTool, archive, i18n, "contesto", "guida");
+        // Ricerca attiva = archivio + note insieme, come in produzione (stessa condizione app.search.enabled).
+        Optional<NoteTool> notes = archive.map(a -> mock(NoteTool.class));
+        return new SpringAiAssistant(builder, webSearchTool, imageGenerationTool, libraryTool, favouriteTool, actionProposalTool, archive, notes, i18n,
+                promptEnvironment());
     }
 
     /** Con la ricerca semantica attiva il modello riceve anche searchArchive; senza, solo i due tool storici. */
@@ -59,8 +87,24 @@ class SpringAiAssistantTest {
         ChatClient.Builder without = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         assistant(without, Optional.empty());
 
-        verify(withTool.defaultSystem(anyString())).defaultTools(any(), any(), any());
-        verify(without.defaultSystem(anyString())).defaultTools(any(), any());
+        verify(withTool.defaultSystem(anyString())).defaultTools(any(), any(), any(), any(), any(), any(), any());
+        verify(without.defaultSystem(anyString())).defaultTools(any(), any(), any(), any(), any());
+    }
+
+    /** Il prompt e' assemblato a sezioni: quella delarchivio e note ci sono solo se i rispettivi tool sono registrati. */
+    @Test
+    void theSystemPromptContainsTheArchiveSectionOnlyWithTheArchiveTool() {
+        ChatClient.Builder withTool = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
+        assistant(withTool, Optional.of(mock(ArchiveSearchTool.class)));
+        ChatClient.Builder without = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
+        assistant(without, Optional.empty());
+
+        org.mockito.ArgumentCaptor<String> prompt = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(withTool).defaultSystem(prompt.capture());
+        assertThat(prompt.getValue()).contains("SEZIONE-CORE", "SEZIONE-GUIDANCE", "SEZIONE-LIBRARY", "SEZIONE-ARCHIVE", "SEZIONE-EDIT", "SEZIONE-ACTIONS", "SEZIONE-NOTES", "SEZIONE-GENERATION", "contesto", "guida");
+        org.mockito.ArgumentCaptor<String> promptWithout = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(without).defaultSystem(promptWithout.capture());
+        assertThat(promptWithout.getValue()).contains("SEZIONE-CORE", "SEZIONE-LIBRARY", "SEZIONE-EDIT", "SEZIONE-ACTIONS").doesNotContain("SEZIONE-ARCHIVE", "SEZIONE-NOTES");
     }
 
     @Test
@@ -69,12 +113,12 @@ class SpringAiAssistantTest {
         ChatResponse chatResponse = new ChatResponse(
                 List.of(new org.springframework.ai.chat.model.Generation(new AssistantMessage("Ciao! Come posso aiutarti?"))),
                 ChatResponseMetadata.builder().build());
-        when(builder.defaultSystem(anyString()).defaultTools(any(), any()).build()
+        when(builder.defaultSystem(anyString()).defaultTools(any(), any(), any(), any(), any()).build()
                 .prompt().messages(anyList()).toolContext(anyMap()).call().chatResponse())
                 .thenReturn(chatResponse);
 
         ChatReply reply = assistant(builder, Optional.empty())
-                .respond(List.of(new ChatTurn("user", "ciao")), "owner/model", Map.of());
+                .respond(5L, List.of(new ChatTurn("user", "ciao")), "owner/model", Map.of());
 
         assertThat(reply.text()).isEqualTo("Ciao! Come posso aiutarti?");
         assertThat(reply.startedGenerationIds()).isEmpty();
@@ -85,13 +129,13 @@ class SpringAiAssistantTest {
     void respondWrapsAModelFailureInAnAssistantException() {
         ChatClient.Builder builder = mock(ChatClient.Builder.class, RETURNS_DEEP_STUBS);
         RuntimeException outage = new RuntimeException("OpenRouter giu'");
-        when(builder.defaultSystem(anyString()).defaultTools(any(), any()).build()
+        when(builder.defaultSystem(anyString()).defaultTools(any(), any(), any(), any(), any()).build()
                 .prompt().messages(anyList()).toolContext(anyMap()).call().chatResponse())
                 .thenThrow(outage);
         SpringAiAssistant assistant = assistant(builder, Optional.empty());
         List<ChatTurn> history = List.of(new ChatTurn("user", "ciao"));
 
-        assertThatThrownBy(() -> assistant.respond(history, "owner/model", Map.of()))
+        assertThatThrownBy(() -> assistant.respond(5L, history, "owner/model", Map.of()))
                 .isInstanceOfSatisfying(AssistantException.class, e -> {
                     assertThat(e.getCause()).isInstanceOf(OpenRouterException.class);
                     assertThat(e.getCause().getCause()).isSameAs(outage);

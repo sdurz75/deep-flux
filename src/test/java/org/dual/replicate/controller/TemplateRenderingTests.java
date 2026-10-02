@@ -72,6 +72,14 @@ class TemplateRenderingTests {
         mockMvc.perform(get("/generations/new")).andExpect(status().isOk());
     }
 
+    /** Il badge di build (fragments/core/build-badge.html) e' nel layout di ogni pagina intera: da classi sciolte l'ora c'e' sempre. */
+    @Test
+    void buildBadgeIsRenderedInTheLayout() throws Exception {
+        String page = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(page).containsPattern("fixed bottom-2 left-3[^>]*>\\s*<span>\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}</span>");
+    }
+
     /**
      * fragments/core/live-events.html non ha nomi di eventi hardcoded: li legge da app.push.client-events / reconnect-events
      * (core.push.PushModelAdvice), e "system-event" (toast) e' sempre gestito.
@@ -198,6 +206,34 @@ class TemplateRenderingTests {
         assertThat(chat).contains("data-persist-key=\"deepChat.generationSettings\"")
                 .contains("form[data-persist-key]").contains("window.setDeepChatSettings(event.detail)");
         assertThat(chat.indexOf("window.setDeepChatSettings(event.detail)")).isLessThan(chat.indexOf("form[data-persist-key]"));
+    }
+
+    /**
+     * Le azioni proposte dall'assistente (annulla/cancella/rigenera) hanno un template ciascuna: URL dell'app via @{...} (context path),
+     * conferma sulle sole azioni distruttive, nessun hx-* (vive nello shadow DOM di deep-chat) e classe chat-action pilotata dal client.
+     */
+    @Test
+    @Transactional
+    void deepChatRendersTheProposedActionButtons() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        String cancel = templateOf(chat, "chat-action-cancel-tpl");
+        assertThat(cancel).contains("class=\"chat-action\"", "data-action-type=\"CANCEL\"", "data-url=\"/generations/GENID/cancel\"",
+                "data-confirm=\"").doesNotContain("hx-post");
+        String delete = templateOf(chat, "chat-action-delete-tpl");
+        assertThat(delete).contains("data-action-type=\"DELETE\"", "data-url=\"/generations/GENID/delete\"", "data-confirm=\"");
+        String regenerate = templateOf(chat, "chat-action-regenerate-tpl");
+        assertThat(regenerate).contains("data-action-type=\"REGENERATE\"", "data-url=\"/generations/new\"", "ACTMODEL")
+                .doesNotContain("data-confirm");
+        assertThat(chat).contains("'chat-action': {");
+    }
+
+    private static String templateOf(String page, String id) {
+        int start = page.indexOf("<template id=\"" + id + "\">");
+        assertThat(start).as(id).isGreaterThanOrEqualTo(0);
+        return page.substring(start, page.indexOf("</template>", start));
     }
 
     /**
@@ -533,18 +569,89 @@ class TemplateRenderingTests {
                 .doesNotContain("href=\"/search\""); // ricerca semantica spenta nei test: niente link a una pagina inesistente
     }
 
-    /** Voci raggruppate in menu (Crea/Archivio/Sistema): gli stessi link stanno sia nella barra sia nello slideover. */
+    /**
+     * Azioni frequenti come link diretti (Deep Chat, Galleria), il resto in due menu (Crea/Gestione): gli stessi link stanno sia
+     * nella barra sia nello slideover. "Archivio" non esiste piu'.
+     */
     @Test
     void headerGroupsLinksIntoMenusInBarAndSlideover() throws Exception {
         String page = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String body = page.substring(page.indexOf("<header"), page.indexOf("</header>"));
 
-        assertThat(body).contains("Crea").contains("Archivio").contains("Sistema").contains("aria-haspopup=\"true\"");
+        assertThat(body).contains("Crea").contains("Gestione").doesNotContain("Archivio").doesNotContain("Sistema")
+                .contains("aria-haspopup=\"true\"");
         assertThat(body.split("href=\"/generations/new\\?kind=video\"", -1)).hasSize(3); // barra + slideover
+        assertThat(body.split("href=\"/deep-chat\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/gallery\"", -1)).hasSize(3);
+        assertThat(body.split("href=\"/generations\"", -1)).hasSize(3);
+        assertThat(body.split("href=\"/loras\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/system/events\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/tokens\"", -1)).hasSize(3); // da navSystemCore, composto dal nav dell'app
-        assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(7); // 3 menu x 2 contenitori
+        assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(5); // 2 menu x 2 contenitori
+    }
+
+    /** Estrae le breadcrumbs (il solo <nav> col loro aria-label) da una pagina. */
+    private String breadcrumbsOf(String page) {
+        int start = page.indexOf("<nav aria-label=\"Percorso\"");
+        assertThat(start).as("breadcrumbs presenti").isGreaterThanOrEqualTo(0);
+        return page.substring(start, page.indexOf("</nav>", start));
+    }
+
+    /** Ogni pagina tranne la Home mostra Home › [gruppo] › pagina, con la pagina corrente non linkata. */
+    @Test
+    void everyPageButHomeShowsBreadcrumbs() throws Exception {
+        assertThat(mockMvc.perform(get("/")).andReturn().getResponse().getContentAsString()).doesNotContain("aria-current=\"page\"");
+
+        String gallery = breadcrumbsOf(mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(gallery).contains("href=\"/\"").contains("Galleria").containsPattern("aria-current=\"page\"[^>]*>Galleria<");
+
+        String generations = breadcrumbsOf(mockMvc.perform(get("/generations")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(generations).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Generazioni<");
+
+        String image = breadcrumbsOf(mockMvc.perform(get("/generations/new")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(image).contains("Crea").containsPattern("aria-current=\"page\"[^>]*>Genera immagine<");
+        String video = breadcrumbsOf(mockMvc.perform(get("/generations/new").param("kind", "video")).andReturn().getResponse().getContentAsString());
+        assertThat(video).containsPattern("aria-current=\"page\"[^>]*>Genera video<");
+        String edit = breadcrumbsOf(mockMvc.perform(get("/generations/new").param("kind", "edit")).andReturn().getResponse().getContentAsString());
+        assertThat(edit).containsPattern("aria-current=\"page\"[^>]*>Modifica immagine<");
+
+        String loras = breadcrumbsOf(mockMvc.perform(get("/loras")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(loras).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>LoRA<");
+        String tokens = breadcrumbsOf(mockMvc.perform(get("/tokens")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(tokens).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Token<");
+        String events = breadcrumbsOf(mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(events).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Eventi di sistema<");
+    }
+
+    @Test
+    @Transactional
+    void deepChatShowsBreadcrumbs() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        String crumbs = breadcrumbsOf(mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+
+        assertThat(crumbs).containsPattern("aria-current=\"page\"[^>]*>Deep Flux<");
+    }
+
+    /** Il livello intermedio del dettaglio dipende da dove si arriva e sostituisce i vecchi link "Torna a...". */
+    @Test
+    @Transactional
+    void generationDetailBreadcrumbFollowsTheOrigin() throws Exception {
+        Generation g = new Generation("pred-bc", "owner/model", null, "p", null);
+        g.setStatus(GenerationStatus.SUCCEEDED);
+        g.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("bc-0.png")));
+        g = repository.save(g);
+        String url = "/generations/" + g.getId();
+
+        String page = mockMvc.perform(get(url)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(breadcrumbsOf(page)).contains("href=\"/gallery\"").containsPattern("aria-current=\"page\"[^>]*>Generazione #" + g.getId() + "<");
+        assertThat(page).doesNotContain("Torna a");
+
+        String fromList = breadcrumbsOf(mockMvc.perform(get(url).param("generationsPage", "2")).andReturn().getResponse().getContentAsString());
+        assertThat(fromList).contains("href=\"/generations?page=2\"").contains("Generazioni");
+
+        String fromChat = breadcrumbsOf(mockMvc.perform(get(url).param("conversationId", "7")).andReturn().getResponse().getContentAsString());
+        assertThat(fromChat).contains("href=\"/deep-chat/7\"").contains("Deep Flux");
     }
 
     /**
@@ -937,8 +1044,9 @@ class TemplateRenderingTests {
 
         String batchBody = mockMvc.perform(get("/generations/" + batch.getId()))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        // Un seed solo per il batch: riproduce solo la prima immagine, la seconda lo dichiara e non ha bottone.
-        assertThat(batchBody).contains("(batch)").contains("non riproducibile da sola");
+        // Un seed solo per il batch: riproduce solo la prima immagine, la seconda non mostra ne' seed ne' bottone.
+        assertThat(batchBody).contains("(batch)").doesNotContain("non riproducibile da sola");
+        assertThat(countOccurrences(batchBody, ">777<")).isEqualTo(1);
         assertThat(countOccurrences(batchBody, "data-shared-seed=\"777\"")).isEqualTo(1);
 
         Generation single = new Generation("pred-seed-3", "owner/model", null, "a fox", "{}", 5L);
@@ -1145,6 +1253,26 @@ class TemplateRenderingTests {
 
         String disabled = renderStatus(generation, true);
         assertThat(disabled).containsPattern("<button[^>]*\\sdisabled[\\s=>]").contains("cancelDisabled=true");
+    }
+
+    /** Un riquadro per file richiesto (num_outputs), ma UN solo bottone di annullamento; senza num_outputs un riquadro. */
+    @Test
+    void inProgressStatusRendersOneTilePerRequestedOutputButASingleCancelButton() {
+        Generation single = new Generation("pred-ph-2", "owner/model", null, "a fox", null);
+        single.setStatus(GenerationStatus.PROCESSING);
+        org.springframework.test.util.ReflectionTestUtils.setField(single, "id", 43L);
+        Generation triple = new Generation("pred-ph-3", "owner/model", null, "a fox", "{\"num_outputs\":3,\"seed\":7}");
+        triple.setStatus(GenerationStatus.PROCESSING);
+        org.springframework.test.util.ReflectionTestUtils.setField(triple, "id", 44L);
+
+        String one = renderStatus(single, false);
+        assertThat(one.split("aspect-ratio:1/1", -1).length - 1).isEqualTo(1);
+        assertThat(one.split("<button", -1).length - 1).isEqualTo(1);
+
+        String three = renderStatus(triple, false);
+        assertThat(three.split("aspect-ratio:1/1", -1).length - 1).isEqualTo(3);
+        assertThat(three.split("<button", -1).length - 1).isEqualTo(1);
+        assertThat(three).contains("hx-post=\"/generations/44/cancel");
     }
 
     /**

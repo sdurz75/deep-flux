@@ -263,4 +263,35 @@ class VectorIndexerTest {
     private static List<String> ids(VectorDocumentRepository.Listing listing) {
         return listing.documents().stream().map(org.dual.replicate.app.search.domain.IndexedDocument::id).toList();
     }
+
+    @Test
+    void kindAndFavouriteFiltersWorkOnSearchAndListAndAnUnchangedDocumentIsNotRewritten() {
+        Document image = Document.builder().id("generation:1").text("un faro").metadata(Map.of("type", "generation", "refId", 1L,
+                "kind", "IMAGE", "favourite", true, "outputs", 2, "files", List.of("a.png", "b.png"))).build();
+        Document video = Document.builder().id("generation:2").text("un faro").metadata(Map.of("type", "generation", "refId", 2L,
+                "kind", "VIDEO", "favourite", false, "outputs", 1, "files", List.of("c.mp4"))).build();
+        add(image, video, doc("note:1", "un faro", "note", 3));
+
+        var favouriteImages = org.dual.replicate.app.search.domain.DocumentFilter.NONE;
+        favouriteImages = new org.dual.replicate.app.search.domain.DocumentFilter(null, null, null, "IMAGE", true);
+        var onlyVideos = new org.dual.replicate.app.search.domain.DocumentFilter(null, null, null, "VIDEO", false);
+        var onlyFavourites = new org.dual.replicate.app.search.domain.DocumentFilter(null, null, null, null, true);
+
+        assertThat(search(SearchRequest.builder().query("faro").topK(10).filterExpression(PgVectorIndex.expression(favouriteImages)).build()))
+                .extracting(Document::getId).containsExactly("generation:1");
+        assertThat(repository.list(PgVectorIndex.expression(onlyVideos), 1, 10).documents()).extracting(d -> d.id()).containsExactly("generation:2");
+        assertThat(repository.list(PgVectorIndex.expression(onlyFavourites), 1, 10).documents()).extracting(d -> d.id()).containsExactly("generation:1");
+        // liste/booleani/interi sopravvivono al round-trip JSON
+        assertThat(repository.find("generation:1").orElseThrow().metadata()).containsEntry("files", List.of("a.png", "b.png"))
+                .containsEntry("favourite", true);
+
+        // una seconda riconciliazione con gli stessi dati non riscrive nulla (nessun churn per i tipi nuovi)
+        long before = indexedAt("generation:1");
+        add(image, video);
+        assertThat(indexedAt("generation:1")).isEqualTo(before);
+    }
+
+    private long indexedAt(String id) {
+        return ((Number) repository.find(id).orElseThrow().metadata().get("indexedAt")).longValue();
+    }
 }

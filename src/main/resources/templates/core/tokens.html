@@ -5,6 +5,9 @@
     <title th:text="#{tokens.title}">Token</title>
 </head>
 <body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{tokens.title})}"></nav>
+</div>
 <div layout:fragment="content">
     <!--
       Dialog Pines UI per creare E modificare un token (stessa meccanica del dialog note di search.html): `dialogOpen` e' lo stato

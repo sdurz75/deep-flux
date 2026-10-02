@@ -8,6 +8,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -202,6 +204,20 @@ public class Generation {
 
     public String getParametersJson() {
         return parametersJson;
+    }
+
+    private static final Pattern NUM_OUTPUTS = Pattern.compile("\"num_outputs\"\\s*:\\s*(\\d{1,3})");
+
+    /**
+     * Quanti file la richiesta ha chiesto a Replicate ({@code num_outputs} in {@link #parametersJson}, 1 se assente: video, edit,
+     * modelli a immagine singola). Serve al placeholder di una generazione in corso, che mostra un riquadro per file atteso.
+     */
+    public int getRequestedOutputs() {
+        if (parametersJson == null) {
+            return 1;
+        }
+        Matcher matcher = NUM_OUTPUTS.matcher(parametersJson);
+        return matcher.find() ? Math.max(1, Integer.parseInt(matcher.group(1))) : 1;
     }
 
     public Long getSeed() {

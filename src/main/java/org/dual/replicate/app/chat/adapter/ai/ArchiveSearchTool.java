@@ -71,7 +71,7 @@ public class ArchiveSearchTool {
         String type = String.valueOf(metadata.get("type"));
         Object refId = metadata.get("refId");
         Object conversationId = metadata.get("conversationId");
-        String text = result.document().text().replaceAll("\\s+", " ");
+        String text = DocumentTypes.visibleText(result.document().text()).replaceAll("\\s+", " ");
         String snippet = text.length() > SNIPPET ? text.substring(0, SNIPPET) + "…" : text;
         return switch (type) {
             case DocumentTypes.GENERATION -> "- [generation #%s] (/generations/%s) %s".formatted(refId, refId, snippet);

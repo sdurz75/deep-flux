@@ -26,6 +26,7 @@ import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.generation.application.TokenInputResolver;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.app.generation.domain.event.GenerationFavouriteToggledEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.core.kernel.Paged;
@@ -782,6 +783,7 @@ public class GenerationService implements IGenerations {
         }
         generation.setFavouriteFilenames(favourites);
         repository.save(generation);
+        eventPublisher.publishEvent(new GenerationFavouriteToggledEvent(generationId));
         return nowFavourite;
     }
 

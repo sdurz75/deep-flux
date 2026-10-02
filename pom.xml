@@ -26,6 +26,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Commit mostrato nel badge di un jar (build-info, vedi sotto); unknown = non mostrato. -->
+        <build.commit>unknown</build.commit>
         <spring-ai.version>2.0.1</spring-ai.version>
         <!-- Tailwind standalone CLI (profilo "tailwind"). v3 come il Play CDN. -->
         <tailwind.version>3.4.17</tailwind.version>
@@ -192,6 +194,21 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <!-- META-INF/build-info.properties (BuildProperties): ora e commit della build nel badge, vedi core.web.BuildInfo.
+                         Il commit non e' calcolato (il plugin git-commit-id non e' raggiungibile dal mirror): per un jar con
+                         commit passare -Dbuild.commit=<hash abbreviato> (l'hash abbreviato di HEAD, ricavabile con git rev-parse). -->
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                        <configuration>
+                            <additionalProperties>
+                                <commit>${build.commit}</commit>
+                            </additionalProperties>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!--

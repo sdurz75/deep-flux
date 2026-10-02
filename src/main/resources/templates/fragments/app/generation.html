@@ -27,7 +27,7 @@
          hx-trigger="every 2s"
          hx-swap="outerHTML">
         <div th:replace="~{fragments/app/generation-placeholder :: placeholder(generationId=${generation.id}, conversationId=${conversationId},
-                    generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled})}"></div>
+                    generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled}, count=${generation.requestedOutputs})}"></div>
     </div>
 
     <div id="generation-status" th:if="${generation.status.name() == 'SUCCEEDED'}">

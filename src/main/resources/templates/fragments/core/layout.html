@@ -52,6 +52,8 @@
     <script src="https://unpkg.com/@alpinejs/focus@3.14.3/dist/cdn.min.js" defer></script>
     <!-- Plugin Alpine richiesto da x-collapse (usato dall'accordion di Pines UI in fragments/app/accordion.html): stessa regola di ordine/defer del plugin focus sopra. -->
     <script src="https://unpkg.com/@alpinejs/collapse@3.14.3/dist/cdn.min.js" defer></script>
+    <!-- Plugin Alpine richiesto da x-intersect (miniature video di /search caricate solo quando entrano nel viewport, fragments/app/search.html): stessa regola di ordine/defer. -->
+    <script src="https://unpkg.com/@alpinejs/intersect@3.14.3/dist/cdn.min.js" defer></script>
     <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
 
     <!--
@@ -166,6 +168,7 @@
 
 <div th:replace="~{fragments/core/busy-overlay :: container}"></div>
 <div th:replace="~{fragments/core/toast :: container}"></div>
+<div th:replace="~{fragments/core/build-badge :: badge}"></div>
 
 </body>
 </html>

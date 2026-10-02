@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Breadcrumbs, da mettere nello slot `layout:fragment="breadcrumbs"` di ogni pagina (tranne la Home):
+    <div layout:fragment="breadcrumbs">
+        <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=..., parentPath=..., parentText=..., current=...)}"></nav>
+    </div>
+  Percorso: Home › group › parent › current. Tutti i parametri vanno passati (gli inutilizzati a null).
+  - group: etichetta del menu di navigazione a cui la pagina appartiene (es. #{header.menu.manage}); solo testo, un menu non e' una pagina.
+  - parentPath/parentText: un solo livello intermedio linkato (es. dal dettaglio di una generazione alla galleria da cui si arriva).
+  - current: la pagina corrente, non linkata (aria-current="page").
+  parentPath va passato come stringa letterale grezza (es. '/gallery'), MAI gia' avvolta in @{...} dal chiamante: la avvolge questo
+  fragment, una volta sola (stesso contratto di header :: navLink, per non applicare due volte il prefisso di un reverse proxy).
+-->
+<nav th:fragment="trail(group, parentPath, parentText, current)" th:aria-label="#{breadcrumbs.label}"
+     class="mb-4 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">
+    <ol class="flex flex-wrap items-center gap-x-1.5 gap-y-1 list-none p-0 m-0">
+        <li><a th:href="@{/}" th:text="#{breadcrumbs.home}"
+               class="no-underline text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Home</a></li>
+        <li th:if="${group != null}" class="flex items-center gap-1.5">
+            <span aria-hidden="true">&rsaquo;</span><span th:text="${group}">Gruppo</span>
+        </li>
+        <li th:if="${parentPath != null}" class="flex items-center gap-1.5">
+            <span aria-hidden="true">&rsaquo;</span>
+            <a th:href="@{${parentPath}}" th:text="${parentText}"
+               class="no-underline text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">Padre</a>
+        </li>
+        <li class="flex items-center gap-1.5">
+            <span aria-hidden="true">&rsaquo;</span>
+            <span aria-current="page" class="text-ink dark:text-ink-dark" th:text="${current}">Pagina</span>
+        </li>
+    </ol>
+</nav>
+
+</body>
+</html>

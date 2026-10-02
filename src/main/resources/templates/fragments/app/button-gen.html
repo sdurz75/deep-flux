@@ -106,6 +106,21 @@
                color:rgb(220,38,38);cursor:pointer;font-size:0.85rem"
         th:text="${disabled} ? ${disabledText} : ${text}">Interrompi</button>
 
+<!--
+  Bottone di un'azione PROPOSTA dall'assistente in chat (ActionProposalTool): annulla, cancella, rigenera. Come "Interrompi", vive nello
+  shadow DOM di <deep-chat>: stili INLINE e click via htmlClassUtilities 'chat-action' in deep-chat.html (qui nessun hx-*). Renderizzato
+  una volta per tipo in un <template> con generationId='GENID' (e, per la rigenerazione, i segnaposto del prompt/seed riempiti dal client).
+  url: endpoint da chiamare con POST (annulla/cancella) o pagina da aprire (rigenera); confirmText null = nessuna conferma (rigenera
+  apre solo una form: la prediction parte dal "Genera" li'). danger: bordo rosso per le azioni distruttive.
+-->
+<button th:fragment="chatAction(type, text, doneText, failedText, confirmText, url, danger)"
+        type="button" class="chat-action"
+        th:data-action-type="${type}" th:data-url="${url}" th:data-confirm="${confirmText}"
+        th:data-done-text="${doneText}" th:data-failed-text="${failedText}"
+        th:style="${danger} ? 'padding:4px 12px;border-radius:6px;border:1px solid rgba(220,38,38,0.8);background:transparent;color:rgb(220,38,38);cursor:pointer;font-size:0.85rem'
+                            : 'padding:4px 12px;border-radius:6px;border:1px solid rgba(128,128,128,0.6);background:transparent;color:inherit;cursor:pointer;font-size:0.85rem'"
+        th:text="${text}">Azione</button>
+
 <!-- Nascondi/mostra le immagini di un risultato in chat (shadow DOM di <deep-chat>: stili INLINE, click via htmlClassUtilities 'gen-toggle' in deep-chat.html). -->
 <button th:fragment="galleryToggle(text, hideText, showText)"
         type="button" class="gen-toggle"

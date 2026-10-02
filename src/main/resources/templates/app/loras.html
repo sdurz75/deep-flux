@@ -5,6 +5,9 @@
     <title th:text="#{loras.title}">LoRA</title>
 </head>
 <body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{loras.title})}"></nav>
+</div>
 <div layout:fragment="content">
     <!--
       Dialog Pines UI per creare E modificare un LoRA anagrafato (stessa meccanica di tokens.html): `dialogOpen` e' lo stato

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.dual.replicate.app.chat.domain.AssistantException;
+import org.dual.replicate.app.chat.domain.ChatAction;
 import org.dual.replicate.app.chat.domain.ChatConversation;
 import org.dual.replicate.app.chat.domain.ChatMessage;
 import org.dual.replicate.app.chat.domain.ChatMessageRole;
@@ -80,7 +81,7 @@ class ChatServiceTest {
         when(conversations.findById(7L)).thenReturn(Optional.of(conversation));
         when(conversations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         List<ChatTurn> history = List.of(new ChatTurn("user", "Genera un gatto arancione"));
-        when(assistant.respond(history, "owner/model", Map.of())).thenReturn(new ChatReply("Ciao! Come posso aiutarti?", List.of()));
+        when(assistant.respond(any(), eq(history), eq("owner/model"), eq(Map.of()))).thenReturn(new ChatReply("Ciao! Come posso aiutarti?", List.of()));
 
         ChatReply reply = service().reply(7L, history, "owner/model", Map.of());
 
@@ -97,13 +98,28 @@ class ChatServiceTest {
         ChatConversation conversation = new ChatConversation();
         when(conversations.findById(7L)).thenReturn(Optional.of(conversation));
         when(conversations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assistant.respond(any(), any(), anyMap())).thenReturn(new ChatReply("Sto generando", List.of(42L)));
+        when(assistant.respond(any(), any(), any(), anyMap())).thenReturn(new ChatReply("Sto generando", List.of(42L)));
 
         ChatReply reply = service().reply(7L, List.of(new ChatTurn("user", "genera")), "owner/model", Map.of());
 
         assertThat(reply.startedGenerationIds()).containsExactly(42L);
         verify(generations).attachToConversation(eq(42L), any());
         verify(generationWatcher).watch(eq(42L), any(), any());
+    }
+
+    /** Le azioni proposte dall'assistente arrivano alla risposta cosi' come sono: il turno non ne esegue nessuna. */
+    @Test
+    void replyPassesTheProposedActionsThrough() {
+        ChatConversation conversation = new ChatConversation();
+        when(conversations.findById(7L)).thenReturn(Optional.of(conversation));
+        when(conversations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(assistant.respond(any(), any(), any(), anyMap()))
+                .thenReturn(new ChatReply("Preparato", List.of(), List.of(ChatAction.delete(12L))));
+
+        ChatReply reply = service().reply(7L, List.of(new ChatTurn("user", "cancella la 12")), "owner/model", Map.of());
+
+        assertThat(reply.actions()).containsExactly(ChatAction.delete(12L));
+        org.mockito.Mockito.verifyNoInteractions(generations);
     }
 
     /**
@@ -117,7 +133,7 @@ class ChatServiceTest {
         ChatConversation conversation = new ChatConversation();
         when(conversations.findById(7L)).thenReturn(Optional.of(conversation));
         when(conversations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assistant.respond(any(), any(), anyMap())).thenThrow(new AssistantException(outage, List.of(9L)));
+        when(assistant.respond(any(), any(), any(), anyMap())).thenThrow(new AssistantException(outage, List.of(9L)));
         when(i18n.get(eq("deepchat.error.contactAssistant"), any())).thenReturn("Errore assistente");
 
         assertThatThrownBy(() -> service().reply(7L, List.of(new ChatTurn("user", "ciao")), "owner/model", Map.of()))

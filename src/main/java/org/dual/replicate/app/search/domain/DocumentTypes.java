@@ -11,9 +11,24 @@ public final class DocumentTypes {
     /** ~512 token del modello: oltre, il tokenizer tronca comunque. */
     public static final int MAX_CHARS = 1800;
 
+    /**
+     * Separatore fra il testo "vero" di un documento e le sue tag d'indice (vocabolario che serve solo all'embedding: tipo di media,
+     * modello, orientamento...). Le tag NON sono testo per l'utente: la UI e il tool della chat mostrano {@link #visibleText}.
+     */
+    public static final String TAGS_SEPARATOR = "\n\n#tags: ";
+
     private static final String NOTE_ID_PREFIX = "note:";
 
     private DocumentTypes() {
+    }
+
+    /** Il testo senza le tag d'indice (invariato se non ne ha). */
+    public static String visibleText(String content) {
+        if (content == null) {
+            return null;
+        }
+        int at = content.indexOf(TAGS_SEPARATOR);
+        return at < 0 ? content : content.substring(0, at);
     }
 
     public static String newNoteId(String uuid) {

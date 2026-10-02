@@ -5,6 +5,9 @@
     <title th:text="#{events.title}">Eventi di sistema</title>
 </head>
 <body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{events.title})}"></nav>
+</div>
 <div layout:fragment="content">
     <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
         <h1 th:text="#{events.title}">Eventi di sistema</h1>

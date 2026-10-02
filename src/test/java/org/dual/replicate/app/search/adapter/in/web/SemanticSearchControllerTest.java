@@ -6,6 +6,7 @@ import java.util.Map;
 import org.dual.replicate.app.search.adapter.out.vector.FakeEmbeddingModel;
 import org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository;
 import org.dual.replicate.app.search.adapter.out.vector.VectorIndexer;
+import org.dual.replicate.app.search.domain.DocumentTypes;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * /search con la ricerca semantica ATTIVA ma un embedding finto (mai il modello vero): pagina e fragment, ricerca con punteggi,
  * note modificabili, derivati in sola lettura.
  */
-@SpringBootTest(properties = "app.search.enabled=true")
+// soglia 0: l'embedding finto non ha punteggi significativi (il default reale, 80, e' provato in SemanticSearchDefaultThresholdTest)
+@SpringBootTest(properties = {"app.search.enabled=true", "app.search.similarity-threshold-percent=0"})
 @AutoConfigureMockMvc
 @Import(SemanticSearchControllerTest.FakeEmbedding.class)
 class SemanticSearchControllerTest {
@@ -134,12 +136,55 @@ class SemanticSearchControllerTest {
         String rankedSecond = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01").param("page", "2"));
 
         assertThat(first).contains("25 risultati").contains("castello numero 24").doesNotContain("altro tipo")
-                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;page=2");
+                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;page=2");
         assertThat(second).contains("castello numero").doesNotContain("page=3");
         assertThat(ranked).contains("Somiglianza").contains("25 risultati")
-                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;page=2");
+                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;page=2");
         assertThat(rankedSecond).contains("castello numero").doesNotContain("page=3");
         mockMvc.perform(get("/search/list/chat")).andExpect(status().is4xxClientError());
+    }
+
+    private void artifact(String id, long refId, String prompt, String kind, boolean favourite, List<String> files) {
+        indexer.upsertIfChanged(List.of(Document.builder().id(id).text(prompt + DocumentTypes.TAGS_SEPARATOR + "tag-interno-xyz")
+                .metadata(Map.of("type", "generation", "refId", refId, "kind", kind, "model", "owner/modello-x", "favourite", favourite,
+                        "files", files, "favouriteFiles", favourite ? files : List.of()))
+                .build()));
+    }
+
+    @Test
+    void generationHitsShowTheirThumbnailsAndBadgesButNotTheIndexTags() throws Exception {
+        artifact("generation:901", 901, "una volpe nella neve", "IMAGE", true, List.of("volpe-a.png", "volpe-b.png"));
+        artifact("generation:902", 902, "una volpe che corre", "VIDEO", false, List.of("volpe.mp4"));
+
+        String html = body(get("/search/results").param("q", "volpe"));
+
+        assertThat(html).contains("/images/volpe-a.png").contains("/images/volpe-b.png").contains("<video").contains("/images/volpe.mp4")
+                .contains("href=\"/generations/901\"").contains("owner/modello-x").contains("una volpe nella neve")
+                // la riga mostra il prompt; le tag d'indice restano solo nel <pre> "Dettagli" (vista admin)
+                .contains("Immagine").contains("Video");
+        String preview = html.substring(0, html.indexOf("<details"));
+        assertThat(preview).doesNotContain("tag-interno-xyz");
+    }
+
+    @Test
+    void mediaAndFavouriteFiltersNarrowToGenerationsAndKeepTheirValueInThePageLinks() throws Exception {
+        artifact("generation:911", 911, "un faro sul mare", "IMAGE", true, List.of("faro.png"));
+        artifact("generation:912", 912, "un faro di notte", "VIDEO", false, List.of("faro.mp4"));
+        artifact("generation:913", 913, "un faro in tempesta", "IMAGE", false, List.of("faro2.png"));
+        indexer.upsertIfChanged(List.of(Document.builder().id("note:faro").text("appunto sul faro").metadata(Map.of("type", "note", "refId", 5L)).build()));
+
+        String images = body(get("/search/results").param("q", "faro").param("media", "image"));
+        String videos = body(get("/search/results").param("q", "faro").param("media", "video"));
+        String favourites = body(get("/search/results").param("q", "faro").param("favourites", "true"));
+        String browseVideos = body(get("/search/results").param("media", "video"));
+
+        assertThat(images).contains("un faro sul mare").contains("un faro in tempesta").doesNotContain("un faro di notte").doesNotContain("appunto sul faro");
+        assertThat(videos).contains("un faro di notte").doesNotContain("un faro sul mare").doesNotContain("appunto sul faro");
+        assertThat(favourites).contains("un faro sul mare").doesNotContain("un faro in tempesta").doesNotContain("appunto sul faro");
+        assertThat(browseVideos).contains("un faro di notte").doesNotContain("un faro sul mare");
+        assertThat(body(get("/search/results").param("q", "faro").param("media", "video").param("favourites", "true"))).contains("Nessun risultato");
+        // la form espone i due controlli
+        assertThat(mockMvc.perform(get("/search")).andReturn().getResponse().getContentAsString()).contains("name=\"media\"").contains("name=\"favourites\"");
     }
 
     @Test
