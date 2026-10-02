@@ -12,6 +12,7 @@ import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.app.chat.application.ChatGenerationWatcher;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
@@ -82,9 +83,15 @@ class GenerationServiceTest {
         return IGenerations.CreateCommand.of(model, null, prompt, parameters);
     }
 
-    private static IGenerations.CreateCommand command(String model, String prompt, Map<String, Object> parameters,
-                                                      Long sourceGenerationId, String sourceImage, String sourceUpload) {
-        return new IGenerations.CreateCommand(model, null, prompt, parameters, sourceGenerationId, sourceImage, sourceUpload);
+    /** {@code storedUploadName} = il nome con cui lo storage salvera' l'upload (finto) caricato con il comando; null = nessun upload. */
+    private IGenerations.CreateCommand command(String model, String prompt, Map<String, Object> parameters,
+                                               Long sourceGenerationId, String sourceImage, String storedUploadName) {
+        UploadedFile upload = null;
+        if (storedUploadName != null) {
+            upload = UploadedFile.of("foto.png", new byte[]{1, 2, 3});
+            when(imageStorageService.storeUpload(upload)).thenReturn(storedUploadName);
+        }
+        return new IGenerations.CreateCommand(model, null, prompt, parameters, sourceGenerationId, sourceImage, upload);
     }
 
     @Test
@@ -180,6 +187,7 @@ class GenerationServiceTest {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
 
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
@@ -227,6 +235,7 @@ class GenerationServiceTest {
     void createForVideoWithSourceSendsImageButDoesNotPersistItInParametersJson() {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
@@ -287,6 +296,7 @@ class GenerationServiceTest {
     void createForVideoUsesTheChosenSourceImage() {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png", "7-1.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("7-1.png")).thenReturn("data:image/png;base64,BBBB");
@@ -310,6 +320,7 @@ class GenerationServiceTest {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
         formTypeOf("prunaai/p-video", GenerationFormType.P_VIDEO);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("gone.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("gone.png"))
@@ -864,6 +875,7 @@ class GenerationServiceTest {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
 
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
         when(repository.findById(7L)).thenReturn(java.util.Optional.of(source));
         when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
@@ -904,6 +916,7 @@ class GenerationServiceTest {
         formTypeOf("prunaai/p-video", GenerationFormType.P_VIDEO);
         formTypeOf("black-forest-labs/flux-kontext-dev", GenerationFormType.FLUX_KONTEXT_DEV);
         Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
         source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
         when(repository.findById(7L)).thenReturn(Optional.of(source));
         when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,AAAA");
@@ -920,7 +933,7 @@ class GenerationServiceTest {
         assertThat(textToVideo.getParametersJson()).contains("aspect_ratio");
     }
 
-    /** Un modello senza sorgente ignora quella ricevuta, e un upload che nessuna Generation possiede viene eliminato. */
+    /** Un modello senza sorgente ignora quella ricevuta, e un upload per un modello che non la prende non viene nemmeno salvato. */
     @Test
     void createIgnoresTheSourceForAModelThatTakesNone() {
         GenerationService service = newService();
@@ -928,8 +941,10 @@ class GenerationServiceTest {
         when(replicateClient.createPrediction(anyString(), any(), any()))
                 .thenReturn(new Prediction("pred-t", "starting", null, null, null, null));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        IGenerations.CreateCommand command = new IGenerations.CreateCommand("black-forest-labs/flux-krea-dev", null, "a cat", null,
+                7L, "7-0.png", UploadedFile.of("foto.png", new byte[]{1, 2, 3}));
 
-        Generation result = service.create(command("black-forest-labs/flux-krea-dev", "a cat", null, 7L, "7-0.png", "upload-z.png"));
+        Generation result = service.create(command);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
@@ -937,8 +952,43 @@ class GenerationServiceTest {
         assertThat(inputCaptor.getValue()).doesNotContainKeys("image", "input_image");
         assertThat(result.getSourceGenerationId()).isNull();
         assertThat(result.getSourceUploadFilename()).isNull();
-        verify(imageStorageService).delete("upload-z.png");
+        verify(imageStorageService, never()).storeUpload(any());
         verify(imageStorageService, never()).readAsDataUri(anyString());
+    }
+
+    /** Solo un'immagine RIUSCITA e' una sorgente valida: un video, una generazione in corso o fallita e' "sorgente mancante", mai un text-to-video silenzioso. */
+    @Test
+    void createRejectsASourceThatIsNotAFinishedImage() {
+        GenerationService service = newService();
+        formTypeOf("prunaai/p-video", GenerationFormType.P_VIDEO);
+        Generation running = new Generation("pred-src", "owner/model", null, "a cat", null);
+        running.setStatus(GenerationStatus.PROCESSING);
+        running.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(running));
+
+        assertThatThrownBy(() -> service.create(command("prunaai/p-video", "walks", null, 7L, "7-0.png", null)))
+                .isInstanceOf(ReplicateException.class);
+        verify(replicateClient, never()).createPrediction(anyString(), any(), any());
+    }
+
+    @Test
+    void findAnimatableSourceRequiresAFinishedImageThatOwnsTheFile() {
+        GenerationService service = newService();
+        Generation done = new Generation("pred-src", "owner/model", null, "a cat", null);
+        done.setStatus(GenerationStatus.SUCCEEDED);
+        done.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        Generation video = new Generation("pred-vid", "prunaai/p-video", null, "walks", null);
+        video.setKind(GenerationKind.VIDEO);
+        video.setStatus(GenerationStatus.SUCCEEDED);
+        video.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("8-0.mp4")));
+        when(repository.findById(7L)).thenReturn(java.util.Optional.of(done));
+        when(repository.findById(8L)).thenReturn(java.util.Optional.of(video));
+
+        assertThat(service.findAnimatableSource(7L, "7-0.png")).contains(done);
+        assertThat(service.findAnimatableSource(7L, "other.png")).isEmpty();
+        assertThat(service.findAnimatableSource(7L, null)).isEmpty();
+        assertThat(service.findAnimatableSource(null, "7-0.png")).isEmpty();
+        assertThat(service.findAnimatableSource(8L, "8-0.mp4")).isEmpty();
     }
 
     /** Nessun parametro (o mappa vuota) = nessun parametersJson: niente "Parametri: {}" nel dettaglio. */

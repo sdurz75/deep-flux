@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.kernel.Paged;
 
 /**
@@ -21,11 +22,12 @@ public interface IGenerations {
     /**
      * Richiesta di una nuova generazione. {@code parameters} sono i parametri del modello gia' tipizzati (Long/Double/Boolean/
      * String), nel vocabolario del provider; i campi di una form HTML li converte l'interface layer, non questa porta.
-     * {@code sourceGenerationId}+{@code sourceImage} o {@code sourceUploadFilename} (upload, ha la precedenza) sono
-     * l'immagine sorgente, ignorata dai modelli che non ne prendono una.
+     * {@code sourceGenerationId}+{@code sourceImage} o {@code sourceUpload} (il file caricato, ha la precedenza: lo salva il
+     * servizio e lo elimina se la creazione fallisce) sono l'immagine sorgente, ignorata dai modelli che non ne prendono una.
+     * Un upload vuoto ({@code size == 0}) equivale a nessun upload.
      */
     record CreateCommand(String model, String version, String prompt, Map<String, Object> parameters,
-                         Long sourceGenerationId, String sourceImage, String sourceUploadFilename) {
+                         Long sourceGenerationId, String sourceImage, UploadedFile sourceUpload) {
 
         /** Generazione senza sorgente (il tool della chat). */
         public static CreateCommand of(String model, String version, String prompt, Map<String, Object> parameters) {
@@ -38,6 +40,13 @@ public interface IGenerations {
      * assente e' un errore prima di chiamare il provider) li decide il form-type del modello, non il chiamante.
      */
     Generation create(CreateCommand command);
+
+    /**
+     * La generazione immagine completata che si puo' animare o modificare, solo se {@code image} e' uno dei suoi file; vuoto se non
+     * esiste, non e' un'immagine riuscita o il file non le appartiene (la UI ignora allora la sorgente). La stessa regola vale in
+     * {@link #create}.
+     */
+    Optional<Generation> findAnimatableSource(Long id, String image);
 
     /** Fa avanzare lo stato interrogando il provider (scarica se pronta, fallisce se scaduta o cancellata). */
     Generation refresh(Long id);

@@ -10,9 +10,11 @@ import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.storage.adapter.out.http.HttpFileFetcher;
 import org.dual.replicate.core.storage.adapter.out.local.LocalFsBlobBackend;
+import org.dual.replicate.core.storage.adapter.out.local.LocalFsImportSource;
 import org.dual.replicate.core.storage.adapter.out.webdav.FakeWebDavServer;
 import org.dual.replicate.core.storage.adapter.out.webdav.WebDavBlobBackend;
 import org.dual.replicate.core.storage.domain.StorageNames;
+import org.dual.replicate.core.storage.port.in.IBlobMigration;
 import org.dual.replicate.core.storage.port.out.IBlobImportTarget;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,14 +80,14 @@ class LocalToWebDavMigratorTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<IBlobImportTarget> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(webdav);
-        return new LocalToWebDavMigrator(provider, systemEvents, images.toString(), deleteLocal);
+        return new LocalToWebDavMigrator(new LocalFsImportSource(images.toString()), provider, systemEvents, deleteLocal);
     }
 
     @Test
     void migratesEveryFileEncryptedAndKeepsTheLocalOnes() throws IOException {
         var result = migrator(false).migrate();
 
-        assertThat(result).isEqualTo(new LocalToWebDavMigrator.Result(3, 0, 0, 0, photo.length + 5 + 3));
+        assertThat(result).isEqualTo(new IBlobMigration.Result(3, 0, 0, 0, photo.length + 5 + 3));
         assertThat(dav.store).containsOnlyKeys(dav("1-0.png"), dav("2-0.mp4"), dav("upload-abc.jpg"));
         assertThat(dav.store.get(dav("1-0.png"))).isNotEqualTo(photo);
         assertThat(storage.read("1-0.png").bytes()).isEqualTo(photo);
@@ -100,7 +102,7 @@ class LocalToWebDavMigratorTest {
 
         var second = migrator(false).migrate();
 
-        assertThat(second).isEqualTo(new LocalToWebDavMigrator.Result(0, 3, 0, 0, 0));
+        assertThat(second).isEqualTo(new IBlobMigration.Result(0, 3, 0, 0, 0));
         assertThat(dav.store).hasSize(putsAfterFirstRun);
     }
 
@@ -155,7 +157,7 @@ class LocalToWebDavMigratorTest {
     void aMissingSourceDirectoryIsANoOp() {
         LocalToWebDavMigrator migrator = migratorFor(tmp.resolve("does-not-exist"));
 
-        assertThat(migrator.migrate()).isEqualTo(new LocalToWebDavMigrator.Result(0, 0, 0, 0, 0));
+        assertThat(migrator.migrate()).isEqualTo(new IBlobMigration.Result(0, 0, 0, 0, 0));
         verify(systemEvents, never()).record(any(), anyString(), any(Throwable.class));
     }
 
@@ -165,7 +167,7 @@ class LocalToWebDavMigratorTest {
         ObjectProvider<IBlobImportTarget> none = mock(ObjectProvider.class);
         when(none.getIfAvailable()).thenReturn(null);
 
-        assertThatThrownBy(() -> new LocalToWebDavMigrator(none, systemEvents, images.toString(), false))
+        assertThatThrownBy(() -> new LocalToWebDavMigrator(new LocalFsImportSource(images.toString()), none, systemEvents, false))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -173,7 +175,7 @@ class LocalToWebDavMigratorTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<IBlobImportTarget> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(webdav);
-        return new LocalToWebDavMigrator(provider, systemEvents, dir.toString(), false);
+        return new LocalToWebDavMigrator(new LocalFsImportSource(dir.toString()), provider, systemEvents, false);
     }
 
     private static String dav(String filename) {

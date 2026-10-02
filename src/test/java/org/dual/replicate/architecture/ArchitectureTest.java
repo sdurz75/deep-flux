@@ -64,6 +64,19 @@ class ArchitectureTest {
                     "org.springframework.data..", "org.springframework.jdbc..", "java.sql..", "jakarta.servlet..", "java.net.http..")
             .allowEmptyShould(true);
 
+    /** I use case non fanno I/O su file ne' elaborazione di immagini: stanno dietro una porta (es. {@code IBlobImportSource}, {@code ISourceImageScaler}). */
+    @ArchTest
+    static final ArchRule applicationDoesNotDoFileOrImageIo = noClasses()
+            .that().resideInAnyPackage(ROOT + ".core..application..", ROOT + ".app..application..")
+            .should().dependOnClassesThat().resideInAnyPackage("javax.imageio..", "java.awt..")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.nio.file.Files")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.nio.file.Paths")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.nio.file.FileSystems")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.File")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.FileInputStream")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.FileOutputStream")
+            .allowEmptyShould(true);
+
     @ArchTest
     static final ArchRule portsDependOnlyOnDomain = classes()
             .that().resideInAnyPackage(ROOT + ".core..port..", ROOT + ".app..port..")

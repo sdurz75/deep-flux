@@ -1,5 +1,6 @@
 package org.dual.replicate.core.storage.application;
 
+import org.dual.replicate.core.storage.adapter.in.scheduling.LocalToWebDavMigrationStarter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,7 +22,8 @@ class LocalToWebDavMigratorWiringTest {
     private ApplicationContext context;
 
     @Test
-    void migratorIsRegisteredWhenEnabled() {
+    void migratorAndItsStarterAreRegisteredWhenEnabled() {
         assertThat(context.getBeansOfType(LocalToWebDavMigrator.class)).hasSize(1);
+        assertThat(context.getBeansOfType(LocalToWebDavMigrationStarter.class)).hasSize(1);
     }
 }

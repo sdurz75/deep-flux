@@ -15,7 +15,6 @@ import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.GenerationKind;
-import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.domain.ReplicateException;
@@ -146,7 +145,8 @@ public class GenerationController {
                           @RequestParam(required = false) MultipartFile sourceUpload,
                           @RequestParam Map<String, String> allParams,
                           Model uiModel, HttpServletResponse response) {
-        Generation sourceGeneration = sourceGenerationId == null ? null : animatableSource(sourceGenerationId, sourceImage);
+        // Solo per ri-renderizzare la form (anteprima della sorgente): la regola e la precedenza upload > sorgente sono in IGenerations#create.
+        Generation sourceGeneration = animatableSource(sourceGenerationId, sourceImage);
         if (sourceGeneration != null) {
             uiModel.addAttribute("sourceGeneration", sourceGeneration);
             uiModel.addAttribute("sourceImage", sourceImage);
@@ -158,15 +158,11 @@ public class GenerationController {
                     ? modelCatalog.versionOf(model).orElse(null)
                     : version;
             Map<String, Object> parameters = parameterHandlers.parameters(formType, allParams);
-            // img2video / modifica: la sorgente la usa solo un modello che ne prende una (GenerationService la ignora per un
-            // text-to-image). Un'immagine caricata dall'utente ha la precedenza sulla sorgente "Anima"/"Modifica": si salva
-            // qui (e solo per i modelli con sorgente) subito prima di create, che elimina il file se la creazione fallisce.
-            boolean upload = formType.takesSourceImage() && sourceUpload != null && !sourceUpload.isEmpty();
-            boolean fromGeneration = sourceGeneration != null && !upload;
-            String uploadFilename = upload ? imageStorageService.storeUpload(uploaded(sourceUpload)) : null;
+            // img2video / modifica: sorgente (upload o generazione "Anima"/"Modifica"), precedenza, validita' e salvataggio dell'upload
+            // li decide il servizio (ignorata da un text-to-image); qui si passa solo cio' che ha inviato il form.
+            UploadedFile upload = sourceUpload == null || sourceUpload.isEmpty() ? null : uploaded(sourceUpload);
             Generation generation = generationService.create(new IGenerations.CreateCommand(model, resolvedVersion, prompt,
-                    parameters, fromGeneration ? sourceGeneration.getId() : null,
-                    fromGeneration ? sourceImage : null, uploadFilename));
+                    parameters, sourceGenerationId, sourceImage, upload));
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
             // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
@@ -222,11 +218,7 @@ public class GenerationController {
      * {@code image} non e' uno dei suoi file (parametro ignorato).
      */
     private Generation animatableSource(Long id, String image) {
-        return generationService.find(id)
-                .filter(g -> g.getKind() == GenerationKind.IMAGE
-                        && g.getStatus() == GenerationStatus.SUCCEEDED
-                        && image != null && g.getImageFilenames().contains(image))
-                .orElse(null);
+        return generationService.findAnimatableSource(id, image).orElse(null);
     }
 
     /**

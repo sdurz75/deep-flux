@@ -1,27 +1,26 @@
 package org.dual.replicate.core.storage.application;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Stream;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.storage.domain.ImportableFile;
+import org.dual.replicate.core.storage.port.in.IBlobMigration;
+import org.dual.replicate.core.storage.port.out.IBlobImportSource;
+import org.dual.replicate.core.storage.port.out.IBlobImportTarget;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.dual.replicate.core.storage.port.out.IBlobImportTarget;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
  * Migrazione una tantum dei binari da {@code storage.images-dir} (filesystem locale) a WebDAV cifrato, opt-in con
  * {@code storage.migration.from-local.enabled=true} e {@code storage.type=webdav}. Parte all'avvio dell'app
- * (ApplicationReadyEvent, come GenerationRecoveryService) e si spegne da sola a fine giro: poi va rimessa a false.
+ * ({@code LocalToWebDavMigrationStarter}, adapter in) e si spegne da sola a fine giro: poi va rimessa a false. Origine e destinazione
+ * sono porte ({@link IBlobImportSource}, {@link IBlobImportTarget}): qui nessun accesso al filesystem.
  *
  * <p>Idempotente e riavviabile: un file gia' presente sul server (HEAD) viene saltato, quindi dopo un'interruzione o
  * un errore basta rilanciarla. I file locali NON si toccano, salvo {@code delete-local=true}: in quel caso ciascuno si
@@ -30,60 +29,51 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(name = "storage.migration.from-local.enabled", havingValue = "true")
-public class LocalToWebDavMigrator {
+public class LocalToWebDavMigrator implements IBlobMigration {
 
     private static final Logger log = LoggerFactory.getLogger(LocalToWebDavMigrator.class);
 
-    /** Esito di un giro di migrazione. */
-    public record Result(int migrated, int skipped, int failed, int deletedLocal, long migratedBytes) {
-    }
-
+    private final IBlobImportSource source;
     private final IBlobImportTarget target;
     private final ISystemEvents systemEvents;
-    private final Path sourceDir;
     private final boolean deleteLocal;
 
-    public LocalToWebDavMigrator(ObjectProvider<IBlobImportTarget> target, ISystemEvents systemEvents,
-                                 @Value("${storage.images-dir}") String imagesDir,
+    public LocalToWebDavMigrator(IBlobImportSource source, ObjectProvider<IBlobImportTarget> target, ISystemEvents systemEvents,
                                  @Value("${storage.migration.from-local.delete-local:false}") boolean deleteLocal) {
+        this.source = source;
         this.target = target.getIfAvailable();
         if (this.target == null) {
             throw new IllegalStateException(
                     "storage.migration.from-local.enabled=true richiede storage.type=webdav (backend di destinazione)");
         }
         this.systemEvents = systemEvents;
-        this.sourceDir = Path.of(imagesDir);
         this.deleteLocal = deleteLocal;
     }
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void onReady() {
-        migrate();
-    }
-
     /** Un giro completo; un file che fallisce non ferma gli altri (registrato con {@link ISystemEvents}). */
+    @Override
     public Result migrate() {
-        List<Path> files = localFiles();
-        log.info("Migrazione storage locale -> WebDAV: {} file in {} (delete-local={})", files.size(), sourceDir,
+        List<ImportableFile> files = localFiles();
+        log.info("Migrazione storage locale -> WebDAV: {} file in {} (delete-local={})", files.size(), source,
                 deleteLocal);
         int migrated = 0;
         int skipped = 0;
         int failed = 0;
         int deleted = 0;
         long bytes = 0;
-        for (Path file : files) {
-            String name = file.getFileName().toString();
+        for (ImportableFile file : files) {
+            String name = file.filename();
             try {
-                long size = Files.size(file);
+                long size = file.size();
                 if (target.existsRemotely(name)) {
                     skipped++;
                 } else {
-                    target.importFile(name, file);
+                    target.importFile(name, file.path());
                     migrated++;
                     bytes += size;
                 }
                 if (deleteLocal && verifiedOnServer(name, size)) {
-                    Files.delete(file);
+                    source.delete(file);
                     deleted++;
                 }
             } catch (IOException | RuntimeException e) {
@@ -107,18 +97,11 @@ public class LocalToWebDavMigrator {
         return true;
     }
 
-    /** File regolari con un nome valido per lo storage (niente temporanei {@code .part}), in ordine di nome. */
-    private List<Path> localFiles() {
-        if (!Files.isDirectory(sourceDir)) {
-            return List.of();
-        }
-        try (Stream<Path> stream = Files.walk(sourceDir)) {
-            return stream.filter(Files::isRegularFile)
-                    .filter(f -> !f.getFileName().toString().endsWith(".part"))
-                    .sorted()
-                    .toList();
+    private List<ImportableFile> localFiles() {
+        try {
+            return source.list();
         } catch (IOException e) {
-            throw new IllegalStateException("Impossibile elencare " + sourceDir, e);
+            throw new IllegalStateException("Impossibile elencare " + source, e);
         }
     }
 }

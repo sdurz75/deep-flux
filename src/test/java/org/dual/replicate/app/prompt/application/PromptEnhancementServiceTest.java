@@ -1,8 +1,11 @@
 package org.dual.replicate.app.prompt.application;
 
+import org.dual.replicate.app.prompt.domain.ImageScalingException;
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
 import org.dual.replicate.app.prompt.port.out.IPromptModel;
+import org.dual.replicate.app.prompt.port.out.ISourceImageScaler;
 import org.dual.replicate.core.storage.domain.SourceImage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,7 +22,27 @@ import static org.mockito.Mockito.when;
 class PromptEnhancementServiceTest {
 
     private final IPromptModel model = mock(IPromptModel.class);
-    private final PromptEnhancementService service = new PromptEnhancementService(model, "guida", "video", "modifica", "vision", "fallback");
+    private final ISourceImageScaler scaler = mock(ISourceImageScaler.class);
+    private final PromptEnhancementService service = new PromptEnhancementService(model, scaler, "guida", "video", "modifica", "vision", "fallback");
+
+    @BeforeEach
+    void scalerPassesTheImageThrough() {
+        when(scaler.fitForVision(any(SourceImage.class))).thenAnswer(call -> call.getArgument(0));
+    }
+
+    @Test
+    void theVisionModelReceivesTheScaledImageAndAScalingFailureNeverReachesIt() {
+        SourceImage original = new SourceImage(new byte[]{1}, "image/png");
+        SourceImage scaled = new SourceImage(new byte[]{2}, "image/jpeg");
+        when(scaler.fitForVision(original)).thenReturn(scaled);
+        when(model.complete(eq("enhanceVision"), anyString(), anyString(), eq("vision"), eq(scaled))).thenReturn("pan left");
+
+        assertThat(service.enhanceVideo("", original)).isEqualTo("pan left");
+
+        when(scaler.fitForVision(original)).thenThrow(new ImageScalingException("corrotta", new RuntimeException()));
+        assertThatThrownBy(() -> service.enhanceVideo("", original)).isInstanceOf(ImageScalingException.class);
+        verify(model, org.mockito.Mockito.times(1)).complete(eq("enhanceVision"), anyString(), anyString(), anyString(), any());
+    }
 
     @Test
     void enhanceReturnsTrimmedModelOutputUsingTheImageGuideAndTheDefaultModel() {

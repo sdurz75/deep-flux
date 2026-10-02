@@ -1,16 +1,12 @@
 package org.dual.replicate.app.prompt.application;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.regex.Pattern;
-import javax.imageio.ImageIO;
 
 import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
 import org.dual.replicate.app.prompt.port.in.IPromptEnhancer;
 import org.dual.replicate.app.prompt.port.out.IPromptModel;
+import org.dual.replicate.app.prompt.port.out.ISourceImageScaler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -27,11 +23,8 @@ public class PromptEnhancementService implements IPromptEnhancer {
             "^\\s*(i['\u2019]?m sorry|i am sorry|sorry|i can(['\u2019]?t|not)|i['\u2019]?m (unable|not able)|i am (unable|not able)|unable to|as an ai)",
             Pattern.CASE_INSENSITIVE);
 
-    /** Oltre questa dimensione l'immagine viene ridotta prima dell'invio (token del modello di visione). */
-    private static final int DOWNSCALE_ABOVE_BYTES = 1_500_000;
-    private static final int MAX_SIDE = 1024;
-
     private final IPromptModel model;
+    private final ISourceImageScaler scaler;
     private final String imageGuide;
     private final String videoGuide;
     private final String editGuide;
@@ -39,12 +32,14 @@ public class PromptEnhancementService implements IPromptEnhancer {
     private final String visionFallbackModel;
 
     public PromptEnhancementService(IPromptModel model,
+                                     ISourceImageScaler scaler,
                                      @Value("${generateForm.prompt-enhancement-guide}") String promptEnhancementGuide,
                                      @Value("${generateForm.video-prompt-enhancement-guide}") String videoGuide,
                                      @Value("${generateForm.edit-prompt-enhancement-guide}") String editGuide,
                                      @Value("${enhancer.vision-model}") String visionModel,
                                      @Value("${enhancer.vision-fallback-model}") String visionFallbackModel) {
         this.model = model;
+        this.scaler = scaler;
         this.imageGuide = promptEnhancementGuide;
         this.videoGuide = videoGuide;
         this.editGuide = editGuide;
@@ -86,7 +81,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
         if (image == null) {
             return requireText(model.complete("enhance", guide, text, null, null));
         }
-        SourceImage sized = downscale(image);
+        SourceImage sized = scaler.fitForVision(image);
         boolean fallbackAvailable = !visionFallbackModel.isBlank() && !visionFallbackModel.equals(visionModel);
 
         // Il fallback scatta sia per un rifiuto sia per un ERRORE del modello principale (timeout, 402, modello
@@ -136,30 +131,5 @@ public class PromptEnhancementService implements IPromptEnhancer {
 
     static boolean isRefusal(String result) {
         return result == null || result.isBlank() || REFUSAL.matcher(result).find();
-    }
-
-    /** Riduce a MAX_SIDE le immagini grandi (png/jpeg); webp o illeggibili passano invariate. */
-    private static SourceImage downscale(SourceImage image) {
-        if (image.bytes().length <= DOWNSCALE_ABOVE_BYTES) {
-            return image;
-        }
-        try {
-            BufferedImage source = ImageIO.read(new ByteArrayInputStream(image.bytes()));
-            if (source == null || Math.max(source.getWidth(), source.getHeight()) <= MAX_SIDE) {
-                return image;
-            }
-            double scale = (double) MAX_SIDE / Math.max(source.getWidth(), source.getHeight());
-            BufferedImage scaled = new BufferedImage((int) (source.getWidth() * scale), (int) (source.getHeight() * scale),
-                    BufferedImage.TYPE_INT_RGB);
-            var g = scaled.createGraphics();
-            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(source, 0, 0, scaled.getWidth(), scaled.getHeight(), null);
-            g.dispose();
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            ImageIO.write(scaled, "jpg", out);
-            return new SourceImage(out.toByteArray(), "image/jpeg");
-        } catch (IOException | RuntimeException e) {
-            return image;
-        }
     }
 }

@@ -42,6 +42,7 @@ import org.dual.replicate.app.generation.domain.ReplicatePricing;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.core.storage.domain.StorageException;
+import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.app.generation.domain.TooManyPredictionsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,26 +128,54 @@ public class GenerationService implements IGenerations {
      * diretto scoperto). Sovrascrive sempre qualunque valore presente nei parametri, non solo quando assente: "sempre true"
      * non e' un default, e' un vincolo.
      *
-     * Un'immagine sorgente (upload, che ha la precedenza, o una generazione) conta solo per i modelli che ne prendono una
-     * ({@link GenerationFormType#takesSourceImage()}): per gli altri e' ignorata (un upload si elimina, nessuna
-     * {@code Generation} lo possiede). Se la creazione fallisce il file caricato viene eliminato.
+     * Un'immagine sorgente (upload, che ha la precedenza, o una generazione immagine riuscita) conta solo per i modelli che ne prendono
+     * una ({@link GenerationFormType#takesSourceImage()}): per gli altri e' ignorata (un upload non viene nemmeno salvato). Se la
+     * creazione fallisce il file caricato viene eliminato.
      */
     @Override
     public Generation create(CreateCommand command) {
+        String storedUpload = null;
         try {
-            return doCreate(command);
+            storedUpload = storeSourceUpload(command);
+            return doCreate(command, storedUpload);
         } catch (RuntimeException e) {
-            try {
-                imageStorageService.delete(command.sourceUploadFilename());
-            } catch (RuntimeException cleanupFailure) {
-                // Un file da ripulire che non si lascia cancellare NON deve mascherare l'errore vero della creazione.
-                e.addSuppressed(cleanupFailure);
+            if (storedUpload != null) {
+                try {
+                    imageStorageService.delete(storedUpload);
+                } catch (RuntimeException cleanupFailure) {
+                    // Un file da ripulire che non si lascia cancellare NON deve mascherare l'errore vero della creazione.
+                    e.addSuppressed(cleanupFailure);
+                }
             }
             throw e;
         }
     }
 
-    private Generation doCreate(CreateCommand command) {
+    @Override
+    public Optional<Generation> findAnimatableSource(Long id, String image) {
+        return id == null || image == null ? Optional.empty()
+                : repository.findById(id).filter(g -> isAnimatable(g) && g.getImageFilenames().contains(image));
+    }
+
+    /** Un'immagine riuscita: l'unica generazione che puo' fare da sorgente (animazione, modifica). */
+    private static boolean isAnimatable(Generation generation) {
+        return generation.getKind() == GenerationKind.IMAGE && generation.getStatus() == GenerationStatus.SUCCEEDED;
+    }
+
+    /**
+     * Salva l'upload sorgente, ma solo se il modello ne prende una e il file non e' vuoto: per gli altri modelli non viene mai
+     * scritto (nessuna {@code Generation} lo possiederebbe).
+     */
+    private String storeSourceUpload(CreateCommand command) {
+        UploadedFile upload = command.sourceUpload();
+        if (upload == null || upload.size() == 0) {
+            return null;
+        }
+        boolean takesSource = modelCatalog.formTypeOf(command.model()).map(GenerationFormType::takesSourceImage).orElse(false);
+        return takesSource ? imageStorageService.storeUpload(upload) : null;
+    }
+
+    private Generation doCreate(CreateCommand command, String storedUpload) {
         String model = command.model();
         String prompt = command.prompt();
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
@@ -160,12 +189,9 @@ public class GenerationService implements IGenerations {
         boolean takesSource = formType != null && formType.takesSourceImage();
         String sourceImageParam = takesSource ? formType.sourceImageParam() : DEFAULT_SOURCE_IMAGE_PARAM;
         boolean sourceRequired = formType != null && formType.isEdit();
-        String sourceUploadFilename = takesSource ? command.sourceUploadFilename() : null;
+        String sourceUploadFilename = storedUpload;
         Long sourceGenerationId = takesSource ? command.sourceGenerationId() : null;
         String sourceImage = takesSource ? command.sourceImage() : null;
-        if (!takesSource && command.sourceUploadFilename() != null) {
-            deleteIgnoredUpload(command.sourceUploadFilename());
-        }
 
         long inProgress = repository.countByModelAndStatusInAndCreatedAtAfter(
                 model, List.of(GenerationStatus.PENDING, GenerationStatus.PROCESSING), Instant.now().minus(timeoutFor(kind)));
@@ -240,6 +266,7 @@ public class GenerationService implements IGenerations {
      */
     private String sourceImageDataUri(Long sourceGenerationId, String sourceImage) {
         Generation source = repository.findById(sourceGenerationId)
+                .filter(GenerationService::isAnimatable)
                 .orElseThrow(() -> new ReplicateException(messages.get("generation.error.sourceImageMissing")));
         // L'immagine esatta scelta dall'utente sul thumbnail; senza (null) la prima, per compatibilita'.
         String filename = sourceImage != null ? sourceImage
@@ -783,15 +810,6 @@ public class GenerationService implements IGenerations {
         repository.save(generation);
         eventPublisher.publishEvent(new GenerationFavouriteToggledEvent(generationId));
         return nowFavourite;
-    }
-
-    /** Upload ricevuto per un modello che non prende sorgenti: nessuna Generation lo possiede, un errore nel ripulirlo e' registrato. */
-    private void deleteIgnoredUpload(String filename) {
-        try {
-            imageStorageService.delete(filename);
-        } catch (RuntimeException e) {
-            systemEvents.record("deleteIgnoredUpload", e);
-        }
     }
 
     private String toJson(Map<String, Object> parameters) {

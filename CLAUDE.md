@@ -39,13 +39,15 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   - Ingresso: icona overlay "Anima" (`button-gen :: animateOverlay`) su OGNI thumbnail (`/gallery`, galleria di chat,
     griglia dettaglio) → `/generations/new?source={id}&sourceImage={filename}` (la sorgente e' quel file preciso; filename
     non della generazione → sorgente ignorata). Preseleziona p-video, hidden `sourceGenerationId`+`sourceImage`;
-    `GenerationController#create` la invia come data-URI (`IImageStorageService#readAsDataUri`,
-    `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`). Senza sorgente p-video e' text-to-video.
+    `GenerationService#create` la invia come data-URI (`IImageStorageService#readAsDataUri`,
+    `Generation.sourceGenerationId`, FK `ON DELETE SET NULL`); e' valida solo un'immagine RIUSCITA (altrimenti "sorgente mancante", mai un text-to-video
+    silenzioso: regola in `GenerationService`, la UI la interroga con `IGenerations#findAnimatableSource`). Senza sorgente p-video e' text-to-video.
   - **Upload stand-alone**: link "Genera video" (`/generations/new?kind=video`); il fragment p-video ha
     `<input type=file name=sourceUpload>` (form `hx-encoding=multipart`). `IImageStorageService#storeUpload` valida magic
     bytes (png/jpeg/webp, max `IImageStorageService.MAX_UPLOAD_BYTES` = 10 MB), salva con un nome nuovo (NON una `Generation`), lo traccia in
     `Generation.sourceUploadFilename`; ha precedenza sulla sorgente "Anima"; eliminato con la generazione (o se la
-    creazione fallisce). Il controller costruisce un `UploadedFile` (tipo di dominio dello storage): la porta non vede `MultipartFile`.
+    creazione fallisce). Il controller costruisce un `UploadedFile` (tipo di dominio dello storage: la porta non vede `MultipartFile`) e lo mette in `CreateCommand#sourceUpload`:
+    lo salva `GenerationService#create` (solo se il modello prende una sorgente), decide la precedenza e lo elimina se la creazione fallisce.
   - `/deep-chat` propone SOLO modelli immagine (`IModelCatalog#models(GenerationKind)`). `disable_safety_checker`
     forzato solo per le immagini. Fuori scope: audio-to-video, video in chat.
 - **Modifica immagine (flux-kontext-dev)**: modello *edit* (`GenerationFormType#isEdit`, `FLUX_KONTEXT_DEV`) che
@@ -189,13 +191,14 @@ le uniche classi fuori da `core`/`app`.
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
   `adapter.out.search`: ascolta anche `GenerationCompletedEvent` e chiama `IArchiveIndex#reindexAsync`) e da `ChatSearchSource` (chat).
   `app.shared` (`AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `HomeController`, `AppEventLinks`) e' il dominio comune dell'app.
-- **`ArchitectureTest`** (`src/test/.../architecture`, ArchUnit, `DoNotIncludeTests`, 13 regole `@ArchTest`): `domainStaysPure`,
+- **`ArchitectureTest`** (`src/test/.../architecture`, ArchUnit, `DoNotIncludeTests`, 14 regole `@ArchTest`): `domainStaysPure`,
   `applicationDoesNotTouchInfrastructure`, `portsDependOnlyOnDomain`, `drivingAdaptersDoNotUseDrivenAdapters`, `drivingAdaptersDoNotUsePortsOut`,
   `drivenAdaptersDoNotUseDrivingAdapters`, `coreDoesNotKnowApp`, `coreDoesNotUseLegacyLayerPackages`, `kernelDependsOnNoSubsystem`,
   `subsystemsOnlyUseEachOthersPortsIn`, `coreSubsystemsHaveNoCycles`, `appFeaturesHaveNoCycles` e la regola di **chiusura**
   `nothingOutsideCoreAndApp` (ATTIVA: nessuna classe fuori da `core..`, `app..`, `support..` e `Application`: niente package per layer
   `controller/service/repository...`). Le regole ammettono package vuoti (`allowEmptyShould`). Una violazione si corregge nel codice,
-  non allentando la regola. `applicationDoesNotTouchInfrastructure` vieta anche `org.springframework.jdbc` e `java.sql`.
+  non allentando la regola. `applicationDoesNotTouchInfrastructure` vieta anche `org.springframework.jdbc` e `java.sql`; `applicationDoesNotDoFileOrImageIo` vieta
+  `Files`/`Paths`/`File*Stream`, `javax.imageio` e `java.awt` (il file e l'immagine stanno dietro una porta).
   **`SourceImportsTest`** (stessa cartella) applica le stesse regole di strato al SORGENTE: ArchUnit lavora sul bytecode e non vede gli import usati solo in
   Javadoc (javac li scarta), che pero' restano una dipendenza dichiarata. Vale per import E nomi qualificati nei commenti: per citare una classe di un altro
   strato o sottosistema in un commento usare `{@code Nome}` senza import, mai `{@link}` (e nemmeno il nome qualificato).
@@ -210,7 +213,7 @@ le uniche classi fuori da `core`/`app`.
 | `core.push` | SSE verso le tab (`GET /events`), `PushService` (`Sinks`) | in `IClientPush`, `IClientPushStream` |
 | `core.secrets` | cifratura dei segreti a riposo | in `ISecretCipher` |
 | `core.tokens` | CRUD token API cifrati, scadenze, `/tokens` | in `IApiTokens`; out `IApiTokenStore`, `ITokenProviderCatalog` (app) |
-| `core.storage` | binari (immagini/mp4/upload): nome, validazione, local/WebDAV, `/images/{file}`, migrazione | in `IImageStorageService`; out `IBlobBackend`, `IBlobImportTarget`, `IRemoteFileFetcher` |
+| `core.storage` | binari (immagini/mp4/upload): nome, validazione, local/WebDAV, `/images/{file}`, migrazione | in `IImageStorageService`, `IBlobMigration`; out `IBlobBackend`, `IBlobImportSource`, `IBlobImportTarget`, `IRemoteFileFetcher` |
 | `app.generation` | generazioni (immagini/video/edit), catalogo modelli, form-type, LoRA, galleria, costo, Replicate, recupero | in `IGenerations`, `IModelCatalog`, `IGenerationForms`, `ILoraPresets`; out `IGenerationStore`, `IModelStore`, `ILoraPresetStore`, `IPredictionGateway` |
 | `app.chat` | `/deep-chat`: conversazioni, turni, assistente (LLM + tool), watcher delle generazioni, recupero | in `IChat`, `IChatConversations`, `IChatRecovery`; out `IAssistant`, `IChatConversationStore`, `IChatMessageStore`, `IChatNotifier`, `IWebSearchGateway` |
 | `app.search` | ricerca semantica, indice (riconciliazione), note, `/search` | in `IArchiveSearch`, `IArchiveNotes`, `IArchiveIndex`, `ISearchableSource` (SPI); out `IVectorIndex` |
@@ -277,7 +280,8 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `GenerationResultHolder` (canale tool→assistente via `ToolContext`: gli id delle generazioni avviate nel turno); `adapter.out.searxng`: `SearxngClient` (Basic Auth,
   impl di `IWebSearchGateway`), `ChatPushNotifier`, `ChatSearchSource`, store JPA. Domain: `ChatConversation`, `ChatMessage`, `FileRef`,
   `ChatTurn`, `ChatReply`, `DeepChatFailedException`, `AssistantException`.
-- `app.prompt`: `PromptEnhancementService` (one-shot, senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
+- `app.prompt`: `PromptEnhancementService` (one-shot; la riduzione delle immagini grandi per il modello di visione sta dietro `ISourceImageScaler`, adapter
+  `AwtSourceImageScaler` con `ImageIO`: un png/jpeg illeggibile e' un errore `ImageScalingException`, non si invia l'originale; webp passa invariato; senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
   `defaultTools`; `enhanceVideo`/`enhanceEdit` guardano l'immagine sorgente con un modello di visione OpenRouter non moderato
   `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del modello e' intercettato e non
   sovrascrive la textarea, anche sul percorso solo-testo). Tono/contesto creativo: UNA clausola condivisa `prompts.creative-context` in
@@ -439,9 +443,10 @@ hardcoded fuori da `theme.extend.colors`.
   repo; avvio fallisce se manca/non e' 32 byte; persa la chiave i binari sono irrecuperabili). Solo i contenuti sono
   cifrati, i nomi file no. Client = `RestClient.Builder` iniettato (PUT su `.part` + MOVE, GET con Range, HEAD, DELETE,
   MKCOL), nessuna libreria WebDAV.
-- **Migrazione locale → WebDAV** (`LocalToWebDavMigrator`, `application`, sopra la porta `IBlobImportTarget` implementata da
-  `WebDavBlobBackend`): una tantum, opt-in con `storage.migration.from-local.enabled=true` + `storage.type=webdav`; parte
-  all'avvio (`ApplicationReadyEvent`) sui file di `storage.images-dir` (esclusi i `.part`), salta quelli gia' sul server (HEAD:
+- **Migrazione locale → WebDAV** (`LocalToWebDavMigrator`, `application`, implementa `IBlobMigration`, sopra le porte `IBlobImportSource` — adapter
+  `LocalFsImportSource`, l'unico che tocca il filesystem locale — e `IBlobImportTarget`, implementata da `WebDavBlobBackend`): una tantum, opt-in con
+  `storage.migration.from-local.enabled=true` + `storage.type=webdav`; parte all'avvio (`LocalToWebDavMigrationStarter`, adapter in scheduling,
+  `ApplicationReadyEvent`) sui file di `storage.images-dir` (esclusi i `.part`), salta quelli gia' sul server (HEAD:
   riavviabile, idempotente), un file che fallisce non ferma gli altri (`ISystemEvents`, operation `migrateLocalToWebDav`). I locali
   restano, salvo `delete-local=true`: ognuno si elimina solo se la dimensione in chiaro riportata dal SERVER coincide. Finche' non ha
   finito, i file non migrati non sono serviti; a fine giro rimettere `enabled=false`.
