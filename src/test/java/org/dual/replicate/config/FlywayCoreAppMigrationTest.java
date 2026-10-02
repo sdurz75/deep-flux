@@ -41,8 +41,8 @@ class FlywayCoreAppMigrationTest {
         String probeUrl = url.replaceFirst("/[^/?]+(\\?|$)", "/" + database + "$1");
 
         var first = Flyway.configure().dataSource(probeUrl, username, password).locations(LOCATIONS).load().migrate();
-        // core baseline + app baseline + generation_image_seed
-        assertThat(first.migrationsExecuted).isEqualTo(3);
+        // core baseline + app baseline + generation_image_seed + flux_fill_dev_inpainting
+        assertThat(first.migrationsExecuted).isEqualTo(4);
 
         Files.writeString(later.resolve("V2026_12_01_0900__core_probe.sql"), "CREATE TABLE core_probe (id int);");
         var second = Flyway.configure().dataSource(probeUrl, username, password)

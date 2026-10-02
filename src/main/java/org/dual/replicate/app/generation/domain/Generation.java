@@ -147,6 +147,12 @@ public class Generation {
     private String sourceUploadFilename;
 
     /**
+     * Maschera di inpainting disegnata dall'utente (PNG, bianco = zona da ridipingere), null se il modello non ne prende una.
+     * Come {@link #sourceUploadFilename} vive nello storage dei binari e si elimina insieme alla generazione.
+     */
+    private String maskUploadFilename;
+
+    /**
      * Conversazione di /deep-chat che ha avviato la generazione (null per il
      * form diretto): serve a ripristinare il placeholder di una generazione
      * ancora in corso quando la pagina viene ricaricata (vedi V11).
@@ -324,6 +330,14 @@ public class Generation {
 
     public void setSourceUploadFilename(String sourceUploadFilename) {
         this.sourceUploadFilename = sourceUploadFilename;
+    }
+
+    public String getMaskUploadFilename() {
+        return maskUploadFilename;
+    }
+
+    public void setMaskUploadFilename(String maskUploadFilename) {
+        this.maskUploadFilename = maskUploadFilename;
     }
 
     public Long getConversationId() {

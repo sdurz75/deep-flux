@@ -61,4 +61,9 @@ class ReplicatePricingTest {
     void kontextDevIsChargedPerOutputImage() {
         assertThat(cost("black-forest-labs/flux-kontext-dev", Map.of("image_output_count", 2))).isEqualByComparingTo("0.05");
     }
+
+    @Test
+    void fillDevIsChargedPerOutputImage() {
+        assertThat(cost("black-forest-labs/flux-fill-dev", Map.of("image_output_count", 2))).isEqualByComparingTo("0.05");
+    }
 }

@@ -7,32 +7,36 @@ package org.dual.replicate.app.generation.domain;
  * {@code IGenerationParameterHandler} in application.form): un valore per
  * form, non un motore di schema dinamico. Aggiungere un modello con una
  * form diversa da quelle esistenti richiede una nuova costante qui (+ la
- * migrazione che estende l'ENUM della colonna FORM_TYPE), un nuovo
+ * migrazione che censisce il modello: FORM_TYPE e' un varchar, niente ENUM di DB), un nuovo
  * fragment fragments/generation-params-&lt;form&gt;.html, un nuovo
  * IGenerationParameterHandler e un nuovo {@code th:case} nel guscio
  * fragments/app/generation-params.html. Ogni form-type dichiara anche il
  * {@link GenerationKind} del media che produce e, se prende un'immagine
  * sorgente, la chiave Replicate sotto cui va inviata ({@link #sourceImageParam()}:
- * "image" per p-video e flux-dev-lora, "input_image" per kontext-dev). {@link #isEdit()}
+ * "image" per p-video, flux-dev-lora e flux-fill-dev, "input_image" per kontext-dev) e, per l'inpainting,
+ * quella della maschera ({@link #maskParam()}). {@link #isEdit()}
  * distingue i modelli di modifica (sorgente obbligatoria, output immagine)
  * dai text-to-image: hanno la loro pagina e non compaiono ne' nel combobox
  * delle immagini ne' in /deep-chat.
  */
 public enum GenerationFormType {
-    FLUX_LORA_FF3(GenerationKind.IMAGE, null, false),
-    FLUX_2_KLEIN_9B(GenerationKind.IMAGE, null, false),
-    FLUX_KREA_DEV(GenerationKind.IMAGE, null, false),
-    P_VIDEO(GenerationKind.VIDEO, "image", false),
-    FLUX_KONTEXT_DEV(GenerationKind.IMAGE, "input_image", true),
-    FLUX_DEV_LORA(GenerationKind.IMAGE, "image", false);
+    FLUX_LORA_FF3(GenerationKind.IMAGE, null, null, false),
+    FLUX_2_KLEIN_9B(GenerationKind.IMAGE, null, null, false),
+    FLUX_KREA_DEV(GenerationKind.IMAGE, null, null, false),
+    P_VIDEO(GenerationKind.VIDEO, "image", null, false),
+    FLUX_KONTEXT_DEV(GenerationKind.IMAGE, "input_image", null, true),
+    FLUX_DEV_LORA(GenerationKind.IMAGE, "image", null, false),
+    FLUX_FILL_DEV(GenerationKind.IMAGE, "image", "mask", true);
 
     private final GenerationKind kind;
     private final String sourceImageParam;
+    private final String maskParam;
     private final boolean edit;
 
-    GenerationFormType(GenerationKind kind, String sourceImageParam, boolean edit) {
+    GenerationFormType(GenerationKind kind, String sourceImageParam, String maskParam, boolean edit) {
         this.kind = kind;
         this.sourceImageParam = sourceImageParam;
+        this.maskParam = maskParam;
         this.edit = edit;
     }
 
@@ -43,6 +47,16 @@ public enum GenerationFormType {
     /** Chiave dell'input Replicate per l'immagine sorgente, o null se il modello non ne prende. */
     public String sourceImageParam() {
         return sourceImageParam;
+    }
+
+    /** Chiave dell'input Replicate per la maschera di inpainting, o null se il modello non ne prende. */
+    public String maskParam() {
+        return maskParam;
+    }
+
+    /** True per i modelli di inpainting: oltre alla sorgente vogliono una maschera (bianco = zona da ridipingere). */
+    public boolean takesMask() {
+        return maskParam != null;
     }
 
     /** True per i modelli di modifica immagine: sorgente obbligatoria. */

@@ -24,14 +24,16 @@ public interface IGenerations {
      * String), nel vocabolario del provider; i campi di una form HTML li converte l'interface layer, non questa porta.
      * {@code sourceGenerationId}+{@code sourceImage} o {@code sourceUpload} (il file caricato, ha la precedenza: lo salva il
      * servizio e lo elimina se la creazione fallisce) sono l'immagine sorgente, ignorata dai modelli che non ne prendono una.
-     * Un upload vuoto ({@code size == 0}) equivale a nessun upload.
+     * Un upload vuoto ({@code size == 0}) equivale a nessun upload. {@code maskUpload} e' la maschera di inpainting (PNG, bianco = zona
+     * da ridipingere): obbligatoria per i modelli che la prendono ({@link GenerationFormType#takesMask()}, errore prima di chiamare il
+     * provider), ignorata dagli altri; la salva e, se la creazione fallisce, la elimina il servizio.
      */
     record CreateCommand(String model, String version, String prompt, Map<String, Object> parameters,
-                         Long sourceGenerationId, String sourceImage, UploadedFile sourceUpload) {
+                         Long sourceGenerationId, String sourceImage, UploadedFile sourceUpload, UploadedFile maskUpload) {
 
         /** Generazione senza sorgente (il tool della chat). */
         public static CreateCommand of(String model, String version, String prompt, Map<String, Object> parameters) {
-            return new CreateCommand(model, version, prompt, parameters, null, null, null);
+            return new CreateCommand(model, version, prompt, parameters, null, null, null, null);
         }
     }
 

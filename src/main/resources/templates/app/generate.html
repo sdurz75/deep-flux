@@ -19,6 +19,9 @@
     <!-- Persistenza dello stato della form (modello, parametri, prompt) fra navigazioni: vedi il fragment. -->
     <th:block th:replace="~{fragments/app/generation-settings-persist :: script}"></th:block>
 
+    <!-- Editor della maschera di inpainting (componente Alpine registrato UNA volta: il suo markup sta nel fragment dei campi, sostituito al cambio modello). -->
+    <th:block th:replace="~{fragments/app/mask-editor :: script}"></th:block>
+
     <!-- Solo per i toast d'errore: il polling della generazione appena creata (sotto, in #generation-panel) non ha altro canale su questa pagina. -->
     <div th:replace="~{fragments/core/live-events :: connect}"></div>
 </div>

@@ -1671,6 +1671,36 @@ class TemplateRenderingTests {
         assertThat(images).contains("/generations/new?kind=edit");
     }
 
+    /** Inpainting: il modello sta fra i modelli di modifica, con editor maschera e un solo LoRA (senza token); non compare altrove. */
+    @Test
+    @Transactional
+    void inpaintingModelOffersTheMaskEditorOnTheEditPageOnly() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String images = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String fill = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(edit).contains("black-forest-labs/flux-fill-dev").contains("black-forest-labs/flux-kontext-dev");
+        // Il componente Alpine e' registrato a livello di pagina (il fragment dei campi viene sostituito al cambio modello).
+        assertThat(edit).contains("Alpine.data('maskEditor'");
+        assertThat(images).doesNotContain("black-forest-labs/flux-fill-dev");
+        assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("maskUpload");
+
+        assertThat(fill).contains("name=\"maskUpload\"").contains("x-data=\"maskEditor\"").contains("data-action=\"brush\"")
+                .contains("data-action=\"eraser\"").contains("data-action=\"ellipse\"").contains("data-action=\"undo\"")
+                .contains("name=\"lora_weights\"").contains("name=\"lora_scale\"").contains("match_input");
+        assertThat(fill).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        // Un solo LoRA e nessun token: il modello non ha extra_lora ne' hf_api_token/civitai_api_token.
+        assertThat(fill).doesNotContain("name=\"extra_lora\"").doesNotContain("hf_token_id").doesNotContain("civitai_token_id");
+        // La maschera e' sempre un file: nessun campo di testo la porta (finirebbe in localStorage).
+        assertThat(fill).doesNotContain("name=\"mask\"");
+    }
+
     /** "Modifica" da una generazione: preseleziona il modello di modifica (non p-video), porta la sorgente, niente upload. */
     @Test
     @Transactional

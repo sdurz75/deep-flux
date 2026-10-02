@@ -50,6 +50,10 @@ public class GenerationFormService implements IGenerationForms {
      */
     @Override
     public Map<String, Object> extraFormOptions(GenerationFormType formType) {
+        if (formType == GenerationFormType.FLUX_FILL_DEV) {
+            // Un solo LoRA e nessun token (il modello non ha hf_api_token/civitai_api_token): solo i preset anagrafati.
+            return new LinkedHashMap<>(loraPresets.formOptions());
+        }
         if (formType != GenerationFormType.FLUX_DEV_LORA) {
             return Map.of();
         }

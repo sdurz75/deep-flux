@@ -73,6 +73,13 @@
                 </dd>
             </th:block>
 
+            <th:block th:if="${generation.maskUploadFilename != null}">
+                <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.mask})}">Maschera</dt>
+                <dd class="ms-0 mt-1">
+                    <img th:src="@{'/images/' + ${generation.maskUploadFilename}}" alt="" class="h-24 w-auto rounded-md border border-line dark:border-line-dark">
+                </dd>
+            </th:block>
+
             <th:block th:if="${generation.version}">
                 <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.version})}">Version</dt>
                 <dd class="ms-0 mt-1" th:text="${generation.version}">version</dd>

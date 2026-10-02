@@ -75,6 +75,22 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `name` compila testo e scala (restano modificabili, "testo libero" non tocca nulla) e mostra le trigger words con "Aggiungi al prompt"
   (`button-gen :: addToPrompt`, solo se c'e' `#prompt`: non nel pannello di `/deep-chat`). E' un aiuto lato client: al server arrivano
   sempre testo e scala, nessuna FK dalla `Generation`, cancellare/modificare un preset non tocca le generazioni passate.
+- **Inpainting (flux-fill-dev)**: `black-forest-labs/flux-fill-dev` (`GenerationFormType#FLUX_FILL_DEV`, `FluxFillDevParameterHandler`) e' un
+  secondo modello *edit* (`isEdit`, stessa pagina `?kind=edit`, compare nel suo select; preselezionato resta kontext, `sort_order` 6): sorgente
+  E maschera OBBLIGATORIE (`GenerationFormType#maskParam()` = `mask`, `takesMask()`; `image` per la sorgente). Il flux-dev-lora NON ha `mask` (schema
+  letto da Replicate): per l'inpainting col proprio LoRA si usa Fill, che ha UN solo `lora_weights`/`lora_scale` (niente `extra_lora`, niente token:
+  solo LoRA pubblici) e la select dei preset `/loras` come per dev-lora. La maschera (PNG, BIANCO = da ridipingere, NERO = da preservare) si DIPINGE nel
+  browser con l'editor `fragments/app/mask-editor.html` (componente Alpine `maskEditor`, registrato nello `:: script` incluso da `generate.html` e
+  NON nel fragment dei campi, che si sostituisce al cambio modello; markup in `:: field`): canvas alla dimensione naturale della sorgente (tetto 4096 px),
+  pennello/gomma/ellisse come lista di operazioni, dialog Pines; `Applica` esporta il PNG nell'`<input type=file name=maskUpload>` via `DataTransfer`
+  (multipart come la sorgente: niente base64 in campi di testo, che finirebbe in localStorage). La sorgente la legge dal DOM all'apertura
+  (`sourceUpload` scelto, altrimenti `#generate-source-preview`); se cambia la maschera si azzera. Lato server `CreateCommand#maskUpload`
+  (`UploadedFile`) la salva `GenerationService#create` solo se `takesMask()`, la manda come `mask` data-URI e la traccia in `Generation.maskUploadFilename`
+  (`generation.mask_upload_filename`, mostrata nel dettaglio); si elimina con la generazione o se la creazione fallisce, come l'upload sorgente. Senza
+  maschera `generation.error.maskRequired` PRIMA di chiamare Replicate. Nessun controllo lato server che maschera e sorgente abbiano le stesse dimensioni
+  (l'editor le garantisce). "AI enhance" per i modelli con maschera usa la riscrittura solo-testo (`IPromptEnhancer#enhance`, descrive cosa renderizzare
+  nella zona), NON `enhanceEdit` di Kontext. Fuori scope per ora: ritaglio+ricomposizione attorno alla maschera (per volti piccoli in figure intere
+  l'inpainting a immagine intera rigenera alla stessa risoluzione), overlay "Inpaint" sui thumbnail, feather/espansione della maschera.
 - **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, in
   `generation.domain`, una regola per modello censito — un nuovo modello richiede anche la sua regola) lo calcola da
   `PredictionResponse.metrics`; `IGenerations#refresh` lo salva in `generation.cost_usd`; assente per generazioni vecchie, fallite o senza regola.

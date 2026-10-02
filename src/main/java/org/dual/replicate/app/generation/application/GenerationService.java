@@ -135,19 +135,27 @@ public class GenerationService implements IGenerations {
     @Override
     public Generation create(CreateCommand command) {
         String storedUpload = null;
+        String storedMask = null;
         try {
             storedUpload = storeSourceUpload(command);
-            return doCreate(command, storedUpload);
+            storedMask = storeMaskUpload(command);
+            return doCreate(command, storedUpload, storedMask);
         } catch (RuntimeException e) {
-            if (storedUpload != null) {
-                try {
-                    imageStorageService.delete(storedUpload);
-                } catch (RuntimeException cleanupFailure) {
-                    // Un file da ripulire che non si lascia cancellare NON deve mascherare l'errore vero della creazione.
-                    e.addSuppressed(cleanupFailure);
-                }
-            }
+            deleteQuietly(storedUpload, e);
+            deleteQuietly(storedMask, e);
             throw e;
+        }
+    }
+
+    /** Elimina un file salvato per una creazione fallita; un file che non si lascia cancellare NON maschera l'errore vero. */
+    private void deleteQuietly(String filename, RuntimeException cause) {
+        if (filename == null) {
+            return;
+        }
+        try {
+            imageStorageService.delete(filename);
+        } catch (RuntimeException cleanupFailure) {
+            cause.addSuppressed(cleanupFailure);
         }
     }
 
@@ -175,7 +183,17 @@ public class GenerationService implements IGenerations {
         return takesSource ? imageStorageService.storeUpload(upload) : null;
     }
 
-    private Generation doCreate(CreateCommand command, String storedUpload) {
+    /** Salva la maschera di inpainting, ma solo se il modello ne prende una e il file non e' vuoto (come {@link #storeSourceUpload}). */
+    private String storeMaskUpload(CreateCommand command) {
+        UploadedFile mask = command.maskUpload();
+        if (mask == null || mask.size() == 0) {
+            return null;
+        }
+        boolean takesMask = modelCatalog.formTypeOf(command.model()).map(GenerationFormType::takesMask).orElse(false);
+        return takesMask ? imageStorageService.storeUpload(mask) : null;
+    }
+
+    private Generation doCreate(CreateCommand command, String storedUpload, String storedMask) {
         String model = command.model();
         String prompt = command.prompt();
         // I form HTML inviano sempre il campo anche se lasciato vuoto: normalizziamo
@@ -225,6 +243,13 @@ public class GenerationService implements IGenerations {
         } else if (sourceRequired) {
             throw new ReplicateException(messages.get("generation.error.sourceImageRequired"));
         }
+        // Inpainting: senza maschera il modello ridipingerebbe a caso, quindi e' un rifiuto prima di spendere nulla.
+        if (formType != null && formType.takesMask()) {
+            if (storedMask == null) {
+                throw new ReplicateException(messages.get("generation.error.maskRequired"));
+            }
+            input.put(formType.maskParam(), imageStorageService.readAsDataUri(storedMask));
+        }
 
         Prediction prediction = replicateClient.createPrediction(model, version, input);
         log.info("Generazione avviata su Replicate: model={}, version={}, externalId={}, status={}",
@@ -241,6 +266,7 @@ public class GenerationService implements IGenerations {
             generation.setKind(kind);
             generation.setSourceGenerationId(sourceGenerationId);
             generation.setSourceUploadFilename(sourceUploadFilename);
+            generation.setMaskUploadFilename(storedMask);
             // Una prediction gia' terminale alla risposta del POST (cache, fallimento immediato) NON va salvata
             // terminale: senza download ne' errorMessage nessuno la completerebbe mai (refresh() salta le righe
             // terminali). La si tiene in corso: il primo refresh() legge l'esito vero e lo chiude come le altre.
@@ -663,7 +689,8 @@ public class GenerationService implements IGenerations {
             }
             // Un file che non si lascia cancellare NON deve interrompere il batch a meta' (righe rimaste con i
             // file gia' spariti, evento mai pubblicato): la riga va comunque eliminata, il file orfano e' registrato.
-            Stream.concat(generation.getImageFilenames().stream(), Stream.of(generation.getSourceUploadFilename()))
+            Stream.concat(generation.getImageFilenames().stream(),
+                            Stream.of(generation.getSourceUploadFilename(), generation.getMaskUploadFilename()))
                     .forEach(file -> {
                         try {
                             imageStorageService.delete(file);

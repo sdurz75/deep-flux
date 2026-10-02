@@ -240,5 +240,21 @@
         th:data-shared-prompt="${prompt}" th:data-shared-seed="${seed}" th:data-shared-done="${doneText}"
         th:text="${text}">Usa</button>
 
+<!--
+  Editor della maschera di inpainting (fragments/app/mask-editor.html): bottoni di strumento e azione. L'azione viaggia in data-action
+  (un binding Alpine non passa da th:attr, vedi CLAUDE.md "Binding Alpine") e il componente `maskEditor` la smista con act().
+  Assumono l'antenato x-data="maskEditor" (stesso accoppiamento esplicito di dialogOpen/addToPrompt). Lo strumento attivo ha un anello.
+  action: open | remove | brush | eraser | ellipse | undo | clear. maskApply e' il primario del dialog (salva la maschera nel form).
+-->
+<button th:fragment="maskAction(text, action, extraClass)" type="button"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-3 py-1.5 text-[0.85rem]"
+        th:classappend="${extraClass}"
+        th:data-action="${action}"
+        :class="$el.dataset.action === tool ? 'ring-2 ring-accent dark:ring-accent-dark' : ''"
+        @click="act($el.dataset.action)"
+        th:text="${text}">Azione</button>
+
+<button th:fragment="maskApply(text)" type="button" class="px-3 py-1.5 text-[0.85rem]" @click="apply()" th:text="${text}">Applica</button>
+
 </body>
 </html>
