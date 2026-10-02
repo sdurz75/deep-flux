@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 /**
  * Il lato "Replicate" dei token API: le form e la chat scelgono il token per ID ({@link ApiTokenProvider#idParam}) e qui lo
  * si sostituisce col plaintext sotto la chiave dell'input Replicate ({@link ApiTokenProvider#replicateParam}). Le select dei
- * token per le form le monta l'adapter web (GenerationFormRegistry). Il CRUD e la cifratura sono del core ({@link IApiTokens}).
+ * token per le form le monta GenerationFormService. Il CRUD e la cifratura sono del core ({@link IApiTokens}).
  */
 @Service
 public class TokenInputResolver {

@@ -1,8 +1,9 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
+import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +31,7 @@ class FluxKreaDevParameterHandlerTest {
 
     @Test
     void numOutputsIsClampedToTheGlobalLimit() {
-        assertThat(handler.toParameterMap(Map.of("num_outputs", "9"))).containsEntry("num_outputs", IGenerationParameterHandler.MAX_NUM_OUTPUTS);
+        assertThat(handler.toParameterMap(Map.of("num_outputs", "9"))).containsEntry("num_outputs", IGenerationForms.MAX_NUM_OUTPUTS);
         assertThat(handler.toParameterMap(Map.of("num_outputs", "0"))).containsEntry("num_outputs", 1);
     }
 

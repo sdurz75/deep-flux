@@ -190,7 +190,8 @@ le uniche classi fuori da `core`/`app`.
   `generation` NON conosce `chat` (solo `Generation.conversationId`, un `Long`). `search` NON conosce `generation` ne' `chat`: legge i
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
   `adapter.out.search`: ascolta anche `GenerationCompletedEvent` e chiama `IArchiveIndex#reindexAsync`) e da `ChatSearchSource` (chat).
-  `app.shared` (`AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `HomeController`, `AppEventLinks`) e' il dominio comune dell'app.
+  `app.shared` (`AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `FormFields`, `HomeController`, `AppEventLinks`) e' il dominio comune dell'app
+  (il "kernel" specifico dell'app: puro JDK, ci si dipende da `shared.domain` come da ogni `domain`).
 - **`ArchitectureTest`** (`src/test/.../architecture`, ArchUnit, `DoNotIncludeTests`, 14 regole `@ArchTest`): `domainStaysPure`,
   `applicationDoesNotTouchInfrastructure`, `portsDependOnlyOnDomain`, `drivingAdaptersDoNotUseDrivenAdapters`, `drivingAdaptersDoNotUsePortsOut`,
   `drivenAdaptersDoNotUseDrivingAdapters`, `coreDoesNotKnowApp`, `coreDoesNotUseLegacyLayerPackages`, `kernelDependsOnNoSubsystem`,
@@ -249,12 +250,12 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
 - `app.generation`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni transizione
   terminale; `GenerationsDeletedEvent`/`GenerationImageDeletedEvent` per le cancellazioni), `GenerationController` (crea, polling/dettaglio,
   listato, cancellazioni, "AI enhance" `POST /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `LoraController`,
-  `adapter.in.web.form` (la conversione campi di form → parametri sta nell'interface layer, non nell'esagono): `GenerationFormRegistry`
-  (impl di `IGenerationForms`, il contratto che vede la chat) + un `IGenerationParameterHandler` per form-type (`FluxLoraFf3ParameterHandler`,
+  `application.form` (la conversione campi di form → parametri e' un use case dell'esagono, usato SIA dalla form diretta SIA dalla chat, che la vede da `IGenerationForms`):
+  `GenerationFormService` (impl di `IGenerationForms`: `parameters`, `defaultFields`, `extraFormOptions`, `formModel`) + un `IGenerationParameterHandler` per form-type (`FluxLoraFf3ParameterHandler`,
   `Flux2Klein9bParameterHandler`, `FluxKreaDevParameterHandler`, `PVideoParameterHandler`, `FluxKontextDevParameterHandler`,
-  `FluxDevLoraParameterHandler`; `image` di p-video e `input_image` di kontext le aggiunge `GenerationService`). L'esagono riceve la
+  `FluxDevLoraParameterHandler`; il parsing tollerante dei campi (`asInteger`, `asOneOf`, `isChecked`...) sta nel kernel dell'app `app.shared.domain.FormFields`, riusabile da ogni feature; il fragment Thymeleaf del form-type lo sceglie solo l'adapter web, `GenerationFormFragments` per convenzione di nome; `image` di p-video e `input_image` di kontext le aggiunge `GenerationService`). L'esagono riceve la
   conversione gia' fatta: `IGenerations#create(CreateCommand)` prende una `Map<String,Object>` tipizzata (vocabolario Replicate), mai JSON o campi di form;
-  `num_outputs` e' limitato a `IGenerationParameterHandler.MAX_NUM_OUTPUTS` (4, limite di Replicate, GLOBALE per ogni form-type con piu' immagini:
+  `num_outputs` e' limitato a `IGenerationForms.MAX_NUM_OUTPUTS` (4, limite di Replicate, GLOBALE per ogni form-type con piu' immagini:
   ff3, krea, dev-lora) sia dal `max` dei fragment sia da `asNumOutputs` (clamp 1..4 lato server: il pannello della chat non passa da validazione HTML);
   kind, chiave della sorgente e `aspect_ratio` dei video con sorgente li decide `GenerationService` dal form-type,
   `ModelCatalogService` (impl di `IModelCatalog`, catalogo censito in `replicate_model`), `TokenInputResolver`, adapter `replicate`
@@ -624,7 +625,7 @@ CRUD in `/tokens` (`core.tokens`: `TokenController`, `IApiTokens`/`ApiTokenServi
 offerti li elenca l'app implementando `ITokenProviderCatalog` (`AppTokenProviders`, valori di `ApiTokenProvider`; etichette `tokens.provider.<NAME>`).
 Il token si salva con un NOME (unico per provider) e una scadenza facoltativa (data inserita a mano:
 nessuno dei due servizi la espone), si sceglie per nome nelle select delle form (`hfTokens`/`civitaiTokens` nel Model, solo dove si
-renderizza il fragment del form-type: `GenerationController`, `DeepChatController`; `GenerationFormRegistry#extraFormOptions` su `IApiTokens#options`).
+renderizza il fragment del form-type: `GenerationController`, `DeepChatController`; `IGenerationForms#extraFormOptions` (`GenerationFormService`) su `IApiTokens#options`).
 Dopo il salvataggio non si vede piu': la UI mostra solo gli ultimi 4 caratteri (`token_hint`). Mai il segreto in log, eventi, toast o modello Thymeleaf.
 
 - **Cifratura**: `ISecretCipher` (impl `SecretCipher`, `core.secrets`) usa la STESSA chiave e lo STESSO algoritmo dei binari WebDAV

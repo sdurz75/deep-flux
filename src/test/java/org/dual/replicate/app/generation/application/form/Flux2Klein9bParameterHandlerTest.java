@@ -1,4 +1,4 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.Map;
 

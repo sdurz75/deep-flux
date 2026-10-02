@@ -1,8 +1,9 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
+import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,7 +20,7 @@ class FluxLoraFf3ParameterHandlerTest {
     /** Replicate non supporta piu' di 4 immagini per richiesta: il limite vale lato server, non solo come max HTML. */
     @Test
     void numOutputsIsClampedToTheGlobalLimit() {
-        assertThat(IGenerationParameterHandler.MAX_NUM_OUTPUTS).isEqualTo(4);
+        assertThat(IGenerationForms.MAX_NUM_OUTPUTS).isEqualTo(4);
         assertThat(handler.toParameterMap(Map.of("num_outputs", "3"))).containsEntry("num_outputs", 3);
         assertThat(handler.toParameterMap(Map.of("num_outputs", "4"))).containsEntry("num_outputs", 4);
         assertThat(handler.toParameterMap(Map.of("num_outputs", "5"))).containsEntry("num_outputs", 4);

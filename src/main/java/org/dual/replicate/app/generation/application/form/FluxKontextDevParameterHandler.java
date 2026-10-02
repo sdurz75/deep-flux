@@ -1,4 +1,4 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -6,6 +6,13 @@ import java.util.Set;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.springframework.stereotype.Component;
+
+import static org.dual.replicate.app.shared.domain.FormFields.asDouble;
+import static org.dual.replicate.app.shared.domain.FormFields.asInteger;
+import static org.dual.replicate.app.shared.domain.FormFields.asLong;
+import static org.dual.replicate.app.shared.domain.FormFields.asOneOf;
+import static org.dual.replicate.app.shared.domain.FormFields.isChecked;
+import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
 
 /**
  * Handler del form-type {@link GenerationFormType#FLUX_KONTEXT_DEV}: i campi
@@ -53,7 +60,7 @@ public class FluxKontextDevParameterHandler implements IGenerationParameterHandl
             params.put("guidance", Math.max(0, Math.min(10, guidance)));
         }
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
-        params.put("go_fast", submittedFields.containsKey("go_fast"));
+        params.put("go_fast", isChecked(submittedFields, "go_fast"));
         putIfPresent(params, "output_format", asOneOf(submittedFields.get("output_format"), OUTPUT_FORMATS));
         Integer quality = asInteger(submittedFields.get("output_quality"));
         if (quality != null) {
@@ -73,10 +80,5 @@ public class FluxKontextDevParameterHandler implements IGenerationParameterHandl
         defaults.put("output_quality", DEFAULT_OUTPUT_QUALITY);
         // "seed" intenzionalmente assente: casuale di default.
         return defaults;
-    }
-
-    @Override
-    public String fragmentName() {
-        return "fragments/app/generation-params-flux-kontext-dev :: fields";
     }
 }

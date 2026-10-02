@@ -20,8 +20,7 @@ import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
-import org.dual.replicate.app.generation.adapter.in.web.form.GenerationFormRegistry;
-import org.dual.replicate.app.generation.adapter.in.web.form.IGenerationParameterHandler;
+import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
@@ -60,7 +59,7 @@ public class GenerationController {
 
     private final IGenerations generationService;
     private final IModelCatalog modelCatalog;
-    private final GenerationFormRegistry parameterHandlers;
+    private final IGenerationForms forms;
     private final Messages messages;
     private final IPromptEnhancer promptEnhancementService;
     private final IImageStorageService imageStorageService;
@@ -69,7 +68,7 @@ public class GenerationController {
 
     public GenerationController(IGenerations generationService,
                                  IModelCatalog modelCatalog,
-                                 GenerationFormRegistry parameterHandlers,
+                                 IGenerationForms forms,
                                  Messages messages,
                                  IPromptEnhancer promptEnhancementService,
                                  IImageStorageService imageStorageService,
@@ -78,7 +77,7 @@ public class GenerationController {
         this.htmx = htmx;
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
-        this.parameterHandlers = parameterHandlers;
+        this.forms = forms;
         this.messages = messages;
         this.promptEnhancementService = promptEnhancementService;
         this.imageStorageService = imageStorageService;
@@ -157,7 +156,7 @@ public class GenerationController {
             String resolvedVersion = (version == null || version.isBlank())
                     ? modelCatalog.versionOf(model).orElse(null)
                     : version;
-            Map<String, Object> parameters = parameterHandlers.parameters(formType, allParams);
+            Map<String, Object> parameters = forms.parameters(formType, allParams);
             // img2video / modifica: sorgente (upload o generazione "Anima"/"Modifica"), precedenza, validita' e salvataggio dell'upload
             // li decide il servizio (ignorata da un text-to-image); qui si passa solo cio' che ha inviato il form.
             UploadedFile upload = sourceUpload == null || sourceUpload.isEmpty() ? null : uploaded(sourceUpload);
@@ -237,10 +236,9 @@ public class GenerationController {
     public String params(@RequestParam String model, @RequestParam Map<String, String> allParams, Model uiModel) {
         GenerationFormType formType = modelCatalog.formTypeOf(model)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("generateForm.error.unknownModel", model)));
-        IGenerationParameterHandler handler = parameterHandlers.handler(formType);
-        populateFormTypeFields(uiModel, handler, allParams);
-        addTokenOptions(uiModel, handler);
-        return handler.fragmentName();
+        populateFormTypeFields(uiModel, formType, allParams);
+        addTokenOptions(uiModel, formType);
+        return GenerationFormFragments.fragmentOf(formType);
     }
 
     /**
@@ -319,27 +317,25 @@ public class GenerationController {
         model.addAttribute("model", modelValue);
         // Target del "Reimposta ai default" della form: il primo modello del tipo di pagina, non quello corrente.
         model.addAttribute("defaultModel", pageModels.stream().findFirst().map(ReplicateModel::getIdentifier).orElse(modelValue));
-        IGenerationParameterHandler handler = modelCatalog.formTypeOf(modelValue)
-                .map(parameterHandlers::handler)
-                .orElseGet(() -> pageModels.stream().findFirst()
-                        .map(m -> parameterHandlers.handler(m.getFormType()))
-                        .orElse(null));
-        model.addAttribute("formType", handler == null ? null : handler.formType().name());
-        if (handler != null) {
-            populateFormTypeFields(model, handler, allParams);
-            addTokenOptions(model, handler);
+        GenerationFormType shown = current != null ? current
+                : pageModels.stream().findFirst().map(ReplicateModel::getFormType).orElse(null);
+        model.addAttribute("formType", shown == null ? null : shown.name());
+        if (shown != null) {
+            populateFormTypeFields(model, shown, allParams);
+            addTokenOptions(model, shown);
         }
     }
 
     /** Token e LoRA anagrafati per le select del form-type che li usa (flux-dev-lora): solo dove serve, mai a ogni richiesta. */
-    private void addTokenOptions(Model model, IGenerationParameterHandler handler) {
-        parameterHandlers.extraFormOptions(handler.formType()).forEach(model::addAttribute);
+    private void addTokenOptions(Model model, GenerationFormType formType) {
+        forms.extraFormOptions(formType).forEach(model::addAttribute);
     }
 
     /** Valori dei campi del form-type: quelli sottomessi (se presenti) sopra i default di quel form-type. */
-    private void populateFormTypeFields(Model model, IGenerationParameterHandler handler, Map<String, String> allParams) {
-        Map<String, Object> fields = new LinkedHashMap<>(handler.defaultFields());
-        handler.defaultFields().keySet().forEach(key -> {
+    private void populateFormTypeFields(Model model, GenerationFormType formType, Map<String, String> allParams) {
+        Map<String, Object> defaults = forms.defaultFields(formType);
+        Map<String, Object> fields = new LinkedHashMap<>(defaults);
+        defaults.keySet().forEach(key -> {
             String submitted = allParams.get(key);
             if (submitted != null && !submitted.isBlank()) {
                 fields.put(key, submitted);

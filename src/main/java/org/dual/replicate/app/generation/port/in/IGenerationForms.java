@@ -5,18 +5,32 @@ import java.util.Map;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 
 /**
- * Il binding delle form dei parametri di generazione, per i sottosistemi che le pilotano da fuori (la chat: pannello impostazioni
- * di /deep-chat). Non e' un caso d'uso dell'esagono: lo implementa l'adapter web di {@code generation}, che e' anche
- * chi converte la form diretta di /generations; qui compare solo perche' gli altri sottosistemi possono dipendere
- * soltanto da {@code port.in} e {@code domain}.
+ * Il binding delle form dei parametri di generazione: converte i campi di una form (stringhe) nei parametri tipizzati del
+ * provider e dice quali valori ha una form e quali opzioni extra le servono. Lo usano la form diretta di /generations e il
+ * pannello impostazioni di /deep-chat (la chat, che e' un altro sottosistema, lo vede solo da questa porta).
  */
 public interface IGenerationForms {
+
+    /**
+     * Limite GLOBALE di immagini per richiesta ({@code num_outputs}) per ogni form-type che ne accetta piu' d'una: Replicate non ne
+     * supporta di piu'. Lo applica il server (clamp 1..4 nei parametri) e lo leggono i fragment dei form-type per l'attributo {@code max}.
+     */
+    int MAX_NUM_OUTPUTS = 4;
 
     /**
      * Converte i campi sottomessi (sempre stringhe, come un submit HTML) nei parametri del form-type, nel vocabolario del provider:
      * solo i campi presenti e validi finiscono nella mappa.
      */
     Map<String, Object> parameters(GenerationFormType formType, Map<String, String> submittedFields);
+
+    /** I valori di default dei campi del form-type (nessun campo ancora sottomesso); le chiavi sono quelle che la form conserva. */
+    Map<String, Object> defaultFields(GenerationFormType formType);
+
+    /**
+     * Opzioni extra che il fragment del form-type si aspetta (es. le select dei token e dei LoRA anagrafati per flux-dev-lora):
+     * vuote per gli altri, calcolate solo dove servono.
+     */
+    Map<String, Object> extraFormOptions(GenerationFormType formType);
 
     /**
      * Attributi di Model per il primo render del pannello del form-type: i valori di default dei campi piu' le opzioni extra

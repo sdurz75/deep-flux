@@ -1,10 +1,16 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.springframework.stereotype.Component;
+
+import static org.dual.replicate.app.shared.domain.FormFields.asInteger;
+import static org.dual.replicate.app.shared.domain.FormFields.asLong;
+import static org.dual.replicate.app.shared.domain.FormFields.asOneOf;
+import static org.dual.replicate.app.shared.domain.FormFields.isChecked;
+import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
 
 /**
  * Handler del form-type {@link GenerationFormType#FLUX_2_KLEIN_9B}: i
@@ -47,7 +53,7 @@ public class Flux2Klein9bParameterHandler implements IGenerationParameterHandler
         putIfPresent(params, "aspect_ratio", asOneOf(submittedFields.get("aspect_ratio"), ASPECT_RATIOS));
         putIfPresent(params, "megapixels", submittedFields.get("megapixels"));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
-        params.put("go_fast", submittedFields.containsKey("go_fast"));
+        params.put("go_fast", isChecked(submittedFields, "go_fast"));
         putIfPresent(params, "output_format", submittedFields.get("output_format"));
         putIfPresent(params, "output_quality", asInteger(submittedFields.get("output_quality")));
         return params;
@@ -64,10 +70,5 @@ public class Flux2Klein9bParameterHandler implements IGenerationParameterHandler
         // "seed" intenzionalmente assente: il default e' quello di Replicate
         // stesso (casuale, placeholder "casuale" nel fragment).
         return defaults;
-    }
-
-    @Override
-    public String fragmentName() {
-        return "fragments/app/generation-params-flux-2-klein-9b :: fields";
     }
 }

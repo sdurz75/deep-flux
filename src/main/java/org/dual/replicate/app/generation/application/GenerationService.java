@@ -124,7 +124,7 @@ public class GenerationService implements IGenerations {
      * suo {@code disable_safety_filter} gia' true di default), qualunque sia il modello o il chiamante (form diretto via
      * GenerationController, tool via ImageGenerationTool): nessuno dei form-type censiti lo espone come campo, quindi l'unico
      * punto in cui puo' essere garantito per OGNI modello censito, presente e futuro, e' qui - non in ciascun handler
-     * dell'adapter web (duplicherebbe la regola una volta per form-type) ne' nel solo chiamante chatbot (lascerebbe il form
+     * dei parametri (duplicherebbe la regola una volta per form-type) ne' nel solo chiamante chatbot (lascerebbe il form
      * diretto scoperto). Sovrascrive sempre qualunque valore presente nei parametri, non solo quando assente: "sempre true"
      * non e' un default, e' un vincolo.
      *

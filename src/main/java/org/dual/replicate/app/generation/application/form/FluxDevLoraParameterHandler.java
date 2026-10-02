@@ -1,4 +1,4 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -7,6 +7,14 @@ import java.util.Set;
 import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.springframework.stereotype.Component;
+
+import static org.dual.replicate.app.shared.domain.FormFields.asDouble;
+import static org.dual.replicate.app.shared.domain.FormFields.asInteger;
+import static org.dual.replicate.app.shared.domain.FormFields.asLong;
+import static org.dual.replicate.app.shared.domain.FormFields.asOneOf;
+import static org.dual.replicate.app.shared.domain.FormFields.asText;
+import static org.dual.replicate.app.shared.domain.FormFields.isChecked;
+import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
 
 /**
  * Handler del form-type {@link GenerationFormType#FLUX_DEV_LORA}: i campi di input di
@@ -62,7 +70,7 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
         putIfPresent(params, "aspect_ratio", asOneOf(submittedFields.get("aspect_ratio"), ASPECT_RATIOS));
         putIfPresent(params, "megapixels", asOneOf(submittedFields.get("megapixels"), MEGAPIXELS));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
-        params.put("go_fast", submittedFields.containsKey("go_fast"));
+        params.put("go_fast", isChecked(submittedFields, "go_fast"));
         putIfPresent(params, "guidance", asDouble(submittedFields.get("guidance")));
         putIfPresent(params, "prompt_strength", asDouble(submittedFields.get("prompt_strength")));
         putIfPresent(params, "num_outputs", asNumOutputs(submittedFields.get("num_outputs")));
@@ -92,15 +100,5 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
         defaults.put(ApiTokenProvider.CIVITAI.idParam(), "");
         // "seed" intenzionalmente assente (casuale, come gli altri form-type); "lora_weights"/"extra_lora" vuoti di default.
         return defaults;
-    }
-
-    @Override
-    public String fragmentName() {
-        return "fragments/app/generation-params-flux-dev-lora :: fields";
-    }
-
-    /** Testo ripulito, {@code null} se assente o vuoto (la chiave viene omessa e vale il default di Replicate). */
-    private String asText(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
     }
 }

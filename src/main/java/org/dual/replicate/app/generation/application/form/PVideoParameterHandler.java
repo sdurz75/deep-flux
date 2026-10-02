@@ -1,4 +1,4 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -6,6 +6,12 @@ import java.util.Set;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.springframework.stereotype.Component;
+
+import static org.dual.replicate.app.shared.domain.FormFields.asInteger;
+import static org.dual.replicate.app.shared.domain.FormFields.asLong;
+import static org.dual.replicate.app.shared.domain.FormFields.asOneOf;
+import static org.dual.replicate.app.shared.domain.FormFields.isChecked;
+import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
 
 /**
  * Handler del form-type {@link GenerationFormType#P_VIDEO}: i campi di
@@ -53,8 +59,8 @@ public class PVideoParameterHandler implements IGenerationParameterHandler {
         putIfPresent(params, "resolution", asOneOf(submittedFields.get("resolution"), RESOLUTIONS));
         Integer fps = asInteger(submittedFields.get("fps"));
         putIfPresent(params, "fps", fps != null && FPS_VALUES.contains(fps) ? fps : null);
-        params.put("draft", submittedFields.containsKey("draft"));
-        params.put("prompt_upsampling", submittedFields.containsKey("prompt_upsampling"));
+        params.put("draft", isChecked(submittedFields, "draft"));
+        params.put("prompt_upsampling", isChecked(submittedFields, "prompt_upsampling"));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
         return params;
     }
@@ -70,10 +76,5 @@ public class PVideoParameterHandler implements IGenerationParameterHandler {
         defaults.put("prompt_upsampling", DEFAULT_PROMPT_UPSAMPLING);
         // "seed" intenzionalmente assente: casuale di default, come gli altri form-type.
         return defaults;
-    }
-
-    @Override
-    public String fragmentName() {
-        return "fragments/app/generation-params-p-video :: fields";
     }
 }

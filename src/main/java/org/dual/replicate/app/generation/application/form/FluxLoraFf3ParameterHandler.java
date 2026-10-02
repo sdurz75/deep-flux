@@ -1,10 +1,15 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.springframework.stereotype.Component;
+
+import static org.dual.replicate.app.shared.domain.FormFields.asDouble;
+import static org.dual.replicate.app.shared.domain.FormFields.asInteger;
+import static org.dual.replicate.app.shared.domain.FormFields.asLong;
+import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
 
 /**
  * Handler del form-type {@link GenerationFormType#FLUX_LORA_FF3}: gli
@@ -72,10 +77,5 @@ public class FluxLoraFf3ParameterHandler implements IGenerationParameterHandler 
         // "seed" intenzionalmente assente: il default e' quello di Replicate
         // stesso (casuale, placeholder "casuale" nel fragment).
         return defaults;
-    }
-
-    @Override
-    public String fragmentName() {
-        return "fragments/app/generation-params-flux-lora-ff3 :: fields";
     }
 }

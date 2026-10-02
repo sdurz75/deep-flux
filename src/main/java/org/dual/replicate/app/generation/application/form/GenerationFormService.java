@@ -1,4 +1,4 @@
-package org.dual.replicate.app.generation.adapter.in.web.form;
+package org.dual.replicate.app.generation.application.form;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,30 +11,24 @@ import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.port.in.IGenerationForms;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.core.tokens.port.in.IApiTokens;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 /**
- * Risolve quale {@link IGenerationParameterHandler} gestisce un dato
- * {@link GenerationFormType}: le implementazioni sono bean Spring
- * auto-raccolte (una per form-type), cosi' nessuno dei chiamanti
- * (GenerationController, DeepChatController, DeepChatApiController) deve
- * ripetere il proprio dispatch — aggiungere una form significa aggiungere
- * un nuovo {@link IGenerationParameterHandler} col proprio
- * {@link IGenerationParameterHandler#formType()}, nient'altro da toccare
- * qui.
- * <p>
- * Vive nell'adapter web: la conversione dei campi di una form (stringhe) nei
- * parametri del provider e' un compito dell'interface layer, non dell'esagono.
- * Fuori dall'adapter (la chat) si vede solo la porta {@link IGenerationForms}.
+ * Use case del binding delle form dei parametri di generazione ({@link IGenerationForms}): risolve quale
+ * {@link IGenerationParameterHandler} gestisce un dato {@link GenerationFormType} (le implementazioni sono bean Spring
+ * auto-raccolti, uno per form-type: aggiungere una form significa aggiungere un handler col proprio
+ * {@link IGenerationParameterHandler#formType()}, nient'altro da toccare qui) e converte i campi sottomessi (stringhe: un submit
+ * HTML o il JSON della chat) nei parametri del provider. Lo usano la form diretta di /generations e il pannello di /deep-chat,
+ * cosi' la conversione e' una sola. Del fragment Thymeleaf che renderizza i campi si occupa l'adapter web.
  */
-@Component
-public class GenerationFormRegistry implements IGenerationForms {
+@Service
+public class GenerationFormService implements IGenerationForms {
 
     private final Map<GenerationFormType, IGenerationParameterHandler> byFormType;
     private final IApiTokens tokens;
     private final ILoraPresets loraPresets;
 
-    public GenerationFormRegistry(List<IGenerationParameterHandler> handlers, IApiTokens tokens, ILoraPresets loraPresets) {
+    public GenerationFormService(List<IGenerationParameterHandler> handlers, IApiTokens tokens, ILoraPresets loraPresets) {
         this.byFormType = handlers.stream()
                 .collect(Collectors.toMap(IGenerationParameterHandler::formType, Function.identity()));
         this.tokens = tokens;
@@ -42,7 +36,7 @@ public class GenerationFormRegistry implements IGenerationForms {
     }
 
     /** L'handler del form-type (un'implementazione per form-type). */
-    public IGenerationParameterHandler handler(GenerationFormType formType) {
+    IGenerationParameterHandler handler(GenerationFormType formType) {
         IGenerationParameterHandler handler = byFormType.get(formType);
         if (handler == null) {
             throw new IllegalStateException("Nessun IGenerationParameterHandler registrato per " + formType);
@@ -54,6 +48,7 @@ public class GenerationFormRegistry implements IGenerationForms {
      * Attributi di Model aggiuntivi richiesti dal fragment del form-type (es. le select dei token e dei LoRA anagrafati per
      * flux-dev-lora): vuoti per gli altri, mai calcolati a ogni richiesta se il fragment non li usa.
      */
+    @Override
     public Map<String, Object> extraFormOptions(GenerationFormType formType) {
         if (formType != GenerationFormType.FLUX_DEV_LORA) {
             return Map.of();
@@ -67,13 +62,18 @@ public class GenerationFormRegistry implements IGenerationForms {
     }
 
     @Override
+    public Map<String, Object> defaultFields(GenerationFormType formType) {
+        return handler(formType).defaultFields();
+    }
+
+    @Override
     public Map<String, Object> parameters(GenerationFormType formType, Map<String, String> submittedFields) {
         return handler(formType).toParameterMap(submittedFields);
     }
 
     @Override
     public Map<String, Object> formModel(GenerationFormType formType) {
-        Map<String, Object> model = new LinkedHashMap<>(handler(formType).defaultFields());
+        Map<String, Object> model = new LinkedHashMap<>(defaultFields(formType));
         model.putAll(extraFormOptions(formType));
         return model;
     }
