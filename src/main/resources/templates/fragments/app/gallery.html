@@ -61,7 +61,7 @@
            class="text-ink-muted dark:text-ink-muted-dark">Nessun preferito ancora.</p>
         <!-- th:unless su un th:block separato, non th:if sullo stesso tag di th:replace: stesso principio gia' documentato altrove in questo file (th:each+th:replace), th:replace ha precedenza piu' alta e scatterebbe comunque. Altrimenti la toolbar di selezione (dentro grid(...)) comparirebbe anche a galleria vuota. -->
         <th:block th:unless="${#lists.isEmpty(items)}">
-            <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab == 'all'})}"></div>
+            <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab == 'all'}, false)}"></div>
         </th:block>
         <div th:replace="~{fragments/core/pagination :: nav(${tab == 'favourites'} ? '/gallery?tab=favourites' : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
     </div>
@@ -87,7 +87,7 @@
     <p th:if="${#lists.isEmpty(items)}" th:text="${emptyMessage}"
        class="text-ink-muted dark:text-ink-muted-dark">Nessuna immagine.</p>
     <th:block th:unless="${#lists.isEmpty(items)}">
-        <div th:replace="~{fragments/app/gallery :: grid(${items}, ${conversationId}, true)}"></div>
+        <div th:replace="~{fragments/app/gallery :: grid(${items}, ${conversationId}, true, true)}"></div>
     </th:block>
 </th:block>
 
@@ -124,6 +124,9 @@
   elemento) - serve il th:block th:each sotto che avvolge un div
   th:replace figlio.
 
+  selectionByFile: la card e' UN FILE (galleria contestuale: tutti i file della conversazione) invece di una generazione: la checkbox
+  seleziona il file ("<idGenerazione>:<filename>", POST /gallery/delete-selected-files) e il badge "+N" non ha senso.
+
   conversationId (nullable): solo propagato a ogni card(...) sotto
   (vedi fragments/app/gallery-card.html) per il link "torna a" del
   dettaglio - null dalla galleria globale (content(...) sopra), l'id
@@ -146,7 +149,7 @@
   lo stato disabled, e da ogni checkbox delle card per il proprio stato
   checked/unchecked.
 -->
-<th:block th:fragment="grid(items, conversationId, selectable)">
+<th:block th:fragment="grid(items, conversationId, selectable, selectionByFile)">
     <form x-data="{
             selectedIds: [],
             imageGalleryOpened: false,
@@ -187,14 +190,20 @@
             <span class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">
                 <span x-text="selectedIds.length"></span> <span th:text="#{gallery.selection.label}">selezionate</span>
             </span>
-            <button th:replace="~{fragments/core/button :: dangerSelectable(text=#{gallery.button.deleteSelected}, hxPost=@{/gallery/delete-selected}, hxConfirm=#{gallery.confirm.deleteSelected}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina selezionate</button>
+            <!--/* selectionByFile (galleria contestuale: una card per file) elimina i singoli file, altrimenti intere generazioni (card = generazione). */-->
+            <th:block th:unless="${selectionByFile}">
+                <button th:replace="~{fragments/core/button :: dangerSelectable(text=#{gallery.button.deleteSelected}, hxPost=@{/gallery/delete-selected}, hxConfirm=#{gallery.confirm.deleteSelected}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina selezionate</button>
+            </th:block>
+            <th:block th:if="${selectionByFile}">
+                <button th:replace="~{fragments/core/button :: dangerSelectable(text=#{gallery.button.deleteSelected}, hxPost=@{/gallery/delete-selected-files}, hxConfirm=#{gallery.confirm.deleteSelectedFiles}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina selezionate</button>
+            </th:block>
         </div>
 
         <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
              x-ref="gallery">
 
         <th:block th:each="item : ${items}">
-            <div th:replace="~{fragments/app/gallery-card :: card(${item}, ${conversationId}, ${selectable})}"></div>
+            <div th:replace="~{fragments/app/gallery-card :: card(${item}, ${conversationId}, ${selectable}, ${selectionByFile})}"></div>
         </th:block>
 
         <!-- Lightbox fullscreen: apertura via imageGalleryOpen sul click di un'immagine (in fragments/app/gallery-card.html). -->

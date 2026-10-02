@@ -64,13 +64,12 @@ public class DeepChatController {
 
     /** Nessuna pagina "senza conversazione": risolve sempre quella piu' di recente attiva (o ne crea una nuova al primo avvio) e ci naviga. */
     @GetMapping("/deep-chat")
-    public String defaultConversation(@RequestParam(required = false) Long seed) {
-        Long id = conversations.resolveDefault().getId();
-        return "redirect:/deep-chat/" + id + (seed != null ? "?seed=" + seed : "");
+    public String defaultConversation() {
+        return "redirect:/deep-chat/" + conversations.resolveDefault().getId();
     }
 
     @GetMapping("/deep-chat/{id}")
-    public String page(@PathVariable Long id, @RequestParam(required = false) Long seed, Model model) {
+    public String page(@PathVariable Long id, Model model) {
         conversations.find(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("deepchat.error.conversationNotFound")));
 
@@ -87,8 +86,7 @@ public class DeepChatController {
                 .map(org.dual.replicate.app.generation.domain.Generation::getId).toList());
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", id);
-        model.addAttribute("contextualItems", generationService.succeededForConversation(id).stream()
-                .map(org.dual.replicate.app.generation.domain.GalleryItem::first).toList());
+        model.addAttribute("contextualItems", generationService.succeededItemsForConversation(id));
 
         // Solo modelli immagine: il tool di chat genera immagini (i video passano da /generations/new).
         model.addAttribute("models", modelCatalog.models(GenerationKind.IMAGE));
@@ -96,12 +94,6 @@ public class DeepChatController {
         model.addAttribute("model", defaultModel.map(ReplicateModel::getIdentifier).orElse(""));
         model.addAttribute("formType", defaultModel.map(m -> m.getFormType().name()).orElse(null));
         defaultModel.ifPresent(m -> forms.formModel(m.getFormType()).forEach(model::addAttribute));
-        // Push del seed dal dettaglio di una generazione (vedi fragments/app/generation.html :: status,
-        // ramo SUCCEEDED), stesso motivo del GenerationController#form: seed non e' nel
-        // formModel() (default dei campi), va impostato a parte.
-        if (seed != null) {
-            model.addAttribute("seed", seed);
-        }
         return "app/deep-chat";
     }
 
@@ -115,8 +107,7 @@ public class DeepChatController {
      */
     @GetMapping("/deep-chat/{id}/gallery")
     public String gallery(@PathVariable Long id, Model model) {
-        model.addAttribute("contextualItems", generationService.succeededForConversation(id).stream()
-                .map(org.dual.replicate.app.generation.domain.GalleryItem::first).toList());
+        model.addAttribute("contextualItems", generationService.succeededItemsForConversation(id));
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
         model.addAttribute("conversationId", id);
         return "fragments/app/gallery :: gridOrEmpty(items=${contextualItems}, emptyMessage=${contextualGalleryEmptyMessage}, conversationId=${conversationId})";

@@ -16,13 +16,16 @@
 
         <!--/*
           Stato persistito lato client (fragments/app/generation-settings-persist.html, incluso da generate.html): chiave per
-          TIPO di pagina (modelli e campi differiscono), separata da quella della chat. Prompt/seed valorizzati dal server
-          (link "riusa", "Anima"/"Modifica") NON si ripristinano: vince il link. `version` (hash pinnato) non si persiste mai.
+          TIPO di pagina (modelli e campi differiscono), separata da quella della chat. Il prompt valorizzato dal server
+          ("Anima") NON si ripristina: vince il link. `version` (hash pinnato) non si persiste mai.
+          data-shared-accept: cosa prende dallo slot globale prompt/seed (generation-shared-slot.html). Su "edit" solo il seed:
+          il prompt di una modifica e' un'istruzione, non la descrizione di un'immagine.
         */-->
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML" hx-encoding="multipart/form-data"
               th:data-busy-text="#{generateForm.busy.create}"
               th:data-persist-key="${editPage} ? 'generate.edit' : (${videoPage} ? 'generate.video' : 'generate.image')"
-              th:data-persist-no-restore="${(prompt != null ? 'prompt ' : '') + (seed != null ? 'seed' : '')}"
+              th:data-persist-no-restore="${prompt != null ? 'prompt' : ''}"
+              th:data-shared-accept="${editPage} ? 'seed' : 'prompt seed'"
               data-persist-ignore="version">
             <div th:if="${sourceGeneration}" class="mb-4">
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">

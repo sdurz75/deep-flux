@@ -100,7 +100,6 @@ public class GenerationController {
 
     @GetMapping("/new")
     public String form(@RequestParam(required = false) String prompt,
-                        @RequestParam(required = false) Long seed,
                         @RequestParam(required = false) Long source,
                         @RequestParam(required = false) String sourceImage,
                         @RequestParam(required = false) String kind,
@@ -138,13 +137,6 @@ public class GenerationController {
         }
         model.addAttribute("prompt", prompt);
         populateGenerationParamsModel(model, defaultModel, Map.of());
-        // Push del seed dal dettaglio di una generazione (vedi fragments/app/generation.html :: status,
-        // ramo SUCCEEDED): non passa per populateFormTypeFields/defaultFields (seed ne e'
-        // intenzionalmente escluso, vedi FluxLoraFf3ParameterHandler/Flux2Klein9bParameterHandler),
-        // va impostato qui esplicitamente.
-        if (seed != null) {
-            model.addAttribute("seed", seed);
-        }
         return "app/generate";
     }
 

@@ -98,7 +98,11 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   piu' recente attiva prima, ricarica cronologia completa, rinomina/cancella inline) e impostazioni di generazione
   (`fragments/app/generation-params.html`).
 - Sotto la chat, accordion collassabile (`fragments/app/accordion.html :: panels`, Pines UI) con la galleria "contestuale"
-  (`fragments/app/gallery.html :: grid` riusata) delle sole immagini di quella conversazione; `/gallery` resta indipendente.
+  (`fragments/app/gallery.html :: grid` riusata) con TUTTI i file (immagini e video) di quella conversazione, una card per file
+  (`IGenerations#succeededItemsForConversation`, `GalleryItem.allOf`), non solo il primo di ogni generazione. La selezione e'
+  PER FILE (`selectionByFile`: checkbox `files` = `<idGenerazione>:<filename>`, `POST /gallery/delete-selected-files`,
+  `IGenerations#deleteImages`: una generazione che perde tutti i file e' eliminata a cascata); in `/gallery` resta una card e una
+  selezione per generazione. `/gallery` resta indipendente.
 - La chat conosce una generazione solo per id (`ChatMessage.generationId`, FK `ON DELETE SET NULL`): per gli allegati della
   cronologia legge `IGenerations#findAllById` in blocco.
 
@@ -619,12 +623,22 @@ Modello + parametri (+ prompt in `/generations/new`) sono una preferenza del bro
 SOLO per modifica dell'utente o "Reimposta ai default" esplicito, mai per una navigazione. Un solo script, `fragments/app/generation-settings-persist.html :: script`
 (da includere DOPO il markup), attivo su ogni `form[data-persist-key]`: `/deep-chat` (`deepChat.generationSettings`) e `/generations/new`
 (`generate.image|video|edit`, una chiave per tipo di pagina, separata dalla chat). Configurazione via `data-*` sul form:
-`data-persist-key`, `data-persist-no-restore` (campi che il server ha valorizzato da un link esplicito, `?prompt=`/`?seed=`/"Anima"/"Modifica": non si
-ripristinano ma si scrivono), `data-persist-ignore` (mai scritti: `version`, un hash pinnato ripristinato di nascosto userebbe il modello sbagliato a
+`data-persist-key`, `data-persist-no-restore` (campi che il server ha valorizzato da un link esplicito, il prompt di "Anima": non si
+ripristinano ma si scrivono), `data-shared-accept` (chiavi dello slot globale che il form prende; l'edit solo `seed`), `data-persist-ignore` (mai scritti: `version`, un hash pinnato ripristinato di nascosto userebbe il modello sbagliato a
 pagamento). A ogni sync il form emette `generation-settings:sync` (detail = tutti i campi, hidden inclusi): la chat lo inoltra a
 `window.setDeepChatSettings`, registrando il listener PRIMA dell'include. Il listener `input` e' delegato su `document` perche' il form di
 `/generations/new` viene ri-renderizzato dopo un create rifiutato (`createFailed` rimette il `seed` nel Model: non e' fra i `defaultFields`). Non
 persistiti: file `sourceUpload`, hidden. Un nuovo form-type non richiede nulla qui.
+
+**Slot globale prompt/seed** (`localStorage['generation.shared']` = `{prompt?, seed?}`): "Usa prompt" (uno per generazione) e "Usa seed" (PER FILE, nella
+griglia del dettaglio; `button-gen :: pushShared`, scrittura in `fragments/app/generation-shared-slot.html :: pusher`) NON aprono un caso d'uso: spingono nello
+slot. Lo legge `applySharedSlot` nello script di persistenza (avvio, evento `storage` di un'altra tab, bfcache) e CONSUMA ogni chiave applicata; una chiave
+resta se il form non la accetta, non ha il campo (il prompt in Deep Chat) o il server l'ha gia' valorizzata da un link ("Anima" vince). Il seed per file e'
+`Generation#reusableSeedOf` (tabella `generation_image_seed`, solo se i log hanno un "seed" per output). Altrimenti c'e' un solo seed di batch, e
+riproduce SOLO la prima immagine (verificato con due prediction su flux-lora-ff3: la seconda immagine di un batch nasce da un seed derivato che nessun log
+riporta, e non e' seed+1): la prima mostra `(batch)` col bottone, le altre "non riproducibile da sola" senza bottone. Un seed vero per ogni immagine richiede
+una prediction per immagine (`num_outputs=1`), non implementato.
+La chiave dello slot e' duplicata nei due script: tenerle allineate.
 
 ## Ricerca semantica (PgVectorStore su PostgreSQL+pgvector, embedding locali)
 

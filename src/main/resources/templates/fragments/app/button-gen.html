@@ -212,5 +212,18 @@
         @click="const p = document.getElementById('prompt'); p.value = (p.value.trim() ? p.value.replace(/[\s,]+$/, '') + ', ' : '') + words; p.dispatchEvent(new Event('input', { bubbles: true }))"
         th:text="${text}">Aggiungi al prompt</button>
 
+<!--
+  pushShared(text, doneText, prompt, seed, extraClass): "Usa prompt"/"Usa seed" nel dettaglio di una generazione. NON naviga: il click
+  e' gestito da fragments/app/generation-shared-slot.html :: pusher (listener delegato su [data-shared-push]), che scrive
+  prompt e/o seed nello slot globale letto dai form (generation-settings-persist.html) e mostra doneText per un attimo. prompt/seed
+  null = attributo assente (si passa solo quello che il bottone spinge).
+-->
+<button th:fragment="pushShared(text, doneText, prompt, seed, extraClass)" type="button"
+        data-shared-push
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-0.5 text-[0.8rem]"
+        th:classappend="${extraClass}"
+        th:data-shared-prompt="${prompt}" th:data-shared-seed="${seed}" th:data-shared-done="${doneText}"
+        th:text="${text}">Usa</button>
+
 </body>
 </html>

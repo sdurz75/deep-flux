@@ -12,6 +12,7 @@ import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.app.chat.application.ChatGenerationWatcher;
 import tools.jackson.databind.ObjectMapper;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.GenerationKind;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -495,6 +497,57 @@ class GenerationServiceTest {
         assertThat(result.getImageFilenames()).containsExactly("5-0.png", "5-1.png");
     }
 
+    /** Un "seed" per output nei log e tanti file quanti i seed: ogni file prende il suo (in ordine); quello della generation e' il primo. */
+    @Test
+    void refreshMapsOneLoggedSeedPerOutputToItsFile() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation generation = new Generation("pred-6", "owner/model", null, "a cat", null);
+        ReflectionTestUtils.setField(generation, "id", 6L);
+        when(repository.findById(6L)).thenReturn(Optional.of(generation));
+        when(repository.existsById(6L)).thenReturn(true);
+        when(replicateClient.getPrediction("pred-6"))
+                .thenReturn(new Prediction("pred-6", "succeeded",
+                        List.of("https://example.com/out-0.png", "https://example.com/out-1.png"), null, null,
+                        "Using seed: 111\nUsing seed: 222"));
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("6-0.png", "6-1.png");
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.refresh(6L);
+
+        assertThat(result.getSeed()).isEqualTo(111L);
+        assertThat(result.getImageSeeds()).containsEntry("6-0.png", 111L).containsEntry("6-1.png", 222L).hasSize(2);
+        assertThat(result.seedOf("6-1.png")).isEqualTo(222L);
+        assertThat(result.isBatchSeed("6-1.png")).isFalse();
+    }
+
+    /** Un solo seed nei log per piu' file (il caso tipico): nessun abbinamento per file, ricadono tutti sul seed del batch. */
+    @Test
+    void refreshKeepsTheBatchSeedWhenLogsHaveFewerSeedsThanFiles() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation generation = new Generation("pred-7", "owner/model", null, "a cat", null);
+        ReflectionTestUtils.setField(generation, "id", 7L);
+        when(repository.findById(7L)).thenReturn(Optional.of(generation));
+        when(repository.existsById(7L)).thenReturn(true);
+        when(replicateClient.getPrediction("pred-7"))
+                .thenReturn(new Prediction("pred-7", "succeeded",
+                        List.of("https://example.com/out-0.png", "https://example.com/out-1.png"), null, null,
+                        "Using seed: 333"));
+        when(imageStorageService.downloadAndStore(anyString())).thenReturn("7-0.png", "7-1.png");
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Generation result = service.refresh(7L);
+
+        assertThat(result.getSeed()).isEqualTo(333L);
+        assertThat(result.getImageSeeds()).isEmpty();
+        assertThat(result.seedOf("7-1.png")).isEqualTo(333L);
+        // Il seed del batch riproduce solo la prima immagine (verificato su flux-lora-ff3): la seconda non e' riusabile da sola.
+        assertThat(result.reusableSeedOf("7-0.png")).isEqualTo(333L);
+        assertThat(result.reusableSeedOf("7-1.png")).isNull();
+        assertThat(result.isBatchSeed("7-1.png")).isTrue();
+    }
+
     @Test
     void refreshDoesNotCallReplicateWhenAlreadyTerminal() {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
@@ -614,6 +667,7 @@ class GenerationServiceTest {
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         ReflectionTestUtils.setField(generation, "id", 1L);
         generation.setImageFilenames(List.of("1-0.png", "1-1.png"));
+        generation.setImageSeeds(new java.util.LinkedHashMap<>(java.util.Map.of("1-0.png", 10L, "1-1.png", 11L)));
         when(repository.findById(1L)).thenReturn(Optional.of(generation));
 
         boolean cascaded = service.deleteImage(1L, "1-0.png");
@@ -622,6 +676,7 @@ class GenerationServiceTest {
         verify(imageStorageService).delete("1-0.png");
         verify(imageStorageService, never()).delete("1-1.png");
         assertThat(generation.getImageFilenames()).containsExactly("1-1.png");
+        assertThat(generation.getImageSeeds()).containsOnlyKeys("1-1.png");
         verify(repository).save(generation);
         verify(repository, never()).deleteAllById(any());
         verify(eventPublisher).publishEvent(new org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent(1L));
@@ -647,6 +702,75 @@ class GenerationServiceTest {
         verify(imageStorageService).delete("1-0.png");
         verify(repository).deleteAllById(List.of(1L));
         verify(eventPublisher).publishEvent(new GenerationsDeletedEvent(List.of(1L)));
+        verify(eventPublisher, never()).publishEvent(any(org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent.class));
+    }
+
+    @Test
+    void succeededItemsForConversationHasOneItemPerFileInOrder() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation first = new Generation("pred-1", "owner/model", null, "a cat", null);
+        first.setImageFilenames(List.of("1-0.png", "1-1.png"));
+        Generation second = new Generation("pred-2", "owner/model", null, "a dog", null);
+        second.setImageFilenames(List.of("2-0.mp4"));
+        when(repository.findByConversationIdAndStatusOrderByIdAsc(9L, GenerationStatus.SUCCEEDED)).thenReturn(List.of(first, second));
+
+        List<org.dual.replicate.app.generation.domain.GalleryItem> items = service.succeededItemsForConversation(9L);
+
+        assertThat(items).extracting(org.dual.replicate.app.generation.domain.GalleryItem::filename)
+                .containsExactly("1-0.png", "1-1.png", "2-0.mp4");
+        assertThat(items).extracting(org.dual.replicate.app.generation.domain.GalleryItem::generation)
+                .containsExactly(first, first, second);
+    }
+
+    /** Parziale: la generazione resta, i file vanno via da storage/elenco/star/seed con un solo save e un solo evento. */
+    @Test
+    void deleteImagesRemovesOnlySelectedFilesAndKeepsTheGeneration() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        ReflectionTestUtils.setField(generation, "id", 1L);
+        generation.setImageFilenames(List.of("1-0.png", "1-1.png", "1-2.png"));
+        generation.setFavouriteFilenames(new java.util.LinkedHashSet<>(java.util.Set.of("1-0.png", "1-2.png")));
+        generation.setImageSeeds(new java.util.LinkedHashMap<>(java.util.Map.of("1-0.png", 10L, "1-1.png", 11L, "1-2.png", 12L)));
+        when(repository.findAllById(any())).thenReturn(List.of(generation));
+
+        service.deleteImages(List.of(new GenerationFile(1L, "1-0.png"), new GenerationFile(1L, "1-1.png"),
+                new GenerationFile(1L, "unknown.png"), new GenerationFile(1L, "1-0.png")));
+
+        verify(imageStorageService).delete("1-0.png");
+        verify(imageStorageService).delete("1-1.png");
+        verify(imageStorageService, never()).delete("1-2.png");
+        verify(imageStorageService, never()).delete("unknown.png");
+        assertThat(generation.getImageFilenames()).containsExactly("1-2.png");
+        assertThat(generation.getFavouriteFilenames()).containsExactly("1-2.png");
+        assertThat(generation.getImageSeeds()).containsOnlyKeys("1-2.png");
+        verify(repository, times(1)).save(generation);
+        verify(eventPublisher, times(1)).publishEvent(new org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent(1L));
+        verify(repository, never()).deleteAllById(any());
+    }
+
+    /** Totale su DUE generazioni: cascade con UNA deleteGenerations (un solo GenerationsDeletedEvent), file di altre generazioni intoccabili. */
+    @Test
+    void deleteImagesDeletesEmptiedGenerationsInOneGoAndIgnoresForeignFiles() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation a = new Generation("pred-a", "owner/model", null, "a", null);
+        ReflectionTestUtils.setField(a, "id", 1L);
+        a.setStatus(GenerationStatus.SUCCEEDED);
+        a.setImageFilenames(List.of("a-0.png", "a-1.png"));
+        Generation b = new Generation("pred-b", "owner/model", null, "b", null);
+        ReflectionTestUtils.setField(b, "id", 2L);
+        b.setStatus(GenerationStatus.SUCCEEDED);
+        b.setImageFilenames(List.of("b-0.png"));
+        when(repository.findAllById(any())).thenReturn(List.of(a, b));
+
+        // "b-0.png" dichiarato sotto la generazione 1: non le appartiene, non va toccato; b e' selezionata per intero con la sua voce.
+        service.deleteImages(List.of(new GenerationFile(1L, "a-0.png"), new GenerationFile(1L, "a-1.png"),
+                new GenerationFile(1L, "b-0.png"), new GenerationFile(2L, "b-0.png")));
+
+        verify(repository, times(1)).deleteAllById(List.of(1L, 2L));
+        verify(eventPublisher, times(1)).publishEvent(new GenerationsDeletedEvent(List.of(1L, 2L)));
         verify(eventPublisher, never()).publishEvent(any(org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent.class));
     }
 

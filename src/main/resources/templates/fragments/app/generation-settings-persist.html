@@ -9,14 +9,21 @@
   "binding via data-*", vedi CLAUDE.md "Convenzione: theming"):
     - data-persist-key        chiave localStorage (chat: deepChat.generationSettings, form: generate.image|video|edit);
     - data-persist-no-restore campi (separati da spazio) NON ripristinati all'avvio ma comunque scritti: sono quelli che il
-                              server ha valorizzato da un link esplicito (?prompt=, ?seed=, "Anima"/"Modifica"), che vince
-                              sullo stato salvato e diventa lo stato corrente, SOLO arrivandoci (non su reload/Back) e anche se il
+                              server ha valorizzato da un link esplicito (il prompt di "Anima"), che vince sullo stato salvato e
+                              sullo slot globale e diventa lo stato corrente, SOLO arrivandoci (non su reload/Back) e anche se il
                               restore deve cambiare modello (il fetch sostituisce i campi: i valori del link si ricatturano);
+    - data-shared-accept      chiavi dello slot globale prompt/seed che il form prende (default: tutte; la pagina "edit" solo `seed`);
     - data-persist-ignore     campi (separati da spazio) MAI scritti in localStorage (es. `version`, un hash pinnato che
                               ripristinato di nascosto farebbe partire una prediction a pagamento col modello sbagliato).
   Ad ogni sync il <form> riceve l'evento `generation-settings:sync` con detail = TUTTI i campi (hidden inclusi, valori sempre
   stringa) quindi chi deve inoltrarli (la chat: window.setDeepChatSettings) si registra PRIMA di questo include, perche' il
   primo sync e' sincrono.
+
+  SLOT GLOBALE prompt/seed (localStorage['generation.shared'], scritto da generation-shared-slot.html :: pusher, "Usa prompt"/
+  "Usa seed" nel dettaglio di una generazione; LA CHIAVE E' DUPLICATA nei due script): applySharedSlot() lo applica a ogni
+  form all'avvio (dopo lo stato salvato: un push esplicito vince), alla `storage` di un'altra tab e al ritorno da bfcache, e CONSUMA
+  ogni chiave applicata. Una chiave resta nello slot se il form non la accetta (data-shared-accept), se il campo non c'e' (il prompt
+  in Deep Chat, un modello senza seed) o se il server l'ha gia' valorizzata da un link esplicito (data-persist-no-restore).
 
   Il contenuto della form e' stato lato client invece che lato server (a differenza di conversazioni/cronologia, vedi
   CLAUDE.md Scopo punto 3): una preferenza dell'ultima sessione di chi usa il browser, non dati applicativi, stesso principio
@@ -108,9 +115,49 @@
                 });
             }
 
+            var SHARED_KEY = 'generation.shared';
+
+            function writeShared(slot) {
+                try {
+                    if (Object.keys(slot).length) {
+                        localStorage.setItem(SHARED_KEY, JSON.stringify(slot));
+                    } else {
+                        localStorage.removeItem(SHARED_KEY);
+                    }
+                } catch (e) {
+                    // localStorage non disponibile: lo slot resta com'e'.
+                }
+            }
+
+            // Applica (e consuma) le chiavi dello slot globale che questo form accetta e puo' ricevere. Ritorna true se ha
+            // cambiato qualche campo: il chiamante fa sync(form) (non qui: nel restore con fetch il sync arriva a fine catena).
+            function applySharedSlot(form) {
+                var slot = readStored(SHARED_KEY);
+                if (!slot) {
+                    return false;
+                }
+                var accept = names(form, 'data-shared-accept');
+                var skip = noRestoreNames(form);
+                var changed = false;
+                Object.keys(slot).forEach(function (name) {
+                    var field = form.elements.namedItem(name);
+                    if ((accept.length && accept.indexOf(name) < 0) || skip.indexOf(name) >= 0
+                            || !field || field.type === 'hidden' || field.readOnly || field.value === undefined) {
+                        return;
+                    }
+                    field.value = slot[name];
+                    delete slot[name];
+                    changed = true;
+                });
+                if (changed) {
+                    writeShared(slot);
+                }
+                return changed;
+            }
+
             // Valori dei campi `data-persist-no-restore` GIA' nel DOM (messi dal server da un link esplicito): il restore con
-            // fetch sostituisce i campi del form-type e li cancellerebbe (es. il seed del link "riusa", dentro il contenitore),
-            // senza che lo stato salvato possa rimetterli perche' proprio questi non si ripristinano.
+            // fetch sostituisce i campi del form-type e li cancellerebbe, senza che lo stato salvato possa rimetterli perche'
+            // proprio questi non si ripristinano.
             function captureKept(form) {
                 var kept = {};
                 noRestoreNames(form).forEach(function (name) {
@@ -174,6 +221,7 @@
                             fieldsContainer.innerHTML = html;
                             applyStoredFields(form, stored);
                             applyKept(form, kept);
+                            applySharedSlot(form);
                             sync(form);
                         })
                         .catch(function () {
@@ -187,9 +235,31 @@
                     if (stored) {
                         applyStoredFields(form, stored);
                     }
+                    applySharedSlot(form);
                     sync(form);
                 }
             }
+
+            function applySharedToAll() {
+                document.querySelectorAll(SELECTOR).forEach(function (form) {
+                    if (applySharedSlot(form)) {
+                        sync(form);
+                    }
+                });
+            }
+
+            // Un push da un'altra tab (dettaglio di una generazione) arriva a un form gia' aperto; il ritorno da bfcache non
+            // rilancia lo script, quindi lo slot si rilegge anche li.
+            window.addEventListener('storage', function (event) {
+                if (event.key === SHARED_KEY) {
+                    applySharedToAll();
+                }
+            });
+            window.addEventListener('pageshow', function (event) {
+                if (event.persisted) {
+                    applySharedToAll();
+                }
+            });
 
             document.addEventListener('input', function (event) {
                 var form = event.target.closest && event.target.closest(SELECTOR);

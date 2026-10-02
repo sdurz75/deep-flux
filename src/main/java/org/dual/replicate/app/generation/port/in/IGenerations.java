@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.dual.replicate.app.generation.domain.GalleryItem;
+import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.core.kernel.Paged;
 
@@ -75,8 +76,11 @@ public interface IGenerations {
     /** Tutte le generazioni RIUSCITE (per l'indice di ricerca). */
     List<Generation> succeeded();
 
-    /** Galleria contestuale: le generazioni RIUSCITE di una conversazione, in ordine cronologico. */
-    List<Generation> succeededForConversation(Long conversationId);
+    /**
+     * Galleria contestuale: UN item per ogni file (immagine o video) delle generazioni RIUSCITE di una conversazione, in ordine
+     * cronologico (generazione per id, poi file nell'ordine in cui sono stati prodotti).
+     */
+    List<GalleryItem> succeededItemsForConversation(Long conversationId);
 
     /** Id (le piu' recenti, al massimo {@code limit}) delle generazioni terminali di una conversazione completate prima di {@code before}. */
     List<Long> terminalIdsWithConversation(Instant before, int limit);
@@ -98,6 +102,12 @@ public interface IGenerations {
 
     /** Elimina un file (e, se era l'ultimo, l'intera generazione): {@code true} se la generazione e' stata eliminata a cascata. */
     boolean deleteImage(Long generationId, String filename);
+
+    /**
+     * Cancellazione in blocco di singoli file (selezione per file della galleria contestuale). Voci sconosciute (generazione o file
+     * inesistenti, o file di un'altra generazione) sono ignorate; le generazioni che perdono TUTTI i file sono eliminate a cascata.
+     */
+    void deleteImages(List<GenerationFile> files);
 
     /** Aggiunge/toglie la star a un file; ritorna il nuovo stato. */
     boolean toggleFavourite(Long generationId, String filename);

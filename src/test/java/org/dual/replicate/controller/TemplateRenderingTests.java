@@ -158,7 +158,7 @@ class TemplateRenderingTests {
 
     /**
      * Stato della form di /generations/new persistito lato client (fragments/app/generation-settings-persist.html): chiave per
-     * tipo di pagina, separata da quella della chat; `version` mai scritta; prompt/seed da link esplicito non ripristinati;
+     * tipo di pagina, separata da quella della chat; `version` mai scritta; prompt da link esplicito non ripristinato;
      * bottone di reset con il primo modello del tipo di pagina come default.
      */
     @Test
@@ -169,14 +169,18 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String reused = mockMvc.perform(get("/generations/new").param("prompt", "a cat").param("seed", "7"))
+        String reused = mockMvc.perform(get("/generations/new").param("prompt", "a cat"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(image).contains("data-persist-key=\"generate.image\"").contains("data-persist-ignore=\"version\"")
                 .doesNotContainPattern("data-persist-no-restore=\"[^\"]*(prompt|seed)");
         assertThat(video).contains("data-persist-key=\"generate.video\"");
         assertThat(edit).contains("data-persist-key=\"generate.edit\"");
-        assertThat(reused).containsPattern("data-persist-no-restore=\"prompt seed\"");
+        assertThat(reused).contains("data-persist-no-restore=\"prompt\"");
+        // Slot globale prompt/seed: l'edit non prende il prompt (e' un'istruzione), le altre pagine entrambi.
+        assertThat(image).contains("data-shared-accept=\"prompt seed\"");
+        assertThat(video).contains("data-shared-accept=\"prompt seed\"");
+        assertThat(edit).contains("data-shared-accept=\"seed\"");
         // Script condiviso incluso una volta, bottone di reset che punta ai default del tipo di pagina.
         assertThat(image).contains("form[data-persist-key]").contains("generation-settings:sync");
         assertThat(video).containsPattern("data-default-model=\"prunaai/p-video\"")
@@ -777,6 +781,45 @@ class TemplateRenderingTests {
         assertThat(otherBody).contains("Nessuna immagine ancora in questa conversazione");
     }
 
+    /**
+     * La galleria contestuale mostra UNA card per OGNI file della conversazione (non solo il primo di ogni generazione), con la
+     * selezione per file ("files" = "<idGenerazione>:<filename>") e senza il badge "+N"; la galleria globale resta una card per
+     * generazione col badge.
+     */
+    @Test
+    @Transactional
+    void deepChatContextualGalleryShowsEveryFileOfAGeneration() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+
+        Generation multi = new Generation("pred-dc-multi", "owner/model", null, "two guitars", null);
+        multi.setStatus(GenerationStatus.SUCCEEDED);
+        multi.setImageFilenames(List.of("dc-a.png", "dc-b.png"));
+        multi.setConversationId(conversation.getId());
+        multi = repository.save(multi);
+
+        String body = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("/images/dc-a.png").contains("/images/dc-b.png");
+        assertThat(body).contains("name=\"files\"").contains("value=\"" + multi.getId() + ":dc-a.png\"")
+                .contains("value=\"" + multi.getId() + ":dc-b.png\"");
+        assertThat(body).contains("hx-post=\"/gallery/delete-selected-files\"").doesNotContain("hx-post=\"/gallery/delete-selected\"");
+        assertThat(body).doesNotContain("pointer-events-none\">+1<");
+        // Stesso contenuto dall'endpoint htmx richiamato a ogni nuovo messaggio.
+        String fragment = mockMvc.perform(get("/deep-chat/" + conversation.getId() + "/gallery"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(fragment).contains("/images/dc-a.png").contains("/images/dc-b.png");
+
+        // Galleria globale: una card per generazione (solo il primo file), col badge "+1" e la selezione per generazione.
+        String global = mockMvc.perform(get("/gallery"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(global).contains("/images/dc-a.png").doesNotContain("/images/dc-b.png");
+        assertThat(global).contains("value=\"" + multi.getId() + "\"").contains("hx-post=\"/gallery/delete-selected\"");
+    }
+
     @Test
     void emptyGalleryRenders() throws Exception {
         mockMvc.perform(get("/gallery")).andExpect(status().isOk());
@@ -853,86 +896,67 @@ class TemplateRenderingTests {
     }
 
     /**
-     * Il seed deve essere sempre chiaramente visibile nel dettaglio (vedi
-     * Generation.seed/IGenerations#create), non solo sepolto nel
-     * blob "Parametri": una riga dedicata, con un placeholder esplicito
-     * quando non e' noto (mai una riga che sparisce, a differenza di
-     * version/parametri).
+     * Il seed e' PER FILE nel dettaglio (Generation#seedOf), il prompt uno per generazione, e "Usa ..." non apre nessun caso d'uso: spinge
+     * nello slot globale (data-shared-*, vedi fragments/app/generation-shared-slot.html). Seed per file se i log ne davano uno per output;
+     * altrimenti quello del batch con l'etichetta "(batch)" se i file sono piu' d'uno; ignoto = "casuale" e nessun bottone seed.
      */
     @Test
-    void generationDetailShowsSeedRowExplicitlyAndPlaceholderWhenUnknown() throws Exception {
-        Generation withSeed = new Generation("pred-seed-1", "owner/model", null, "a cat", "{\"seed\":777}", 777L);
-        withSeed.setStatus(GenerationStatus.SUCCEEDED);
-        withSeed.setImageFilenames(List.of("seed-1.png"));
-        withSeed = repository.save(withSeed);
+    void generationDetailShowsSeedPerFileAndPushesToTheSharedSlot() throws Exception {
+        Generation perFile = new Generation("pred-seed-1", "owner/model", null, "a cat", "{}", 100L);
+        perFile.setStatus(GenerationStatus.SUCCEEDED);
+        perFile.setImageFilenames(List.of("seed-a.png", "seed-b.png"));
+        perFile.setImageSeeds(new java.util.LinkedHashMap<>(java.util.Map.of("seed-a.png", 111L, "seed-b.png", 222L)));
+        perFile = repository.save(perFile);
 
-        String bodyWithSeed = mockMvc.perform(get("/generations/" + withSeed.getId()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(bodyWithSeed).contains(">777<");
+        String perFileBody = mockMvc.perform(get("/generations/" + perFile.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(perFileBody).contains(">111<").contains(">222<")
+                .contains("data-shared-seed=\"111\"").contains("data-shared-seed=\"222\"")
+                .doesNotContain("data-shared-seed=\"100\"").doesNotContain("(batch)");
+        assertThat(perFileBody).contains("data-shared-prompt=\"a cat\"");
+        // Gli overlay "Anima"/"Modifica" restano link (?source=); spariscono solo quelli di riuso prompt/seed.
+        assertThat(perFileBody).doesNotContain("/generations/new?prompt=").doesNotContain("/generations/new?seed=")
+                .doesNotContain("/deep-chat?seed=");
 
-        Generation withoutSeed = new Generation("pred-seed-2", "owner/model", null, "a dog", null);
-        withoutSeed.setStatus(GenerationStatus.SUCCEEDED);
-        withoutSeed.setImageFilenames(List.of("seed-2.png"));
-        withoutSeed = repository.save(withoutSeed);
+        Generation batch = new Generation("pred-seed-2", "owner/model", null, "a dog", "{}", 777L);
+        batch.setStatus(GenerationStatus.SUCCEEDED);
+        batch.setImageFilenames(List.of("seed-c.png", "seed-d.png"));
+        batch = repository.save(batch);
 
-        String bodyWithoutSeed = mockMvc.perform(get("/generations/" + withoutSeed.getId()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(bodyWithoutSeed).contains("casuale");
+        String batchBody = mockMvc.perform(get("/generations/" + batch.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        // Un seed solo per il batch: riproduce solo la prima immagine, la seconda lo dichiara e non ha bottone.
+        assertThat(batchBody).contains("(batch)").contains("non riproducibile da sola");
+        assertThat(countOccurrences(batchBody, "data-shared-seed=\"777\"")).isEqualTo(1);
+
+        Generation single = new Generation("pred-seed-3", "owner/model", null, "a fox", "{}", 5L);
+        single.setStatus(GenerationStatus.SUCCEEDED);
+        single.setImageFilenames(List.of("seed-e.png"));
+        single = repository.save(single);
+
+        String singleBody = mockMvc.perform(get("/generations/" + single.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(singleBody).contains("data-shared-seed=\"5\"").doesNotContain("(batch)");
+
+        Generation unknown = new Generation("pred-seed-4", "owner/model", null, "a bird", null);
+        unknown.setStatus(GenerationStatus.SUCCEEDED);
+        unknown.setImageFilenames(List.of("seed-f.png"));
+        unknown = repository.save(unknown);
+
+        String unknownBody = mockMvc.perform(get("/generations/" + unknown.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(unknownBody).contains("casuale").doesNotContain("data-shared-seed");
+        assertThat(unknownBody).contains("data-shared-prompt=\"a bird\"");
     }
 
-    /**
-     * Push di seed/prompt dal dettaglio (vedi fragments/app/generation.html
-     * :: status, ramo SUCCEEDED): prompt, seed o entrambi verso /generations/new,
-     * il solo seed anche verso /deep-chat -
-     * verso la STESSA conversazione quando conversationId e' presente
-     * (arrivati dalla galleria contestuale), altrimenti verso /deep-chat
-     * nudo (ultima conversazione attiva, risolta dal redirect di
-     * DeepChatController#defaultConversation). Nessun link di push del
-     * seed quando il seed e' ignoto (nulla da riusare).
-     */
+    /** Il seed non e' piu' un parametro di /generations/new (ora passa dallo slot globale lato client): la query string e' ignorata. */
     @Test
-    void generationDetailPushLinksTargetGenerationsAndDeepChat() throws Exception {
-        Generation withSeed = new Generation("pred-push-1", "owner/model", null, "a cat", "{\"seed\":777}", 777L);
-        withSeed.setStatus(GenerationStatus.SUCCEEDED);
-        withSeed.setImageFilenames(List.of("push-1.png"));
-        withSeed = repository.save(withSeed);
-
-        String fromGallery = mockMvc.perform(get("/generations/" + withSeed.getId()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(fromGallery).contains("/generations/new?prompt=");
-        assertThat(fromGallery).contains("/generations/new?seed=777");
-        assertThat(fromGallery).contains("/generations/new?prompt=a%20cat&amp;seed=777");
-        assertThat(fromGallery).contains("href=\"/deep-chat?seed=777\"");
-
-        String fromConversation = mockMvc.perform(get("/generations/" + withSeed.getId()).param("conversationId", "7"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(fromConversation).contains("href=\"/deep-chat/7?seed=777\"");
-
-        Generation withoutSeed = new Generation("pred-push-2", "owner/model", null, "a dog", null);
-        withoutSeed.setStatus(GenerationStatus.SUCCEEDED);
-        withoutSeed.setImageFilenames(List.of("push-2.png"));
-        withoutSeed = repository.save(withoutSeed);
-
-        String withoutSeedBody = mockMvc.perform(get("/generations/" + withoutSeed.getId()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(withoutSeedBody).contains("/generations/new?prompt=");
-        assertThat(withoutSeedBody).doesNotContain("/generations/new?seed=").doesNotContain("/deep-chat?seed=")
-                .doesNotContain("&amp;seed");
-    }
-
-    /** Push del seed dal dettaglio (vedi sopra): /generations/new lo pre-compila nel campo del form-type corrente. */
-    @Test
-    void generationFormPrefillsSeedFromQueryParam() throws Exception {
+    void generationFormNoLongerPrefillsSeedFromQueryParam() throws Exception {
         String body = mockMvc.perform(get("/generations/new").param("seed", "777"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
+        assertThat(body).doesNotContainPattern("id=\"param-seed\"[^>]*value=\"777\"");
     }
 
     /**
@@ -950,39 +974,14 @@ class TemplateRenderingTests {
         assertThat(body).contains("data-busy-text=\"Sto migliorando il prompt...\"").doesNotContain("data-busy-overlay");
     }
 
-    /** Riuso di prompt E seed insieme: la form pre-compila entrambi. */
+    /** Il prompt in query (usato da "Anima") pre-compila la textarea. */
     @Test
-    void generationFormPrefillsPromptAndSeedTogether() throws Exception {
-        String body = mockMvc.perform(get("/generations/new").param("prompt", "a red fox").param("seed", "777"))
+    void generationFormPrefillsPromptFromQueryParam() throws Exception {
+        String body = mockMvc.perform(get("/generations/new").param("prompt", "a red fox"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
         assertThat(body).containsPattern("<textarea[^>]*id=\"prompt\"[^>]*>a red fox</textarea>");
-    }
-
-    /** Push del seed dal dettaglio verso /deep-chat nudo (nessuna conversazione di contesto): il redirect deve propagarlo. */
-    @Test
-    @Transactional
-    void deepChatRedirectPreservesSeedQueryParam() throws Exception {
-        String location = mockMvc.perform(get("/deep-chat").param("seed", "777"))
-                .andExpect(status().is3xxRedirection())
-                .andReturn().getResponse().getRedirectedUrl();
-
-        assertThat(location).endsWith("?seed=777");
-    }
-
-    /** Push del seed dal dettaglio verso una conversazione specifica: il pannello impostazioni lo pre-compila. */
-    @Test
-    @Transactional
-    void deepChatConversationPagePrefillsSeedFromQueryParam() throws Exception {
-        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
-
-        String body = mockMvc.perform(get("/deep-chat/" + conversation.getId()).param("seed", "777"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        assertThat(body).containsPattern("id=\"param-seed\"[^>]*value=\"777\"");
     }
 
     /**
@@ -1212,6 +1211,34 @@ class TemplateRenderingTests {
 
         assertThat(repository.findById(first.getId())).isEmpty();
         assertThat(repository.findById(second.getId())).isEmpty();
+    }
+
+    /**
+     * Selezione per file della galleria contestuale (POST /gallery/delete-selected-files): toglie solo i file indicati, la generazione
+     * resta se ne conserva almeno uno e sparisce se li perde tutti; voci malformate o sconosciute sono ignorate.
+     */
+    @Test
+    void deleteSelectedFilesRemovesOnlyThoseFiles() throws Exception {
+        Generation partial = new Generation("pred-bulkf-1", "owner/model", null, "a cat", null);
+        partial.setStatus(GenerationStatus.SUCCEEDED);
+        partial.setImageFilenames(List.of("bf-1.png", "bf-2.png", "bf-3.png"));
+        partial = repository.save(partial);
+
+        Generation whole = new Generation("pred-bulkf-2", "owner/model", null, "a dog", null);
+        whole.setStatus(GenerationStatus.SUCCEEDED);
+        whole.setImageFilenames(List.of("bf-4.png", "bf-5.png"));
+        whole = repository.save(whole);
+
+        mockMvc.perform(post("/gallery/delete-selected-files")
+                        .param("files", partial.getId() + ":bf-2.png", whole.getId() + ":bf-4.png", whole.getId() + ":bf-5.png",
+                                "garbage", ":nofile", "99999999:bf-1.png", partial.getId() + ":not-a-file.png", "x:bf-3.png"))
+                .andExpect(status().isOk());
+
+        assertThat(repository.findById(partial.getId()).orElseThrow().getImageFilenames()).containsExactly("bf-1.png", "bf-3.png");
+        assertThat(repository.findById(whole.getId())).isEmpty();
+
+        mockMvc.perform(post("/gallery/delete-selected-files")).andExpect(status().isOk());
+        repository.deleteAllById(List.of(partial.getId()));
     }
 
     /**

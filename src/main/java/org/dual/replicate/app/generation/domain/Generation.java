@@ -3,8 +3,10 @@ package org.dual.replicate.app.generation.domain;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import jakarta.persistence.CollectionTable;
@@ -18,6 +20,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.OrderColumn;
 import org.dual.replicate.app.chat.domain.ChatMessage;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -96,6 +99,17 @@ public class Generation {
     @CollectionTable(name = "generation_favourite", joinColumns = @JoinColumn(name = "generation_id"))
     @Column(name = "filename")
     private Set<String> favouriteFilenames = new LinkedHashSet<>();
+
+    /**
+     * Seed per singolo file, solo quando i log della prediction ne riportano uno per output (vedi
+     * GenerationService#refresh). EAGER per lo stesso motivo di imageFilenames. Un file assente qui
+     * ricade sul seed del batch ({@link #seed}): vedi {@link #seedOf}.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "generation_image_seed", joinColumns = @JoinColumn(name = "generation_id"))
+    @MapKeyColumn(name = "filename")
+    @Column(name = "seed")
+    private Map<String, Long> imageSeeds = new LinkedHashMap<>();
 
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String errorMessage;
@@ -212,6 +226,37 @@ public class Generation {
 
     public void setImageFilenames(List<String> imageFilenames) {
         this.imageFilenames = imageFilenames;
+    }
+
+    public Map<String, Long> getImageSeeds() {
+        return imageSeeds;
+    }
+
+    public void setImageSeeds(Map<String, Long> imageSeeds) {
+        this.imageSeeds = imageSeeds;
+    }
+
+    /** Seed del file: quello suo se i log lo davano per file, altrimenti il seed del batch (puo' essere null). */
+    public Long seedOf(String filename) {
+        return imageSeeds.getOrDefault(filename, seed);
+    }
+
+    /**
+     * Seed che riproduce DA SOLO questo file, o null. Con piu' file nello stesso batch il seed e' uno solo e (verificato su flux-lora-ff3,
+     * schnell) riproduce solo la prima immagine: le altre nascono da un seed derivato che nessun log riporta (ne' e' seed+i), quindi
+     * non sono riproducibili da sole a meno che i log non ne abbiano dato uno per file ({@link #imageSeeds}).
+     */
+    public Long reusableSeedOf(String filename) {
+        Long own = imageSeeds.get(filename);
+        if (own != null) {
+            return own;
+        }
+        return seed != null && imageFilenames.indexOf(filename) == 0 ? seed : null;
+    }
+
+    /** True se il seed mostrato per il file e' quello del batch condiviso da piu' file, non uno suo. */
+    public boolean isBatchSeed(String filename) {
+        return !imageSeeds.containsKey(filename) && seed != null && imageFilenames.size() > 1;
     }
 
     public Set<String> getFavouriteFilenames() {

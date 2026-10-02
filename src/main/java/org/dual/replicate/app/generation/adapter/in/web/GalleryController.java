@@ -6,6 +6,7 @@ import java.util.List;
 import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GalleryItem;
+import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.kernel.Paged;
 import org.springframework.stereotype.Controller;
@@ -117,5 +118,31 @@ public class GalleryController {
         if (ids != null && !ids.isEmpty()) {
             generationService.deleteAll(ids);
         }
+    }
+
+    /**
+     * Cancellazione in blocco PER FILE (selezione della galleria contestuale di /deep-chat, una card per file): ogni voce di
+     * {@code files} e' "<idGenerazione>:<filename>" (i filename sono hex + estensione, mai ':'). Voci malformate ignorate; come per
+     * {@link #deleteSelected} nessuna risposta (il refresh arriva dall'evento SSE "gallery-update").
+     */
+    @PostMapping("/delete-selected-files")
+    @ResponseBody
+    public void deleteSelectedFiles(@RequestParam(required = false) List<String> files) {
+        if (files == null) {
+            return;
+        }
+        List<GenerationFile> parsed = new ArrayList<>();
+        for (String entry : files) {
+            int separator = entry.indexOf(':');
+            if (separator <= 0 || separator == entry.length() - 1) {
+                continue;
+            }
+            try {
+                parsed.add(new GenerationFile(Long.valueOf(entry.substring(0, separator)), entry.substring(separator + 1)));
+            } catch (NumberFormatException e) {
+                // Voce malformata: ignorata, come un id sconosciuto.
+            }
+        }
+        generationService.deleteImages(parsed);
     }
 }

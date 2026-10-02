@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Slot globale prompt/seed: lo stato "da usare nel prossimo caso d'uso", senza navigare. localStorage['generation.shared'] =
+  {prompt?, seed?} (stringhe). Questo fragment e' il lato SCRITTURA (dettaglio di una generazione): un click su un
+  button-gen :: pushShared fa merge delle sue chiavi nello slot. Il lato LETTURA e' applySharedSlot() in
+  fragments/app/generation-settings-persist.html (ogni form[data-persist-key]: form immagine/video/edit e Deep Chat), che
+  consuma la chiave dopo averla applicata. LA CHIAVE E' DUPLICATA nei due script: tenerle allineate.
+  Listener delegato su document: i bottoni stanno in HTML che htmx puo' risostituire. Feedback = testo temporaneo sul bottone
+  (data-shared-done); niente toast, quello del core non ha una severita' neutra.
+-->
+<th:block th:fragment="pusher">
+    <script>
+        (function () {
+            var KEY = 'generation.shared';
+
+            function read() {
+                try {
+                    var raw = localStorage.getItem(KEY);
+                    return raw ? JSON.parse(raw) : {};
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            document.addEventListener('click', function (event) {
+                var button = event.target.closest && event.target.closest('[data-shared-push]');
+                if (!button) {
+                    return;
+                }
+                var slot = read();
+                if (button.dataset.sharedPrompt !== undefined) {
+                    slot.prompt = button.dataset.sharedPrompt;
+                }
+                if (button.dataset.sharedSeed !== undefined) {
+                    slot.seed = button.dataset.sharedSeed;
+                }
+                try {
+                    localStorage.setItem(KEY, JSON.stringify(slot));
+                } catch (e) {
+                    // localStorage non disponibile: nessun feedback "fatto", cosi' non si promette quel che non e' successo.
+                    return;
+                }
+                var label = button.dataset.sharedLabel || button.textContent;
+                button.dataset.sharedLabel = label;
+                button.textContent = button.dataset.sharedDone;
+                clearTimeout(button.sharedTimer);
+                button.sharedTimer = setTimeout(function () {
+                    button.textContent = label;
+                }, 2000);
+            });
+        })();
+    </script>
+</th:block>
+
+</body>
+</html>

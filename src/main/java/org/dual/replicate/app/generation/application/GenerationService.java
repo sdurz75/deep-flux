@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.dual.replicate.app.generation.domain.GalleryItem;
+import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.domain.Prediction;
 import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
 import org.dual.replicate.app.generation.port.in.IGenerations;
@@ -270,21 +271,23 @@ public class GenerationService implements IGenerations {
         return input.get("seed") instanceof Number number ? number.longValue() : null;
     }
 
-    /** Vedi Javadoc di SEED_LOG_PATTERN: null se i log sono assenti o non contengono un pattern riconoscibile. */
-    private Long seedFromLogs(String logs) {
+    /** Vedi Javadoc di SEED_LOG_PATTERN: tutti i seed riconosciuti nei log, in ordine (vuota se assenti). */
+    private List<Long> seedsFromLogs(String logs) {
+        List<Long> seeds = new ArrayList<>();
         if (logs == null || logs.isBlank()) {
-            return null;
+            return seeds;
         }
         Matcher matcher = SEED_LOG_PATTERN.matcher(logs);
-        if (!matcher.find()) {
-            return null;
+        while (matcher.find()) {
+            try {
+                seeds.add(Long.valueOf(matcher.group(1)));
+            } catch (NumberFormatException e) {
+                // Best-effort: un "seed" enorme nei log (oltre Long) non deve far fallire una generazione riuscita.
+                // Il conteggio non torna piu' ai file: nessun abbinamento per file (vedi refresh).
+                seeds.add(null);
+            }
         }
-        try {
-            return Long.valueOf(matcher.group(1));
-        } catch (NumberFormatException e) {
-            // Best-effort: un "seed" enorme nei log (oltre Long) non deve far fallire una generazione riuscita.
-            return null;
-        }
+        return seeds;
     }
 
     /**
@@ -329,8 +332,18 @@ public class GenerationService implements IGenerations {
                     }
                     generation.setImageFilenames(filenames);
                     generation.setStatus(GenerationStatus.SUCCEEDED);
-                    if (generation.getSeed() == null) {
-                        generation.setSeed(seedFromLogs(prediction.logs()));
+                    List<Long> loggedSeeds = seedsFromLogs(prediction.logs());
+                    if (generation.getSeed() == null && !loggedSeeds.isEmpty()) {
+                        generation.setSeed(loggedSeeds.get(0));
+                    }
+                    // Un seed per file solo se i log ne hanno esattamente uno per output: altrimenti l'abbinamento
+                    // sarebbe incerto e i file ricadono sul seed del batch (Generation#seedOf).
+                    if (filenames.size() > 1 && loggedSeeds.size() == filenames.size() && !loggedSeeds.contains(null)) {
+                        Map<String, Long> perFile = new LinkedHashMap<>();
+                        for (int i = 0; i < filenames.size(); i++) {
+                            perFile.put(filenames.get(i), loggedSeeds.get(i));
+                        }
+                        generation.setImageSeeds(perFile);
                     }
                     ReplicatePricing.estimate(generation.getModel(), prediction.metrics())
                             .ifPresent(generation::setCostUsd);
@@ -486,8 +499,10 @@ public class GenerationService implements IGenerations {
     }
 
     @Override
-    public List<Generation> succeededForConversation(Long conversationId) {
-        return repository.findByConversationIdAndStatusOrderByIdAsc(conversationId, GenerationStatus.SUCCEEDED);
+    public List<GalleryItem> succeededItemsForConversation(Long conversationId) {
+        return repository.findByConversationIdAndStatusOrderByIdAsc(conversationId, GenerationStatus.SUCCEEDED).stream()
+                .flatMap(generation -> GalleryItem.allOf(generation).stream())
+                .toList();
     }
 
     /** Le generazioni esistenti fra gli id dati (gli id cancellati, o nulli, sono semplicemente assenti). */
@@ -696,14 +711,55 @@ public class GenerationService implements IGenerations {
             delete(generationId);
             return true;
         }
-        imageStorageService.delete(filename);
-        List<String> remaining = new ArrayList<>(generation.getImageFilenames());
-        remaining.remove(filename);
-        generation.setImageFilenames(remaining);
-        generation.getFavouriteFilenames().remove(filename);
+        removeFiles(generation, List.of(filename));
         repository.save(generation);
         eventPublisher.publishEvent(new GenerationImageDeletedEvent(generationId));
         return false;
+    }
+
+    /**
+     * Selezione per file (galleria contestuale di /deep-chat). A differenza di deleteImage, le voci sconosciute si ignorano (come
+     * deleteAll). Le generazioni svuotate si raccolgono e si cancellano con UNA sola deleteGenerations (un solo
+     * GenerationsDeletedEvent/refresh SSE); chi perde solo alcuni file ha un GenerationImageDeletedEvent.
+     */
+    @Override
+    public void deleteImages(List<GenerationFile> files) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        Map<Long, Set<String>> wantedByGeneration = new LinkedHashMap<>();
+        for (GenerationFile file : files) {
+            wantedByGeneration.computeIfAbsent(file.generationId(), id -> new LinkedHashSet<>()).add(file.filename());
+        }
+        List<Generation> emptied = new ArrayList<>();
+        for (Generation generation : repository.findAllById(new ArrayList<>(wantedByGeneration.keySet()))) {
+            Set<String> wanted = wantedByGeneration.get(generation.getId());
+            // Solo file GIA' registrati per QUESTA generazione (stessa guardia anti path-traversal di deleteImage).
+            List<String> toRemove = generation.getImageFilenames().stream().filter(wanted::contains).toList();
+            if (toRemove.isEmpty()) {
+                continue;
+            }
+            if (toRemove.size() == generation.getImageFilenames().size()) {
+                emptied.add(generation);
+                continue;
+            }
+            removeFiles(generation, toRemove);
+            repository.save(generation);
+            eventPublisher.publishEvent(new GenerationImageDeletedEvent(generation.getId()));
+        }
+        if (!emptied.isEmpty()) {
+            deleteGenerations(emptied);
+        }
+    }
+
+    /** Toglie i file dallo storage e dalla generazione (elenco, star, seed per file); il chiamante salva e pubblica l'evento. */
+    private void removeFiles(Generation generation, Collection<String> filenames) {
+        filenames.forEach(imageStorageService::delete);
+        List<String> remaining = new ArrayList<>(generation.getImageFilenames());
+        remaining.removeAll(filenames);
+        generation.setImageFilenames(remaining);
+        generation.getFavouriteFilenames().removeAll(filenames);
+        generation.getImageSeeds().keySet().removeAll(filenames);
     }
 
     /**
