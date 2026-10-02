@@ -84,7 +84,8 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   solo LoRA pubblici) e la select dei preset `/loras` come per dev-lora. La maschera (PNG, BIANCO = da ridipingere, NERO = da preservare) si DIPINGE nel
   browser con l'editor `fragments/app/mask-editor.html` (componente Alpine `maskEditor`, registrato nello `:: script` incluso da `generate.html` e
   NON nel fragment dei campi, che si sostituisce al cambio modello; markup in `:: field`): canvas alla dimensione naturale della sorgente (tetto 4096 px),
-  pennello/gomma/ellisse come lista di operazioni, dialog Pines; `Applica` esporta il PNG nell'`<input type=file name=maskUpload>` via `DataTransfer`
+  pennello/gomma/ellisse come lista di operazioni, dialog Pines, slider "Sfumatura" con i valori in PIXEL accanto a "Dimensione" e "Sfumatura" e la dimensione dell'immagine (e della maschera se ridotta) sopra la barra degli strumenti (raggio 0-5% del lato lungo, default ~0,75%; bordi SFUMATI nel PNG esportato, grigi: tre passate di box blur
+  sul solo alpha, `featherAlpha` nello script, indipendente dal browser e con la stessa sigma mostrata nel canvas dal CSS blur; la maschera sfumata e' quella che parte per Replicate); `Applica` esporta il PNG nell'`<input type=file name=maskUpload>` via `DataTransfer`
   (multipart come la sorgente: niente base64 in campi di testo, che finirebbe in localStorage). La sorgente la legge dal DOM all'apertura
   (`sourceUpload` scelto, altrimenti `#generate-source-preview`); se cambia la maschera si azzera. Lato server `CreateCommand#maskUpload`
   (`UploadedFile`) la salva `GenerationService#create` solo se `takesMask()`, la manda come `mask` data-URI e la traccia in `Generation.maskUploadFilename`
@@ -96,7 +97,7 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   sorgente solo per adattare luce, prospettiva, orientamento del volto e stile, NON vede la maschera (la deduce dalla bozza). Ne' `enhanceEdit` (istruzioni di Kontext) ne'
   la guida generica text-to-image, che chiederebbe ambientazione, luce e inquadratura. Fonti: guide della community su FLUX Fill (la documentazione BFL parla solo della maschera).
   Fuori scope per ora: ritaglio+ricomposizione attorno alla maschera (per volti piccoli in figure intere
-  l'inpainting a immagine intera rigenera alla stessa risoluzione), overlay "Inpaint" sui thumbnail, feather/espansione della maschera.
+  l'inpainting a immagine intera rigenera alla stessa risoluzione), overlay "Inpaint" sui thumbnail, espansione automatica della maschera (la sfumatura c'e': una pennellata sottile sfumata perde intensita', il blob di un volto no).
 - **Costo**: il dettaglio mostra il costo *stimato* (Replicate espone solo `metrics`). `ReplicatePricing` (statica, in
   `generation.domain`, una regola per modello censito — un nuovo modello richiede anche la sua regola) lo calcola da
   `PredictionResponse.metrics`; `IGenerations#refresh` lo salva in `generation.cost_usd`; assente per generazioni vecchie, fallite o senza regola.

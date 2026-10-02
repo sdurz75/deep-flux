@@ -1775,14 +1775,19 @@ class TemplateRenderingTests {
         assertThat(edit).contains("black-forest-labs/flux-fill-dev").contains("black-forest-labs/flux-fill-pro")
                 .contains("black-forest-labs/flux-kontext-dev");
         // Il componente Alpine e' registrato a livello di pagina (il fragment dei campi viene sostituito al cambio modello).
-        assertThat(edit).contains("Alpine.data('maskEditor'");
+        assertThat(edit).contains("Alpine.data('maskEditor'").contains("function featherAlpha(");
         assertThat(images).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro");
         assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro")
                 .doesNotContain("maskUpload");
 
         assertThat(fill).contains("name=\"maskUpload\"").contains("x-data=\"maskEditor\"").contains("data-action=\"brush\"")
                 .contains("data-action=\"eraser\"").contains("data-action=\"ellipse\"").contains("data-action=\"undo\"")
-                .contains("name=\"lora_weights\"").contains("name=\"lora_scale\"").contains("match_input");
+                .contains("name=\"lora_weights\"").contains("name=\"lora_scale\"").contains("match_input")
+                // Sfumatura dei bordi della maschera (slider + anteprima live nel canvas).
+                .contains("x-model.number=\"feather\"").contains("blurCss()")
+                // Valori in pixel di tratto e sfumatura e dimensioni dell'immagine, sempre visibili nell'editor.
+                .contains("x-text=\"diameterLabel()\"").contains("x-text=\"featherLabel()\"")
+                .contains("imgW + ' x ' + imgH + ' px'");
         assertThat(fill).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
         // Un solo LoRA e nessun token: il modello non ha extra_lora ne' hf_api_token/civitai_api_token.
         assertThat(fill).doesNotContain("name=\"extra_lora\"").doesNotContain("hf_token_id").doesNotContain("civitai_token_id");
