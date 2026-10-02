@@ -72,8 +72,8 @@
                     dialogOpen: false,
                     tool: 'brush',
                     size: 40,
-                    // Sfumatura 0-100: raggio = 0..5% del lato lungo (sigma della gaussiana, in pixel del canvas). Default ~0,75%.
-                    feather: 15,
+                    // Sfumatura in PIXEL del canvas, 0-25 (sigma della gaussiana): oltre non ha senso. Default 8 px (~0,75% di un'immagine da 1 MP).
+                    feather: 8,
                     // Rapporto fra pixel CSS e pixel del canvas: serve a mostrare la stessa sfumatura nell'anteprima (CSS blur).
                     scale: 1,
                     // Dimensioni mostrate all'utente (reattive; mw/mh della closure non lo sono): immagine sorgente e canvas/maschera (ridotto sopra MAX_SIDE).
@@ -184,7 +184,7 @@
                     },
 
                     featherRadius() {
-                        return Math.round(Math.max(mw, mh) * this.feather / 2000);
+                        return Math.max(0, Math.min(25, Math.round(this.feather)));
                     },
 
                     // offsetWidth e non getBoundingClientRect: ignora la transizione scale-95 dell'apertura del dialog.
@@ -395,7 +395,7 @@
                 </label>
                 <label class="m-0 flex items-center gap-2 text-[0.85rem]">
                     <span th:text="#{generationParams.mask.feather}">Sfumatura</span>
-                    <input type="range" min="0" max="100" x-model.number="feather" class="w-32 p-0">
+                    <input type="range" min="0" max="25" step="1" x-model.number="feather" class="w-32 p-0">
                     <span class="w-14 tabular-nums text-ink-muted dark:text-ink-muted-dark" x-text="featherLabel()"></span>
                 </label>
                 <button th:replace="~{fragments/app/button-gen :: maskAction(text=#{generationParams.mask.undo}, action='undo', extraClass=null)}">Annulla</button>

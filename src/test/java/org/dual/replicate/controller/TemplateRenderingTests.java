@@ -1784,7 +1784,7 @@ class TemplateRenderingTests {
                 .contains("data-action=\"eraser\"").contains("data-action=\"ellipse\"").contains("data-action=\"undo\"")
                 .contains("name=\"lora_weights\"").contains("name=\"lora_scale\"").contains("match_input")
                 // Sfumatura dei bordi della maschera (slider + anteprima live nel canvas).
-                .contains("x-model.number=\"feather\"").contains("blurCss()")
+                .contains("min=\"0\" max=\"25\" step=\"1\" x-model.number=\"feather\"").contains("blurCss()")
                 // Valori in pixel di tratto e sfumatura e dimensioni dell'immagine, sempre visibili nell'editor.
                 .contains("x-text=\"diameterLabel()\"").contains("x-text=\"featherLabel()\"")
                 .contains("imgW + ' x ' + imgH + ' px'");
