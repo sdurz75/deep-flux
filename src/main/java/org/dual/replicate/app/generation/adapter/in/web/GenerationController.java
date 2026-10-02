@@ -269,13 +269,15 @@ public class GenerationController {
         // di create) e propone il movimento; con l'immagine anche la bozza vuota e' ammessa.
         boolean video = model != null && modelCatalog.contains(model, GenerationKind.VIDEO);
         // Modifica: l'enhancer guarda la stessa sorgente ma serve una bozza (cosa cambiare).
-        // Inpainting (maschera): il prompt descrive COSA renderizzare nella zona dipinta, non un'istruzione di modifica come per
-        // kontext: riscrittura solo testo (come un text-to-image), niente guida di Kontext ne' immagine.
+        // Inpainting (maschera): il prompt descrive SOLO cosa renderizzare nella zona dipinta (guida dedicata, non quella di Kontext ne' quella
+        // generica text-to-image che chiederebbe scena, luce e inquadratura); l'enhancer guarda la sorgente per adattare luce/orientamento/stile.
         boolean inpaint = model != null && modelCatalog.formTypeOf(model).map(GenerationFormType::takesMask).orElse(false);
         boolean edit = model != null && !inpaint && modelCatalog.containsEdit(model);
         try {
-            SourceImage image = (video || edit) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
-            if (edit) {
+            SourceImage image = (video || edit || inpaint) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
+            if (inpaint) {
+                uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceInpaint(draft, image));
+            } else if (edit) {
                 uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceEdit(draft, image));
             } else if (draft.isEmpty() && image == null) {
                 uiModel.addAttribute("prompt", prompt);

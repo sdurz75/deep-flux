@@ -19,6 +19,13 @@ public interface IPromptEnhancer {
     String enhanceEdit(String draft, SourceImage image);
 
     /**
+     * Prompt per un inpainting (flux-fill-dev/pro): {@code draft} dice COSA deve comparire nella zona dipinta dall'utente (che il modello di
+     * visione non vede); con {@code image} il modello la guarda solo per adattare il contenuto (luce, prospettiva, orientamento, stile),
+     * senza riscrive solo la bozza col modello di testo. Il prompt descrive SOLO il contenuto della zona, non la scena intera.
+     */
+    String enhanceInpaint(String draft, SourceImage image);
+
+    /**
      * Prompt per un video (text-to-video o img2video). Con {@code image} il modello di visione la guarda e propone il movimento
      * coerente (anche con {@code draft} vuota); senza, riscrive solo la bozza col modello di testo. Se il modello di visione rifiuta
      * si riprova UNA volta col fallback.
