@@ -1,8 +1,10 @@
 package org.dual.replicate.core.events.port.in;
 
 import java.util.List;
+import java.util.Map;
 
 import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.domain.EventPage;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;
@@ -63,6 +65,12 @@ public interface ISystemEvents {
 
     /** Una pagina del registro, piu' recente prima; {@code severity} {@code null} = tutte. */
     EventPage list(SystemEventSeverity severity, int pageIndex, int pageSize);
+
+    /**
+     * I link "apri" per evento (id -> link), che l'app ricava dal {@code subject} dell'evento. Senza un'app che li fornisca
+     * ({@code IEventLinkResolver}) la mappa e' vuota: il core funziona comunque.
+     */
+    Map<Long, List<EventLink>> linksFor(List<SystemEvent> events);
 
     /** Svuota il registro. */
     void clear();

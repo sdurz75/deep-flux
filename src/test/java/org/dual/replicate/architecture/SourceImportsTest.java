@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * Regole: il core non conosce l'app; fra sottosistemi si usano solo {@code port.in} e {@code domain} (kernel e {@code core.web}
  * esclusi; l'app implementa solo {@link ArchitectureTest#CORE_EXTENSION_POINTS}); {@code domain} dipende solo da {@code domain};
- * {@code port} solo da {@code domain} e {@code port}; {@code application} mai da un adapter; {@code adapter.in} e {@code adapter.out} mai l'uno dall'altro.
+ * {@code port} solo da {@code domain} e {@code port}; {@code application} mai da un adapter; {@code adapter.in} e {@code adapter.out} mai l'uno dall'altro e {@code adapter.in} mai una {@code port.out}.
  */
 class SourceImportsTest {
 
@@ -109,6 +109,9 @@ class SourceImportsTest {
         }
         if (isIn(fromRest, "application") && toRest.startsWith("adapter")) {
             return "application non usa gli adapter";
+        }
+        if (fromRest.startsWith("adapter.in") && isIn(toRest, "port.out")) {
+            return "un adapter in parla con le port.in, non con le port.out";
         }
         if (fromRest.startsWith("adapter.in") && toRest.startsWith("adapter.out")) {
             return "un adapter in non usa un adapter out";

@@ -6,13 +6,11 @@ import java.time.format.DateTimeParseException;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.tokens.port.in.IApiTokens;
-import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.tokens.domain.TokenException;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -33,18 +31,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class TokenController {
 
     private final IApiTokens tokens;
-    private final ObjectProvider<ITokenProviderCatalog> providerCatalog;
     private final ISystemEvents systemEvents;
     private final HtmxEvents htmx;
     private final Messages messages;
 
-    public TokenController(IApiTokens tokens, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages,
-                           ObjectProvider<ITokenProviderCatalog> providerCatalog) {
+    public TokenController(IApiTokens tokens, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages) {
         this.tokens = tokens;
         this.systemEvents = systemEvents;
         this.htmx = htmx;
         this.messages = messages;
-        this.providerCatalog = providerCatalog;
     }
 
     @GetMapping
@@ -146,10 +141,9 @@ public class TokenController {
         return "fragments/core/tokens :: list(tokens=${tokens}, configured=${configured}, warningDays=${warningDays})";
     }
 
-    /** I provider offerti dall'app ({@link ITokenProviderCatalog}); nessuna implementazione = nessuno. */
+    /** I provider offerti dall'app, via {@link IApiTokens#providers()}; nessuno se l'app non ne fornisce. */
     private List<String> providers() {
-        ITokenProviderCatalog catalog = providerCatalog.getIfAvailable();
-        return catalog == null ? List.of() : catalog.providers();
+        return tokens.providers();
     }
 
     private String defaultProvider() {

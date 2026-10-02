@@ -189,8 +189,8 @@ le uniche classi fuori da `core`/`app`.
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
   `adapter.out.search`: ascolta anche `GenerationCompletedEvent` e chiama `IArchiveIndex#reindexAsync`) e da `ChatSearchSource` (chat).
   `app.shared` (`AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `HomeController`, `AppEventLinks`) e' il dominio comune dell'app.
-- **`ArchitectureTest`** (`src/test/.../architecture`, ArchUnit, `DoNotIncludeTests`, 12 regole `@ArchTest`): `domainStaysPure`,
-  `applicationDoesNotTouchInfrastructure`, `portsDependOnlyOnDomain`, `drivingAdaptersDoNotUseDrivenAdapters`,
+- **`ArchitectureTest`** (`src/test/.../architecture`, ArchUnit, `DoNotIncludeTests`, 13 regole `@ArchTest`): `domainStaysPure`,
+  `applicationDoesNotTouchInfrastructure`, `portsDependOnlyOnDomain`, `drivingAdaptersDoNotUseDrivenAdapters`, `drivingAdaptersDoNotUsePortsOut`,
   `drivenAdaptersDoNotUseDrivingAdapters`, `coreDoesNotKnowApp`, `coreDoesNotUseLegacyLayerPackages`, `kernelDependsOnNoSubsystem`,
   `subsystemsOnlyUseEachOthersPortsIn`, `coreSubsystemsHaveNoCycles`, `appFeaturesHaveNoCycles` e la regola di **chiusura**
   `nothingOutsideCoreAndApp` (ATTIVA: nessuna classe fuori da `core..`, `app..`, `support..` e `Application`: niente package per layer
@@ -364,7 +364,9 @@ Un fragment con parametri restituito come vista di risposta diretta richiede par
 (`Parameters in a view specification must be named`). Esempi: `GenerationController` (fragment senza parametri),
 `GalleryController` (paginazione, `hx-target="#gallery-content"` + `hx-swap="innerHTML"`, parametri nominati).
 
-Un controller (adapter `in.web`) parla solo con le porte `in` (`IGenerations`, `IChat`...) mai con repository o classi `application`.
+Un controller (adapter `in.web`) parla solo con le porte `in` (`IGenerations`, `IChat`...) mai con repository, classi `application` o `port.out` (regola
+`drivingAdaptersDoNotUsePortsOut`): i punti di estensione dell'app li inietta il SERVIZIO (`Optional<IEventLinkResolver>` in `SystemEventService`, `Optional<ITokenProviderCatalog>`
+in `ApiTokenService`) e il controller li legge dalla porta `in` (`ISystemEvents#linksFor`, `IApiTokens#providers`); senza app il fallback (nessun link, nessun provider) e' li'.
 
 ## Convenzione: attributi che portano un URL dell'app
 

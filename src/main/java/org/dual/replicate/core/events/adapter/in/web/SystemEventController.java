@@ -2,13 +2,7 @@ package org.dual.replicate.core.events.adapter.in.web;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.core.events.domain.EventLink;
-import org.dual.replicate.core.events.port.out.IEventLinkResolver;
 import org.dual.replicate.core.events.domain.EventPage;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;
@@ -16,7 +10,6 @@ import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.core.web.PaginationSupport;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,14 +30,11 @@ public class SystemEventController {
     private final ISystemEvents events;
     private final HtmxEvents htmx;
     private final Messages messages;
-    private final ObjectProvider<IEventLinkResolver> linkResolver;
 
-    public SystemEventController(ISystemEvents events, HtmxEvents htmx, Messages messages,
-                                 ObjectProvider<IEventLinkResolver> linkResolver) {
+    public SystemEventController(ISystemEvents events, HtmxEvents htmx, Messages messages) {
         this.events = events;
         this.htmx = htmx;
         this.messages = messages;
-        this.linkResolver = linkResolver;
     }
 
     /** Vecchio indirizzo del registro (segnalibri): il nome di vista "redirect:" applica il context path/prefisso del proxy. */
@@ -135,7 +125,7 @@ public class SystemEventController {
         }
         int currentPage = pageIndex + 1;
         model.addAttribute("events", result.content());
-        model.addAttribute("eventLinks", linksOf(result.content()));
+        model.addAttribute("eventLinks", events.linksFor(result.content()));
         model.addAttribute("severity", severity == null ? null : severity.name());
         model.addAttribute("highlightId", highlightId);
         model.addAttribute("unseenCount", events.unseen().count());
@@ -144,16 +134,6 @@ public class SystemEventController {
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
         model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));
-    }
-
-    /** I link "apri" per evento (id -> link), risolti dall'app tramite {@link IEventLinkResolver}; nessuna implementazione = nessun link. */
-    private Map<Long, List<EventLink>> linksOf(List<SystemEvent> content) {
-        IEventLinkResolver resolver = linkResolver.getIfAvailable();
-        Map<Long, List<EventLink>> links = new HashMap<>();
-        if (resolver != null) {
-            content.forEach(e -> links.put(e.getId(), resolver.resolve(e.getSubject())));
-        }
-        return links;
     }
 
     /** Un valore sconosciuto equivale a "nessun filtro" (mai un 400 per un link vecchio). */

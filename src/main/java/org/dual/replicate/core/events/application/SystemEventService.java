@@ -4,13 +4,18 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
+import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.domain.EventPage;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.events.port.out.IEventLinkResolver;
 import org.dual.replicate.core.events.port.out.ISystemEventStore;
 import org.dual.replicate.core.events.port.out.IToastNotifier;
 import org.dual.replicate.core.kernel.EventSource;
@@ -58,10 +63,13 @@ public class SystemEventService implements ISystemEvents {
     private final IToastNotifier toasts;
     private final Messages messages;
     private final Duration warningSeriesWindow;
+    private final Optional<IEventLinkResolver> linkResolver;
 
     public SystemEventService(ISystemEventStore store, PlatformTransactionManager transactionManager, IToastNotifier toasts,
-                              Messages messages, @Value("${app.events.warning-series-window:24h}") Duration warningSeriesWindow) {
+                              Messages messages, @Value("${app.events.warning-series-window:24h}") Duration warningSeriesWindow,
+                              Optional<IEventLinkResolver> linkResolver) {
         this.warningSeriesWindow = warningSeriesWindow;
+        this.linkResolver = linkResolver;
         this.store = store;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -167,6 +175,13 @@ public class SystemEventService implements ISystemEvents {
     @Override
     public EventPage list(SystemEventSeverity severity, int pageIndex, int pageSize) {
         return store.page(severity, pageIndex, pageSize);
+    }
+
+    @Override
+    public Map<Long, List<EventLink>> linksFor(List<SystemEvent> events) {
+        Map<Long, List<EventLink>> links = new HashMap<>();
+        linkResolver.ifPresent(resolver -> events.forEach(e -> links.put(e.getId(), resolver.resolve(e.getSubject()))));
+        return links;
     }
 
     @Override

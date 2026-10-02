@@ -79,6 +79,13 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAnyPackage("..adapter.out..")
             .allowEmptyShould(true);
 
+    /** Un adapter che pilota il sottosistema parla con le sue porte {@code in}: le {@code port.out} sono dell'esagono, non del web. */
+    @ArchTest
+    static final ArchRule drivingAdaptersDoNotUsePortsOut = noClasses()
+            .that().resideInAnyPackage(ROOT + ".core..adapter.in..", ROOT + ".app..adapter.in..")
+            .should().dependOnClassesThat().resideInAnyPackage("..port.out..")
+            .allowEmptyShould(true);
+
     @ArchTest
     static final ArchRule drivenAdaptersDoNotUseDrivingAdapters = noClasses()
             .that().resideInAnyPackage(ROOT + ".core..adapter.out..", ROOT + ".app..adapter.out..")

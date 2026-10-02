@@ -1,21 +1,27 @@
 package org.dual.replicate.core.events.application;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.dual.replicate.core.kernel.EventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
+import org.dual.replicate.core.events.domain.EventLink;
 import org.dual.replicate.core.events.domain.SystemEvent;
 import org.dual.replicate.core.events.domain.SystemEventSeverity;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.port.out.ISystemEventStore;
+import org.dual.replicate.core.events.port.out.IToastNotifier;
+import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.push.port.in.IClientPushStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import reactor.core.Disposable;
 
@@ -43,12 +49,36 @@ class SystemEventServiceTest {
     @Autowired
     private IClientPushStream pushStream;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private IToastNotifier toastNotifier;
+
+    @Autowired
+    private Messages messages;
+
     /** I toast arrivano alle tab come evento SSE "system-event": ci si abbona come farebbe una tab. */
     private final List<Map<String, Object>> toasts = new CopyOnWriteArrayList<>();
     private Disposable subscription;
 
     private List<Map<String, Object>> toasts() {
         return toasts;
+    }
+
+    @Test
+    void linksComeFromTheAppResolverAndAreEmptyWithoutOne() {
+        service.record(TestSource.REPLICATE, "poll", new RuntimeException("boom"), "thing:7");
+        List<SystemEvent> events = service.list(null, 0, 10).content();
+        Long id = events.get(0).getId();
+
+        SystemEventService withResolver = new SystemEventService(repository, transactionManager, toastNotifier, messages,
+                Duration.ofHours(24), Optional.of(subject -> List.of(new EventLink("/" + subject, "apri"))));
+        SystemEventService withoutResolver = new SystemEventService(repository, transactionManager, toastNotifier, messages,
+                Duration.ofHours(24), Optional.empty());
+
+        assertThat(withResolver.linksFor(events)).containsEntry(id, List.of(new EventLink("/thing:7", "apri")));
+        assertThat(withoutResolver.linksFor(events)).isEmpty();
     }
 
     @BeforeEach

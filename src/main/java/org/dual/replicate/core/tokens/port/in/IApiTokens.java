@@ -25,6 +25,9 @@ public interface IApiTokens {
 
     int warningDays();
 
+    /** I servizi (provider) per cui si salvano token, nell'ordine in cui si mostrano; l'app li fornisce, senza app nessuno. */
+    List<String> providers();
+
     List<TokenView> list();
 
     /** Token del provider, per le select delle form (nome + scadenza, mai il segreto). */

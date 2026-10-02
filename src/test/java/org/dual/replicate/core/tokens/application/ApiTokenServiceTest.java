@@ -5,7 +5,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
@@ -54,7 +56,7 @@ class ApiTokenServiceTest {
         repository.deleteAll();
         eventRepository.deleteAll();
         service = new ApiTokenService(repository, cipher, events, messages, 15,
-                Clock.fixed(TODAY.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault()));
+                Clock.fixed(TODAY.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault()), Optional.empty());
     }
 
     private ApiToken saved(String provider, String name, String plain, LocalDate expires) {
@@ -188,8 +190,18 @@ class ApiTokenServiceTest {
     }
 
     @Test
+    void providersComeFromTheAppCatalogAndAreEmptyWithoutOne() {
+        ApiTokenService withCatalog = new ApiTokenService(repository, cipher, events, messages, 15, Clock.systemDefaultZone(),
+                Optional.of(() -> List.of("HUGGINGFACE", "CIVITAI")));
+
+        assertThat(withCatalog.providers()).containsExactly("HUGGINGFACE", "CIVITAI");
+        assertThat(new ApiTokenService(repository, cipher, events, messages, 15, Clock.systemDefaultZone(), Optional.empty()).providers())
+                .isEmpty();
+    }
+
+    @Test
     void withoutAnEncryptionKeyCreatingIsAConfigurationErrorAndNothingIsSaved() {
-        ApiTokenService unconfigured = new ApiTokenService(repository, new SecretCipher("", messages), events, messages, 15, Clock.systemDefaultZone());
+        ApiTokenService unconfigured = new ApiTokenService(repository, new SecretCipher("", messages), events, messages, 15, Clock.systemDefaultZone(), Optional.empty());
 
         assertThat(unconfigured.isConfigured()).isFalse();
         assertThatThrownBy(() -> unconfigured.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null))

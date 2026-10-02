@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
@@ -14,6 +15,7 @@ import org.dual.replicate.core.secrets.port.in.ISecretCipher;
 import org.dual.replicate.core.tokens.domain.TokenException;
 import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.dual.replicate.core.tokens.port.out.IApiTokenStore;
+import org.dual.replicate.core.tokens.port.out.ITokenProviderCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -37,21 +39,24 @@ public class ApiTokenService implements IApiTokens {
     private final Messages messages;
     private final int warningDays;
     private final Clock clock;
+    private final Optional<ITokenProviderCatalog> providerCatalog;
 
     @Autowired
     public ApiTokenService(IApiTokenStore repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
-                           @Value("${app.tokens.expiry-warning-days:15}") int warningDays) {
-        this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone());
+                           @Value("${app.tokens.expiry-warning-days:15}") int warningDays,
+                           Optional<ITokenProviderCatalog> providerCatalog) {
+        this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone(), providerCatalog);
     }
 
     ApiTokenService(IApiTokenStore repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
-                    int warningDays, Clock clock) {
+                    int warningDays, Clock clock, Optional<ITokenProviderCatalog> providerCatalog) {
         this.repository = repository;
         this.cipher = cipher;
         this.events = events;
         this.messages = messages;
         this.warningDays = warningDays;
         this.clock = clock;
+        this.providerCatalog = providerCatalog;
     }
 
     /** {@code false} se manca la chiave di cifratura: la pagina /tokens lo segnala e creare/modificare e' rifiutato. */
@@ -63,6 +68,11 @@ public class ApiTokenService implements IApiTokens {
     @Override
     public int warningDays() {
         return warningDays;
+    }
+
+    @Override
+    public List<String> providers() {
+        return providerCatalog.map(ITokenProviderCatalog::providers).orElse(List.of());
     }
 
     @Override
