@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.dual.replicate.app.generation.domain.GalleryItem;
+import org.dual.replicate.app.generation.domain.GenerationConfig;
 import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.core.storage.domain.UploadedFile;
@@ -49,6 +50,14 @@ public interface IGenerations {
      * {@link #create}.
      */
     Optional<Generation> findAnimatableSource(Long id, String image);
+
+    /**
+     * La configurazione riusabile della generazione {@code id} ("Usa configurazione"), ricostruita dai dati salvati. {@code file}, se dato
+     * e fra i file della generazione, sceglie quale immagine riprodurre (seed per file; con {@code file} {@code num_outputs} e' 1: si
+     * rigenera UN file); assente = prima immagine e {@code num_outputs} com'era. Vuoto se la generazione non esiste.
+     * {@code parametersJson} assente o illeggibile non e' un errore: nessun parametro.
+     */
+    Optional<GenerationConfig> reuseConfig(Long id, String file);
 
     /** Fa avanzare lo stato interrogando il provider (scarica se pronta, fallisce se scaduta o cancellata). */
     Generation refresh(Long id);

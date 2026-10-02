@@ -35,4 +35,14 @@ class FluxLoraFf3ParameterHandlerTest {
         assertThat(handler.toParameterMap(Map.of("num_outputs", "abc"))).doesNotContainKey("num_outputs");
         assertThat(handler.toParameterMap(Map.of())).doesNotContainKey("num_outputs");
     }
+
+    /** Il checkpoint base e' salvato come "model" ma il campo del form e' "flux_model" ("model" e' anche la select del modello Replicate). */
+    @Test
+    void toFormFieldsMapsTheFluxCheckpointBackToItsFormField() {
+        assertThat(handler.toFormFields(Map.of("model", "schnell", "width", 512, "lora_scale", 0.5)))
+                .containsEntry("flux_model", "schnell")
+                .containsEntry("width", "512")
+                .containsEntry("lora_scale", "0.5")
+                .doesNotContainKey("model");
+    }
 }

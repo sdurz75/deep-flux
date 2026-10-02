@@ -1,6 +1,7 @@
 package org.dual.replicate.app.generation.adapter.in.web;
 
 import java.util.LinkedHashMap;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 
@@ -13,6 +14,7 @@ import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.core.web.HtmxEvents;
 import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationConfig;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
@@ -98,7 +100,22 @@ public class GenerationController {
                         @RequestParam(required = false) Long source,
                         @RequestParam(required = false) String sourceImage,
                         @RequestParam(required = false) String kind,
+                        @RequestParam(required = false) Long config,
+                        @RequestParam(required = false) String file,
                         Model model) {
+        // "Usa configurazione": ripropone modello, parametri, prompt e seed di una generazione passata, ricostruiti dal server.
+        // Ha la precedenza su kind/source/prompt; se non si puo' riproporre, pagina normale con il motivo.
+        if (config != null) {
+            Optional<GenerationConfig> reused = generationService.reuseConfig(config, file == null || file.isBlank() ? null : file);
+            if (reused.isEmpty()) {
+                model.addAttribute("error", messages.get("generateForm.error.reuseNotFound"));
+            } else if (!modelCatalog.contains(reused.get().model())) {
+                model.addAttribute("error", messages.get("generateForm.error.reuseModelUnavailable", reused.get().model()));
+            } else {
+                return reuseForm(reused.get(), model);
+            }
+            return form(null, null, null, null, null, null, model);
+        }
         String defaultModel = modelCatalog.models(GenerationKind.IMAGE).stream().findFirst()
                 .map(ReplicateModel::getIdentifier).orElse("");
         // Video stand-alone (link dell'header): preseleziona il primo modello video, la sorgente
@@ -132,6 +149,27 @@ public class GenerationController {
         }
         model.addAttribute("prompt", prompt);
         populateGenerationParamsModel(model, defaultModel, Map.of());
+        return "app/generate";
+    }
+
+    /** Pagina di /generations/new compilata da una {@link GenerationConfig}: nessun ripiego sul modello video della sorgente. */
+    private String reuseForm(GenerationConfig config, Model model) {
+        GenerationFormType formType = modelCatalog.formTypeOf(config.model()).orElseThrow();
+        Map<String, String> fields = new LinkedHashMap<>(forms.formFields(formType, config.parameters()));
+        if (config.seed() != null) {
+            fields.put("seed", String.valueOf(config.seed()));
+            model.addAttribute("seed", config.seed());
+        }
+        if (config.sourceGenerationId() != null) {
+            generationService.findAnimatableSource(config.sourceGenerationId(), config.sourceImage()).ifPresent(source -> {
+                model.addAttribute("sourceGeneration", source);
+                model.addAttribute("sourceImage", config.sourceImage());
+            });
+        }
+        model.addAttribute("prompt", config.prompt());
+        // Il form ripristinerebbe lo stato salvato nel browser sopra questi valori: qui vince il link (vedi data-persist-fresh).
+        model.addAttribute("persistFresh", true);
+        populateGenerationParamsModel(model, config.model(), fields);
         return "app/generate";
     }
 

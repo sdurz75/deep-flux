@@ -22,6 +22,18 @@ public interface IChatConversations {
     /** Un titolo vuoto/di soli spazi diventa {@code null} (la UI mostra allora il titolo di default). */
     ChatConversation rename(Long id, String title);
 
+    /**
+     * Salva lo stato grezzo del form di generazione della conversazione (JSON-oggetto di modello e parametri: la chat non lo interpreta,
+     * lo rilegge solo il form alla selezione). Non cambia l'ordine "piu' recente prima".
+     *
+     * @throws IllegalArgumentException se la conversazione non esiste, o se {@code json} non e' un oggetto JSON o supera
+     *                                  {@link #MAX_SETTINGS_BYTES}
+     */
+    void saveGenerationSettings(Long id, String json);
+
+    /** Tetto del JSON del form salvato: i parametri di un form-type sono poche centinaia di byte, oltre e' un abuso/un errore. */
+    int MAX_SETTINGS_BYTES = 16 * 1024;
+
     /** Cancella i turni e la conversazione; non tocca le generazioni (ciclo di vita indipendente). */
     void delete(Long id);
 

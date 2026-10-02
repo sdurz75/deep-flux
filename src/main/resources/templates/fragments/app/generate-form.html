@@ -25,6 +25,7 @@
               th:data-busy-text="#{generateForm.busy.create}"
               th:data-persist-key="${editPage} ? 'generate.edit' : (${videoPage} ? 'generate.video' : 'generate.image')"
               th:data-persist-no-restore="${prompt != null ? 'prompt' : ''}"
+              th:attr="data-persist-fresh=${persistFresh != null} ? 'true' : null"
               th:data-shared-accept="${editPage} ? 'seed' : 'prompt seed'"
               data-persist-ignore="version">
             <div th:if="${sourceGeneration}" class="mb-4">

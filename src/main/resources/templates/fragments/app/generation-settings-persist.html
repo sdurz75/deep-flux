@@ -12,6 +12,16 @@
                               server ha valorizzato da un link esplicito (il prompt di "Anima"), che vince sullo stato salvato e
                               sullo slot globale e diventa lo stato corrente, SOLO arrivandoci (non su reload/Back) e anche se il
                               restore deve cambiare modello (il fetch sostituisce i campi: i valori del link si ricatturano);
+    - data-persist-fresh      il server ha riempito TUTTO il form da un link esplicito ("Usa configurazione", /generations/new?config=):
+                              arrivandoci (non su reload/Back) non si ripristina nulla (ne' modello, ne' campi, ne' slot globale) ma
+                              si scrive subito lo stato, cosi' un reload tiene la configurazione spinta;
+    - data-persist-server-state  stato SALVATO SUL SERVER della conversazione (solo /deep-chat, JSON-oggetto): se presente e' la fonte del
+                              restore AL POSTO di localStorage ("{}" = nessuna configurazione propria: il form resta sui default del
+                              catalogo); assente = conversazione precedente alla persistenza lato server, che adotta localStorage e lo
+                              salva SUBITO sul server. Vale `data-persist-ignore` (e `data-persist-no-restore`) come per localStorage;
+    - data-persist-save-url   dove salvare lo snapshot (POST JSON, fetch keepalive, debounce 800 ms, flush su pagehide). I salvataggi partono
+                              SOLO dopo il termine del restore (evento `generation-settings:restored`): lo stato intermedio (modello gia'
+                              cambiato, campi non ancora applicati) non deve sovrascrivere quello della conversazione. Senza: niente salvataggi;
     - data-shared-accept      chiavi dello slot globale prompt/seed che il form prende (default: tutte; la pagina "edit" solo `seed`);
     - data-persist-ignore     campi (separati da spazio) MAI scritti in localStorage (es. `version`, un hash pinnato che
                               ripristinato di nascosto farebbe partire una prediction a pagamento col modello sbagliato).
@@ -25,10 +35,11 @@
   ogni chiave applicata. Una chiave resta nello slot se il form non la accetta (data-shared-accept), se il campo non c'e' (il prompt
   in Deep Chat, un modello senza seed) o se il server l'ha gia' valorizzata da un link esplicito (data-persist-no-restore).
 
-  Il contenuto della form e' stato lato client invece che lato server (a differenza di conversazioni/cronologia, vedi
-  CLAUDE.md Scopo punto 3): una preferenza dell'ultima sessione di chi usa il browser, non dati applicativi, stesso principio
-  del tema chiaro/scuro (fragments/core/layout.html) e dello stato degli accordion (fragments/app/accordion.html). Senza, ogni
-  GET della pagina (anche una navigazione fra conversazioni: la lista e' un <a href> pieno) riparte dai default del catalogo.
+  /generations/new: il contenuto della form e' stato lato client, una preferenza dell'ultima sessione di chi usa il browser (stesso
+  principio del tema chiaro/scuro, fragments/core/layout.html, e dello stato degli accordion, fragments/app/accordion.html), per tipo di
+  pagina. /deep-chat: ogni CONVERSAZIONE ha il suo form, salvato sul server (colonna chat_conversation.generation_settings_json) e
+  ripristinato scegliendola; localStorage della chat resta scritto e fa da fonte solo per le
+  conversazioni precedenti alla migrazione. Una conversazione nuova parte dai default del catalogo.
 
   Listener `input` DELEGATO su document, non sul form: quello di /generations/new viene ri-renderizzato (swap di
   #generation-panel dopo un create rifiutato) e perderebbe i listener propri. Funziona per la digitazione nei campi
@@ -71,6 +82,16 @@
                 return type === 'reload' || type === 'back_forward' ? [] : names(form, 'data-persist-no-restore');
             }
 
+            // Form riempito per intero dal server da un link esplicito: vince su tutto lo stato salvato, ma solo arrivandoci.
+            function isFreshArrival(form) {
+                if (!form.hasAttribute('data-persist-fresh')) {
+                    return false;
+                }
+                var entries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
+                var type = entries.length ? entries[0].type : 'navigate';
+                return type !== 'reload' && type !== 'back_forward';
+            }
+
             function readStored(key) {
                 try {
                     var raw = localStorage.getItem(key);
@@ -78,6 +99,85 @@
                 } catch (e) {
                     return null;
                 }
+            }
+
+            // Fonte dello stato da ripristinare: quello del server della conversazione se la pagina lo porta (anche "{}"), altrimenti
+            // localStorage. Il server-state passa dagli stessi filtri di localStorage: `data-persist-ignore` non si applica MAI
+            // (un `version` finito per errore nello stato salvato farebbe girare e fatturare il modello sbagliato).
+            function readState(form) {
+                var serverState = form.getAttribute('data-persist-server-state');
+                if (serverState !== null) {
+                    var parsed = null;
+                    try {
+                        parsed = JSON.parse(serverState);
+                    } catch (e) {
+                        parsed = null;
+                    }
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        names(form, 'data-persist-ignore').forEach(function (name) { delete parsed[name]; });
+                        return { stored: parsed, source: 'server' };
+                    }
+                }
+                return { stored: readStored(form.getAttribute('data-persist-key')), source: 'local' };
+            }
+
+            // Salvataggio sul server (solo con data-persist-save-url, dopo il restore): ultimo snapshot in attesa per form,
+            // debounce, e lo snapshot gia' salvato (nessuna richiesta se non e' cambiato nulla).
+            var ready = new WeakSet();
+            var pending = new Map();
+            var timers = new Map();
+            var lastSaved = new WeakMap();
+
+            // Stessa serializzazione a prescindere dall'ordine delle chiavi: due snapshot uguali non producono una richiesta.
+            function canon(snapshot) {
+                var sorted = {};
+                Object.keys(snapshot).sort().forEach(function (key) { sorted[key] = snapshot[key]; });
+                return JSON.stringify(sorted);
+            }
+
+            function save(form) {
+                clearTimeout(timers.get(form));
+                timers.delete(form);
+                var body = pending.get(form);
+                var url = form.getAttribute('data-persist-save-url');
+                pending.delete(form);
+                if (body === undefined || !url || body === lastSaved.get(form)) {
+                    return;
+                }
+                lastSaved.set(form, body);
+                fetch(url, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: body })
+                    .then(function (response) {
+                        if (!response.ok) { lastSaved.delete(form); }
+                    })
+                    .catch(function () {
+                        // Best effort (rete assente, pagina in chiusura): il prossimo sync riprova.
+                        lastSaved.delete(form);
+                    });
+            }
+
+            function scheduleSave(form, persisted) {
+                if (!ready.has(form) || !form.hasAttribute('data-persist-save-url')) {
+                    return;
+                }
+                pending.set(form, canon(persisted));
+                clearTimeout(timers.get(form));
+                timers.set(form, setTimeout(function () { save(form); }, 800));
+            }
+
+            function flushAll() {
+                document.querySelectorAll(SELECTOR).forEach(save);
+            }
+
+            // Il restore e' finito (qualunque percorso): da qui lo stato del form e' quello vero e si puo' salvare. Un form che ha
+            // adottato localStorage (conversazione precedente alla migrazione) si salva SUBITO, non alla prima modifica: senza,
+            // aprirla senza toccare nulla e modificare un'altra conversazione le farebbe riadottare lo stato dell'altra.
+            function finishRestore(form, source, serverSnapshot) {
+                ready.add(form);
+                if (source === 'server' && serverSnapshot) {
+                    lastSaved.set(form, canon(serverSnapshot));
+                }
+                form.dispatchEvent(new CustomEvent('generation-settings:restored', { detail: { source: source } }));
+                sync(form);
             }
 
             function hasModelOption(select, value) {
@@ -201,12 +301,18 @@
                     // localStorage non disponibile (privata/quota piena): la
                     // sessione corrente resta comunque funzionante, solo non persiste.
                 }
+                scheduleSave(form, persisted);
             }
 
             function restore(form) {
+                if (isFreshArrival(form)) {
+                    sync(form);
+                    return;
+                }
                 var select = form.querySelector('#image-model-input');
                 var fieldsContainer = form.querySelector('#generation-params-fields');
-                var stored = readStored(form.getAttribute('data-persist-key'));
+                var state = readState(form);
+                var stored = state.stored;
                 if (stored && select && fieldsContainer && stored.model && stored.model !== select.value
                         && hasModelOption(select, stored.model)) {
                     var kept = captureKept(form);
@@ -222,21 +328,21 @@
                             applyStoredFields(form, stored);
                             applyKept(form, kept);
                             applySharedSlot(form);
-                            sync(form);
+                            finishRestore(form, state.source, stored);
                         })
                         .catch(function () {
                             // Modello salvato non piu' disponibile / server non raggiungibile: si resta sui campi del
                             // modello di default (gia' renderizzati), senza scrivere un corpo d'errore nel pannello.
                             select.value = select.options[0] ? select.options[0].value : select.value;
                             select.dispatchEvent(new Event('pines-select:sync'));
-                            sync(form);
+                            finishRestore(form, state.source, null);
                         });
                 } else {
                     if (stored) {
                         applyStoredFields(form, stored);
                     }
                     applySharedSlot(form);
-                    sync(form);
+                    finishRestore(form, state.source, stored);
                 }
             }
 
@@ -258,6 +364,14 @@
             window.addEventListener('pageshow', function (event) {
                 if (event.persisted) {
                     applySharedToAll();
+                }
+            });
+
+            // Cambiando conversazione/chiudendo la scheda subito dopo una modifica, il salvataggio in attesa parte comunque (keepalive).
+            window.addEventListener('pagehide', flushAll);
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'hidden') {
+                    flushAll();
                 }
             });
 

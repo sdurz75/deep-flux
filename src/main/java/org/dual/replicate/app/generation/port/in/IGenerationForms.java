@@ -23,6 +23,13 @@ public interface IGenerationForms {
      */
     Map<String, Object> parameters(GenerationFormType formType, Map<String, String> submittedFields);
 
+    /**
+     * Inverso di {@link #parameters}: i parametri salvati di una generazione (vocabolario del provider) diventano campi del form
+     * (nomi e stringhe del form), per riproporla. Le chiavi che il form-type non conosce si scartano; solo per il render, mai da
+     * ripassare a {@link #parameters}.
+     */
+    Map<String, String> formFields(GenerationFormType formType, Map<String, Object> parameters);
+
     /** I valori di default dei campi del form-type (nessun campo ancora sottomesso); le chiavi sono quelle che la form conserva. */
     Map<String, Object> defaultFields(GenerationFormType formType);
 

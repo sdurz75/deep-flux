@@ -83,6 +83,9 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
     @Override
     public Map<String, Object> defaultFields() {
         Map<String, Object> defaults = new LinkedHashMap<>();
+        // Vuoti = nessun LoRA; stanno nei default perche' populateFormTypeFields / toFormFields conservano solo queste chiavi.
+        defaults.put("lora_weights", "");
+        defaults.put("extra_lora", "");
         defaults.put("lora_scale", DEFAULT_LORA_SCALE);
         defaults.put("extra_lora_scale", DEFAULT_EXTRA_LORA_SCALE);
         defaults.put("aspect_ratio", DEFAULT_ASPECT_RATIO);
@@ -98,7 +101,7 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
         // solo le chiavi dei default (la scelta sopravvive a un errore di validazione o a un cambio modello).
         defaults.put(ApiTokenProvider.HUGGINGFACE.idParam(), "");
         defaults.put(ApiTokenProvider.CIVITAI.idParam(), "");
-        // "seed" intenzionalmente assente (casuale, come gli altri form-type); "lora_weights"/"extra_lora" vuoti di default.
+        // "seed" intenzionalmente assente (casuale, come gli altri form-type).
         return defaults;
     }
 }

@@ -63,6 +63,17 @@ public class FluxLoraFf3ParameterHandler implements IGenerationParameterHandler 
         return params;
     }
 
+    /** Il checkpoint base e' salvato sotto la chiave {@code model} del provider, ma nel form il campo e' {@code flux_model}. */
+    @Override
+    public Map<String, String> toFormFields(Map<String, Object> parameters) {
+        Map<String, String> fields = IGenerationParameterHandler.super.toFormFields(parameters);
+        Object fluxModel = parameters.get("model");
+        if (fluxModel != null) {
+            fields.put("flux_model", String.valueOf(fluxModel));
+        }
+        return fields;
+    }
+
     @Override
     public Map<String, Object> defaultFields() {
         Map<String, Object> defaults = new LinkedHashMap<>();
