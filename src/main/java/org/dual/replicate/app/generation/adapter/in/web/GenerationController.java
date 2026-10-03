@@ -301,6 +301,7 @@ public class GenerationController {
                                  @RequestParam(required = false) MultipartFile sourceUpload,
                                  @RequestParam(required = false) Long sourceGenerationId,
                                  @RequestParam(required = false) String sourceImage,
+                                 @RequestParam(name = "prompt_strength", required = false) Double promptStrength,
                                  Model uiModel, HttpServletResponse response) {
         String draft = prompt == null ? "" : prompt.trim();
         // Flusso video: l'enhancer guarda l'immagine sorgente (upload > "Anima", stessa precedenza
@@ -311,9 +312,15 @@ public class GenerationController {
         // generica text-to-image che chiederebbe scena, luce e inquadratura); l'enhancer guarda la sorgente per adattare luce/orientamento/stile.
         boolean inpaint = model != null && modelCatalog.formTypeOf(model).map(GenerationFormType::takesMask).orElse(false);
         boolean edit = model != null && !inpaint && modelCatalog.containsEdit(model);
+        // img2img (flux-dev-lora con upload): il modello descrive il risultato finale e quanto conta l'immagine lo dice prompt_strength.
+        // Senza upload e' un normale text-to-image (l'immagine e' opzionale su questo modello).
+        boolean takesSource = model != null && !video && !edit && !inpaint
+                && modelCatalog.formTypeOf(model).map(GenerationFormType::takesSourceImage).orElse(false);
         try {
-            SourceImage image = (video || edit || inpaint) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
-            if (inpaint) {
+            SourceImage image = (video || edit || inpaint || takesSource) ? resolveEnhanceImage(sourceUpload, sourceGenerationId, sourceImage) : null;
+            if (takesSource && image != null) {
+                uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceImg2Img(draft, image, promptStrength));
+            } else if (inpaint) {
                 uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceInpaint(draft, image));
             } else if (edit) {
                 uiModel.addAttribute("prompt", draft.isEmpty() ? prompt : promptEnhancementService.enhanceEdit(draft, image));

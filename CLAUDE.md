@@ -63,7 +63,7 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `FluxDevLoraParameterHandler`) e' un normale modello IMAGE (compare nel combobox e in `/deep-chat`) con `lora_weights`/
   `extra_lora` (+ scale: Replicate `owner/nome`, URL HuggingFace/CivitAI o `.safetensors`; vuoti = FLUX dev puro) e
   img2img OPZIONALE da upload (`sourceUpload`, `sourceImageParam()` = `image`, + `prompt_strength`; il blocco upload e'
-  nascosto nel pannello di `/deep-chat`). NON ha overlay sui thumbnail: "Anima"/"Modifica" non portano a questo modello.
+  nascosto nel pannello di `/deep-chat`; con un upload "AI enhance" usa `IPromptEnhancer#enhanceImg2Img`: guida `generateForm.img2img-prompt-enhancement-guide`, descrive il risultato finale, guarda la sorgente e legge `prompt_strength` (accodata alla bozza, inclusa via `#param-prompt-strength`: bassa = solo cio' che cambia, alta = prompt completo; senza upload resta la guida text-to-image). NON ha overlay sui thumbnail: "Anima"/"Modifica" non portano a questo modello.
   **Token** per i LoRA privati: NON si digitano nel form ma si scelgono PER NOME (select) fra quelli salvati in `/tokens`
   (vedi "Token API"). Al server arriva l'ID (`hf_token_id`/`civitai_token_id`, in `PARAMETERS_JSON` resta l'ID): il token in
   chiaro esiste solo in `GenerationService#doCreate`, che con `TokenInputResolver#resolveInto` (generation.application, sopra
@@ -306,7 +306,7 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `ChatTurn`, `ChatReply`, `DeepChatFailedException`, `AssistantException`.
 - `app.prompt`: `PromptEnhancementService` (one-shot; la riduzione delle immagini grandi per il modello di visione sta dietro `ISourceImageScaler`, adapter
   `AwtSourceImageScaler` con `ImageIO`: un png/jpeg illeggibile e' un errore `ImageScalingException`, non si invia l'originale; webp passa invariato; senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
-  `defaultTools`; `enhanceVideo`/`enhanceEdit` guardano l'immagine sorgente con un modello di visione OpenRouter non moderato
+  `defaultTools`; `enhanceVideo`/`enhanceEdit`/`enhanceInpaint`/`enhanceImg2Img` guardano l'immagine sorgente con un modello di visione OpenRouter non moderato
   `enhancer.vision-model`/`vision-fallback-model`, guide in `prompts.properties`; un rifiuto del modello e' intercettato e non
   sovrascrive la textarea, anche sul percorso solo-testo). Tono/contesto creativo: UNA clausola condivisa `prompts.creative-context` in
   `prompts.properties`, inclusa (`${...}`) in tutte le guide dell'enhancer e nel system prompt della chat (`SpringAiAssistant`): enhancer e chat non

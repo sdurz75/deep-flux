@@ -27,13 +27,23 @@ class PromptGuidesTest {
                 .contains("negative instruction").contains("trigger word").contains("verbatim");
     }
 
+    /** La guida img2img descrive il risultato (non un'istruzione), legge prompt_strength e conserva la trigger word. */
+    @Test
+    void img2imgGuideReadsThePromptStrengthAndKeepsTheTriggerWord() {
+        String guide = env.getRequiredProperty("generateForm.img2img-prompt-enhancement-guide");
+
+        assertThat(guide).contains("FINAL image").contains("prompt_strength").contains("LOW strength").contains("HIGH strength")
+                .contains("negative instruction").contains("trigger word").contains("verbatim");
+    }
+
     @Test
     void everyEnhancementGuideEmbedsTheSharedCreativeContext() {
         String context = env.getRequiredProperty("prompts.creative-context");
         assertThat(context).contains("never anything involving minors");
 
         for (String key : new String[]{"generateForm.prompt-enhancement-guide", "generateForm.video-prompt-enhancement-guide",
-                "generateForm.edit-prompt-enhancement-guide", "generateForm.inpaint-prompt-enhancement-guide"}) {
+                "generateForm.edit-prompt-enhancement-guide", "generateForm.inpaint-prompt-enhancement-guide",
+                "generateForm.img2img-prompt-enhancement-guide"}) {
             assertThat(env.getRequiredProperty(key)).as(key).contains(context).doesNotContain("${");
         }
     }

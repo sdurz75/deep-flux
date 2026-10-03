@@ -29,6 +29,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
     private final String videoGuide;
     private final String editGuide;
     private final String inpaintGuide;
+    private final String img2imgGuide;
     private final String visionModel;
     private final String visionFallbackModel;
 
@@ -38,6 +39,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
                                      @Value("${generateForm.video-prompt-enhancement-guide}") String videoGuide,
                                      @Value("${generateForm.edit-prompt-enhancement-guide}") String editGuide,
                                      @Value("${generateForm.inpaint-prompt-enhancement-guide}") String inpaintGuide,
+                                     @Value("${generateForm.img2img-prompt-enhancement-guide}") String img2imgGuide,
                                      @Value("${enhancer.vision-model}") String visionModel,
                                      @Value("${enhancer.vision-fallback-model}") String visionFallbackModel) {
         this.model = model;
@@ -46,6 +48,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
         this.videoGuide = videoGuide;
         this.editGuide = editGuide;
         this.inpaintGuide = inpaintGuide;
+        this.img2imgGuide = img2imgGuide;
         this.visionModel = visionModel;
         this.visionFallbackModel = visionFallbackModel;
     }
@@ -75,6 +78,16 @@ public class PromptEnhancementService implements IPromptEnhancer {
     @Override
     public String enhanceInpaint(String draft, SourceImage image) {
         return rewriteWithVision(inpaintGuide, draft, image);
+    }
+
+    /**
+     * Prompt per un img2img: la forza e' accodata alla bozza come riga di contesto (la guida spiega come leggerla), cosi' resta
+     * un solo percorso di visione/fallback/rifiuti come per le altre varianti. Rifiuti gestiti come in {@link #enhanceVideo}.
+     */
+    @Override
+    public String enhanceImg2Img(String draft, SourceImage image, Double strength) {
+        String text = strength == null ? draft : draft + "\n\n[prompt_strength: " + strength + "]";
+        return rewriteWithVision(img2imgGuide, text, image);
     }
 
     /**

@@ -23,7 +23,7 @@ class PromptEnhancementServiceTest {
 
     private final IPromptModel model = mock(IPromptModel.class);
     private final ISourceImageScaler scaler = mock(ISourceImageScaler.class);
-    private final PromptEnhancementService service = new PromptEnhancementService(model, scaler, "guida", "video", "modifica", "inpaint", "vision", "fallback");
+    private final PromptEnhancementService service = new PromptEnhancementService(model, scaler, "guida", "video", "modifica", "inpaint", "img2img", "vision", "fallback");
 
     @BeforeEach
     void scalerPassesTheImageThrough() {
@@ -55,6 +55,21 @@ class PromptEnhancementServiceTest {
                 .isEqualTo("sks, a smiling woman in her thirties looking at the camera");
         verify(model, org.mockito.Mockito.never()).complete(anyString(), eq("guida"), anyString(), any(), any());
         verify(model, org.mockito.Mockito.never()).complete(anyString(), eq("modifica"), anyString(), any(), any());
+    }
+
+    /** L'img2img usa la SUA guida, guarda la sorgente e riceve la forza accodata alla bozza; senza forza la bozza passa com'e'. */
+    @Test
+    void enhanceImg2ImgUsesItsOwnGuideAndPassesTheStrengthToTheVisionModel() {
+        SourceImage image = new SourceImage(new byte[]{1}, "image/png");
+        when(model.complete(eq("enhanceVision"), eq("img2img"), eq("sks, in stile acquerello\n\n[prompt_strength: 0.35]"), eq("vision"), eq(image)))
+                .thenReturn("  sks, rendered as a soft watercolour  ");
+        when(model.complete(eq("enhanceVision"), eq("img2img"), eq("sks, in stile acquerello"), eq("vision"), eq(image)))
+                .thenReturn("sks, a watercolour portrait");
+
+        assertThat(service.enhanceImg2Img("sks, in stile acquerello", image, 0.35)).isEqualTo("sks, rendered as a soft watercolour");
+        assertThat(service.enhanceImg2Img("sks, in stile acquerello", image, null)).isEqualTo("sks, a watercolour portrait");
+        verify(model, org.mockito.Mockito.never()).complete(anyString(), eq("guida"), anyString(), any(), any());
+        verify(model, org.mockito.Mockito.never()).complete(anyString(), eq("inpaint"), anyString(), any(), any());
     }
 
     /** Senza immagine (nessuna sorgente ancora) riscrive solo la bozza, sempre con la guida dell'inpainting; un rifiuto non sovrascrive la bozza. */

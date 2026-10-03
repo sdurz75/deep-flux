@@ -26,6 +26,14 @@ public interface IPromptEnhancer {
     String enhanceInpaint(String draft, SourceImage image);
 
     /**
+     * Prompt per un'immagine generata PARTENDO da un'immagine (img2img, es. flux-dev-lora con upload): descrive il risultato finale, non
+     * una modifica. {@code strength} e' la {@code prompt_strength} del form (0 = l'immagine resta quasi intatta, 1 = e' ignorata, null =
+     * sconosciuta): da bassa il prompt dice solo cio' che cambia, da alta descrive la scena intera. Con {@code image} il modello di
+     * visione la guarda, senza riscrive solo la bozza col modello di testo.
+     */
+    String enhanceImg2Img(String draft, SourceImage image, Double strength);
+
+    /**
      * Prompt per un video (text-to-video o img2video). Con {@code image} il modello di visione la guarda e propone il movimento
      * coerente (anche con {@code draft} vuota); senza, riscrive solo la bozza col modello di testo. Se il modello di visione rifiuta
      * si riprova UNA volta col fallback.
