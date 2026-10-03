@@ -53,19 +53,12 @@
 </th:block>
 
 <!--
-  Voci di sistema del core (registro eventi, token) e riga del tema: l'app le include nel proprio menu Sistema
+  Voci di sistema del core (registro eventi, token): l'app le include nel proprio menu Sistema
   (fragments/app/nav.html), cosi' ne decide l'ordine e vi aggiunge le sue voci.
 -->
 <th:block th:fragment="navSystemCore">
     <a th:replace="~{fragments/core/header :: navLink(path='/system/events', text=#{header.nav.events})}">Eventi</a>
     <a th:replace="~{fragments/core/header :: navLink(path='/tokens', text=#{header.nav.tokens})}">Token</a>
-</th:block>
-
-<th:block th:fragment="navTheme">
-    <div class="flex items-center gap-1 px-2 py-1.5">
-        <span class="mr-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{header.menu.theme}">Tema</span>
-        <th:block th:insert="~{fragments/core/header :: themeSwitch}"></th:block>
-    </div>
 </th:block>
 
 <!--

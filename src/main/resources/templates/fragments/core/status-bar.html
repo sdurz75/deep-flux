@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Barra di stato in basso, inclusa da fragments/core/layout.html: fissa a tutta larghezza, allineata al contenitore del sito, z-30 (sotto
+  header, modal e lightbox; i toast stanno sopra, vedi toast.html). A SINISTRA l'ora e il commit della build in esecuzione (bean BuildInfo; il
+  testo resta selezionabile per copiare l'hash; il segmento manca se ne' ora ne' commit sono noti), a DESTRA (`ml-auto`) lo slot dell'app
+  `fragments/app/status-extras :: container` (punto di estensione, stesso schema di fragments/app/nav.html richiamato da header.html: il
+  core non conosce i servizi dell'app, oggi i crediti) e il selettore chiaro/scuro/auto (header :: themeSwitch, stato Alpine `theme` del <body>).
+  Il <footer> del layout riserva lo spazio sotto (pb-12) perche' la barra fissa non copra il contenuto.
+-->
+<div th:fragment="bar" class="fixed inset-x-0 bottom-0 z-30 border-t border-line dark:border-line-dark
+                              bg-canvas/95 dark:bg-canvas-dark/95 backdrop-blur">
+    <div class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] min-h-9 py-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1
+                text-[11px] leading-none text-ink-muted dark:text-ink-muted-dark">
+        <div th:if="${@buildInfo.available}" id="build-info" th:title="#{build.title}"
+             class="flex gap-2 font-mono opacity-60 hover:opacity-100 transition-opacity duration-150">
+            <span th:if="${@buildInfo.time != null}" th:text="${@buildInfo.time}">02/10/2026 11:42</span>
+            <span th:if="${@buildInfo.commit != null}" th:text="${@buildInfo.commit}">a06ee1b</span>
+        </div>
+        <div class="ml-auto flex items-center gap-3">
+            <div th:replace="~{fragments/app/status-extras :: container}"></div>
+            <div class="flex items-center gap-1">
+                <th:block th:insert="~{fragments/core/header :: themeSwitch}"></th:block>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

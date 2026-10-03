@@ -6,7 +6,7 @@
   PUNTO DI ESTENSIONE dell'app: le voci di navigazione. fragments/core/header.html (core) include
   `fragments/app/nav :: links(inline)` sia nella barra (inline=false) sia nello slideover sotto md (inline=true); questo file
   e' di chi costruisce l'app e va riscritto per una nuova webapp. Compone i fragment generici del core
-  (header :: navMenu / navLink / navSystemCore / navTheme).
+  (header :: navMenu / navLink / navSystemCore).
 -->
 
 <!--
@@ -35,7 +35,6 @@
     <a th:replace="~{fragments/core/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
     <a th:replace="~{fragments/core/header :: navLink(path='/loras', text=#{header.nav.loras})}">LoRA</a>
     <th:block th:replace="~{fragments/core/header :: navSystemCore}"></th:block>
-    <th:block th:replace="~{fragments/core/header :: navTheme}"></th:block>
 </th:block>
 
 </body>

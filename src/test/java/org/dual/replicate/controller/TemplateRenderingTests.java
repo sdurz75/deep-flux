@@ -73,12 +73,25 @@ class TemplateRenderingTests {
         mockMvc.perform(get("/generations/new")).andExpect(status().isOk());
     }
 
-    /** Il badge di build (fragments/core/build-badge.html) e' nel layout di ogni pagina intera: da classi sciolte l'ora c'e' sempre. */
+    /** La barra di stato (fragments/core/status-bar.html) e' nel layout di ogni pagina intera: da classi sciolte l'ora di build c'e' sempre. */
     @Test
-    void buildBadgeIsRenderedInTheLayout() throws Exception {
+    void buildInfoIsRenderedInTheBottomBar() throws Exception {
         String page = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(page).containsPattern("fixed bottom-2 left-3[^>]*>\\s*<span>\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}</span>");
+        assertThat(page).containsPattern("id=\"build-info\"[^>]*>\\s*<span>\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}</span>");
+    }
+
+    /**
+     * A destra della barra: lo slot dei crediti dell'app (caricato via htmx, nessuna chiamata remota nel render della pagina) e il selettore
+     * del tema, che non sta piu' nel menu Gestione.
+     */
+    @Test
+    void bottomBarCarriesTheCreditsSlotAndTheThemeSwitchOnly() throws Exception {
+        String page = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(page).contains("hx-get=\"/credits/bar\"", "id=\"status-credits\"");
+        assertThat(countOccurrences(page, "data-theme-value=")).isEqualTo(3);
+        assertThat(page.indexOf("data-theme-value=")).isGreaterThan(page.indexOf("id=\"status-credits\""));
     }
 
     /**

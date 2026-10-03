@@ -62,6 +62,13 @@ replicate:
   # IModelCatalog), niente piu' fetch dal vivo di una collection
   # Replicate o di un elenco di modelli personali ad ogni avvio.
 
+# Credito residuo OpenRouter nella barra in basso (CreditsService, GET /credits): serve una MANAGEMENT key
+# (https://openrouter.ai/settings/management-keys), diversa dal token della chat. Senza, il credito OpenRouter non compare.
+# Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_MANAGEMENT_KEY=sk-or-...
+openrouter:
+  base-url: https://openrouter.ai/api/v1
+  management-key: ${OPENROUTER_MANAGEMENT_KEY:}
+
 # Istanza SearXNG usata dal tool di web search del modello su /deep-chat
 # (vedi WebSearchTool/SearxngClient). Richiede che il formato JSON sia
 # abilitato lato server (settings.yml: search.formats: [html, json]),

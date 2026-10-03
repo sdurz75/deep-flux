@@ -132,7 +132,7 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
 - La chat conosce una generazione solo per id (`ChatMessage.generationId`, FK `ON DELETE SET NULL`): per gli allegati della
   cronologia legge `IGenerations#findAllById` in blocco.
 
-**Perimetro**: non aggiungere feature (pagine demo, integrazioni, pattern) che non servano a generare, archiviare o
+**Perimetro**: (i crediti nella barra in basso servono a sapere quanto resta da spendere per generare e conversare.) Non aggiungere feature (pagine demo, integrazioni, pattern) che non servano a generare, archiviare o
 conversare sulle immagini (l'output puo' essere anche un video). Per dimostrare un pattern htmx/Alpine nuovo, aggiungerlo a
 una feature vera. Le pagine demo starter e la chat di rifinitura prompt sono state rimosse; l'icona "AI enhance"
 (`IPromptEnhancer`) non ne e' una riedizione: e' un'azione puntuale sulla form reale che riscrive il prompt.
@@ -209,7 +209,8 @@ le uniche classi fuori da `core`/`app`.
   ed e' condivisa fra feature. Il kernel non dipende da nessun sottosistema. Nessun ciclo fra sottosistemi.
 - **Punti di estensione**: un'implementazione dell'app puo' implementare SOLO queste `port.out` del core (elenco chiuso, `ArchitectureTest.CORE_EXTENSION_POINTS`): `IEventLinkResolver` (`AppEventLinks`),
   `ITokenProviderCatalog` (`AppTokenProviders`); ogni altra `port.out` del core (store, `IBlobBackend`...) per l'app non esiste; `EventSource` (kernel) e' implementata da `CoreEventSource` e `AppEventSource`.
-- **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`;
+- **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`; `credits` → `generation`
+  (nessuno dipende da `credits`);
   `generation` NON conosce `chat` (solo `Generation.conversationId`, un `Long`). `search` NON conosce `generation` ne' `chat`: legge i
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
   `adapter.out.search`: ascolta anche `GenerationCompletedEvent` e chiama `IArchiveIndex#reindexAsync`) e da `ChatSearchSource` (chat).
@@ -242,6 +243,7 @@ le uniche classi fuori da `core`/`app`.
 | `app.chat` | `/deep-chat`: conversazioni, turni, assistente (LLM + tool), watcher delle generazioni, recupero | in `IChat`, `IChatConversations`, `IChatRecovery`; out `IAssistant`, `IChatConversationStore`, `IChatMessageStore`, `IChatNotifier`, `IWebSearchGateway` |
 | `app.search` | ricerca semantica, indice (riconciliazione), note, `/search` | in `IArchiveSearch`, `IArchiveNotes`, `IArchiveIndex`, `ISearchableSource` (SPI); out `IVectorIndex` |
 | `app.prompt` | "AI enhance" del prompt (one-shot) | in `IPromptEnhancer`; out `IPromptModel` |
+| `app.credits` | credito residuo Replicate (stima) e OpenRouter per la barra in basso | in `ICredits`; out `IOpenRouterCreditGateway`, `IReplicateBalanceStore` |
 | `app.shared` | `AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `HomeController`, `AppEventLinks` | (dominio comune dell'app) |
 
 ### Checklist: aggiungere un sottosistema o una feature
@@ -318,7 +320,7 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `prompts.properties`; le chiavi dei due file sono disgiunte (un file importato ha la precedenza su quello che lo importa). Bundle
   `messages-core(.en).properties` + `messages(.en).properties` (app). `db/migration/core` + `db/migration/app`.
 - `templates/`: `fragments/core/` (`layout`, `header`, `button`, `alert`, `select`, `toast`, `notification-bell`, `live-events`, `pagination`,
-  `build-badge`, `breadcrumbs`, `description-list`, `system-events`, `tokens`), `fragments/app/` (tutto il resto, incl. `nav.html`, `button-gen.html`, un
+  `status-bar`, `breadcrumbs`, `description-list`, `system-events`, `tokens`), `fragments/app/` (tutto il resto, incl. `nav.html`, `button-gen.html`, un
   `generation-params-<form-type>.html` per form-type, `generation-params-source-upload.html`), pagine `templates/core/` (`system-events`, `tokens`) e
   `templates/app/` (`index`, `generate`, `generation-status`, `generations-list`, `gallery`, `deep-chat`, `loras`, `search`).
   `header.html` e' sticky; sotto `md` link e theme switch stanno in uno slideover Pines (stato Alpine `navOpen`, `button :: navToggle`);
@@ -335,11 +337,19 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   risostituito in outerHTML da `enhance-prompt`; `generation-params.html` e' il guscio condiviso da form e chat (select modello + campi del form-type).
   `live-events.html`: SSE `GET /events` ri-dispatchata come CustomEvent su `document.body`.
 
-**Badge di build** (`fragments/core/build-badge.html`, bean `BuildInfo`): ora e commit in basso a sinistra, sempre visibili, per sapere quale build
-sta girando. Da classi sciolte (IntelliJ, `spring-boot:run`) l'ora e' la modifica piu' recente in `target/classes` e il commit viene da `git describe`
+**Barra di stato in basso** (`fragments/core/status-bar.html`, inclusa dal layout; il `<footer>` riserva `pb-12` e i toast stanno sopra, `bottom-12`):
+a SINISTRA il badge di build (bean `BuildInfo`: ora e commit, sempre visibili, per sapere quale build sta girando), a DESTRA lo slot dell'app
+`fragments/app/status-extras.html :: container` (punto di estensione, come `nav.html`: il core non conosce i crediti) e il selettore del tema
+(`header :: themeSwitch`, non piu' nel menu Gestione). Da classi sciolte (IntelliJ, `spring-boot:run`) l'ora e' la modifica piu' recente in `target/classes` e il commit viene da `git describe`
 (`-dirty` se ci sono modifiche): `build-info.properties` NON si usa li', perche' IntelliJ non esegue i plugin Maven e ne resterebbe una copia vecchia.
 Da jar li porta `BuildProperties` (goal `build-info`); il commit solo con `mvn package -Dbuild.commit=<hash>` (il plugin `git-commit-id` non si
 risolve dal mirror aziendale, quindi non e' usato).
+**Crediti** (`app.credits`, `ICredits`/`CreditsService`, `CreditsController`): il render della pagina NON fa chiamate remote, `status-extras :: container` carica
+`GET /credits/bar` via htmx (al load, ogni 5 min, a `gallery-update`; lo stato Alpine `balanceOpen` e il popover del saldo stanno FUORI dalla zona sostituita).
+**OpenRouter**: `GET /api/v1/credits` (`OpenRouterCreditsClient`) vuole una MANAGEMENT key, `OPENROUTER_MANAGEMENT_KEY` (`openrouter.management-key`, diversa dal
+token della chat: con quella risponde 403); senza, il chip non compare; cache 5 min (1 min dopo un errore, registrato in `system_event`). **Replicate** NON espone il saldo via API:
+il credito e' una STIMA (`~$`) = saldo inserito a mano nel popover del chip (tabella a riga unica `replicate_balance_anchor`, `ReplicateBalanceAnchor`) meno `IGenerations#totalCostSince(asOf)`
+(somma di `generation.cost_usd` delle generazioni create dopo l'inserimento, mai sotto zero); va riallineato ogni tanto. Sotto `CreditLine.LOW_THRESHOLD_USD` il chip e' `warning`.
 
 Le immagini generate vivono in `./data/images` e il DB di sviluppo (container Postgres) in `./data/postgres`, entrambi fuori da git. Nessun CSS in `static/`: `static/css/tailwind.css` esiste
 solo se generato dal profilo `tailwind` (in `target/`, mai committato).

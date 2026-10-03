@@ -48,7 +48,7 @@
      th:data-http-error="#{toast.error.http('{0}')}"
      th:data-network-error="#{toast.error.network}"
      th:data-transient-hint="#{toast.error.transientHint}"
-     class="fixed bottom-4 right-4 z-[110] flex flex-col gap-2 w-[min(24rem,calc(100vw-2rem))] pointer-events-none">
+     class="fixed bottom-12 right-4 z-[110] flex flex-col gap-2 w-[min(24rem,calc(100vw-2rem))] pointer-events-none">
     <template x-for="t in toasts" :key="t.key">
         <div role="alert"
              x-transition:enter="transition ease-out duration-200"

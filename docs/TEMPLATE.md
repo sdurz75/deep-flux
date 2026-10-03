@@ -109,10 +109,12 @@ del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential so
 
 1. **Navigazione**: `templates/fragments/app/nav.html`, fragment `links(inline)`. `fragments/core/header.html` lo include due volte
    (barra con `inline=false`, slideover sotto `md` con `inline=true`). Si compone con i fragment del core `header :: navMenu`,
-   `navLink`, `navSystemCore` (voci Eventi e Token), `navTheme`. Senza questo file il core non rende. Le pagine di sistema del core
+   `navLink`, `navSystemCore` (voci Eventi e Token). Senza questo file il core non rende. Le pagine di sistema del core
    (Token, Eventi) mostrano nelle breadcrumbs il gruppo "Gestione" (`header.menu.manage` in `messages-core`), cioe' il menu che ospita
-   `navSystemCore`/`navTheme`: una nuova app mantiene quel raggruppamento o cambia le breadcrumbs di quelle due pagine.
+   `navSystemCore`: una nuova app mantiene quel raggruppamento o cambia le breadcrumbs di quelle due pagine.
    Ogni pagina (tranne la Home) usa `fragments/core/breadcrumbs :: trail(...)` nello slot `breadcrumbs` del layout.
+1b. **Barra di stato in basso**: `templates/fragments/app/status-extras.html`, fragment `container` (a destra della barra del core, accanto al selettore
+   del tema; in questa app i crediti Replicate/OpenRouter). Senza questo file il core non rende: una nuova app lo lascia vuoto (`<div th:fragment="container"></div>`).
 2. **Chiavi di bundle `app.brand`, `app.title`, `app.footer`** nel bundle dell'app (le uniche chiavi dell'app richieste da template del core).
 3. **Pagina iniziale**: il core non ha una route `/` (il link del brand punta a `@{/}`): serve un controller dell'app (oggi `HomeController`)
    e una pagina che decori `fragments/core/layout`.
