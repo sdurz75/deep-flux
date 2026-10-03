@@ -42,7 +42,7 @@
 
     <div>
         <label for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-guidance', name='guidance', value=${guidance}, defaultValue=${fieldDefaults['guidance']}, min='0', max='10', step='0.1', extraClass=null, spinner=false)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-guidance', name='guidance', value=${guidance}, defaultValue=${fieldDefaults['guidance']}, min='0', max='10', step='0.1', extraClass=null, spinner=true)}"></div>
     </div>
 
     <div>

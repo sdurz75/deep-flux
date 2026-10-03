@@ -253,7 +253,7 @@
 
 <!--
   stepNumber(direction, title): bottone "-"/"+" ai lati di un campo numerico (fragments/app/generation-params-number.html con spinner=true, unico
-  chiamante) per i campi "intensita'". Assume l'<input type=number> come fratello dentro lo stesso contenitore; `direction` ("up"|"down") viaggia in
+  chiamante) per i campi "intensita'" e la guidance. Assume l'<input type=number> come fratello dentro lo stesso contenitore; `direction` ("up"|"down") viaggia in
   data-direction (regola "binding Alpine via data-*"). Usa stepUp()/stepDown() nativi (rispettano step, min e max, e l'aritmetica decimale: 0,7 + 0,1 = 0,8)
   e dispatcha `input` con bubbles come una modifica digitata: salva lo stato e ricalcola il reset. type="button" CRITICO: sta nel form che spende su Replicate.
   `p-0` e colori espliciti: senza, il layer base darebbe al bottone sfondo e padding propri.

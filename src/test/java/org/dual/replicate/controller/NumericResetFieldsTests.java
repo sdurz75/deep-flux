@@ -135,13 +135,13 @@ class NumericResetFieldsTests {
     }
 
     /**
-     * I campi "intensita'" (lora_scale, extra_lora_scale, prompt_strength) hanno i bottoni -/+ ({@code button-gen :: stepNumber}), uno per lato e
-     * uno per campo, ovunque compaiano; gli altri numerici (guidance, passi...) no.
+     * I campi "intensita'" e la guidance (lora_scale, extra_lora_scale, prompt_strength, guidance, guidance_scale) hanno i bottoni -/+ ({@code button-gen :: stepNumber}), uno per lato e
+     * uno per campo, ovunque compaiano; gli altri numerici (passi, dimensioni...) no.
      */
     @Test
     @Transactional
     void strengthFieldsHaveStepButtonsAndOthersDoNot() throws Exception {
-        java.util.regex.Pattern strength = java.util.regex.Pattern.compile("<input[^>]*name=\"(lora_scale|extra_lora_scale|prompt_strength)\"");
+        java.util.regex.Pattern strength = java.util.regex.Pattern.compile("<input[^>]*name=\"(lora_scale|extra_lora_scale|prompt_strength|guidance|guidance_scale)\"");
         int strengthFields = 0;
         for (ReplicateModel model : modelCatalog.models()) {
             String html = mockMvc.perform(get("/generations/params").param("model", model.getIdentifier()))

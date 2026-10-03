@@ -17,7 +17,7 @@
 
   Parametri (tutti passati, gli inutilizzati a null): id, name, value (valore corrente), defaultValue, min, max, step (null = attributo
   omesso), extraClass (classi Tailwind LETTERALI in piu' sull'input), spinner (true = bottoni "-"/"+" ai lati dell'input, button-gen ::
-  stepNumber: i campi "intensita'" (lora_scale, extra_lora_scale, prompt_strength); gli spinner nativi del browser restano nascosti, il
+  stepNumber: i campi "intensita'" (lora_scale, extra_lora_scale, prompt_strength) e la guidance (guidance, guidance_scale); gli spinner nativi del browser restano nascosti, il
   bottone di reset ne occuperebbe il posto).
 -->
 <div th:fragment="field(id, name, value, defaultValue, min, max, step, extraClass, spinner)" class="flex items-center gap-1"
