@@ -133,4 +133,24 @@ class NumericResetFieldsTests {
         }
         return checked;
     }
+
+    /**
+     * I campi "intensita'" (lora_scale, extra_lora_scale, prompt_strength) hanno i bottoni -/+ ({@code button-gen :: stepNumber}), uno per lato e
+     * uno per campo, ovunque compaiano; gli altri numerici (guidance, passi...) no.
+     */
+    @Test
+    @Transactional
+    void strengthFieldsHaveStepButtonsAndOthersDoNot() throws Exception {
+        java.util.regex.Pattern strength = java.util.regex.Pattern.compile("<input[^>]*name=\"(lora_scale|extra_lora_scale|prompt_strength)\"");
+        int strengthFields = 0;
+        for (ReplicateModel model : modelCatalog.models()) {
+            String html = mockMvc.perform(get("/generations/params").param("model", model.getIdentifier()))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            int expected = (int) strength.matcher(html).results().count();
+            strengthFields += expected;
+            assertThat(html.split("data-direction=\"up\"", -1).length - 1).as(model.getIdentifier() + " +").isEqualTo(expected);
+            assertThat(html.split("data-direction=\"down\"", -1).length - 1).as(model.getIdentifier() + " -").isEqualTo(expected);
+        }
+        assertThat(strengthFields).as("campi intensita' controllati").isGreaterThan(4);
+    }
 }

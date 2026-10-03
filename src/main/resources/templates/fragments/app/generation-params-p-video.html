@@ -18,7 +18,7 @@
 
     <div>
         <label for="param-duration" th:text="#{generationParams.label.duration}">Durata (secondi)</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-duration', name='duration', value=${duration}, defaultValue=${fieldDefaults['duration']}, min='1', max='20', step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-duration', name='duration', value=${duration}, defaultValue=${fieldDefaults['duration']}, min='1', max='20', step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div>

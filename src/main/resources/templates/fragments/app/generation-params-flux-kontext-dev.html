@@ -37,12 +37,12 @@
 
     <div>
         <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-steps', name='num_inference_steps', value=${num_inference_steps}, defaultValue=${fieldDefaults['num_inference_steps']}, min='4', max='50', step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-steps', name='num_inference_steps', value=${num_inference_steps}, defaultValue=${fieldDefaults['num_inference_steps']}, min='4', max='50', step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div>
         <label for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-guidance', name='guidance', value=${guidance}, defaultValue=${fieldDefaults['guidance']}, min='0', max='10', step='0.1', extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-guidance', name='guidance', value=${guidance}, defaultValue=${fieldDefaults['guidance']}, min='0', max='10', step='0.1', extraClass=null, spinner=false)}"></div>
     </div>
 
     <div>
@@ -59,7 +59,7 @@
 
     <div>
         <label for="param-output-quality" th:text="#{generationParams.label.quality}">Qualita'</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>

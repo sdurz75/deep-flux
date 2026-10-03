@@ -252,6 +252,24 @@
 </button>
 
 <!--
+  stepNumber(direction, title): bottone "-"/"+" ai lati di un campo numerico (fragments/app/generation-params-number.html con spinner=true, unico
+  chiamante) per i campi "intensita'". Assume l'<input type=number> come fratello dentro lo stesso contenitore; `direction` ("up"|"down") viaggia in
+  data-direction (regola "binding Alpine via data-*"). Usa stepUp()/stepDown() nativi (rispettano step, min e max, e l'aritmetica decimale: 0,7 + 0,1 = 0,8)
+  e dispatcha `input` con bubbles come una modifica digitata: salva lo stato e ricalcola il reset. type="button" CRITICO: sta nel form che spende su Replicate.
+  `p-0` e colori espliciti: senza, il layer base darebbe al bottone sfondo e padding propri.
+-->
+<button th:fragment="stepNumber(direction, title)" type="button"
+        th:title="${title}" th:aria-label="${title}" th:data-direction="${direction}"
+        class="flex items-center justify-center w-8 h-8 shrink-0 p-0 rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark
+               text-ink dark:text-ink-dark hover:opacity-100"
+        @click="const input = $el.parentElement.querySelector('input'); ($el.dataset.direction === 'up') ? input.stepUp() : input.stepDown(); input.dispatchEvent(new Event('input', { bubbles: true })); input.focus()">
+    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+        <path th:if="${direction == 'up'}" stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        <path th:unless="${direction == 'up'}" stroke-linecap="round" stroke-linejoin="round" d="M19.5 12h-15" />
+    </svg>
+</button>
+
+<!--
   creditToggle(text, title, low): chip del credito Replicate nella barra in basso (fragments/app/status-extras.html): apre/chiude il popover
   del saldo. Assume la variabile Alpine `balanceOpen` sul container (stesso accoppiamento esplicito di dialogOpen). Aspetto da testo
   (nessun bordo/sfondo del layer base: e' una riga di stato, non un bottone d'azione); `low` = colore `warning`.

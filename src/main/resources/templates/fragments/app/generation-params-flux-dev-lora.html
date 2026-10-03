@@ -29,7 +29,7 @@
 
     <div>
         <label for="param-lora-scale" th:text="#{generationParams.label.loraScale}">Intensita' LoRA</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-lora-scale', name='lora_scale', value=${lora_scale}, defaultValue=${fieldDefaults['lora_scale']}, min='-1', max='3', step='0.1', extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-lora-scale', name='lora_scale', value=${lora_scale}, defaultValue=${fieldDefaults['lora_scale']}, min='-1', max='3', step='0.1', extraClass=null, spinner=true)}"></div>
     </div>
 
     <div th:replace="~{fragments/app/generation-params-lora-preset :: field(selectId='param-extra-lora-preset', sourceId='param-extra-lora', scaleId='param-extra-lora-scale')}"></div>
@@ -42,7 +42,7 @@
 
     <div>
         <label for="param-extra-lora-scale" th:text="#{generationParams.label.extraLoraScale}">Intensita' LoRA aggiuntivo</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-extra-lora-scale', name='extra_lora_scale', value=${extra_lora_scale}, defaultValue=${fieldDefaults['extra_lora_scale']}, min='-1', max='3', step='0.1', extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-extra-lora-scale', name='extra_lora_scale', value=${extra_lora_scale}, defaultValue=${fieldDefaults['extra_lora_scale']}, min='-1', max='3', step='0.1', extraClass=null, spinner=true)}"></div>
     </div>
     <p class="-mt-1 mb-0 text-[0.8rem]"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
 
@@ -82,7 +82,7 @@
 
         <div>
             <label for="param-prompt-strength" th:text="#{generationParams.label.promptStrength}">Forza del prompt (img2img)</label>
-            <div th:replace="~{fragments/app/generation-params-number :: field(id='param-prompt-strength', name='prompt_strength', value=${prompt_strength}, defaultValue=${fieldDefaults['prompt_strength']}, min='0', max='1', step='0.05', extraClass=null)}"></div>
+            <div th:replace="~{fragments/app/generation-params-number :: field(id='param-prompt-strength', name='prompt_strength', value=${prompt_strength}, defaultValue=${fieldDefaults['prompt_strength']}, min='0', max='1', step='0.05', extraClass=null, spinner=true)}"></div>
         </div>
     </div>
 
@@ -119,17 +119,17 @@
 
     <div>
         <label for="param-num-outputs" th:text="#{generationParams.label.numOutputs}">Numero di immagini</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-num-outputs', name='num_outputs', value=${num_outputs}, defaultValue=${fieldDefaults['num_outputs']}, min='1', max=${maxNumOutputs}, step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-num-outputs', name='num_outputs', value=${num_outputs}, defaultValue=${fieldDefaults['num_outputs']}, min='1', max=${maxNumOutputs}, step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div>
         <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-steps', name='num_inference_steps', value=${num_inference_steps}, defaultValue=${fieldDefaults['num_inference_steps']}, min='1', max='50', step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-steps', name='num_inference_steps', value=${num_inference_steps}, defaultValue=${fieldDefaults['num_inference_steps']}, min='1', max='50', step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div>
         <label for="param-guidance" th:text="#{generationParams.label.guidance}">Guidance scale</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-guidance', name='guidance', value=${guidance}, defaultValue=${fieldDefaults['guidance']}, min='0', max='10', step='0.1', extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-guidance', name='guidance', value=${guidance}, defaultValue=${fieldDefaults['guidance']}, min='0', max='10', step='0.1', extraClass=null, spinner=false)}"></div>
     </div>
 
     <div>
@@ -146,7 +146,7 @@
 
     <div>
         <label for="param-output-quality" th:text="#{generationParams.label.quality}">Qualita'</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>

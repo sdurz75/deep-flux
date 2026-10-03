@@ -63,7 +63,7 @@
 
     <div>
         <label for="param-output-quality" th:text="#{generationParams.label.quality}">Qualita'</label>
-        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null)}"></div>
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null, spinner=false)}"></div>
     </div>
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
