@@ -2,6 +2,7 @@ package org.dual.replicate.app.generation.adapter.out.replicate;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.dual.replicate.app.generation.domain.ReplicateConfigurationException;
 import org.dual.replicate.app.generation.domain.ReplicateException;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -75,6 +77,26 @@ class ReplicateClient extends RestRemoteClient {
                 .headers(this::authHeaders)
                 .retrieve()
                 .body(PredictionResponse.class)));
+    }
+
+    /** Il modello {@code "owner/name"} (GET /models/{owner}/{name}); vuoto se non esiste (404). Sola lettura: si ritenta sui transitori. */
+    public Optional<ModelResponse> getModel(String model) {
+        requireToken();
+        String[] ownerAndName = model.split("/", 2);
+        if (ownerAndName.length != 2) {
+            throw new ReplicateConfigurationException(messages.get("replicate.error.invalidModelFormat"));
+        }
+        return remote.call("getModel", () -> {
+            try {
+                return Optional.ofNullable(restClient.get()
+                        .uri("/models/{owner}/{name}", ownerAndName[0], ownerAndName[1])
+                        .headers(this::authHeaders)
+                        .retrieve()
+                        .body(ModelResponse.class));
+            } catch (HttpClientErrorException.NotFound e) {
+                return Optional.<ModelResponse>empty();
+            }
+        });
     }
 
     /**

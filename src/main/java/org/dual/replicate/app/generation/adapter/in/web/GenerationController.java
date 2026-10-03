@@ -85,6 +85,12 @@ public class GenerationController {
         this.imageStorageService = imageStorageService;
     }
 
+    /** Tetto di {@code num_outputs} per i fragment dei form-type: Thymeleaf non permette {@code T(...)} nei parametri di un fragment. */
+    @ModelAttribute("maxNumOutputs")
+    public int maxNumOutputs() {
+        return IGenerationForms.MAX_NUM_OUTPUTS;
+    }
+
     /**
      * Limite dell'upload sorgente (IImageStorageService#storeUpload) per il controllo lato client del
      * campo sourceUpload di P_VIDEO: in ogni vista di questo controller, anche /params, perche' li'
@@ -262,6 +268,14 @@ public class GenerationController {
     }
 
     /**
+     * Campi che hanno una scala PROPRIA per modello (default e limiti diversi: guidance 2.5/3/30/60, passi 28/50/4, step 1 o 0.1): nello
+     * swap fra modelli ({@link #params}) un valore del form-type precedente non si eredita, sarebbe fuori scala (o invalido per il {@code step}
+     * del nuovo campo, e il browser bloccherebbe il submit) e il significato non e' lo stesso. Gli altri campi comuni (formato, qualita',
+     * num_outputs...) si conservano. Non vale per "Usa configurazione" e per il re-render dopo un create rifiutato: li' il modello e' lo stesso.
+     */
+    private static final java.util.Set<String> MODEL_SCALED_FIELDS = java.util.Set.of("guidance", "guidance_scale", "num_inference_steps", "steps");
+
+    /**
      * Ri-renderizza solo i campi del form-type del modello selezionato
      * (target #generation-params-fields, vedi fragments/app/generation-params.html),
      * scatenata dalla &lt;select&gt; modello ad ogni cambio
@@ -274,10 +288,22 @@ public class GenerationController {
      * DeepChatController#gallery).
      */
     @GetMapping("/params")
-    public String params(@RequestParam String model, @RequestParam Map<String, String> allParams, Model uiModel) {
+    public String params(@RequestParam String model,
+                          @RequestParam(required = false) Long sourceGenerationId,
+                          @RequestParam(required = false) String sourceImage,
+                          @RequestParam Map<String, String> allParams, Model uiModel) {
         GenerationFormType formType = modelCatalog.formTypeOf(model)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, messages.get("generateForm.error.unknownModel", model)));
-        populateFormTypeFields(uiModel, formType, allParams);
+        // Sorgente "Modifica"/"Anima" gia' scelta nella pagina (hidden fuori da questo fragment): senza, il fragment ripresenterebbe
+        // l'upload (obbligatorio per i modelli di modifica) pur avendo gia' l'immagine. Stessa rivalidazione di form()/create().
+        Generation sourceGeneration = animatableSource(sourceGenerationId, sourceImage);
+        if (sourceGeneration != null) {
+            uiModel.addAttribute("sourceGeneration", sourceGeneration);
+            uiModel.addAttribute("sourceImage", sourceImage);
+        }
+        Map<String, String> carried = new LinkedHashMap<>(allParams);
+        carried.keySet().removeAll(MODEL_SCALED_FIELDS);
+        populateFormTypeFields(uiModel, formType, carried);
         addTokenOptions(uiModel, formType);
         return GenerationFormFragments.fragmentOf(formType);
     }
@@ -299,6 +325,7 @@ public class GenerationController {
     public String enhancePrompt(@RequestParam(required = false) String prompt,
                                  @RequestParam(required = false) String model,
                                  @RequestParam(required = false) MultipartFile sourceUpload,
+                                 @RequestParam(required = false) MultipartFile maskUpload,
                                  @RequestParam(required = false) Long sourceGenerationId,
                                  @RequestParam(required = false) String sourceImage,
                                  @RequestParam(name = "prompt_strength", required = false) Double promptStrength,
@@ -310,7 +337,11 @@ public class GenerationController {
         // Modifica: l'enhancer guarda la stessa sorgente ma serve una bozza (cosa cambiare).
         // Inpainting (maschera): il prompt descrive SOLO cosa renderizzare nella zona dipinta (guida dedicata, non quella di Kontext ne' quella
         // generica text-to-image che chiederebbe scena, luce e inquadratura); l'enhancer guarda la sorgente per adattare luce/orientamento/stile.
-        boolean inpaint = model != null && modelCatalog.formTypeOf(model).map(GenerationFormType::takesMask).orElse(false);
+        // Dove la maschera e' opzionale (flux-lora-finetune) e' inpainting solo se una maschera c'e' davvero (la manda hx-include); senza
+        // resta img2img (con sorgente) o text-to-image.
+        boolean maskPresent = maskUpload != null && !maskUpload.isEmpty();
+        boolean inpaint = model != null && modelCatalog.formTypeOf(model)
+                .map(t -> t.takesMask() && (t.requiresMask() || maskPresent)).orElse(false);
         boolean edit = model != null && !inpaint && modelCatalog.containsEdit(model);
         // img2img (flux-dev-lora con upload): il modello descrive il risultato finale e quanto conta l'immagine lo dice prompt_strength.
         // Senza upload e' un normale text-to-image (l'immagine e' opzionale su questo modello).
@@ -395,6 +426,8 @@ public class GenerationController {
             }
         });
         fields.forEach(model::addAttribute);
+        // I default da soli (i valori sopra sono quelli correnti): i campi numerici li portano in data-default per il reset al default.
+        model.addAttribute(IGenerationForms.FIELD_DEFAULTS, defaults);
     }
 
     /**

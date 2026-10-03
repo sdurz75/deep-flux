@@ -40,4 +40,14 @@ class Flux2Klein9bParameterHandlerTest {
                 .containsEntry("output_quality", 80)
                 .doesNotContainKey("seed");
     }
+
+    /** Enum dello schema Replicate: 0.25, 0.5, 1, 2, 4 (tutti ammessi), qualunque altro valore si scarta. */
+    @Test
+    void megapixelsAcceptEveryValueOfTheSchemaEnum() {
+        for (String value : new String[]{"0.25", "0.5", "1", "2", "4"}) {
+            assertThat(handler.toParameterMap(Map.of("megapixels", value))).containsEntry("megapixels", value);
+        }
+        assertThat(handler.toParameterMap(Map.of("megapixels", "3"))).doesNotContainKey("megapixels");
+        assertThat(handler.toParameterMap(Map.of("megapixels", "1.5"))).doesNotContainKey("megapixels");
+    }
 }

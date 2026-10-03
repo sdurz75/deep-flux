@@ -286,12 +286,20 @@ public class GenerationService implements IGenerations {
         } else if (sourceRequired) {
             throw new ReplicateException(messages.get("generation.error.sourceImageRequired"));
         }
-        // Inpainting: senza maschera il modello ridipingerebbe a caso, quindi e' un rifiuto prima di spendere nulla.
+        // Inpainting: per i modelli di inpainting puri senza maschera il modello ridipingerebbe a caso, quindi e' un rifiuto prima di
+        // spendere nulla. Dove la maschera e' opzionale (flux-lora-finetune) senza e' una normale generazione, ma una maschera senza
+        // sorgente non ha niente da mascherare: rifiuto anche qui.
         if (formType != null && formType.takesMask()) {
             if (storedMask == null) {
-                throw new ReplicateException(messages.get("generation.error.maskRequired"));
+                if (formType.requiresMask()) {
+                    throw new ReplicateException(messages.get("generation.error.maskRequired"));
+                }
+            } else {
+                if (!input.containsKey(sourceImageParam)) {
+                    throw new ReplicateException(messages.get("generation.error.maskNeedsSource"));
+                }
+                input.put(formType.maskParam(), imageStorageService.readAsDataUri(storedMask));
             }
-            input.put(formType.maskParam(), imageStorageService.readAsDataUri(storedMask));
         }
 
         Prediction prediction = replicateClient.createPrediction(model, version, input);
@@ -442,7 +450,7 @@ public class GenerationService implements IGenerations {
                         }
                         generation.setImageSeeds(perFile);
                     }
-                    ReplicatePricing.estimate(generation.getModel(), prediction.metrics())
+                    ReplicatePricing.estimate(generation.getModel(), modelCatalog.formTypeOf(generation.getModel()).orElse(null), prediction.metrics())
                             .ifPresent(generation::setCostUsd);
                 }
             } catch (RuntimeException e) {

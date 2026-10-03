@@ -80,4 +80,38 @@ class ReplicateClientTest {
                 .isInstanceOfSatisfying(ReplicateException.class, e -> assertThat(e.kind()).isEqualTo(Kind.CONFIGURATION));
         server.verify();
     }
+
+    @Test
+    void getModelReadsTheLatestVersionAndItsInputFields() {
+        server.expect(ExpectedCount.once(), requestTo("http://replicate.test/v1/models/owner/lora"))
+                .andRespond(withSuccess("{\"latest_version\":{\"id\":\"abc123\",\"openapi_schema\":{\"components\":{\"schemas\":"
+                        + "{\"Input\":{\"properties\":{\"prompt\":{},\"lora_scale\":{}}}}}}}}", MediaType.APPLICATION_JSON));
+
+        var version = client.getModel("owner/lora").flatMap(ModelResponse::toLatestVersion).orElseThrow();
+
+        assertThat(version.id()).isEqualTo("abc123");
+        assertThat(version.inputFields()).containsExactlyInAnyOrder("prompt", "lora_scale");
+        server.verify();
+    }
+
+    @Test
+    void getModelWithoutVersionsOrWithAnUnknownSchemaIsHandledLeniently() {
+        server.expect(requestTo("http://replicate.test/v1/models/owner/new"))
+                .andRespond(withSuccess("{\"latest_version\":null}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://replicate.test/v1/models/owner/bare"))
+                .andRespond(withSuccess("{\"latest_version\":{\"id\":\"v1\"}}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.getModel("owner/new").flatMap(ModelResponse::toLatestVersion)).isEmpty();
+        assertThat(client.getModel("owner/bare").flatMap(ModelResponse::toLatestVersion).orElseThrow().inputFields()).isEmpty();
+    }
+
+    /** Un modello inesistente non e' un errore del servizio: vuoto (niente retry, niente evento). */
+    @Test
+    void getModelOfAMissingModelIsEmpty() {
+        server.expect(ExpectedCount.once(), requestTo("http://replicate.test/v1/models/owner/missing"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.getModel("owner/missing")).isEmpty();
+        server.verify();
+    }
 }

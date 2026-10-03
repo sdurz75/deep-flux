@@ -23,7 +23,7 @@ public final class FormFields {
 
     /**
      * {@code value} solo se e' uno dei valori ammessi, altrimenti {@code null} (la chiave viene omessa e vale il default del
-     * provider): un valore residuo di un altro form-type (es. il {@code aspect_ratio=custom} di FLUX_LORA_FF3) non deve arrivare
+     * provider): un valore residuo di un altro form-type (es. il {@code aspect_ratio=custom} di FLUX_LORA_FINETUNE) non deve arrivare
      * al provider come 422.
      */
     public static String asOneOf(String value, Set<String> allowed) {

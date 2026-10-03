@@ -9,7 +9,7 @@
   "images" (image-to-image, nessuna UI di upload in questo progetto) e
   "disable_safety_checker" (mai esposto in UI: forzato a true per ogni
   modello da GenerationService#create, non un campo di questo form-type).
-  Stesso parametro-meno di generation-params-flux-lora-ff3.html:
+  Stesso parametro-meno di generation-params-flux-lora-finetune.html:
   legge i valori correnti dal Model (nomi = chiave Replicate del campo),
   non da parametri di fragment.
 -->
@@ -63,7 +63,7 @@
 
     <div>
         <label for="param-output-quality" th:text="#{generationParams.label.quality}">Qualita'</label>
-        <input type="number" id="param-output-quality" name="output_quality" min="0" max="100" th:value="${output_quality}">
+        <div th:replace="~{fragments/app/generation-params-number :: field(id='param-output-quality', name='output_quality', value=${output_quality}, defaultValue=${fieldDefaults['output_quality']}, min='0', max='100', step=null, extraClass=null)}"></div>
     </div>
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>

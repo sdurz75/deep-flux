@@ -1,7 +1,9 @@
 package org.dual.replicate.app.generation.port.out;
 
 import java.util.Map;
+import java.util.Optional;
 
+import org.dual.replicate.app.generation.domain.ModelVersion;
 import org.dual.replicate.app.generation.domain.Prediction;
 
 /** Il servizio che esegue le generazioni (oggi Replicate). Gli errori sono {@code ReplicateException} (dominio) con il loro {@code Kind}. */
@@ -14,6 +16,9 @@ public interface IPredictionGateway {
     Prediction createPrediction(String model, String version, Map<String, Object> input);
 
     Prediction getPrediction(String externalId);
+
+    /** Ultima versione pubblicata di {@code model} ({@code "owner/name"}), vuoto se il modello non esiste o non ha versioni. Sola lettura, non costa nulla. */
+    Optional<ModelVersion> latestVersion(String model);
 
     /** Chiede di interrompere una prediction in corso; se e' gia' terminale il servizio risponde con un errore. */
     Prediction cancelPrediction(String externalId);

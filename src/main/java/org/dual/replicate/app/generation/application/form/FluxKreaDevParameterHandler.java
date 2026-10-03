@@ -17,7 +17,7 @@ import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
  * Handler del form-type {@link GenerationFormType#FLUX_KREA_DEV}: i
  * campi di input di black-forest-labs/flux-krea-dev (schema letto da
  * Replicate) — piu' vicino a {@link Flux2Klein9bParameterHandler} che a
- * {@link FluxLoraFf3ParameterHandler} (aspect_ratio/megapixels invece di
+ * {@link FluxLoraFinetuneParameterHandler} (aspect_ratio/megapixels invece di
  * width/height custom, niente lora_scale/variante dev-schnell), ma con
  * 3 campi in piu' che klein-9b non accetta (guidance, num_outputs,
  * num_inference_steps) e un megapixels a sole due opzioni (0.25/1,
@@ -44,6 +44,8 @@ public class FluxKreaDevParameterHandler implements IGenerationParameterHandler 
     public static final java.util.Set<String> ASPECT_RATIOS = java.util.Set.of("1:1", "16:9", "9:16", "3:2", "2:3",
             "4:3", "3:4", "5:4", "4:5", "21:9", "9:21", "match_input_image");
     public static final String DEFAULT_ASPECT_RATIO = "1:1";
+    /** Enum di {@code megapixels} dello schema Replicate (letto il 2026-10-03): solo queste due stringhe, altro e' un 422. */
+    public static final java.util.Set<String> MEGAPIXELS = java.util.Set.of("1", "0.25");
     public static final String DEFAULT_MEGAPIXELS = "1";
     public static final boolean DEFAULT_GO_FAST = false;
     public static final int DEFAULT_NUM_OUTPUTS = 1;
@@ -61,7 +63,7 @@ public class FluxKreaDevParameterHandler implements IGenerationParameterHandler 
     public Map<String, Object> toParameterMap(Map<String, String> submittedFields) {
         Map<String, Object> params = new LinkedHashMap<>();
         putIfPresent(params, "aspect_ratio", asOneOf(submittedFields.get("aspect_ratio"), ASPECT_RATIOS));
-        putIfPresent(params, "megapixels", submittedFields.get("megapixels"));
+        putIfPresent(params, "megapixels", asOneOf(submittedFields.get("megapixels"), MEGAPIXELS));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
         params.put("go_fast", isChecked(submittedFields, "go_fast"));
         putIfPresent(params, "guidance", asDouble(submittedFields.get("guidance")));

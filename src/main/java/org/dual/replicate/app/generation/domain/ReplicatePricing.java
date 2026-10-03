@@ -9,7 +9,7 @@ import java.util.Optional;
  * Stima del costo (USD) di una prediction completata, dai suoi
  * {@code metrics}: l'API Replicate non espone il prezzo, solo queste
  * metriche (predict_time piu' campi specifici del modello). Una regola per
- * modello censito, prezzi in un solo posto: se Replicate li cambia, si
+ * modello censito (i fine-tune LoRA ne hanno una per form-type), prezzi in un solo posto: se Replicate li cambia, si
  * aggiornano qui (le generazioni gia' completate conservano il costo
  * calcolato al momento, vedi GENERATION.COST_USD, V13).
  *
@@ -19,8 +19,9 @@ import java.util.Optional;
  * Provenienza dei prezzi (2026-09-29): p-video dal README del modello;
  * kontext-dev ($0.025 per output image) dalla pagina del modello; krea-dev e klein-9b forniti dall'utente, trattati come "per immagine"
  * (per klein potrebbe essere a megapixel: identico a 1 MP, l'output di
- * default); flux-lora-ff3 (fine-tune community su hardware H100) a tempo
- * di calcolo, tariffa da replicate.com/pricing; flux-dev-lora (2026-10-01) STIMATO uguale a flux-dev
+ * default); i fine-tune LoRA addestrati su Replicate ({@link GenerationFormType#FLUX_LORA_FINETUNE}, es. flux-lora-ff3) a tempo
+ * di calcolo, tariffa H100 da replicate.com/pricing (ipotesi: l'hardware e' per modello, quindi un altro fine-tune su una GPU diversa
+ * va dato come regola esplicita per modello, che ha la precedenza sul form-type); flux-dev-lora (2026-10-01) STIMATO uguale a flux-dev
  * ($0.025 per immagine, scelta dell'utente: la pagina del modello non riporta il prezzo) e la metrica
  * image_output_count non e' stata verificata su quel modello. flux-fill-dev (2026-10-02): $0.025 per immagine dalla
  * pagina del modello, metrica image_output_count idem non verificata.
@@ -45,6 +46,14 @@ public final class ReplicatePricing {
     }
 
     public static Optional<BigDecimal> estimate(String model, Map<String, Object> metrics) {
+        return estimate(model, null, metrics);
+    }
+
+    /**
+     * Come {@link #estimate(String, Map)}, con il form-type del modello: la regola esplicita per modello vince, in mancanza decide il
+     * form-type (un fine-tune LoRA nuovo e' stimato senza codice). {@code formType} puo' essere null.
+     */
+    public static Optional<BigDecimal> estimate(String model, GenerationFormType formType, Map<String, Object> metrics) {
         if (model == null || metrics == null) {
             return Optional.empty();
         }
@@ -61,10 +70,10 @@ public final class ReplicatePricing {
                     number(metrics, "image_output_count").map(n -> n.multiply(FILL_DEV_PER_IMAGE));
             // Una prediction = un'immagine: nessuna metrica da leggere (image_output_count non e' verificata su questo modello).
             case "black-forest-labs/flux-fill-pro" -> Optional.of(FILL_PRO_PER_IMAGE);
-            case "sdurz75/flux-lora-ff3" ->
-                    number(metrics, "predict_time").map(n -> n.multiply(H100_PER_SECOND));
             case "prunaai/p-video" -> pVideo(metrics);
-            default -> Optional.empty();
+            default -> formType == GenerationFormType.FLUX_LORA_FINETUNE
+                    ? number(metrics, "predict_time").map(n -> n.multiply(H100_PER_SECOND))
+                    : Optional.empty();
         };
         return cost.map(c -> c.setScale(6, RoundingMode.HALF_UP));
     }

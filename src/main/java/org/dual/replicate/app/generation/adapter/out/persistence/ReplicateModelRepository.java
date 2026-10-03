@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /** Dettaglio di persistenza: fuori dall'adapter si usa solo la porta out corrispondente. */
 interface ReplicateModelRepository extends JpaRepository<ReplicateModel, Long> {
@@ -13,4 +14,7 @@ interface ReplicateModelRepository extends JpaRepository<ReplicateModel, Long> {
     List<ReplicateModel> findByActiveTrueOrderBySortOrderAsc();
 
     Optional<ReplicateModel> findByOwnerAndName(String owner, String name);
+
+    @Query("select max(m.sortOrder) from ReplicateModel m")
+    Optional<Integer> findMaxSortOrder();
 }

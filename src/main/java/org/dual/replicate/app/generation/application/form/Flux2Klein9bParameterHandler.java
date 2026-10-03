@@ -15,9 +15,9 @@ import static org.dual.replicate.app.shared.domain.FormFields.putIfPresent;
 /**
  * Handler del form-type {@link GenerationFormType#FLUX_2_KLEIN_9B}: i
  * campi di input di black-forest-labs/flux-2-klein-9b (schema letto da
- * Replicate, vedi migrazione V7), un modello diverso da FLUX_LORA_FF3
+ * Replicate, vedi migrazione V7), un modello diverso da FLUX_LORA_FINETUNE
  * (nessun width/height/steps/guidance/lora_scale/num_outputs) — niente
- * di condiviso con {@link FluxLoraFf3ParameterHandler} a parte lo
+ * di condiviso con {@link FluxLoraFinetuneParameterHandler} a parte lo
  * scheletro dell'interfaccia. {@code images} (input per image-to-image)
  * non e' esposto in UI. {@code disable_safety_checker} nemmeno: non e'
  * un campo di questo handler, e' forzato a true incondizionatamente da
@@ -37,6 +37,8 @@ public class Flux2Klein9bParameterHandler implements IGenerationParameterHandler
     public static final java.util.Set<String> ASPECT_RATIOS = java.util.Set.of("1:1", "16:9", "9:16", "3:2", "2:3",
             "4:3", "3:4", "5:4", "4:5", "21:9", "9:21", "match_input_image");
     public static final String DEFAULT_ASPECT_RATIO = "1:1";
+    /** Enum di {@code megapixels} dello schema Replicate (letto il 2026-10-03): le 5 stringhe ammesse, nessun' altra. */
+    public static final java.util.Set<String> MEGAPIXELS = java.util.Set.of("0.25", "0.5", "1", "2", "4");
     public static final String DEFAULT_MEGAPIXELS = "1";
     public static final boolean DEFAULT_GO_FAST = false;
     public static final String DEFAULT_OUTPUT_FORMAT = "jpg";
@@ -51,7 +53,7 @@ public class Flux2Klein9bParameterHandler implements IGenerationParameterHandler
     public Map<String, Object> toParameterMap(Map<String, String> submittedFields) {
         Map<String, Object> params = new LinkedHashMap<>();
         putIfPresent(params, "aspect_ratio", asOneOf(submittedFields.get("aspect_ratio"), ASPECT_RATIOS));
-        putIfPresent(params, "megapixels", submittedFields.get("megapixels"));
+        putIfPresent(params, "megapixels", asOneOf(submittedFields.get("megapixels"), MEGAPIXELS));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
         params.put("go_fast", isChecked(submittedFields, "go_fast"));
         putIfPresent(params, "output_format", submittedFields.get("output_format"));

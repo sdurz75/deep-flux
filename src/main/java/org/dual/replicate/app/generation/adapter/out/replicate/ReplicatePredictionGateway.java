@@ -1,7 +1,9 @@
 package org.dual.replicate.app.generation.adapter.out.replicate;
 
 import java.util.Map;
+import java.util.Optional;
 
+import org.dual.replicate.app.generation.domain.ModelVersion;
 import org.dual.replicate.app.generation.domain.Prediction;
 import org.dual.replicate.app.generation.port.out.IPredictionGateway;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,11 @@ class ReplicatePredictionGateway implements IPredictionGateway {
     @Override
     public Prediction getPrediction(String externalId) {
         return client.getPrediction(externalId).toDomain();
+    }
+
+    @Override
+    public Optional<ModelVersion> latestVersion(String model) {
+        return client.getModel(model).flatMap(ModelResponse::toLatestVersion);
     }
 
     @Override

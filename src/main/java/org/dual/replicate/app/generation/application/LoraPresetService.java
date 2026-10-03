@@ -7,6 +7,10 @@ import java.util.Map;
 
 import org.dual.replicate.app.generation.domain.LoraException;
 import org.dual.replicate.app.generation.domain.LoraPreset;
+import org.dual.replicate.app.generation.domain.ReplicateModel;
+import org.dual.replicate.app.generation.port.in.IModelCatalog;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.app.generation.port.out.ILoraPresetStore;
@@ -16,22 +20,29 @@ import org.springframework.stereotype.Service;
 /**
  * CRUD dei LoRA anagrafati. Sono solo preset di compilazione per le form di flux-dev-lora (sorgente + intensita' + trigger
  * words): la form invia comunque testo e scala, quindi cancellare o modificare un preset non tocca le generazioni passate.
+ * Una sorgente {@code owner/nome} e' implicitamente un modello LoRA su Replicate: alla creazione/modifica del preset diventa anche
+ * un modello del catalogo ({@link IModelCatalog#registerLoraFinetune}), disponibile ovunque lo e' ogni fine-tune. Cancellare il
+ * preset NON toglie il modello dal catalogo (le generazioni passate lo referenziano).
  */
 @Service
 public class LoraPresetService implements ILoraPresets {
 
     private final ILoraPresetStore repository;
     private final Messages messages;
+    private final IModelCatalog modelCatalog;
+    private final ISystemEvents systemEvents;
     private final Clock clock;
 
     @Autowired
-    public LoraPresetService(ILoraPresetStore repository, Messages messages) {
-        this(repository, messages, Clock.systemDefaultZone());
+    public LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents) {
+        this(repository, messages, modelCatalog, systemEvents, Clock.systemDefaultZone());
     }
 
-    LoraPresetService(ILoraPresetStore repository, Messages messages, Clock clock) {
+    LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents, Clock clock) {
         this.repository = repository;
         this.messages = messages;
+        this.modelCatalog = modelCatalog;
+        this.systemEvents = systemEvents;
         this.clock = clock;
     }
 
@@ -59,6 +70,7 @@ public class LoraPresetService implements ILoraPresets {
         }
         LoraPreset saved = repository.save(new LoraPreset(cleanName, validSource(source), validScale(scale),
                 optional(triggerWords, "loras.error.triggerWordsTooLong"), optional(note, "loras.error.noteTooLong"), clock.instant()));
+        registerAsModel(saved);
         return view(saved);
     }
 
@@ -72,7 +84,26 @@ public class LoraPresetService implements ILoraPresets {
         Instant now = clock.instant();
         existing.update(cleanName, validSource(source), validScale(scale), optional(triggerWords, "loras.error.triggerWordsTooLong"),
                 optional(note, "loras.error.noteTooLong"), now);
-        return view(repository.save(existing));
+        LoraPreset saved = repository.save(existing);
+        registerAsModel(saved);
+        return view(saved);
+    }
+
+    /**
+     * La sorgente {@code owner/nome} e' un modello Replicate: lo censisce nel catalogo. Il preset e' gia' salvato e non dipende da
+     * questo passo: un rifiuto (modello inesistente o non LoRA: la sorgente puo' essere altro) e' normale e silenzioso, un guasto del
+     * servizio e' un evento di sistema; in entrambi i casi il preset resta.
+     */
+    private void registerAsModel(LoraPreset preset) {
+        ReplicateModel.identifierOfSource(preset.getSource()).ifPresent(identifier -> {
+            try {
+                modelCatalog.registerLoraFinetune(identifier, preset.getName());
+            } catch (RemoteServiceException e) {
+                if (e.isReportable()) {
+                    systemEvents.record("registerLoraModel", e);
+                }
+            }
+        });
     }
 
     @Override

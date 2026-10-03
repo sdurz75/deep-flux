@@ -43,9 +43,15 @@ class ReplicatePricingTest {
     }
 
     @Test
-    void fluxLoraFf3IsChargedByH100ComputeTime() {
-        assertThat(cost("sdurz75/flux-lora-ff3", Map.of("predict_time", 6.009804301)))
+    void loraFinetuneIsChargedByH100ComputeTimeWhateverTheModel() {
+        Map<String, Object> metrics = Map.of("predict_time", 6.009804301);
+        assertThat(ReplicatePricing.estimate("sdurz75/flux-lora-ff3", GenerationFormType.FLUX_LORA_FINETUNE, metrics).orElseThrow())
                 .isEqualByComparingTo("0.009165");
+        assertThat(ReplicatePricing.estimate("owner/another-trained-lora", GenerationFormType.FLUX_LORA_FINETUNE, metrics).orElseThrow())
+                .isEqualByComparingTo("0.009165");
+        // Senza il form-type un modello non censito in regole non ha stima.
+        assertThat(ReplicatePricing.estimate("owner/another-trained-lora", metrics)).isEmpty();
+        assertThat(ReplicatePricing.estimate("owner/another-trained-lora", GenerationFormType.FLUX_KREA_DEV, metrics)).isEmpty();
     }
 
     @Test

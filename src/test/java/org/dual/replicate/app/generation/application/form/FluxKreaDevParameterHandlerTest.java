@@ -56,4 +56,14 @@ class FluxKreaDevParameterHandlerTest {
                 .containsEntry("guidance", 3.0)
                 .doesNotContainKey("seed");
     }
+
+    /** Enum dello schema Replicate: solo 0.25 e 1; un valore ereditato da klein-9b (0.5/2/4) non deve arrivare a Replicate come 422. */
+    @Test
+    void megapixelsFollowTheSchemaEnum() {
+        assertThat(handler.toParameterMap(Map.of("megapixels", "0.25"))).containsEntry("megapixels", "0.25");
+        assertThat(handler.toParameterMap(Map.of("megapixels", "1"))).containsEntry("megapixels", "1");
+        for (String foreign : new String[]{"0.5", "2", "4", "abc"}) {
+            assertThat(handler.toParameterMap(Map.of("megapixels", foreign))).doesNotContainKey("megapixels");
+        }
+    }
 }

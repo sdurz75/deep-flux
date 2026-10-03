@@ -20,4 +20,19 @@ class JpaModelStore implements IModelStore {
     public List<ReplicateModel> findActiveOrdered() {
         return repository.findByActiveTrueOrderBySortOrderAsc();
     }
+
+    @Override
+    public boolean exists(String owner, String name) {
+        return repository.findByOwnerAndName(owner, name).isPresent();
+    }
+
+    @Override
+    public int nextSortOrder() {
+        return repository.findMaxSortOrder().map(max -> max + 1).orElse(0);
+    }
+
+    @Override
+    public ReplicateModel save(ReplicateModel model) {
+        return repository.save(model);
+    }
 }

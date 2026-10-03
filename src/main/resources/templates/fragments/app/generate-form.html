@@ -42,8 +42,9 @@
             <div th:replace="~{fragments/app/generation-params :: fields}"></div>
 
             <!--/* x-data: lo @click del bottone (riporta la select al modello di default) ha bisogno di uno scope Alpine. */-->
-            <div x-data>
-                <button th:replace="~{fragments/app/button-gen :: resetToDefaults(text=#{generateForm.button.reset}, hxGet=@{/generations/params(model=${defaultModel})}, defaultModel=${defaultModel}, extraClass='mt-2 text-[0.85rem] py-1.5')}">Reimposta ai default</button>
+            <!--/* Con una sorgente da generazione l'URL del reset la porta con se' (come la select modello): senza, i campi ricaricati riproporrebbero l'upload obbligatorio. */-->
+            <div x-data th:with="resetUrl=${sourceGeneration != null} ? @{/generations/params(model=${defaultModel}, sourceGenerationId=${sourceGeneration?.id}, sourceImage=${sourceImage})} : @{/generations/params(model=${defaultModel})}">
+                <button th:replace="~{fragments/app/button-gen :: resetToDefaults(text=#{generateForm.button.reset}, hxGet=${resetUrl}, defaultModel=${defaultModel}, extraClass='mt-2 text-[0.85rem] py-1.5')}">Reimposta ai default</button>
             </div>
 
             <label for="version" th:text="#{generateForm.label.version}">Version (opzionale, hash pinnato)</label>

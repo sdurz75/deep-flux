@@ -29,9 +29,13 @@
   su /generations/new sta dentro un <form th:hx-post="@{/generations}"
   hx-target="#generation-panel">, che altrimenti li erediterebbe
   dirottando la risposta li' invece che nel contenitore dei campi.
-  hx-include="#generation-params-fields" manda insieme i valori gia'
+  hx-include="#generation-params-fields, [name=sourceGenerationId], [name=sourceImage]" manda insieme i valori gia'
   compilati nei campi attuali (preservati per i campi che il nuovo
-  form-type condivide col precedente), non solo il valore della select.
+  form-type condivide col precedente, tranne quelli con scala propria per modello: guidance/passi,
+  vedi GenerationController#MODEL_SCALED_FIELDS), non solo il valore della select. Gli hidden
+  sourceGenerationId/sourceImage (la sorgente "Modifica"/"Anima", FUORI da #generation-params-fields)
+  viaggiano con la richiesta: senza, il fragment non saprebbe che la sorgente c'e' gia' e ripresenterebbe
+  l'upload obbligatorio (generation-params-source-upload.html).
 -->
 <th:block th:fragment="fields">
     <div class="relative">
@@ -40,7 +44,7 @@
             <select id="image-model-input" name="model" required
                     th:hx-get="@{/generations/params}"
                     hx-target="#generation-params-fields" hx-swap="innerHTML"
-                    hx-trigger="change" hx-include="#generation-params-fields"
+                    hx-trigger="change" hx-include="#generation-params-fields, [name=sourceGenerationId], [name=sourceImage]"
                     class="sr-only" tabindex="-1" aria-hidden="true">
                 <option th:each="m : ${models}" th:value="${m.identifier}" th:text="${m.identifier}"
                         th:title="${m.description}" th:selected="${m.identifier == model}"></option>
@@ -75,7 +79,7 @@
           sullo stesso nodo appena sostituito) non ha mai l'occasione di
           escludere gli altri rami. Verificato dal vivo: senza questo
           annidamento, un curl su /generations/new restituiva TUTTI E TRE
-          i fragment (FF3+klein-9b+krea-dev concatenati, ognuno coi propri
+          i fragment (lora-finetune+klein-9b+krea-dev concatenati, ognuno coi propri
           campi #param-*) ad ogni singola richiesta, non solo dopo una
           navigazione - il case non filtrava mai nulla. Fix: th:case su un
           <th:block> dedicato (il solo nodo che decide se il ramo
@@ -85,8 +89,8 @@
           campi).
         -->
         <th:block th:switch="${formType}">
-            <th:block th:case="'FLUX_LORA_FF3'">
-                <th:block th:replace="~{fragments/app/generation-params-flux-lora-ff3 :: fields}"></th:block>
+            <th:block th:case="'FLUX_LORA_FINETUNE'">
+                <th:block th:replace="~{fragments/app/generation-params-flux-lora-finetune :: fields}"></th:block>
             </th:block>
             <th:block th:case="'FLUX_2_KLEIN_9B'">
                 <th:block th:replace="~{fragments/app/generation-params-flux-2-klein-9b :: fields}"></th:block>

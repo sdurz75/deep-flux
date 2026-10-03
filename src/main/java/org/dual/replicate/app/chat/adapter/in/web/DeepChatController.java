@@ -14,6 +14,7 @@ import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.core.kernel.i18n.Messages;
+import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.generation.port.in.IGenerationForms;
@@ -22,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -62,6 +64,20 @@ public class DeepChatController {
         this.generationService = generationService;
         this.objectMapper = objectMapper;
         this.messages = messages;
+    }
+
+    /**
+     * Limite dell'upload sorgente: i fragment dei form-type con un campo upload (flux-lora-finetune, flux-dev-lora) lo leggono anche
+     * quando sono nel pannello della chat, dove il blocco e' nascosto ma il markup viene comunque renderizzato.
+     */
+    @ModelAttribute("maxNumOutputs")
+    public int maxNumOutputs() {
+        return IGenerationForms.MAX_NUM_OUTPUTS;
+    }
+
+    @ModelAttribute("maxUploadBytes")
+    public long maxUploadBytes() {
+        return IImageStorageService.MAX_UPLOAD_BYTES;
     }
 
     /** Nessuna pagina "senza conversazione": risolve sempre quella piu' di recente attiva (o ne crea una nuova al primo avvio) e ci naviga. */

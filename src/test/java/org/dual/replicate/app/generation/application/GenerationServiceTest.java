@@ -122,7 +122,7 @@ class GenerationServiceTest {
      * indipendentemente da cosa arriva in parametersJson: non e' un
      * default (assente -> true), e' un vincolo (presente e diverso ->
      * comunque true). Nessuno dei due form-type lo espone come campo
-     * (vedi Flux2Klein9bParameterHandler/FluxLoraFf3ParameterHandler),
+     * (vedi Flux2Klein9bParameterHandler/FluxLoraFinetuneParameterHandler),
      * quindi un valore "false" qui potrebbe arrivare solo da un chiamante
      * che bypassa l'UI - create() non deve fidarsene.
      */
@@ -968,6 +968,93 @@ class GenerationServiceTest {
                 .containsEntry("mask", "data:image/png;base64,MMMM").containsEntry("disable_safety_checker", true);
         // I data-URI non finiscono mai nel DB: parametersJson e' salvato prima.
         assertThat(result.getParametersJson()).isNull();
+    }
+
+    /** Un fine-tune LoRA (flux-lora-ff3) e' un text-to-image: senza sorgente ne' maschera NON e' un inpainting (nessun rifiuto, niente image/mask a Replicate). */
+    @Test
+    void createForLoraFinetuneWithoutSourceAndMaskIsPlainTextToImage() {
+        GenerationService service = newService();
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-finetune", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("sdurz75/flux-lora-ff3", GenerationFormType.FLUX_LORA_FINETUNE);
+
+        Generation result = service.create(command("sdurz75/flux-lora-ff3", "a face", null, null, null, null));
+
+        assertThat(result.getMaskUploadFilename()).isNull();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).doesNotContainKeys("image", "mask");
+    }
+
+    /** Un fine-tune LoRA (flux-lora-ff3) con sorgente e maschera: inpainting col fine-tune, image e mask partono come data-URI e la maschera e' tracciata. */
+    @Test
+    void createForLoraFinetuneWithSourceAndMaskSendsBoth() {
+        GenerationService service = newService();
+        when(imageStorageService.readAsDataUri("src.png")).thenReturn("data:image/png;base64,SSSS");
+        when(imageStorageService.readAsDataUri("mask-f.png")).thenReturn("data:image/png;base64,MMMM");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-finetune", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("sdurz75/flux-lora-ff3", GenerationFormType.FLUX_LORA_FINETUNE);
+
+        Generation result = service.create(commandWithMask("sdurz75/flux-lora-ff3", "src.png", "mask-f.png"));
+
+        assertThat(result.getSourceUploadFilename()).isEqualTo("src.png");
+        assertThat(result.getMaskUploadFilename()).isEqualTo("mask-f.png");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,SSSS")
+                .containsEntry("mask", "data:image/png;base64,MMMM");
+    }
+
+    /** Una maschera senza sorgente non ha niente da mascherare: rifiuto prima di Replicate e la maschera salvata viene ripulita. */
+    @Test
+    void createForLoraFinetuneWithMaskButNoSourceFailsBeforeCallingReplicate() {
+        GenerationService service = newService();
+        formTypeOf("sdurz75/flux-lora-ff3", GenerationFormType.FLUX_LORA_FINETUNE);
+        UploadedFile mask = UploadedFile.of("mask.png", new byte[]{4, 5, 6});
+        when(imageStorageService.storeUpload(mask)).thenReturn("mask-f.png");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(new IGenerations.CreateCommand(
+                        "sdurz75/flux-lora-ff3", null, "a face", null, null, null, null, mask)))
+                .isInstanceOf(org.dual.replicate.app.generation.domain.ReplicateException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(replicateClient);
+        verify(imageStorageService).delete("mask-f.png");
+    }
+
+    /** Modifica con maschera su un'immagine GIA' in archivio: nessun upload sorgente, l'image parte dalla generazione e la maschera si applica. */
+    @Test
+    void createForInpaintingWithAGenerationSourceAndAMaskNeedsNoUpload() {
+        GenerationService service = newService();
+        Generation source = new Generation("pred-src", "owner/model", null, "a cat", null);
+        source.setStatus(GenerationStatus.SUCCEEDED);
+        source.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("7-0.png")));
+        when(repository.findById(7L)).thenReturn(Optional.of(source));
+        when(imageStorageService.readAsDataUri("7-0.png")).thenReturn("data:image/png;base64,GGGG");
+        when(imageStorageService.readAsDataUri("mask-g.png")).thenReturn("data:image/png;base64,MMMM");
+        when(replicateClient.createPrediction(anyString(), any(), any()))
+                .thenReturn(new Prediction("pred-gm", "starting", null, null, null, null));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        formTypeOf("black-forest-labs/flux-fill-dev", GenerationFormType.FLUX_FILL_DEV);
+        UploadedFile mask = UploadedFile.of("mask.png", new byte[]{4, 5, 6});
+        when(imageStorageService.storeUpload(mask)).thenReturn("mask-g.png");
+
+        Generation result = service.create(new IGenerations.CreateCommand("black-forest-labs/flux-fill-dev", null, "a hat",
+                null, 7L, "7-0.png", null, mask));
+
+        assertThat(result.getSourceGenerationId()).isEqualTo(7L);
+        assertThat(result.getSourceImageFilename()).isEqualTo("7-0.png");
+        assertThat(result.getSourceUploadFilename()).isNull();
+        assertThat(result.getMaskUploadFilename()).isEqualTo("mask-g.png");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> inputCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(replicateClient).createPrediction(anyString(), any(), inputCaptor.capture());
+        assertThat(inputCaptor.getValue()).containsEntry("image", "data:image/png;base64,GGGG")
+                .containsEntry("mask", "data:image/png;base64,MMMM");
     }
 
     /** flux-fill-pro non ha disable_safety_checker: non si invia; ha safety_tolerance, forzata al massimo (6) e mai nei parametri salvati. */

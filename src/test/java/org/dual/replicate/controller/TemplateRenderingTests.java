@@ -26,6 +26,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class TemplateRenderingTests {
+
+    /** Salvare un LoRA anagrafato con sorgente owner/nome interroga Replicate (sola lettura): nei test mai la rete vera. */
+    @MockitoBean
+    private org.dual.replicate.app.generation.port.out.IPredictionGateway predictionGateway;
 
     @Autowired
     private org.thymeleaf.spring6.SpringTemplateEngine templateEngine;
@@ -120,9 +125,9 @@ class TemplateRenderingTests {
      * inizialmente segnalato: quella frase descriveva solo QUANDO l'utente
      * se ne era accorto, non la vera condizione di innesco). Il fix
      * annida th:case/th:replace su due <th:block> distinti (vedi il
-     * fragment): qui si verifica che, col modello di default (FF3,
+     * fragment): qui si verifica che, col modello di default (un fine-tune LoRA,
      * SORT_ORDER=0), compaiano SOLO i suoi campi (flux_model/lora_scale),
-     * mai quelli di klein-9b/krea-dev (go_fast/megapixels), e che
+     * mai quelli di klein-9b/krea-dev (go_fast, megapixels a 5 opzioni), e che
      * "param-seed" (nome ripetuto identico nei tre fragment) appaia
      * esattamente una volta.
      */
@@ -133,7 +138,9 @@ class TemplateRenderingTests {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(body).contains("name=\"flux_model\"");
-        assertThat(body).doesNotContain("name=\"go_fast\"", "name=\"megapixels\"");
+        // il form-type dei fine-tune LoRA ha il proprio megapixels (0.25/1, con un'immagine di partenza): una sola select e nessuna opzione esclusiva di klein-9b.
+        assertThat(body).doesNotContain("name=\"go_fast\"", "value=\"0.5\"", "value=\"2\"", "value=\"4\"");
+        assertThat(countOccurrences(body, "id=\"param-megapixels\"")).isEqualTo(1);
         assertThat(countOccurrences(body, "id=\"param-seed\"")).isEqualTo(1);
     }
 
@@ -792,7 +799,7 @@ class TemplateRenderingTests {
 
     /**
      * Form-type FLUX_DEV_LORA (migrazione V20/FluxDevLoraParameterHandler): campi LoRA, upload img2img opzionale, solo i propri
-     * campi (nessuno di quelli di flux-lora-ff3) e i token SALVATI come select per nome (mai un campo per digitarli).
+     * campi (nessuno di quelli dei fine-tune LoRA) e i token SALVATI come select per nome (mai un campo per digitarli).
      */
     @Test
     @Transactional
@@ -1836,8 +1843,10 @@ class TemplateRenderingTests {
         // Il componente Alpine e' registrato a livello di pagina (il fragment dei campi viene sostituito al cambio modello).
         assertThat(edit).contains("Alpine.data('maskEditor'").contains("function featherAlpha(");
         assertThat(images).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro");
-        assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro")
-                .doesNotContain("maskUpload");
+        assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro");
+        // Il modello di default della chat (un fine-tune LoRA) ha la maschera opzionale: nel pannello l'editor non deve esistere (il componente
+        // `maskEditor` non e' registrato li'), quindi sta in un <template x-if> che non si istanzia e non entra nel FormData.
+        assertThat(chat).containsPattern("(?s)<template x-if=\"!\\$el\\.closest\\('#generation-settings-panel'\\)\">\\s*<div[^>]*x-data=\"maskEditor\"");
 
         assertThat(fill).contains("name=\"maskUpload\"").contains("x-data=\"maskEditor\"").contains("data-action=\"brush\"")
                 .contains("data-action=\"eraser\"").contains("data-action=\"ellipse\"").contains("data-action=\"undo\"")
@@ -1852,6 +1861,21 @@ class TemplateRenderingTests {
         assertThat(fill).doesNotContain("name=\"extra_lora\"").doesNotContain("hf_token_id").doesNotContain("civitai_token_id");
         // La maschera e' sempre un file: nessun campo di testo la porta (finirebbe in localStorage).
         assertThat(fill).doesNotContain("name=\"mask\"");
+    }
+
+    /** Un fine-tune LoRA (flux-lora-ff3, text-to-image) offre nella sua pagina sorgente e maschera OPZIONALI, con prompt_strength: senza `required`. */
+    @Test
+    @Transactional
+    void loraFinetuneOffersOptionalSourceAndMaskOnTheImagePage() throws Exception {
+        String images = mockMvc.perform(get("/generations/params").param("model", "sdurz75/flux-lora-ff3"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(images).contains("name=\"maskUpload\"").contains("x-data=\"maskEditor\"").contains("name=\"prompt_strength\"");
+        // Con un'immagine il modello ignora width/height: la dimensione la decide megapixels (enum 0.25/1), esposto nello stesso blocco.
+        assertThat(images).containsPattern("(?s)<select[^>]*name=\"megapixels\".*?value=\"0.25\".*?value=\"1\".*?</select>");
+        assertThat(images).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"");
+        assertThat(images).doesNotContainPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        assertThat(images).doesNotContain("name=\"mask\"");
     }
 
     /** "Modifica" da una generazione: preseleziona il modello di modifica (non p-video), porta la sorgente, niente upload. */
@@ -1871,6 +1895,79 @@ class TemplateRenderingTests {
         assertThat(body).containsPattern("name=\"sourceGenerationId\"[^>]*value=\"" + image.getId() + "\"");
         assertThat(body).containsPattern("<option value=\"black-forest-labs/flux-kontext-dev\"[^>]*selected");
         assertThat(body).doesNotContain("prunaai/p-video");
+    }
+
+    /**
+     * Con una sorgente da generazione il cambio modello (GET /generations/params) NON ripropone l'upload obbligatorio: la sorgente viaggia
+     * con la richiesta (hidden sourceGenerationId/sourceImage, fuori da #generation-params-fields) e il server la rivalida. Senza (o non
+     * valida) l'upload obbligatorio resta, e' il caso stand-alone.
+     */
+    @Test
+    @Transactional
+    void paramsWithAGenerationSourceDoesNotAskForAnUpload() throws Exception {
+        Generation image = new Generation("pred-params-src", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("5-0.png")));
+        image = repository.save(image);
+        String fillDev = "black-forest-labs/flux-fill-dev";
+
+        String withSource = mockMvc.perform(get("/generations/params").param("model", fillDev)
+                        .param("sourceGenerationId", String.valueOf(image.getId())).param("sourceImage", "5-0.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String withoutSource = mockMvc.perform(get("/generations/params").param("model", fillDev))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String wrongFile = mockMvc.perform(get("/generations/params").param("model", fillDev)
+                        .param("sourceGenerationId", String.valueOf(image.getId())).param("sourceImage", "altro.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        // La maschera resta (l'editor legge la sorgente dall'anteprima della pagina), l'upload no.
+        assertThat(withSource).doesNotContain("name=\"sourceUpload\"").contains("name=\"maskUpload\"");
+        assertThat(withoutSource).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        assertThat(wrongFile).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+    }
+
+    /** La pagina di modifica con sorgente fa viaggiare la sorgente anche nella select modello e nel "Reimposta ai default". */
+    @Test
+    @Transactional
+    void editPageWithSourceSendsTheSourceWithEveryParamsRequest() throws Exception {
+        Generation image = new Generation("pred-params-url", "owner/model", null, "a cat", null);
+        image.setStatus(GenerationStatus.SUCCEEDED);
+        image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("6-0.png")));
+        image = repository.save(image);
+
+        String withSource = mockMvc.perform(get("/generations/new").param("kind", "edit")
+                        .param("source", String.valueOf(image.getId())).param("sourceImage", "6-0.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String standalone = mockMvc.perform(get("/generations/new").param("kind", "edit"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(withSource).contains("hx-include=\"#generation-params-fields, [name=sourceGenerationId], [name=sourceImage]\"")
+                .containsPattern("hx-get=\"[^\"]*/generations/params\\?model=[^\"]*sourceGenerationId=" + image.getId() + "[^\"]*sourceImage=6-0\\.png");
+        // Stand-alone: nessuna sorgente da portare nel reset, e l'upload obbligatorio c'e'.
+        assertThat(standalone).doesNotContain("sourceGenerationId=").containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        // Il restore dello script di persistenza chiede i campi con la stessa sorgente.
+        assertThat(withSource).contains("function sourceQuery(form)");
+    }
+
+    /**
+     * Fra modelli di modifica guidance e passi NON si ereditano (scala propria: 2.5 di kontext e' invalido per lo step=1 di fill-dev e ne
+     * blocca il submit), mentre i campi davvero comuni si'. Nello stesso modello (re-render dopo un create rifiutato) si conservano.
+     */
+    @Test
+    @Transactional
+    void switchingModelDoesNotInheritGuidanceOrStepsButKeepsTheOtherCommonFields() throws Exception {
+        String fillDev = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev")
+                        .param("guidance", "2.5").param("num_inference_steps", "4").param("output_quality", "70"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String kontext = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-kontext-dev")
+                        .param("guidance", "60").param("num_inference_steps", "50"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(fillDev).containsPattern("id=\"param-guidance\"[^>]*value=\"30(\\.0)?\"")
+                .containsPattern("id=\"param-steps\"[^>]*value=\"28\"")
+                .containsPattern("id=\"param-output-quality\"[^>]*value=\"70\"");
+        assertThat(kontext).containsPattern("id=\"param-guidance\"[^>]*value=\"2\\.5\"")
+                .containsPattern("id=\"param-steps\"[^>]*value=\"28\"");
     }
 
     /** Ogni thumbnail immagine offre "Modifica" verso la pagina di modifica. */

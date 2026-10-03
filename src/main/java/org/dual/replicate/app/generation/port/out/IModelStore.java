@@ -9,4 +9,12 @@ public interface IModelStore {
 
     /** Modelli attivi nell'ordine di visualizzazione voluto. */
     List<ReplicateModel> findActiveOrdered();
+
+    /** True se il modello e' censito, attivo o no. */
+    boolean exists(String owner, String name);
+
+    /** Posizione di visualizzazione del prossimo modello censito: dopo tutti gli esistenti. */
+    int nextSortOrder();
+
+    ReplicateModel save(ReplicateModel model);
 }

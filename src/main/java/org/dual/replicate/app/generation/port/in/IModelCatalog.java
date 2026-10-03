@@ -39,4 +39,12 @@ public interface IModelCatalog {
     Optional<GenerationFormType> formTypeOf(String id);
 
     String idsAsCsv();
+
+    /**
+     * Censisce {@code identifier} ("owner/nome", un LoRA addestrato su Replicate) come modello {@code FLUX_LORA_FINETUNE}, con l'ultima
+     * versione letta da Replicate (pinnata): da quel momento compare ovunque compaia ogni altro fine-tune. Idempotente: gia' censito
+     * (attivo o no) = nessuna modifica, vuoto. Un modello inesistente o che non e' un LoRA di Flux e' un rifiuto
+     * ({@code ReplicateException} REJECTED); un errore remoto risale com'e'.
+     */
+    Optional<ReplicateModel> registerLoraFinetune(String identifier, String description);
 }

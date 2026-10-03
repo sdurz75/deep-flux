@@ -17,7 +17,7 @@
      @change="const o = $event.target.selectedOptions[0]; if (o && o.value) { const f = document.getElementById($el.dataset.sourceField); f.value = o.dataset.source; f.dispatchEvent(new Event('input', { bubbles: true })); const s = document.getElementById($el.dataset.scaleField); s.value = o.dataset.scale; s.dispatchEvent(new Event('input', { bubbles: true })) }; words = o ? (o.dataset.triggerWords || '') : ''">
     <!--/* Il restore dello stato salvato (generation-settings-persist.html) e "Usa configurazione" scrivono i campi PRIMA che Alpine inizializzi questo
          fragment: l'x-init deriva la selezione dal campo sorgente (primo preset con la stessa sorgente, altrimenti "testo libero"), come fluxModel in
-         generation-params-flux-lora-ff3.html. Niente "change" sintetico: ricopierebbe la scala sopra il valore ripristinato. */-->
+         generation-params-flux-lora-finetune.html. Niente "change" sintetico: ricopierebbe la scala sopra il valore ripristinato. */-->
     <label th:for="${selectId}" th:text="#{generationParams.label.loraPreset}">LoRA predefinito</label>
     <div class="relative" x-data="pinesSelect" x-bind="root">
         <select th:id="${selectId}" class="sr-only" tabindex="-1" aria-hidden="true">

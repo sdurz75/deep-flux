@@ -17,6 +17,9 @@ public interface IGenerationForms {
      */
     int MAX_NUM_OUTPUTS = 4;
 
+    /** Chiave Model con i soli default dei campi (chiavi = nomi dei campi): i numerici li portano in {@code data-default} per il reset. */
+    String FIELD_DEFAULTS = "fieldDefaults";
+
     /**
      * Converte i campi sottomessi (sempre stringhe, come un submit HTML) nei parametri del form-type, nel vocabolario del provider:
      * solo i campi presenti e validi finiscono nella mappa.
@@ -41,7 +44,8 @@ public interface IGenerationForms {
 
     /**
      * Attributi di Model per il primo render del pannello del form-type: i valori di default dei campi piu' le opzioni extra
-     * che il suo fragment si aspetta (es. le select dei token e dei LoRA anagrafati per flux-dev-lora).
+     * che il suo fragment si aspetta (es. le select dei token e dei LoRA anagrafati per flux-dev-lora), piu' gli stessi default
+     * sotto {@link #FIELD_DEFAULTS} (separati dai valori correnti: servono al reset al default dei campi numerici).
      */
     Map<String, Object> formModel(GenerationFormType formType);
 }

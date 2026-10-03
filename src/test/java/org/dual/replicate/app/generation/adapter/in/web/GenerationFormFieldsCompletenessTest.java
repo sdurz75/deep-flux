@@ -18,7 +18,7 @@ import org.dual.replicate.app.generation.application.form.FluxFillDevParameterHa
 import org.dual.replicate.app.generation.application.form.FluxFillProParameterHandler;
 import org.dual.replicate.app.generation.application.form.FluxKontextDevParameterHandler;
 import org.dual.replicate.app.generation.application.form.FluxKreaDevParameterHandler;
-import org.dual.replicate.app.generation.application.form.FluxLoraFf3ParameterHandler;
+import org.dual.replicate.app.generation.application.form.FluxLoraFinetuneParameterHandler;
 import org.dual.replicate.app.generation.application.form.IGenerationParameterHandler;
 import org.dual.replicate.app.generation.application.form.PVideoParameterHandler;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
@@ -36,12 +36,12 @@ class GenerationFormFieldsCompletenessTest {
 
     private static final Pattern NAME = Pattern.compile("\\bname=\"([^\"]+)\"");
 
-    /** Campi del fragment che non sono parametri dell'handler: upload, seed (lo porta la generazione), aspect_ratio fisso di FF3. */
+    /** Campi del fragment che non sono parametri dell'handler: upload, seed (lo porta la generazione), aspect_ratio fisso dei fine-tune LoRA. */
     private static final Map<GenerationFormType, Set<String>> NOT_HANDLER_FIELDS = Map.of(
-            GenerationFormType.FLUX_LORA_FF3, Set.of("aspect_ratio"));
+            GenerationFormType.FLUX_LORA_FINETUNE, Set.of("aspect_ratio"));
     private static final Set<String> NEVER_HANDLER_FIELDS = Set.of("sourceUpload", "maskUpload", "seed");
 
-    private static final List<IGenerationParameterHandler> HANDLERS = List.of(new FluxLoraFf3ParameterHandler(),
+    private static final List<IGenerationParameterHandler> HANDLERS = List.of(new FluxLoraFinetuneParameterHandler(),
             new Flux2Klein9bParameterHandler(), new FluxKreaDevParameterHandler(), new PVideoParameterHandler(),
             new FluxKontextDevParameterHandler(), new FluxDevLoraParameterHandler(), new FluxFillDevParameterHandler(),
             new FluxFillProParameterHandler());
@@ -67,6 +67,35 @@ class GenerationFormFieldsCompletenessTest {
             assertThat(byType.get(type).defaultFields().keySet())
                     .as("campi del fragment di %s mancanti nei defaultFields dell'handler", type)
                     .containsAll(names);
+        }
+    }
+
+    private static final Pattern MEGAPIXELS_SELECT = Pattern.compile(
+            "(?s)<select[^>]*name=\"megapixels\".*?</select>");
+    private static final Pattern OPTION_VALUE = Pattern.compile("<option[^>]*\\bvalue=\"([^\"]+)\"");
+
+    /** Le opzioni della select Megapixel di ogni form coincidono con l'enum (schema Replicate) che l'handler accetta: ne' di piu' ne' di meno. */
+    @Test
+    void megapixelOptionsOfEveryFormMatchTheHandlerEnum() throws IOException {
+        Map<GenerationFormType, Set<String>> enums = Map.of(
+                GenerationFormType.FLUX_LORA_FINETUNE, FluxLoraFinetuneParameterHandler.MEGAPIXELS,
+                GenerationFormType.FLUX_2_KLEIN_9B, Flux2Klein9bParameterHandler.MEGAPIXELS,
+                GenerationFormType.FLUX_KREA_DEV, FluxKreaDevParameterHandler.MEGAPIXELS,
+                GenerationFormType.FLUX_DEV_LORA, FluxDevLoraParameterHandler.MEGAPIXELS,
+                GenerationFormType.FLUX_FILL_DEV, FluxFillDevParameterHandler.MEGAPIXELS);
+        for (GenerationFormType type : GenerationFormType.values()) {
+            Matcher select = MEGAPIXELS_SELECT.matcher(fragment(type));
+            if (!enums.containsKey(type)) {
+                assertThat(select.find()).as("%s non ha megapixels nello schema", type).isFalse();
+                continue;
+            }
+            assertThat(select.find()).as("select megapixels di %s", type).isTrue();
+            Set<String> options = new TreeSet<>();
+            Matcher option = OPTION_VALUE.matcher(select.group());
+            while (option.find()) {
+                options.add(option.group(1));
+            }
+            assertThat(options).as("opzioni megapixels del fragment di %s", type).containsExactlyInAnyOrderElementsOf(enums.get(type));
         }
     }
 

@@ -52,7 +52,7 @@
   per un'icona esiste altrove nel progetto (il pencil di
   conversation-list.html usa un colore muted, non opacity): si estende
   qui l'idioma piu' vicino gia' adottato, read-only:opacity-60
-  (fragments/app/generation-params-flux-lora-ff3.html), a piena opacita' su
+  (fragments/app/generation-params-flux-lora-finetune.html), a piena opacita' su
   hover/focus - hover:opacity-100 esplicito perche' altrimenti la regola
   globale "button:hover{opacity:.9}" del layer base (fragments/core/layout.html)
   vincerebbe per specificita' su una bare utility opacity-60. Lo stato
@@ -66,7 +66,7 @@
 <button th:fragment="aiEnhance(title)"
         type="button"
         th:hx-post="@{/generations/enhance-prompt}"
-        hx-include="#prompt, #image-model-input, #param-source-upload, #param-prompt-strength, [name=sourceGenerationId], [name=sourceImage]"
+        hx-include="#prompt, #image-model-input, #param-source-upload, [name=maskUpload], #param-prompt-strength, [name=sourceGenerationId], [name=sourceImage]"
         hx-encoding="multipart/form-data"
         hx-target="#prompt-field"
         hx-swap="outerHTML"
@@ -225,12 +225,29 @@
 -->
 <button th:fragment="resetSeed(title)" type="button"
         th:title="${title}" th:aria-label="${title}"
-        class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full
+        class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 p-0 border-0 bg-transparent rounded-full
                text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:opacity-100
                peer-placeholder-shown:hidden"
         @click="const input = $el.parentElement.querySelector('input'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus()">
     <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+</button>
+
+<!--
+  resetNumber(title): icona overlay "ripristina il default" nei campi numerici dei form-type (fragments/app/generation-params-number.html, unico
+  chiamante). Assume l'antenato x-data con `changed` (il componente del fragment) e l'<input> come fratello: visibile solo se il valore e' stato
+  variato (`x-show="changed"`). Scrive `data-default` nell'input e dispatcha `input` con bubbles, come una modifica digitata: il listener delegato di
+  generation-settings-persist.html salva lo stato e il componente ricalcola `changed` (il bottone sparisce). type="button" CRITICO: sta nel form
+  che spende su Replicate. hover:opacity-100 esplicito: la regola globale "button:hover{opacity:.9}" del layer base vincerebbe su una bare utility. `p-0 border-0 bg-transparent`: senza, il layer base darebbe al bottone sfondo e padding e l'icona sparirebbe.
+-->
+<button th:fragment="resetNumber(title)" type="button" x-show="changed" x-cloak
+        th:title="${title}" th:aria-label="${title}"
+        class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 p-0 border-0 bg-transparent rounded-full
+               text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:opacity-100"
+        @click="const input = $el.parentElement.querySelector('input'); input.value = input.dataset.default; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus()">
+    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
     </svg>
 </button>
 

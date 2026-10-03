@@ -1,6 +1,8 @@
 package org.dual.replicate.app.generation.domain;
 
 import java.time.Instant;
+import java.util.Optional;
+import java.util.regex.Pattern;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,7 +22,8 @@ import jakarta.persistence.Table;
  * GET /models/{owner}/{name}) che alimentava la vecchia
  * ModelCatalogService: {@link #version} e' ora il valore censito qui,
  * non piu' risolto ad ogni avvio contro "l'ultima versione pubblicata".
- * Nessuna entity modifica mai una riga a runtime: solo letture.
+ * Le righe si aggiungono a runtime solo per i LoRA anagrafati con sorgente {@code owner/nome} (vedi
+ * {@code IModelCatalog#registerLoraFinetune}); nessuna riga si modifica.
  */
 @Entity
 @Table(name = "replicate_model")
@@ -56,6 +59,38 @@ public class ReplicateModel {
 
     protected ReplicateModel() {
         // richiesto da JPA
+    }
+
+    public ReplicateModel(String owner, String name, String version, String description, GenerationFormType formType, int sortOrder,
+                          Instant createdAt) {
+        this.owner = owner;
+        this.name = name;
+        this.version = version;
+        this.description = description;
+        this.formType = formType;
+        this.sortOrder = sortOrder;
+        this.active = true;
+        this.createdAt = createdAt;
+    }
+
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+");
+
+    /**
+     * La sorgente di un LoRA anagrafato letta come modello Replicate: solo la forma {@code owner/nome} (niente URL, versioni o
+     * file {@code .safetensors}) e' implicitamente un modello Replicate. Vuoto per ogni altra sorgente. L'owner non ha mai un punto
+     * (un username Replicate e' alfanumerico con trattini): cosi' restano fuori per costruzione i riferimenti con host, come
+     * {@code huggingface.co/owner/model}, {@code hf.co/...} e {@code civitai.com/models/123}, anche se brevi (due segmenti:
+     * {@code huggingface.co/owner}); {@code civitai:123} e' escluso dai due punti.
+     */
+    public static Optional<String> identifierOfSource(String source) {
+        if (source == null) {
+            return Optional.empty();
+        }
+        String clean = source.strip();
+        if (!IDENTIFIER.matcher(clean).matches() || clean.toLowerCase(java.util.Locale.ROOT).endsWith(".safetensors")) {
+            return Optional.empty();
+        }
+        return Optional.of(clean);
     }
 
     public Long getId() {

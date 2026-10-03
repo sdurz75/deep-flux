@@ -27,7 +27,7 @@ class ModelCatalogServiceTest {
     @Test
     void seededModelIsInCatalogWithItsFormType() {
         assertThat(catalog.contains("sdurz75/flux-lora-ff3")).isTrue();
-        assertThat(catalog.formTypeOf("sdurz75/flux-lora-ff3")).contains(GenerationFormType.FLUX_LORA_FF3);
+        assertThat(catalog.formTypeOf("sdurz75/flux-lora-ff3")).contains(GenerationFormType.FLUX_LORA_FINETUNE);
         assertThat(catalog.versionOf("sdurz75/flux-lora-ff3")).isPresent();
     }
 

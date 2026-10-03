@@ -14,13 +14,14 @@ package org.dual.replicate.app.generation.domain;
  * {@link GenerationKind} del media che produce e, se prende un'immagine
  * sorgente, la chiave Replicate sotto cui va inviata ({@link #sourceImageParam()}:
  * "image" per p-video, flux-dev-lora, flux-fill-dev e flux-fill-pro, "input_image" per kontext-dev) e, per l'inpainting,
- * quella della maschera ({@link #maskParam()}). {@link #isEdit()}
+ * quella della maschera ({@link #maskParam()}); flux-lora-finetune ha entrambe ma e' un text-to-image: sorgente e maschera sono OPZIONALI
+ * (img2img/inpainting col fine-tune, vedi {@link #requiresMask()}). {@link #isEdit()}
  * distingue i modelli di modifica (sorgente obbligatoria, output immagine)
  * dai text-to-image: hanno la loro pagina e non compaiono ne' nel combobox
  * delle immagini ne' in /deep-chat.
  */
 public enum GenerationFormType {
-    FLUX_LORA_FF3(GenerationKind.IMAGE, null, null, false),
+    FLUX_LORA_FINETUNE(GenerationKind.IMAGE, "image", "mask", false),
     FLUX_2_KLEIN_9B(GenerationKind.IMAGE, null, null, false),
     FLUX_KREA_DEV(GenerationKind.IMAGE, null, null, false),
     P_VIDEO(GenerationKind.VIDEO, "image", null, false),
@@ -55,9 +56,17 @@ public enum GenerationFormType {
         return maskParam;
     }
 
-    /** True per i modelli di inpainting: oltre alla sorgente vogliono una maschera (bianco = zona da ridipingere). */
+    /** True se il modello accetta una maschera di inpainting (bianco = zona da ridipingere), obbligatoria o no ({@link #requiresMask()}). */
     public boolean takesMask() {
         return maskParam != null;
+    }
+
+    /**
+     * True se la maschera e' OBBLIGATORIA: i modelli di inpainting puri (flux-fill-*, di modifica). Per gli altri che la prendono
+     * (flux-lora-finetune, text-to-image) e' opzionale: senza e' una normale generazione; con una maschera serve anche la sorgente.
+     */
+    public boolean requiresMask() {
+        return takesMask() && edit;
     }
 
     /** True per i modelli di modifica immagine: sorgente obbligatoria. */
