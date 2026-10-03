@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campo "seed" condiviso da TUTTI i form-type (un solo posto per il markup: un form-type nuovo con seed lo include, non lo copia).
+  Vuoto = casuale (il default: gli handler omettono il seed). Il bottone di reset (button-gen :: resetSeed) compare solo con un seed
+  valorizzato, in puro CSS (`peer-placeholder-shown`), cosi' segue anche i .value scritti da codice (restore, "Usa seed", "Usa
+  configurazione") senza stato Alpine da tenere sincronizzato. L'x-data vuoto serve solo a far vivere l'@click del bottone.
+-->
+<div th:fragment="field" x-data>
+    <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
+    <div class="relative">
+        <input type="number" id="param-seed" name="seed" class="peer pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
+        <button th:replace="~{fragments/app/button-gen :: resetSeed(title=#{generationParams.button.resetSeed})}"></button>
+    </div>
+</div>
+
+</body>
+</html>

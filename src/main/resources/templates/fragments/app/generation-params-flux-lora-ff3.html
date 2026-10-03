@@ -89,10 +89,7 @@
         <input type="number" id="param-guidance" name="guidance_scale" min="0" max="10" step="0.1" th:value="${guidance_scale}">
     </div>
 
-    <div>
-        <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
-        <input type="number" id="param-seed" name="seed" class="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
-    </div>
+    <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
 
     <div>
         <label for="param-lora-scale" th:text="#{generationParams.label.loraScale}">Intensita' LoRA</label>

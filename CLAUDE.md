@@ -71,9 +71,9 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   inesistente o scaduto e' un rifiuto, nessuna prediction).
   **LoRA anagrafati**: CRUD in `/loras` (`LoraController`, `ILoraPresets`/`LoraPresetService`, `LoraPreset`, `fragments/app/loras.html`,
   voce nel menu Sistema), solo per comodita': nome, sorgente, intensita' predefinita, trigger words, nota. Sopra i due slot LoRA
-  della form (`generation-params-flux-dev-lora.html`, `loraPresets` nel Model dove si mettono gia' i token) una select Pines SENZA
+  della form (`generation-params-flux-dev-lora.html`, select nel fragment condiviso `generation-params-lora-preset.html :: field`, `loraPresets` nel Model dove si mettono gia' i token) una select Pines SENZA
   `name` compila testo e scala (restano modificabili, "testo libero" non tocca nulla) e mostra le trigger words con "Aggiungi al prompt"
-  (`button-gen :: addToPrompt`, solo se c'e' `#prompt`: non nel pannello di `/deep-chat`). E' un aiuto lato client: al server arrivano
+  (`button-gen :: addToPrompt`, solo se c'e' `#prompt`: non nel pannello di `/deep-chat`). La select e' DERIVATA, mai persistita: dopo un restore (localStorage/server-state) o "Usa configurazione" l'`x-init` del fragment la riposiziona sul primo preset con la stessa sorgente del campo (nessuno = "testo libero"; senza `change` sintetico, che ricopierebbe la scala). E' un aiuto lato client: al server arrivano
   sempre testo e scala, nessuna FK dalla `Generation`, cancellare/modificare un preset non tocca le generazioni passate.
 - **Inpainting (flux-fill-dev, flux-fill-pro)**: `black-forest-labs/flux-fill-dev` (`GenerationFormType#FLUX_FILL_DEV`, `FluxFillDevParameterHandler`) e' un
   secondo modello *edit* (`isEdit`, stessa pagina `?kind=edit`, compare nel suo select; preselezionato resta kontext, `sort_order` 6): sorgente
@@ -716,6 +716,9 @@ riproduce SOLO la prima immagine (verificato con due prediction su flux-lora-ff3
 riporta, e non e' seed+1): la prima mostra `(batch)` col bottone, le altre NESSUNA riga seed (il seed del batch non e' il loro). Un seed vero per ogni immagine richiede
 una prediction per immagine (`num_outputs=1`), non implementato.
 La chiave dello slot e' duplicata nei due script: tenerle allineate.
+**Campo seed** (`fragments/app/generation-params-seed.html :: field`, incluso con `th:replace` da OGNI `generation-params-<form-type>.html`: un form-type nuovo con seed lo include, non lo copia):
+vuoto = casuale (il default); `button-gen :: resetSeed` e' un'icona overlay nel campo che lo svuota e dispatcha `input` (come una cancellazione digitata, quindi lo stato si salva), visibile solo
+con un seed valorizzato in puro CSS (`peer-placeholder-shown:hidden`: segue anche i `.value` scritti da codice, senza stato Alpine da sincronizzare).
 
 **"Usa configurazione"** (dettaglio di OGNI generazione, `button-gen :: reuseConfig`; "Rigenera" della chat): NON passa dallo slot ma da un link
 `/generations/new?config=<id>[&file=<file>]` e il SERVER compila il form (`GenerationController#form` → `reuseForm`). I dati sono quelli GIA' salvati, nessuna

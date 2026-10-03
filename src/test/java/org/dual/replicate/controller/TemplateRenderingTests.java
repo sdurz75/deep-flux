@@ -21,6 +21,7 @@ import org.dual.replicate.app.chat.port.out.IChatMessageStore;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -734,6 +735,20 @@ class TemplateRenderingTests {
         }
     }
 
+    /** Il seed e' resettabile (torna a "casuale") in OGNI form-type: un solo fragment condiviso, con il bottone di reset che non sottomette il form. */
+    @ParameterizedTest
+    @ValueSource(strings = {"sdurz75/flux-lora-ff3", "black-forest-labs/flux-2-klein-9b", "black-forest-labs/flux-krea-dev",
+            "prunaai/p-video", "black-forest-labs/flux-kontext-dev", "black-forest-labs/flux-dev-lora",
+            "black-forest-labs/flux-fill-dev", "black-forest-labs/flux-fill-pro"})
+    void everyFormTypeOffersAResetForTheSeed(String model) throws Exception {
+        String body = mockMvc.perform(get("/generations/params").param("model", model))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(countOccurrences(body, "id=\"param-seed\"")).as(model).isEqualTo(1);
+        assertThat(body).as(model).containsPattern("<button type=\"button\"[^>]*aria-label=\"Torna a casuale\"");
+    }
+
     @Autowired
     private org.dual.replicate.core.tokens.port.in.IApiTokens apiTokenService;
 
@@ -801,6 +816,24 @@ class TemplateRenderingTests {
         assertThat(body).containsPattern("data-scale=\"0\\.8\"");
         assertThat(body).doesNotContainPattern("<select[^>]*id=\"param-lora-preset\"[^>]*name=");
         assertThat(body).doesNotContainPattern("<select[^>]*name=\"[^\"]*\"[^>]*id=\"param-(extra-)?lora-preset\"");
+        // Ogni select e' legata ai campi del PROPRIO slot (x-init: dopo un restore si riposiziona sul preset con la stessa sorgente).
+        assertThat(body).contains("data-source-field=\"param-lora-weights\"", "data-scale-field=\"param-lora-scale\"",
+                "data-source-field=\"param-extra-lora\"", "data-scale-field=\"param-extra-lora-scale\"");
+    }
+
+    /** Anche flux-fill-dev (un solo slot LoRA) usa il fragment condiviso della select dei preset. */
+    @Test
+    @Transactional
+    void paramsEndpointRendersTheLoraPresetSelectForFluxFillDev() throws Exception {
+        loraPresetRepository.deleteAll();
+        loraPresetService.create("Stile acquerello", "owner/acquerello", 0.8, "wtrclr style", null);
+
+        String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("id=\"param-lora-preset\"", "data-source-field=\"param-lora-weights\"",
+                "data-scale-field=\"param-lora-scale\"", "data-source=\"owner/acquerello\"");
+        assertThat(body).doesNotContain("param-extra-lora-preset");
     }
 
     /** Gli altri form-type non hanno le select dei token (e non fanno la query dei token). */

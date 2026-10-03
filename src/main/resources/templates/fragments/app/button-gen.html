@@ -217,6 +217,24 @@
 </button>
 
 <!--
+  resetSeed(title): icona overlay "torna a casuale" nel campo seed (fragments/app/generation-params-seed.html, unico chiamante). Svuota
+  l'input fratello precedente (`peer`) e dispatcha `input` con bubbles, come una cancellazione digitata: il listener delegato di
+  generation-settings-persist.html salva lo stato (localStorage / server della conversazione). Visibile solo con un seed valorizzato
+  (`peer-placeholder-shown:hidden`, CSS: segue anche i .value scritti da codice). type="button" CRITICO: sta nel form che spende su
+  Replicate. hover:opacity-100 esplicito: la regola globale "button:hover{opacity:.9}" del layer base vincerebbe su una bare utility.
+-->
+<button th:fragment="resetSeed(title)" type="button"
+        th:title="${title}" th:aria-label="${title}"
+        class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full
+               text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:opacity-100
+               peer-placeholder-shown:hidden"
+        @click="const input = $el.parentElement.querySelector('input'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus()">
+    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+</button>
+
+<!--
   addToPrompt(text): accoda al prompt (#prompt, solo nelle form dirette: nel pannello di /deep-chat non c'e') le trigger words
   del LoRA scelto. Assume la variabile Alpine `words` su un antenato x-data (stesso accoppiamento esplicito di dialogOpen);
   visibile solo con `words` valorizzato e un #prompt nella pagina.

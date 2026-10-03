@@ -82,10 +82,7 @@
         <input type="number" id="param-output-quality" name="output_quality" min="0" max="100" th:value="${output_quality}">
     </div>
 
-    <div>
-        <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
-        <input type="number" id="param-seed" name="seed" class="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
-    </div>
+    <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
 
     <div>
         <label for="param-go-fast" th:text="#{generationParams.label.goFast}">Go fast</label>
