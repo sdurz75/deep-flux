@@ -21,7 +21,7 @@
     -->
     <header class="sticky top-0 z-40 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark"
             x-data="{ navOpen: false }" @keydown.escape.window="navOpen = false">
-        <!-- px-4 fisso (non il clamp fluido di <main>/<footer>, vedi fragments/core/layout.html). -->
+        <!-- px-4 fisso (non il clamp fluido di <main>, vedi fragments/core/layout.html). -->
         <nav class="max-w-[1200px] mx-auto px-4 py-4 flex items-center justify-between gap-4">
             <button th:replace="~{fragments/core/button :: navToggle(open='true', content='☰', title=#{header.nav.open})}">☰</button>
             <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap max-md:flex-1" th:text="#{app.brand}">App</a>

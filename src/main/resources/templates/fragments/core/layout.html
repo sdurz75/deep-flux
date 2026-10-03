@@ -150,7 +150,7 @@
   prima di questa migrazione, non una differenza introdotta ora - vedi
   fragments/core/header.html.
 -->
-<main class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] py-8 min-h-[60vh]">
+<main class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] pt-8 pb-16 min-h-[60vh]">
 
     <div layout:fragment="breadcrumbs">
         <!-- breadcrumbs -->
@@ -161,10 +161,6 @@
     </div>
 
 </main>
-
-<footer class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] border-t border-line dark:border-line-dark pt-6 pb-12 text-ink-muted dark:text-ink-muted-dark">
-    <small th:text="#{app.footer}">Spring Boot &middot; Thymeleaf &middot; htmx &middot; Alpine.js</small>
-</footer>
 
 <div th:replace="~{fragments/core/busy-overlay :: container}"></div>
 <div th:replace="~{fragments/core/toast :: container}"></div>

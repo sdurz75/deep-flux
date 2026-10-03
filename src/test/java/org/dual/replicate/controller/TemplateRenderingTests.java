@@ -611,6 +611,19 @@ class TemplateRenderingTests {
         return page.substring(start, page.indexOf("</nav>", start));
     }
 
+    /** La Home porta ai punti d'ingresso principali (la ricerca solo se attiva) e non descrive lo stack ne' ha il footer con le tecnologie. */
+    @Test
+    void homeLinksTheMainEntryPointsWithoutTechnicalBlurbOrFooter() throws Exception {
+        String page = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String content = page.substring(page.indexOf("<main"), page.indexOf("</main>"));
+
+        assertThat(content).contains("href=\"/deep-chat\"", "href=\"/generations/new\"", "href=\"/generations/new?kind=video\"",
+                        "href=\"/generations/new?kind=edit\"", "href=\"/gallery\"")
+                .doesNotContain("href=\"/search\"") // ricerca semantica spenta nei test
+                .doesNotContain("Thymeleaf").doesNotContain("Spring MVC");
+        assertThat(page).doesNotContain("<footer").doesNotContain("Spring Boot");
+    }
+
     /** Ogni pagina tranne la Home mostra Home › [gruppo] › pagina, con la pagina corrente non linkata. */
     @Test
     void everyPageButHomeShowsBreadcrumbs() throws Exception {

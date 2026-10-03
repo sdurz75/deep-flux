@@ -324,8 +324,8 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `generation-params-<form-type>.html` per form-type, `generation-params-source-upload.html`), pagine `templates/core/` (`system-events`, `tokens`) e
   `templates/app/` (`index`, `generate`, `generation-status`, `generations-list`, `gallery`, `deep-chat`, `loras`, `search`).
   `header.html` e' sticky; sotto `md` link e theme switch stanno in uno slideover Pines (stato Alpine `navOpen`, `button :: navToggle`);
-  le voci di navigazione le mette l'app in `fragments/app/nav.html :: links(inline)` (punto di estensione). `layout.html` legge brand/titolo/footer dalle
-  chiavi `app.brand|title|footer` del bundle dell'app.
+  le voci di navigazione le mette l'app in `fragments/app/nav.html :: links(inline)` (punto di estensione). `layout.html` legge brand/titolo dalle
+  chiavi `app.brand|title` del bundle dell'app.
   **Menu** (`nav.html`): azioni frequenti come link diretti (Deep Chat, Galleria, Ricerca), poi `Crea ▾` (immagine/video/modifica) e `Gestione ▾`
   (Generazioni, LoRA, Eventi, Token, tema); niente piu' "Archivio". `header.menu.manage` sta in `messages-core` perche' le pagine core
   (Token, Eventi) lo usano nelle breadcrumbs; `header.menu.create` e' dell'app.
@@ -337,7 +337,7 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   risostituito in outerHTML da `enhance-prompt`; `generation-params.html` e' il guscio condiviso da form e chat (select modello + campi del form-type).
   `live-events.html`: SSE `GET /events` ri-dispatchata come CustomEvent su `document.body`.
 
-**Barra di stato in basso** (`fragments/core/status-bar.html`, inclusa dal layout; il `<footer>` riserva `pb-12` e i toast stanno sopra, `bottom-12`):
+**Barra di stato in basso** (`fragments/core/status-bar.html`, inclusa dal layout; il `<main>` riserva `pb-16` e i toast stanno sopra, `bottom-12`):
 a SINISTRA il badge di build (bean `BuildInfo`: ora e commit, sempre visibili, per sapere quale build sta girando), a DESTRA lo slot dell'app
 `fragments/app/status-extras.html :: container` (punto di estensione, come `nav.html`: il core non conosce i crediti) e il selettore del tema
 (`header :: themeSwitch`, non piu' nel menu Gestione). Da classi sciolte (IntelliJ, `spring-boot:run`) l'ora e' la modifica piu' recente in `target/classes` e il commit viene da `git describe`
@@ -520,7 +520,7 @@ hardcoded. La lingua segue `Accept-Language` (`AcceptHeaderLocaleResolver`, defa
 switcher/cookie/sessione). Bundle (`spring.messages.basename: messages,messages-core`, in `core.yml`):
 - `messages-core.properties` / `messages-core_en.properties`: il core (`html.lang`, `header.menu.*`/`header.theme.*`, `events.*`, `bell.*`,
   `toast.*`, `pagination.*`, `tokens.*`, `imagestorage.*`, `webdav.*`...) e le etichette delle sorgenti del core (`events.source.STORAGE|TOKENS|INTERNAL`);
-- `messages.properties` (italiano, default/fallback anche per locale non mappate) / `messages_en.properties`: l'app (incl. `app.brand|title|footer`,
+- `messages.properties` (italiano, default/fallback anche per locale non mappate) / `messages_en.properties`: l'app (incl. `app.brand|title`,
   `events.source.REPLICATE|OPENROUTER|SEARXNG|LORAS`, `events.link.generation|conversation`).
 Il testo del core NON nomina servizi o provider dell'app (`events.intro`, `tokens.intro` sono generici): le pagine del core mostrano in piu' la riga facoltativa
 `events.intro.app`/`tokens.intro.app` se l'app la definisce nel suo bundle (`#messages.msgOrNull`).
@@ -576,7 +576,7 @@ La query di serie (`SystemEventRepository#findOpenSeries`, adapter `persistence`
 - **Eventi client**: `system-toast` (window, toast; anche via header `HX-Trigger`) e `system-event` (body, ricarica lista/campanella;
   stesso nome dell'evento SSE).
 
-- **Overlay "operazione in corso"** (`fragments/core/busy-overlay.html`, incluso da `layout.html`, core): blocca l'INTERA UI (`inert` su header/main/footer; i
+- **Overlay "operazione in corso"** (`fragments/core/busy-overlay.html`, incluso da `layout.html`, core): blocca l'INTERA UI (`inert` su header/main; i
   toast restano fuori) finche' una richiesta non finisce, cosi' un secondo click non innesca una seconda operazione (es. una seconda prediction a
   pagamento). Regola di DEFAULT: ogni richiesta htmx NON-GET blocca (i GET di polling/paginazione/SSE no); sull'elemento htmx `data-busy="off"|"on"`
   (opt-out di un non-GET leggero / opt-in di un GET lento), `data-busy-text` (messaggio gia' tradotto, senza: `busy.default`), `data-busy-delay` (ms

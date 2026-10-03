@@ -7,12 +7,7 @@
 <body>
 <div layout:fragment="content">
     <h1>deep-flux</h1>
-    <p th:text="#{index.intro}">
-        Genera immagini con l'aiuto di un assistente, ritrovale in galleria.
-        Navigazione via HTML renderizzato dal server (Spring MVC +
-        Thymeleaf), interattivita' locale con Alpine.js, aggiornamenti
-        parziali via htmx. Nessuno step di build frontend.
-    </p>
+    <p th:text="#{index.intro}">Genera immagini e video con l'aiuto di un assistente, modificali, ritrovali in galleria.</p>
 
     <ul class="list-none p-0 my-4">
         <li class="py-2">
@@ -25,8 +20,21 @@
             &mdash; <span th:text="#{index.link.generate.suffix}">form diretto: modello, prompt e parametri, senza chatbot.</span>
         </li>
         <li class="py-2">
+            <a th:href="@{/generations/new(kind='video')}" th:text="#{header.nav.generateVideo}">Genera video</a>
+            &mdash; <span th:text="#{index.link.generateVideo.suffix}">anima un'immagine o parti da una descrizione.</span>
+        </li>
+        <li class="py-2">
+            <a th:href="@{/generations/new(kind='edit')}" th:text="#{header.nav.editImage}">Modifica immagine</a>
+            &mdash; <span th:text="#{index.link.editImage.suffix}">cambia un'immagine con un'istruzione o ridipingi una zona con la maschera.</span>
+        </li>
+        <li class="py-2">
             <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a>
             &mdash; <span th:text="#{index.link.gallery.suffix}">tutte le immagini generate, con prompt e modello usato.</span>
+        </li>
+        <!-- Solo con la ricerca semantica attiva (app.search.enabled): senza, /search non esiste. -->
+        <li class="py-2" th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}">
+            <a th:href="@{/search}" th:text="#{header.nav.search}">Ricerca</a>
+            &mdash; <span th:text="#{index.link.search.suffix}">ritrova immagini, chat e note per significato.</span>
         </li>
     </ul>
 </div>

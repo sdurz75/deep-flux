@@ -13,9 +13,9 @@
     data-busy-text    messaggio gia' tradotto (senza: `busy.default`)         data-busy-delay ms prima che l'overlay si veda (default 250)
   Anche un <form method=post> NATIVO (senza htmx) blocca, fino allo scaricamento della pagina. I link e i GET nativi no.
 
-  COME: il blocco e' IMMEDIATO (`inert` su header/main/footer: niente click, niente tastiera, nemmeno nei dialog Pines aperti), la grafica
+  COME: il blocco e' IMMEDIATO (`inert` su header/main: niente click, niente tastiera, nemmeno nei dialog Pines aperti), la grafica
   (sfondo + spinner + testo + barra indeterminata) compare solo se l'attesa supera data-busy-delay: le operazioni rapide (preferiti, "segna
-  come letti") non lampeggiano ma restano protette dal doppio invio. I toast stanno fuori da header/main/footer e restano visibili. Un
+  come letti") non lampeggiano ma restano protette dal doppio invio. I toast stanno fuori da header/main e restano visibili. Un
   contatore regge richieste sovrapposte; a fine attesa il focus torna all'elemento che lo aveva (se e' ancora nel DOM).
 
   QUANDO si chiude: `loadend` dell'XHR di QUELLA richiesta, che scatta sempre e dopo lo swap: successo, 4xx/5xx (`htmx:responseError`), rete
@@ -37,8 +37,8 @@
             if (this.pending++ === 0) {
                 this.text = text;
                 this.focused = document.activeElement;
-                // Solo cio' che NON e' gia' inert (un dialog Pines con x-trap.inert ha reso inert header/footer: non vanno riattivati da noi).
-                this.locked = Array.from(document.querySelectorAll('body > header, body > main, body > footer')).filter((n) => !n.inert);
+                // Solo cio' che NON e' gia' inert (un dialog Pines con x-trap.inert ha reso inert header/main: non vanno riattivati da noi).
+                this.locked = Array.from(document.querySelectorAll('body > header, body > main')).filter((n) => !n.inert);
                 this.locked.forEach((n) => { n.inert = true; });
                 this.timer = setTimeout(() => { this.visible = true; }, delay);
             }

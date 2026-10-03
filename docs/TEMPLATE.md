@@ -56,7 +56,7 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/replic
 **Bundle i18n**
 
 - `messages.properties` / `messages_en.properties` sono il bundle dell'**app**: si riscrivono, ma devono continuare a definire
-  `app.brand`, `app.title`, `app.footer` (le usano `fragments/core/header.html` e `layout.html`, verificato con grep) e le chiavi di
+  `app.brand`, `app.title` (le usano `fragments/core/header.html` e `layout.html`, verificato con grep) e le chiavi di
   nav che la nuova `nav.html` referenzia. Va tenuta anche `events.source.<NAME>` per ogni `EventSource` propria
   (e `events.link.*` se si implementa `IEventLinkResolver`), e `tokens.provider.<NOME>` per le etichette dei provider di token (facoltative: senza,
   `/tokens` mostra il nome del provider). `messages-core*.properties` restano.
@@ -115,7 +115,7 @@ del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential so
    Ogni pagina (tranne la Home) usa `fragments/core/breadcrumbs :: trail(...)` nello slot `breadcrumbs` del layout.
 1b. **Barra di stato in basso**: `templates/fragments/app/status-extras.html`, fragment `container` (a destra della barra del core, accanto al selettore
    del tema; in questa app i crediti Replicate/OpenRouter). Senza questo file il core non rende: una nuova app lo lascia vuoto (`<div th:fragment="container"></div>`).
-2. **Chiavi di bundle `app.brand`, `app.title`, `app.footer`** nel bundle dell'app (le uniche chiavi dell'app richieste da template del core).
+2. **Chiavi di bundle `app.brand`, `app.title`** nel bundle dell'app (le uniche chiavi dell'app richieste da template del core).
 3. **Pagina iniziale**: il core non ha una route `/` (il link del brand punta a `@{/}`): serve un controller dell'app (oggi `HomeController`)
    e una pagina che decori `fragments/core/layout`.
 4. **`EventSource`** (`core.kernel`): un'interfaccia con `name()`. Il core ha `CoreEventSource` (`STORAGE`, `TOKENS`, `INTERNAL`); l'app
@@ -180,7 +180,7 @@ secrets, storage). Senza il passo sul `pom.xml` l'avvio falla (vedi sopra); senz
 
 - [ ] Rename del package radice e del `groupId`/`artifactId`/`spring.application.name`.
 - [ ] `app/` cancellata e riscritta; `HomeController` + pagina iniziale.
-- [ ] `fragments/app/nav.html` e chiavi `app.brand|title|footer` nei bundle `it` ed `en`.
+- [ ] `fragments/app/nav.html` e chiavi `app.brand|title` nei bundle `it` ed `en`.
 - [ ] Una propria `EventSource` (+ `events.source.<NAME>`), eventuali `IEventLinkResolver` / `ITokenProviderCatalog`.
 - [ ] `app.push.client-events` aggiornata (o vuota) per gli eventi SSE propri.
 - [ ] Migrazioni app con timestamp piu' recente di quelli del core; `spring.flyway.locations` coerente.
