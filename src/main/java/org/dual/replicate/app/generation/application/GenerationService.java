@@ -1,5 +1,6 @@
 package org.dual.replicate.app.generation.application;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -611,6 +612,11 @@ public class GenerationService implements IGenerations {
      * Id (i piu' recenti, al massimo {@code limit}) delle generazioni terminali di una conversazione completate prima di
      * {@code before}: la chat decide quali non hanno ancora il turno di esito.
      */
+    @Override
+    public BigDecimal totalCostSince(Instant since) {
+        return repository.sumCostSince(since);
+    }
+
     @Override
     public List<Long> terminalIdsWithConversation(Instant before, int limit) {
         return repository.findTerminalIdsWithConversation(

@@ -1,5 +1,6 @@
 package org.dual.replicate.app.generation.port.in;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
@@ -113,6 +114,9 @@ public interface IGenerations {
 
     /** Listato di TUTTE le generazioni, qualunque stato, piu' recenti prima. */
     Paged<Generation> listPage(int pageIndex, int pageSize);
+
+    /** Costo stimato totale ({@code cost_usd}) delle generazioni create da {@code since} in poi (0 se nessuna): serve alla stima del credito. */
+    BigDecimal totalCostSince(Instant since);
 
     void delete(Long id);
 

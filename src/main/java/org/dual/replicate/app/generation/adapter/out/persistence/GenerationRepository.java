@@ -1,5 +1,6 @@
 package org.dual.replicate.app.generation.adapter.out.persistence;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -59,6 +60,10 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
             + "and g.completedAt < :before order by g.id desc")
     List<Long> findTerminalIdsWithConversation(@Param("statuses") Collection<GenerationStatus> statuses,
                                                @Param("before") Instant before, Pageable pageable);
+
+    /** Costo stimato totale delle generazioni create da {@code since}: base della stima del credito residuo (feature credits). */
+    @Query("select coalesce(sum(g.costUsd), 0) from Generation g where g.createdAt >= :since")
+    BigDecimal sumCostSince(@Param("since") Instant since);
 
     /** Galleria contestuale di /deep-chat: le generazioni riuscite di una conversazione, in ordine cronologico. */
     List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status);

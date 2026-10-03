@@ -1,5 +1,6 @@
 package org.dual.replicate.app.generation.port.out;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -52,6 +53,9 @@ public interface IGenerationStore {
 
     /** Id (i piu' recenti, al massimo {@code limit}) delle generazioni terminali di una conversazione completate prima di {@code before}. */
     List<Long> findTerminalIdsWithConversation(Collection<GenerationStatus> statuses, Instant before, int limit);
+
+    /** Somma del costo stimato ({@code cost_usd}) delle generazioni create da {@code since} in poi; 0 se non ce n'e'. */
+    BigDecimal sumCostSince(Instant since);
 
     /** Galleria contestuale: le generazioni di uno stato di una conversazione, in ordine cronologico. */
     List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status);

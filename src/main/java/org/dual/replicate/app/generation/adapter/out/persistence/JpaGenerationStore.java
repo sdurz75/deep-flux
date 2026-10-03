@@ -1,5 +1,6 @@
 package org.dual.replicate.app.generation.adapter.out.persistence;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -94,6 +95,11 @@ class JpaGenerationStore implements IGenerationStore {
     @Override
     public List<Long> findTerminalIdsWithConversation(Collection<GenerationStatus> statuses, Instant before, int limit) {
         return repository.findTerminalIdsWithConversation(statuses, before, PageRequest.of(0, limit));
+    }
+
+    @Override
+    public BigDecimal sumCostSince(Instant since) {
+        return repository.sumCostSince(since);
     }
 
     @Override
