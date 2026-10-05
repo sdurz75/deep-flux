@@ -171,7 +171,47 @@ public class TrainingDatasetService implements ITrainingDatasets {
         removed.ownedFilenames().forEach(this::deleteQuietly);
     }
 
+    @Override
+    public TrainingDataset cropImage(Long datasetId, Long imageId, UploadedFile cropped, int x, int y, int width, int height) {
+        // Il rettangolo si controlla PRIMA di salvare qualunque file: un rifiuto non deve lasciare un orfano.
+        if (x < 0 || y < 0 || width < 1 || height < 1 || x > MAX_CROP_SIDE || y > MAX_CROP_SIDE || width > MAX_CROP_SIDE || height > MAX_CROP_SIDE) {
+            throw new TrainingException(messages.get("training.error.cropInvalid"));
+        }
+        TrainingDataset dataset = editable(datasetId);
+        TrainingImage image = imageOf(dataset, imageId);
+        String croppedFilename = storage.storeUpload(cropped);
+        Optional<String> replaced = image.applyCrop(croppedFilename, x, y, width, height);
+        dataset.touch(clock.instant());
+        TrainingDataset saved;
+        try {
+            saved = save(dataset);
+        } catch (RuntimeException e) {
+            deleteQuietly(croppedFilename);
+            throw e;
+        }
+        replaced.ifPresent(this::deleteQuietly);
+        return saved;
+    }
+
+    @Override
+    public TrainingDataset resetCrop(Long datasetId, Long imageId) {
+        TrainingDataset dataset = editable(datasetId);
+        TrainingImage image = imageOf(dataset, imageId);
+        if (!image.isCropped()) {
+            return dataset;
+        }
+        Optional<String> replaced = image.clearCrop();
+        dataset.touch(clock.instant());
+        TrainingDataset saved = save(dataset);
+        replaced.ifPresent(this::deleteQuietly);
+        return saved;
+    }
+
     // --- interno ------------------------------------------------------------------------------------------------
+
+    private TrainingImage imageOf(TrainingDataset dataset, Long imageId) {
+        return dataset.findImage(imageId).orElseThrow(() -> new TrainingException(messages.get("training.error.imageNotFound")));
+    }
 
     /** La bozza da modificare: un id sconosciuto o uno snapshot (sola lettura) e' un rifiuto. */
     private TrainingDataset editable(Long id) {

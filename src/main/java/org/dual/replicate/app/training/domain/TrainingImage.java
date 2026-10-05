@@ -3,6 +3,7 @@ package org.dual.replicate.app.training.domain;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -108,6 +109,36 @@ public class TrainingImage {
 
     public boolean isCropped() {
         return cropW != null && cropH != null;
+    }
+
+    /**
+     * Sostituisce il ritaglio: {@code croppedFilename} e' il nuovo file (che va nello zip) e il rettangolo, in pixel dell'ORIGINALE, serve a riaprire
+     * l'editor dov'era. Ritorna il ritaglio PRECEDENTE da eliminare, se c'era: l'originale non lo e' mai (si rifa' sempre il ritaglio da lui).
+     */
+    public Optional<String> applyCrop(String croppedFilename, int x, int y, int width, int height) {
+        Optional<String> replaced = previousCrop();
+        this.filename = croppedFilename;
+        this.cropX = x;
+        this.cropY = y;
+        this.cropW = width;
+        this.cropH = height;
+        return replaced;
+    }
+
+    /** Torna all'originale: ritorna il ritaglio da eliminare, se c'era. */
+    public Optional<String> clearCrop() {
+        Optional<String> replaced = previousCrop();
+        this.filename = originalFilename;
+        this.cropX = null;
+        this.cropY = null;
+        this.cropW = null;
+        this.cropH = null;
+        return replaced;
+    }
+
+    /** Il file del ritaglio attuale, se e' un file a se': senza ritaglio {@code filename} E' l'originale e non va mai eliminato per questo. */
+    private Optional<String> previousCrop() {
+        return filename.equals(originalFilename) ? Optional.empty() : Optional.of(filename);
     }
 
     /** I file che questa riga possiede (uno solo se non e' ritagliata): sono quelli da eliminare con la riga. */

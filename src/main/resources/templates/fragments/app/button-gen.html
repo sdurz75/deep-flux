@@ -329,6 +329,46 @@
 </button>
 
 <!--
+  cropOpen(text, imageId, url, cropX, cropY, cropW, cropH): "Ritaglia" sulla card di un'immagine del dataset (fragments/app/training-dataset.html :: images).
+  NON apre un dialog proprio: annuncia l'immagine con l'evento `crop-open` (window) e il componente Alpine `cropEditor` (fragments/app/crop-editor.html), che
+  sta FUORI da #training-images (la griglia si rimpiazza a ogni modifica), lo ascolta. Il valore per-istanza passa da data-* letti con $el.dataset (regola
+  "binding Alpine via data-*"); un th:data-* con valore null sparisce, quindi senza ritaglio il rettangolo non c'e'. `url` e' gia' avvolto in @{...}.
+-->
+<button th:fragment="cropOpen(text, imageId, url, cropX, cropY, cropW, cropH)" type="button"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-1 text-[0.8rem]"
+        th:data-image-id="${imageId}" th:data-url="${url}" th:data-crop-x="${cropX}" th:data-crop-y="${cropY}"
+        th:data-crop-w="${cropW}" th:data-crop-h="${cropH}"
+        @click="$dispatch('crop-open', { imageId: $el.dataset.imageId, url: $el.dataset.url, x: $el.dataset.cropX, y: $el.dataset.cropY, w: $el.dataset.cropW, h: $el.dataset.cropH })"
+        th:text="${text}">Ritaglia</button>
+
+<!--
+  resetTrainingCrop(text, url): "Ripristina l'originale" sulla card di un'immagine ritagliata (training-dataset.html :: images). POST htmx che rimpiazza
+  #training-images; `url` e' gia' avvolto in @{...} dal chiamante. data-busy="off": azione leggera, nessun overlay.
+-->
+<button th:fragment="resetTrainingCrop(text, url)" type="button" th:hx-post="${url}" hx-target="#training-images" hx-swap="innerHTML" data-busy="off"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-1 text-[0.8rem]"
+        th:text="${text}">Ripristina</button>
+
+<!--
+  cropAspect(text, value): un preset di proporzioni dell'editor di ritaglio (crop-editor.html, unico chiamante): `value` e' "free" o "L:A" (larghezza:altezza).
+  Assume lo scope del componente `cropEditor` (stato `aspect`, metodo `setAspect`), come maskAction per la maschera. Il valore passa da data-aspect.
+-->
+<button th:fragment="cropAspect(text, value)" type="button"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2.5 py-1 text-[0.8rem]"
+        th:data-aspect="${value}"
+        :class="$el.dataset.aspect === aspect ? 'ring-2 ring-accent dark:ring-accent-dark' : ''"
+        :aria-pressed="$el.dataset.aspect === aspect"
+        @click="setAspect($el.dataset.aspect)"
+        th:text="${text}">1:1</button>
+
+<!--
+  cropApply(text): conferma del ritaglio (crop-editor.html): produce il file nel canvas e invia il form htmx del dialog. Disabilitato finche' l'immagine
+  non e' caricata e mentre si salva (un secondo click non deve inviare due ritagli).
+-->
+<button th:fragment="cropApply(text)" type="button" class="px-3 py-1.5 text-[0.85rem] disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="!ready || saving" @click="apply()" th:text="${text}">Applica</button>
+
+<!--
   creditToggle(text, title, low): chip del credito Replicate nella barra in basso (fragments/app/status-extras.html): apre/chiude il popover
   del saldo. Assume la variabile Alpine `balanceOpen` sul container (stesso accoppiamento esplicito di dialogOpen). Aspetto da testo
   (nessun bordo/sfondo del layer base: e' una riga di stato, non un bottone d'azione); `low` = colore `warning`.

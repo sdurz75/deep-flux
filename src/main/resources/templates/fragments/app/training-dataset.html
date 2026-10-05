@@ -41,10 +41,21 @@
             <img th:src="@{'/images/' + ${image.filename}}" th:alt="${image.originalName}" loading="lazy"
                  onerror="this.style.visibility='hidden'" class="block w-full aspect-square object-cover rounded-md">
             <span class="block mt-1 truncate text-[0.75rem] text-ink-muted dark:text-ink-muted-dark" th:text="${image.originalName}">foto.png</span>
+            <span th:if="${image.cropped}" class="block text-[0.7rem] text-accent dark:text-accent-dark" th:text="#{training.crop.badge}">ritagliata</span>
             <!--/* th:unless su un th:block separato: sullo stesso tag di th:replace scatterebbe comunque (precedenza piu' alta). */-->
             <th:block th:unless="${dataset.frozen}">
                 <button th:replace="~{fragments/app/button-gen :: removeTrainingImage(title=#{training.images.remove},
                             url=@{/trainings/datasets/{id}/images/{imageId}/delete(id=${dataset.id}, imageId=${image.id})}, confirmText=#{training.images.confirmRemove})}"></button>
+                <div class="mt-2 flex flex-wrap gap-1">
+                    <!--/* Il ritaglio si apre SEMPRE sull'originale (non sul file gia' ritagliato): cosi' si puo' rifare. Il rettangolo salvato riposiziona il riquadro. */-->
+                    <button th:replace="~{fragments/app/button-gen :: cropOpen(text=#{training.crop.open}, imageId=${image.id},
+                                url=@{'/images/' + ${image.originalFilename}}, cropX=${image.cropX}, cropY=${image.cropY},
+                                cropW=${image.cropW}, cropH=${image.cropH})}"></button>
+                    <th:block th:if="${image.cropped}">
+                        <button th:replace="~{fragments/app/button-gen :: resetTrainingCrop(text=#{training.crop.reset},
+                                    url=@{/trainings/datasets/{id}/images/{imageId}/crop/reset(id=${dataset.id}, imageId=${image.id})})}"></button>
+                    </th:block>
+                </div>
             </th:block>
         </li>
     </ul>

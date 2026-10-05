@@ -18,6 +18,8 @@ public interface ITrainingDatasets {
     int MAX_NAME = 80;
     int MAX_TRIGGER_WORD = 40;
     int MAX_NOTE = 500;
+    /** Tetto di sanita' sul rettangolo di ritaglio (pixel dell'originale): il server non decodifica l'immagine, quindi non ne conosce le dimensioni vere. */
+    int MAX_CROP_SIDE = 30_000;
 
     /** Quante immagini al massimo in un dataset (config {@code app.training.max-images}): il server e' l'autorita', la UI ripete il limite. */
     int maxImages();
@@ -50,4 +52,14 @@ public interface ITrainingDatasets {
 
     /** Toglie un'immagine dalla bozza ed elimina i suoi file. */
     void removeImage(Long datasetId, Long imageId);
+
+    /**
+     * Sostituisce il ritaglio di un'immagine. {@code cropped} e' il risultato prodotto dal browser (un'immagine vera, validata come ogni upload) e il
+     * rettangolo e' in pixel dell'ORIGINALE: il server non decodifica nulla, lo tiene solo per riaprire l'editor dove era rimasto. L'originale non si
+     * tocca mai; il ritaglio precedente si elimina.
+     */
+    TrainingDataset cropImage(Long datasetId, Long imageId, UploadedFile cropped, int x, int y, int width, int height);
+
+    /** Torna all'immagine originale, senza ritaglio: elimina il file del ritaglio. */
+    TrainingDataset resetCrop(Long datasetId, Long imageId);
 }

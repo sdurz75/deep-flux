@@ -91,6 +91,9 @@ app:
     # max-images x dimensione massima di un'immagine (10 MB) deve stare nel limite di richiesta multipart (spring.servlet.multipart.max-request-size
     # in core.yml, 250 MB): 25 x 10 MB. Alzarlo oltre richiede di alzare anche quel limite, altrimenti un caricamento pieno fallisce per intero.
     max-images: 25
+    # Lato lungo massimo, in pixel, di un'immagine ritagliata nel browser (TrainingController, editor di ritaglio): il canvas la riduce prima dell'invio.
+    # Il trainer ridimensiona comunque (~1024): oltre questo valore si spedirebbero solo byte inutili. L'originale resta com'e'.
+    max-image-side: 1536
   chat:
     # /deep-chat (ImageGenerationTool, VisionTool, ChatService): tetti di sicurezza per turno e finestra della cronologia mandata al modello.
     # max-generations-per-turn: ogni generateImage e' una predizione a pagamento; max-vision-calls-per-turn: ogni describeImage costa token

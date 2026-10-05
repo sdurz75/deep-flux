@@ -249,6 +249,88 @@ class TrainingControllerTest {
         assertThat(page).contains("hx-target=\"#training-images\"").contains("data-busy=\"off\"").contains("Togli dal dataset");
     }
 
+    // --- ritaglio -----------------------------------------------------------------------------------------------
+
+    private static MockMultipartFile crop() {
+        return new MockMultipartFile("file", "crop.jpg", "image/jpeg", PNG);
+    }
+
+    @Test
+    void theEditorCarriesTheCropEditorOnceAndEachCardOpensItOnTheOriginal() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG))); // file-1.png
+
+        String page = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Alpine.data('cropEditor'").contains("x-data=\"cropEditor\"").contains("data-max-side=\"1536\"")
+                .contains("/trainings/datasets/" + dataset.getId() + "/crop\"").contains("hx-target=\"#training-images\"")
+                .contains("data-image-id=\"").contains("data-url=\"/images/file-1.png\"").contains("Ritaglia")
+                .doesNotContain("/crop/reset");
+        assertThat(page.split("Alpine.data\\('cropEditor'", -1)).as("il componente si registra una volta sola").hasSize(2);
+    }
+
+    @Test
+    void croppingAnswersWithTheImagesFragmentAndTheCardNowShowsTheCropAndHowToUndoIt() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG))); // file-1.png
+        Long imageId = datasets.get(dataset.getId()).getImages().get(0).getId();
+
+        String fragment = body(mockMvc.perform(multipart("/trainings/datasets/" + dataset.getId() + "/crop").file(crop())
+                        .param("imageId", String.valueOf(imageId)).param("x", "10").param("y", "20").param("w", "300").param("h", "400")
+                        .header("HX-Request", "true"))
+                .andExpect(status().isOk()).andReturn());
+
+        // La card mostra il ritaglio (src) ma l'editor si riapre sull'originale (data-url).
+        assertThat(fragment).doesNotContain("<html").contains("ritagliata")
+                .contains("src=\"/images/file-2.png\"").contains("data-url=\"/images/file-1.png\"")
+                .contains("data-crop-x=\"10\"").contains("data-crop-y=\"20\"")
+                .contains("data-crop-w=\"300\"").contains("data-crop-h=\"400\"")
+                .contains("/images/" + imageId + "/crop/reset").contains("Ripristina l&#39;originale");
+        TrainingDataset saved = datasets.get(dataset.getId());
+        assertThat(saved.getImages().get(0).getFilename()).isEqualTo("file-2.png");
+        assertThat(saved.getImages().get(0).getOriginalFilename()).isEqualTo("file-1.png");
+    }
+
+    @Test
+    void resettingTheCropAnswersWithTheFragmentOfTheOriginal() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = datasets.get(dataset.getId()).getImages().get(0).getId();
+        datasets.cropImage(dataset.getId(), imageId, UploadedFile.of("c.jpg", PNG), 1, 2, 30, 40);
+
+        String fragment = body(mockMvc.perform(post("/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/crop/reset")
+                        .header("HX-Request", "true"))
+                .andExpect(status().isOk()).andReturn());
+
+        assertThat(fragment).contains("src=\"/images/file-1.png\"").doesNotContain("ritagliata").doesNotContain("/crop/reset");
+        assertThat(datasets.get(dataset.getId()).getImages().get(0).isCropped()).isFalse();
+    }
+
+    @Test
+    void aRectangleThatIsNotACropIsAnExpectedRejectionAndChangesNothing() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = datasets.get(dataset.getId()).getImages().get(0).getId();
+
+        mockMvc.perform(multipart("/trainings/datasets/" + dataset.getId() + "/crop").file(crop())
+                        .param("imageId", String.valueOf(imageId)).param("x", "0").param("y", "0").param("w", "0").param("h", "10")
+                        .header("HX-Request", "true"))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(datasets.get(dataset.getId()).getImages().get(0).isCropped()).isFalse();
+    }
+
+    @Test
+    void aSnapshotHasNeitherTheCropEditorNorTheCropButtons() throws Exception {
+        TrainingDataset snapshot = store.save(new TrainingDataset("snapshot", "TOKCAT", LoraType.SUBJECT, null, true, null, Instant.now()));
+        snapshot.addImage("snap.png", "snap.png", Instant.now());
+        snapshot = store.save(snapshot);
+
+        String page = body(mockMvc.perform(get("/trainings/datasets/" + snapshot.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).doesNotContain("cropEditor").doesNotContain("crop-open").doesNotContain("/crop");
+    }
+
     // --- clone, eliminazione, snapshot --------------------------------------------------------------------------
 
     @Test

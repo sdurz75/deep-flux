@@ -11,6 +11,10 @@
 <div layout:fragment="content">
     <!--/* Il componente Alpine `trainingDropzone` si registra una volta (alpine:init) da questo script; il markup e' in :: field. */-->
     <div th:replace="~{fragments/app/training-dropzone :: script}"></div>
+    <!--/* Come maskEditor: il componente `cropEditor` si registra una volta da :: script, il dialog sta FUORI da #training-images (che si rimpiazza a ogni modifica). */-->
+    <th:block th:unless="${dataset.frozen}">
+        <div th:replace="~{fragments/app/crop-editor :: script}"></div>
+    </th:block>
 
     <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
         <h1 class="m-0" th:text="${dataset.name}">Dataset</h1>
@@ -75,6 +79,9 @@
     <div id="training-images">
         <th:block th:replace="~{fragments/app/training-dataset :: images(dataset=${dataset}, report=${report}, maxImages=${maxImages}, maxBytes=${maxBytes})}"></th:block>
     </div>
+    <th:block th:unless="${dataset.frozen}">
+        <div th:replace="~{fragments/app/crop-editor :: dialog(datasetId=${dataset.id}, maxSide=${maxImageSide})}"></div>
+    </th:block>
 </div>
 </body>
 </html>

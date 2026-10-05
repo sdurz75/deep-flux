@@ -14,6 +14,7 @@ import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.core.kernel.Paged;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.core.web.PaginationSupport;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,9 +40,12 @@ public class TrainingController {
     static final int PAGE_SIZE = 12;
 
     private final ITrainingDatasets datasets;
+    /** Lato lungo massimo di un ritaglio: lo usa solo il browser (canvas), il server non decodifica le immagini. */
+    private final int maxImageSide;
 
-    public TrainingController(ITrainingDatasets datasets) {
+    public TrainingController(ITrainingDatasets datasets, @Value("${app.training.max-image-side:1536}") int maxImageSide) {
         this.datasets = datasets;
+        this.maxImageSide = maxImageSide;
     }
 
     /** Stessa URL, due risposte: la paginazione htmx riceve il solo contenuto, la navigazione la pagina intera. */
@@ -129,6 +133,26 @@ public class TrainingController {
         return imagesView(id, null, hxRequest, model);
     }
 
+    /**
+     * Ritaglio di un'immagine: il browser ritaglia sull'originale (editor in {@code crop-editor.html}) e invia il risultato con il rettangolo in
+     * pixel dell'originale. Risponde col contenuto di {@code #training-images}, come caricamento e rimozione.
+     */
+    @PostMapping("/datasets/{id}/crop")
+    public String crop(@PathVariable Long id, @RequestParam Long imageId, @RequestParam("file") MultipartFile file,
+                       @RequestParam int x, @RequestParam int y, @RequestParam int w, @RequestParam int h,
+                       @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        datasets.cropImage(id, imageId, UploadedFiles.of(file), x, y, w, h);
+        return imagesView(id, null, hxRequest, model);
+    }
+
+    /** Torna all'originale. */
+    @PostMapping("/datasets/{id}/images/{imageId}/crop/reset")
+    public String resetCrop(@PathVariable Long id, @PathVariable Long imageId,
+                            @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        datasets.resetCrop(id, imageId);
+        return imagesView(id, null, hxRequest, model);
+    }
+
     /** Nuova bozza dalla stessa (anche uno snapshot): e' l'editor della copia che si apre. */
     @PostMapping("/datasets/{id}/duplicate")
     @ResponseBody
@@ -169,6 +193,7 @@ public class TrainingController {
         model.addAttribute("report", report);
         model.addAttribute("maxImages", datasets.maxImages());
         model.addAttribute("maxBytes", IImageStorageService.MAX_UPLOAD_BYTES);
+        model.addAttribute("maxImageSide", maxImageSide);
     }
 
     /** Una pagina dell'elenco (1-based); con una pagina oltre l'ultima (ultima bozza eliminata) si torna all'ultima che esiste. */

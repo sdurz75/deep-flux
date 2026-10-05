@@ -16,6 +16,7 @@ import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.UploadReport;
+import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.kernel.Paged;
@@ -237,6 +238,130 @@ class TrainingDatasetServiceTest {
 
         verify(storage, never()).delete(anyString());
         assertThat(service.get(other.getId()).getImages()).hasSize(1);
+    }
+
+    // --- ritaglio -----------------------------------------------------------------------------------------------
+
+    @Test
+    void cropPutsTheCroppedFileInTheZipSlotKeepsTheOriginalAndRemembersTheRectangle() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId(); // stored-1.png
+
+        TrainingImage image = service.cropImage(dataset.getId(), id, upload("crop.jpg"), 10, 20, 300, 400).findImage(id).orElseThrow();
+
+        assertThat(image.getFilename()).as("e' il file che andra' nello zip").isEqualTo("stored-2.png");
+        assertThat(image.getOriginalFilename()).as("l'originale non si tocca").isEqualTo("stored-1.png");
+        assertThat(image.isCropped()).isTrue();
+        assertThat(List.of(image.getCropX(), image.getCropY(), image.getCropW(), image.getCropH())).containsExactly(10, 20, 300, 400);
+        verify(storage, never()).delete(anyString());
+    }
+
+    @Test
+    void croppingAgainRemovesThePreviousCropButNeverTheOriginal() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId(); // stored-1.png
+        service.cropImage(dataset.getId(), id, upload("c1.jpg"), 0, 0, 100, 100); // stored-2.png
+
+        TrainingImage image = service.cropImage(dataset.getId(), id, upload("c2.jpg"), 5, 5, 50, 60).findImage(id).orElseThrow(); // stored-3.png
+
+        assertThat(image.getFilename()).isEqualTo("stored-3.png");
+        assertThat(image.getOriginalFilename()).isEqualTo("stored-1.png");
+        verify(storage).delete("stored-2.png");
+        verify(storage, never()).delete("stored-1.png");
+    }
+
+    @Test
+    void aRectangleThatCannotBeACropIsRejectedBeforeAnyFileIsStored() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+        int storedBefore = stored.get();
+
+        assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), -1, 0, 10, 10), "training.error.cropInvalid");
+        assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, -1, 10, 10), "training.error.cropInvalid");
+        assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 0, 10), "training.error.cropInvalid");
+        assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 10, 0), "training.error.cropInvalid");
+        assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, ITrainingDatasets.MAX_CROP_SIDE + 1, 10),
+                "training.error.cropInvalid");
+
+        assertThat(stored.get()).as("nessun file salvato dai rifiuti").isEqualTo(storedBefore);
+        assertThat(service.get(dataset.getId()).findImage(id).orElseThrow().isCropped()).isFalse();
+    }
+
+    @Test
+    void cropOfAnImageOfAnotherDatasetIsRejectedAndStoresNothing() {
+        TrainingDataset mine = service.create("mio", "TOK", LoraType.SUBJECT, null);
+        TrainingDataset other = service.create("altro", "TOK", LoraType.SUBJECT, null);
+        Long foreign = service.addImages(other.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+        int storedBefore = stored.get();
+
+        assertRejected(() -> service.cropImage(mine.getId(), foreign, upload("c.jpg"), 0, 0, 10, 10), "training.error.imageNotFound");
+
+        assertThat(stored.get()).isEqualTo(storedBefore);
+        assertThat(service.get(other.getId()).findImage(foreign).orElseThrow().isCropped()).isFalse();
+    }
+
+    @Test
+    void ifTheRowCannotBeSavedTheNewCropIsRemovedAndThePreviousOneIsKept() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId(); // stored-1.png
+        service.cropImage(dataset.getId(), id, upload("c1.jpg"), 0, 0, 100, 100); // stored-2.png
+        store.failOnSave = new IllegalStateException("db giu'");
+
+        assertThatThrownBy(() -> service.cropImage(dataset.getId(), id, upload("c2.jpg"), 1, 1, 50, 50)).isInstanceOf(IllegalStateException.class);
+
+        verify(storage).delete("stored-3.png");
+        verify(storage, never()).delete("stored-2.png");
+        verify(storage, never()).delete("stored-1.png");
+    }
+
+    @Test
+    void aStaleCopyOfTheDatasetMakesTheCropAConflictWithoutOrphans() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+        store.failOnSave = new OptimisticLockingFailureException("versione vecchia");
+
+        assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 10, 10), "training.error.conflict");
+
+        verify(storage).delete("stored-2.png");
+    }
+
+    @Test
+    void resetCropGoesBackToTheOriginalAndRemovesTheCroppedFile() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId(); // stored-1.png
+        service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 100, 100); // stored-2.png
+
+        TrainingImage image = service.resetCrop(dataset.getId(), id).findImage(id).orElseThrow();
+
+        assertThat(image.getFilename()).isEqualTo("stored-1.png");
+        assertThat(image.isCropped()).isFalse();
+        assertThat(image.getCropX()).isNull();
+        verify(storage).delete("stored-2.png");
+        verify(storage, never()).delete("stored-1.png");
+    }
+
+    @Test
+    void resetCropOfAnUncroppedImageChangesNothingAndDeletesNothing() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+
+        TrainingImage image = service.resetCrop(dataset.getId(), id).findImage(id).orElseThrow();
+
+        assertThat(image.getFilename()).isEqualTo("stored-1.png");
+        verify(storage, never()).delete(anyString());
+    }
+
+    @Test
+    void aFrozenSnapshotCannotBeCropped() {
+        TrainingDataset snapshot = store.save(new TrainingDataset("snap", "TOK", LoraType.SUBJECT, null, true, 7L, NOW));
+        TrainingImage image = snapshot.addImage("snap.png", "snap", NOW);
+        store.save(snapshot);
+        int storedBefore = stored.get();
+
+        assertRejected(() -> service.cropImage(snapshot.getId(), image.getId(), upload("c.jpg"), 0, 0, 10, 10), "training.error.frozen");
+        assertRejected(() -> service.resetCrop(snapshot.getId(), image.getId()), "training.error.frozen");
+
+        assertThat(stored.get()).isEqualTo(storedBefore);
     }
 
     @Test
