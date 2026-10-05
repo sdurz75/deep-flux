@@ -13,6 +13,10 @@
   ariaLabel e' opzionale (default a una chiave i18n generica): un
   chiamante puo' sovrascriverla senza toccare questo file.
 
+  La barra e' SEMPRE centrata rispetto al contenitore della lista (il
+  <nav> e' flex justify-center): il chiamante lo mette come figlio
+  diretto del blocco che contiene la lista, senza wrapper propri.
+
   Stile Pines UI (devdojo.com/pines/docs/pagination) adattato, non
   copiato 1:1: barra unica bordata con divide-x + sottolineatura
   animata all'hover, invece delle pillole individualmente
@@ -26,7 +30,7 @@
 <nav th:fragment="nav(basePath, hxTarget, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, ariaLabel)"
      th:if="${totalPages > 1}"
      th:aria-label="${ariaLabel} ?: #{pagination.ariaLabel}"
-     class="mt-6">
+     class="mt-6 flex justify-center">
     <ul class="inline-flex items-stretch h-9 border border-line dark:border-line-dark divide-x divide-line dark:divide-line-dark rounded-md overflow-hidden text-[0.9rem]">
 
         <li>

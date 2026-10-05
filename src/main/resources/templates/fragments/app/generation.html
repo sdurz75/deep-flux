@@ -21,7 +21,7 @@
   assumere sempre quest'ultima.
 -->
 <th:block th:fragment="status">
-    <div id="generation-status"
+    <div id="generation-status" class="flex justify-center"
          th:if="${generation.status.name() == 'PENDING' or generation.status.name() == 'PROCESSING'}"
          th:hx-get="@{'/generations/' + ${generation.id}(conversationId=${conversationId}, generationsPage=${generationsPage}, cancelDisabled=${cancelDisabled})}"
          hx-trigger="every 2s"

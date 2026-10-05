@@ -23,7 +23,7 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `ChatPushNotifier`): nessun polling client-side per la chat. E' l'UNICO tool a pagamento, con un tetto per turno (`app.chat.max-generations-per-turn`, 3).
 - **Placeholder** mentre una generazione e' in corso (chat e `/generations/{id}`): `fragments/app/generation-placeholder.html`
   (immagine dummy + "Interrompi", stili INLINE perche' finisce anche nello shadow DOM di `<deep-chat>`). In `/generations/{id}` i riquadri sono tanti quanti i file richiesti (`Generation#getRequestedOutputs`, da `num_outputs` in
-  `parametersJson`; 1 se assente) con UN solo "Interrompi" in una riga sotto, centrato (anche con un file). In chat resta un riquadro (il template non conosce il numero). Il bottone chiede
+  `parametersJson`; 1 se assente) con UN solo "Interrompi" in una riga sotto, centrato (anche con un file); tutto il blocco e' centrato nella pagina (wrapper `#generation-status` con `flex justify-center`). In chat resta un riquadro (il template non conosce il numero). Il bottone chiede
   conferma e fa `POST /generations/{id}/cancel` (`IGenerations#cancel`): esito `FAILED` "annullata"; se il cancel
   fallisce il bottone si disabilita e si attende la fine naturale. In chat i placeholder viaggiano nella risposta del
   turno (`generationIds`) e al reload si ripristinano via `Generation.conversationId`. A fine generazione il

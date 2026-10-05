@@ -6,7 +6,9 @@
   Placeholder di una generazione in corso: riquadri dummy con spinner +
   bottone "Interrompi" (UNO, in una riga sotto i riquadri, centrato). Usato in DUE contesti, da un solo markup:
   - fragments/app/generation.html :: status (generate.html/generation-status.html,
-    htmx: il bottone e' il fragment fragments/app/button-gen :: stop con i suoi hx-*);
+    htmx: il bottone e' il fragment fragments/app/button-gen :: stop con i suoi hx-*;
+    il blocco e' CENTRATO nella pagina dal wrapper #generation-status, `flex justify-center`:
+    il placeholder e' un inline-flex e da solo resterebbe a sinistra);
   - /deep-chat (deep-chat.html): renderizzato una volta in un <template> con
     generationId='GENID' (non '__ID__': in Thymeleaf e' preprocessing e sparisce), clonato dal client dentro un messaggio "html" di
     <deep-chat>, il cui shadow DOM NON vede le classi Tailwind della pagina:
@@ -22,7 +24,7 @@
      data-generation-placeholder th:attr="data-generation-id=${generationId}"
      style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:12px;max-width:100%">
     <!-- Un riquadro per file atteso, poi UN solo bottone "Interrompi" in una riga propria sotto, centrato sui riquadri. -->
-    <div style="display:flex;flex-wrap:wrap;gap:8px;max-width:100%">
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:100%">
         <th:block th:each="n : ${#numbers.sequence(1, count < 1 ? 1 : count)}">
             <div th:replace="~{fragments/app/generation-placeholder :: tile}"></div>
         </th:block>
