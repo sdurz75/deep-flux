@@ -548,6 +548,20 @@ class TrainingServiceTest {
         verify(trainer, never()).cancelTraining(anyString());
     }
 
+    /** Il token di Replicate tolto dalla configurazione e' un problema di chi gestisce l'app, non del training, che su Replicate gira comunque. */
+    @Test
+    void aConfigurationErrorOnPollLeavesTheTrainingRunningAndIsRecorded() {
+        Training training = running(TrainingStatus.PROCESSING);
+        ReplicateException noToken = new ReplicateException("REPLICATE_API_TOKEN non impostato", null, Kind.CONFIGURATION);
+        when(trainer.getTraining("train-1")).thenThrow(noToken);
+
+        Training result = service.refresh(training.getId());
+
+        assertThat(result.getStatus()).isEqualTo(TrainingStatus.PROCESSING);
+        verify(systemEvents).record("getTraining", noToken, "training:" + training.getId());
+        verify(trainer, never()).cancelTraining(anyString());
+    }
+
     @Test
     void aPermanentPollFailureFailsTheTrainingAndStopsItRemotely() {
         Training training = running(TrainingStatus.PROCESSING);

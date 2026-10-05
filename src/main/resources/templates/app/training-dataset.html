@@ -81,7 +81,16 @@
     </div>
     <th:block th:unless="${dataset.frozen}">
         <div th:replace="~{fragments/app/crop-editor :: dialog(datasetId=${dataset.id}, maxSide=${maxImageSide})}"></div>
+
+        <!--/* Lancio: le impostazioni si salvano con la bozza; i controlli (e il bottone "Avvia") si ricaricano da soli. Dopo la griglia: l'ordine del lavoro. */-->
+        <h2 class="mt-8" th:text="#{training.launch.title}">Avvia il training</h2>
+        <p class="text-ink-muted dark:text-ink-muted-dark max-w-xl" th:text="#{training.launch.intro}">A pagamento su Replicate.</p>
+        <div th:replace="~{fragments/app/training-launch :: settings(dataset=${dataset}, hfTokens=${hfTokens}, minSteps=${minSteps}, maxSteps=${maxSteps})}"></div>
+        <div th:replace="~{fragments/app/training-launch :: check(datasetId=${dataset.id}, check=${launchCheck})}"></div>
     </th:block>
+    <p th:if="${dataset.frozen and snapshotTraining != null}" class="mt-6">
+        <a th:href="@{/trainings/{id}(id=${snapshotTraining.id})}" th:text="#{training.snapshot.link(${snapshotTraining.id})}">Apri il training</a>
+    </p>
 </div>
 </body>
 </html>

@@ -12,6 +12,15 @@
     <h1 th:text="#{training.title}">Addestra un LoRA</h1>
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.intro}">Prepara un dataset di immagini e addestra un LoRA.</p>
 
+    <!--/* Le schede sono link normali (pagina intera): la scheda attiva la decide il server. */-->
+    <nav class="flex gap-1 mt-4 mb-4 border-b border-line dark:border-line-dark" role="tablist">
+        <a th:each="t : ${#strings.arraySplit('datasets,history', ',')}" th:href="@{/trainings(tab=${t})}" role="tab" th:aria-selected="${t == tab}"
+           th:text="${t == 'datasets'} ? #{training.tab.datasets} : #{training.tab.history}"
+           class="px-4 py-2 -mb-px border-b-2 no-underline text-[0.9rem]"
+           th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Dataset</a>
+    </nav>
+
+    <th:block th:unless="${tab == 'history'}">
     <!--
       Nuovo dataset: un form NATIVO (POST + redirect all'editor, funziona anche senza JS). Con un errore di validazione la pagina intera
       si riscrive con i valori digitati e il messaggio sopra il form.
@@ -46,9 +55,23 @@
     </form>
 
     <h2 class="mt-8" th:text="#{training.datasets.title}">I tuoi dataset</h2>
+    </th:block>
+    <h2 th:if="${tab == 'history'}" th:text="#{training.history.title}">Storico dei training</h2>
+
     <div id="trainings-content">
-        <div th:replace="~{fragments/app/training-datasets :: content(datasets=${datasets}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
+        <!--/* th:block + th:if: sullo stesso tag di th:replace, th:if non scatterebbe (precedenza piu' alta). */-->
+        <th:block th:if="${tab == 'history'}">
+            <div th:replace="~{fragments/app/training-history :: content(trainings=${trainings}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
+        </th:block>
+        <th:block th:unless="${tab == 'history'}">
+            <div th:replace="~{fragments/app/training-datasets :: content(datasets=${datasets}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
+        </th:block>
     </div>
+
+    <!--/* SSE solo dove serve: lo storico si aggiorna da solo quando un training cambia stato (anche col poller, a pagina chiusa). */-->
+    <th:block th:if="${tab == 'history'}">
+        <div th:replace="~{fragments/core/live-events :: connect}"></div>
+    </th:block>
 </div>
 </body>
 </html>

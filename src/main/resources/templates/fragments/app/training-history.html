@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Storico dei training (contenuto di #trainings-content, templates/app/training.html con ?tab=history): stesso schema di training-datasets.html :: content.
+  Il wrapper `display:contents` si ricarica da solo all'evento SSE `training-update` (core.push, TrainingPushNotifier), cosi' lo stato di un training in corso
+  cambia anche se a muoverlo e' il poller di recupero con la pagina del training chiusa.
+-->
+<th:block th:fragment="content(trainings, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
+    <div style="display:contents" th:hx-get="@{/trainings(tab='history', page=${currentPage})}" hx-trigger="training-update from:body"
+         hx-target="#trainings-content" hx-swap="innerHTML">
+        <p th:if="${#lists.isEmpty(trainings)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.history.empty}">Nessun training ancora.</p>
+
+        <ul th:unless="${#lists.isEmpty(trainings)}" class="list-none p-0 m-0 flex flex-col gap-3">
+            <li th:each="training : ${trainings}" th:id="'training-' + ${training.id}"
+                class="flex flex-wrap items-center gap-3 border border-line dark:border-line-dark rounded-lg px-3 py-2 bg-surface dark:bg-surface-dark">
+                <a th:href="@{/trainings/{id}(id=${training.id})}" class="flex-1 min-w-[12rem] no-underline text-ink dark:text-ink-dark">
+                    <strong class="block truncate">
+                        <span th:text="${training.name}">nome</span>
+                        <span class="font-normal text-ink-muted dark:text-ink-muted-dark" th:text="'#' + ${training.id}">#1</span>
+                    </strong>
+                    <span class="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">
+                        <code th:text="${training.triggerWord}">TOK</code>
+                        <span th:text="${training.loraType.name() == 'STYLE'} ? #{training.type.style} : #{training.type.subject}">Soggetto</span>
+                        <span th:text="#{training.history.row.images(${training.imageCount})}">N immagini</span>
+                        <span th:text="#{training.history.row.steps(${training.trainingSteps})}">N passi</span>
+                        <span th:text="${#temporals.format(training.createdAt, 'dd/MM/yyyy HH:mm')}">data</span>
+                    </span>
+                </a>
+                <span th:replace="~{fragments/app/training-run :: badge(status=${training.status})}"></span>
+            </li>
+        </ul>
+
+        <div th:replace="~{fragments/core/pagination :: nav('/trainings?tab=history', '#trainings-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+    </div>
+</th:block>
+
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Pannello "Avvia il training" di una bozza (templates/app/training-dataset.html), in due parti:
+
+  settings(dataset, hfTokens, minSteps, maxSteps): le impostazioni di lancio (nome del modello, passi, seed, copia su HuggingFace). Si salvano con la bozza
+  (POST htmx, azione leggera: data-busy="off") e la risposta rimpiazza i controlli. NON e' dentro il blocco che si ricarica: un form che si riscrive ogni pochi
+  secondi cancellerebbe cio' che si sta digitando.
+
+  check(datasetId, check): i controlli di lancio (blocchi e avvisi) e il bottone "Avvia", che compare solo se non ci sono blocchi. Si ricarica da solo ogni 6 s
+  (le didascalie finiscono in background) e dopo il salvataggio delle impostazioni. L'avvio e' un form htmx con conferma ("a pagamento") e overlay "operazione in
+  corso" (e' un POST lento): al successo il server risponde con HX-Redirect alla pagina del training.
+
+  Il copia su HuggingFace e' ACCESO di default e il repo PRIVATO. Il token (scelto per nome fra quelli di /tokens, mai digitato qui) viene inviato a Replicate come
+  segreto del trainer: il testo lo dice.
+-->
+<form th:fragment="settings(dataset, hfTokens, minSteps, maxSteps)" th:action="@{/trainings/datasets/{id}/launch-settings(id=${dataset.id})}" method="post"
+      th:hx-post="@{/trainings/datasets/{id}/launch-settings(id=${dataset.id})}" hx-target="#training-launch-check" hx-swap="outerHTML" data-busy="off"
+      autocomplete="off" class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark p-4 max-w-xl">
+
+    <label for="launch-model-name" th:text="#{training.launch.modelName}">Nome del modello</label>
+    <input type="text" id="launch-model-name" name="modelName" class="w-full" maxlength="60" th:value="${dataset.modelName}" th:placeholder="${dataset.name}">
+    <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.modelNameHelp}">Nome di base.</p>
+
+    <label for="launch-steps" class="mt-3 block" th:text="#{training.launch.steps}">Passi di addestramento</label>
+    <input type="number" id="launch-steps" name="trainingSteps" class="w-full" th:min="${minSteps}" th:max="${maxSteps}" step="10" required
+           th:value="${dataset.trainingSteps}">
+    <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.stepsHelp(${minSteps}, ${maxSteps})}">Fra 100 e 4000.</p>
+
+    <label for="launch-seed" class="mt-3 block" th:text="#{training.launch.seed}">Seed (opzionale)</label>
+    <input type="number" id="launch-seed" name="seed" class="w-full" min="0" th:value="${dataset.seed}">
+    <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.seedHelp}">Vuoto = casuale.</p>
+
+    <!--/* Il valore iniziale di Alpine passa da un data-*: x-data resta HTML statico (convenzione sui binding Alpine). */-->
+    <div class="mt-4" x-data="{ hf: $el.dataset.hf === 'true' }" th:data-hf="${dataset.hfPublish}">
+        <label class="flex items-center gap-2">
+            <input type="checkbox" name="hfPublish" value="true" x-model="hf" class="accent-accent dark:accent-accent-dark" th:checked="${dataset.hfPublish}">
+            <span th:text="#{training.launch.hf.publish}">Copia i pesi su HuggingFace</span>
+        </label>
+        <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.hf.help}">Una copia dei pesi.</p>
+
+        <div x-show="hf" x-cloak class="mt-3">
+            <label for="launch-hf-token" th:text="#{training.launch.hf.token}">Token HuggingFace</label>
+            <div class="relative" x-data="pinesSelect" x-bind="root">
+                <select id="launch-hf-token" name="hfTokenId" class="sr-only" tabindex="-1" aria-hidden="true">
+                    <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
+                    <option th:each="t : ${hfTokens}" th:value="${t.id}"
+                            th:disabled="${t.status.name() == 'EXPIRED'}"
+                            th:selected="${#strings.toString(dataset.hfTokenId) == #strings.toString(t.id)}"
+                            th:text="${t.expiresAt == null} ? ${t.name} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name})} : #{generationParams.option.tokenExpires(${t.name}, ${t.expiresAt})})">nome</option>
+                </select>
+                <div th:replace="~{fragments/core/select :: ui}"></div>
+            </div>
+            <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.hf.tokenHelp}">Serve un token con permesso di scrittura.</p>
+
+            <label for="launch-hf-repo" class="mt-3 block" th:text="#{training.launch.hf.repo}">Nome del repo</label>
+            <input type="text" id="launch-hf-repo" name="hfRepoName" class="w-full" maxlength="96" th:value="${dataset.hfRepoName}">
+            <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.hf.repoHelp}">Vuoto = come il modello.</p>
+
+            <label class="mt-3 flex items-center gap-2">
+                <input type="checkbox" name="hfPrivate" value="true" class="accent-accent dark:accent-accent-dark" th:checked="${dataset.hfPrivate}">
+                <span th:text="#{training.launch.hf.private}">Repo privato</span>
+            </label>
+        </div>
+    </div>
+
+    <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{training.launch.save}, extraClass='mt-4')}">Salva le impostazioni</button>
+</form>
+
+<div th:fragment="check(datasetId, check)" id="training-launch-check" class="mt-4 max-w-xl"
+     th:hx-get="@{/trainings/datasets/{id}/launch-check(id=${datasetId})}" hx-trigger="every 6s" hx-target="this" hx-swap="outerHTML">
+    <th:block th:unless="${#lists.isEmpty(check.blockers)}">
+        <p class="mb-1 font-semibold text-danger dark:text-danger-dark" th:text="#{training.launch.blockers}">Prima di avviare</p>
+        <ul class="m-0 mb-3 pl-5 text-[0.9rem]">
+            <li th:each="blocker : ${check.blockers}" th:text="${blocker}">blocco</li>
+        </ul>
+    </th:block>
+    <th:block th:unless="${#lists.isEmpty(check.warnings)}">
+        <p class="mb-1 font-semibold text-warning dark:text-warning-dark" th:text="#{training.launch.warnings}">Da considerare</p>
+        <ul class="m-0 mb-3 pl-5 text-[0.9rem]">
+            <li th:each="warning : ${check.warnings}" th:text="${warning}">avviso</li>
+        </ul>
+    </th:block>
+    <p th:if="${check.launchable and #lists.isEmpty(check.warnings)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.ready}">Tutto pronto.</p>
+
+    <form th:if="${check.launchable}" th:hx-post="@{/trainings/datasets/{id}/start(id=${datasetId})}" hx-swap="none"
+          th:hx-confirm="#{training.launch.confirm}" th:data-busy-text="#{training.launch.busy}" data-busy-delay="0" autocomplete="off">
+        <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{training.launch.start}, extraClass='mt-1')}">Avvia il training</button>
+    </form>
+</div>
+
+<!--/* La bozza non c'e' piu' (o e' diventata uno snapshot): il blocco sparisce e il polling si ferma. */-->
+<div th:fragment="gone" id="training-launch-check"></div>
+
+</body>
+</html>

@@ -108,8 +108,8 @@ class TemplateRenderingTests {
         String page = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("new EventSource(eventsUrl)")
-                .containsPattern("appEvents = \\[\\s*\"gallery-update\",\\s*\"chat-message\"\\s*\\]")
-                .containsPattern("reconnectEvents = \\[\\s*\"gallery-update\"\\s*\\]")
+                .containsPattern("appEvents = \\[\\s*\"gallery-update\",\\s*\"chat-message\",\\s*\"training-update\"\\s*\\]")
+                .containsPattern("reconnectEvents = \\[\\s*\"gallery-update\",\\s*\"training-update\"\\s*\\]")
                 .contains("addEventListener('system-event'");
     }
 

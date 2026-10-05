@@ -141,5 +141,5 @@ app:
   push:
     # Gli eventi SSE dell'app (il core gestisce solo "system-event"): ri-dispatchati da fragments/core/live-events.html come CustomEvent
     # su document.body. reconnect-events: quelli da ri-dispatchare alla riconnessione dell'EventSource (PushModelAdvice).
-    client-events: gallery-update,chat-message
-    reconnect-events: gallery-update
+    client-events: gallery-update,chat-message,training-update
+    reconnect-events: gallery-update,training-update

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{training.run.title(${training.id})}">Training</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.create}, parentPath='/trainings?tab=history', parentText=#{training.history.title}, current=#{training.run.title(${training.id})})}"></nav>
+</div>
+<div layout:fragment="content">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <h1 class="m-0">
+            <span th:text="#{training.run.title(${training.id})}">Training #1</span>
+            <span class="font-normal text-ink-muted dark:text-ink-muted-dark" th:text="${training.name}">nome</span>
+        </h1>
+        <div class="flex flex-wrap gap-2">
+            <!--/* Riprendere = clonare il dataset congelato in una nuova bozza (stessa azione di "Clona"): immagini, didascalie e impostazioni di lancio tornano modificabili. */-->
+            <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{training.run.resume},
+                        hxGet=null, hxPost=@{/trainings/datasets/{id}/duplicate(id=${training.snapshotDatasetId})}, hxTarget=null, hxSwap='none',
+                        extraClass='px-3 py-1.5 text-[0.85rem]')}">Riprendi da questo</button>
+            <button th:replace="~{fragments/core/button :: danger(type='button', text=#{training.run.delete},
+                        hxPost=@{/trainings/{id}/delete(id=${training.id})}, hxDelete=null, hxConfirm=#{training.run.confirmDelete},
+                        hxSwap='none', hxTarget=null, extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
+        </div>
+    </div>
+
+    <div th:replace="~{fragments/app/training-run :: status(training=${training}, snapshot=${snapshot})}"></div>
+</div>
+</body>
+</html>

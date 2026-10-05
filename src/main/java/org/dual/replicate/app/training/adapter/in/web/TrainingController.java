@@ -279,6 +279,8 @@ public class TrainingController {
             return;
         }
         model.addAttribute("launchCheck", trainings.check(dataset.getId()));
+        model.addAttribute("minSteps", datasets.minSteps());
+        model.addAttribute("maxSteps", datasets.maxSteps());
         model.addAttribute("hfTokens", tokens.options(ApiTokenProvider.HUGGINGFACE.name()));
     }
 
