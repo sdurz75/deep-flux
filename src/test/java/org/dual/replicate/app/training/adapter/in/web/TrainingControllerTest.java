@@ -2,10 +2,16 @@ package org.dual.replicate.app.training.adapter.in.web;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.dual.replicate.app.training.domain.CaptionSource;
+import org.dual.replicate.app.training.domain.CaptionStatus;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.TrainingDataset;
+import org.dual.replicate.app.training.domain.TrainingImage;
+import org.dual.replicate.app.training.port.in.ICaptionJobs;
+import org.dual.replicate.app.training.port.in.ITrainingCaptions;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
 import org.dual.replicate.core.storage.domain.UploadedFile;
@@ -24,6 +30,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -45,10 +53,18 @@ class TrainingControllerTest {
 
     @MockitoBean
     private IImageStorageService storage;
+    /**
+     * Il lavoro di didascalia gira in un thread in background e chiamerebbe il modello di visione vero: qui e' un mock, cosi' le immagini restano nello stato
+     * in cui le lascia il test (le azioni dell'utente, {@link ITrainingCaptions}, sono invece quelle vere).
+     */
+    @MockitoBean
+    private ICaptionJobs captionJobs;
     @Autowired
     private MockMvc mockMvc;
     @Autowired
     private ITrainingDatasets datasets;
+    @Autowired
+    private ITrainingCaptions captions;
     @Autowired
     private ITrainingDatasetStore store;
 
@@ -247,6 +263,197 @@ class TrainingControllerTest {
         String page = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId())).andExpect(status().isOk()).andReturn());
 
         assertThat(page).contains("hx-target=\"#training-images\"").contains("data-busy=\"off\"").contains("Togli dal dataset");
+    }
+
+    // --- didascalie ---------------------------------------------------------------------------------------------
+
+    /** Prepara lo stato di un'immagine attraverso lo store (come farebbe il lavoro in background), non attraverso la pagina. */
+    private void withImage(Long datasetId, Long imageId, Consumer<TrainingImage> change) {
+        TrainingDataset dataset = store.findById(datasetId).orElseThrow();
+        change.accept(dataset.findImage(imageId).orElseThrow());
+        store.save(dataset);
+    }
+
+    private Long firstImageOf(TrainingDataset dataset) {
+        return datasets.get(dataset.getId()).getImages().get(0).getId();
+    }
+
+    @Test
+    void aNewImageAsksForItsCaptionInTheBackgroundAndShowsItPendingWithPolling() throws Exception {
+        TrainingDataset dataset = newDataset();
+
+        String fragment = body(mockMvc.perform(multipart("/trainings/datasets/" + dataset.getId() + "/images").file(png("a.png"))
+                .header("HX-Request", "true")).andExpect(status().isOk()).andReturn());
+
+        Long imageId = firstImageOf(dataset);
+        // L'evento arriva davvero al lavoro (listener + executor): e' asincrono, quindi con un'attesa.
+        verify(captionJobs, timeout(5000)).caption(dataset.getId(), imageId);
+        assertThat(fragment).contains("Descrizione in corso").contains("hx-trigger=\"load delay:3s\"")
+                .contains("/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption")
+                .contains("id=\"training-caption-" + imageId + "\"").doesNotContain("<textarea");
+    }
+
+    @Test
+    void aPendingCaptionIsPolledAndStopsPollingOnceItArrives() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = firstImageOf(dataset);
+        String url = "/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption";
+
+        String pending = body(mockMvc.perform(get(url)).andExpect(status().isOk()).andReturn());
+        withImage(dataset.getId(), imageId, i -> i.applyAutoCaption(i.getFilename(), "TOKCAT, a cat on a sofa"));
+        String done = body(mockMvc.perform(get(url)).andExpect(status().isOk()).andReturn());
+
+        assertThat(pending).contains("hx-trigger=\"load delay:3s\"").doesNotContain("<textarea");
+        assertThat(done).doesNotContain("load delay").contains("<textarea").contains("TOKCAT, a cat on a sofa").contains("automatica");
+    }
+
+    @Test
+    void anEditableCaptionSavesOnChangeWithoutBlockingThePage() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = firstImageOf(dataset);
+        withImage(dataset.getId(), imageId, i -> i.applyAutoCaption(i.getFilename(), "TOKCAT, a cat"));
+
+        String box = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption")).andReturn());
+
+        assertThat(box).contains("hx-trigger=\"change\"").contains("hx-swap=\"outerHTML\"").contains("data-busy=\"off\"")
+                .contains("hx-post=\"/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption\"")
+                .contains("hx-target=\"#training-caption-" + imageId + "\"").contains("name=\"caption\"");
+    }
+
+    @Test
+    void anUnknownImageAnswersWithAnEmptyBodySoThePollingElementJustDisappears() throws Exception {
+        TrainingDataset dataset = newDataset();
+
+        String empty = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId() + "/images/999999/caption"))
+                .andExpect(status().isOk()).andReturn());
+        String noDataset = body(mockMvc.perform(get("/trainings/datasets/999999/images/1/caption")).andExpect(status().isOk()).andReturn());
+
+        assertThat(empty.strip()).isEmpty();
+        assertThat(noDataset.strip()).isEmpty();
+    }
+
+    @Test
+    void savingACaptionStoresItAsHandWrittenAndAnswersWithTheCaptionBox() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = firstImageOf(dataset);
+
+        String box = body(mockMvc.perform(post("/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption")
+                        .param("caption", "  TOKCAT, la mia didascalia  ").header("HX-Request", "true"))
+                .andExpect(status().isOk()).andReturn());
+
+        TrainingImage saved = datasets.get(dataset.getId()).getImages().get(0);
+        assertThat(saved.getCaption()).isEqualTo("TOKCAT, la mia didascalia");
+        assertThat(saved.getCaptionSource()).isEqualTo(CaptionSource.MANUAL);
+        assertThat(saved.getCaptionStatus()).isEqualTo(CaptionStatus.DONE);
+        assertThat(box).contains("TOKCAT, la mia didascalia").contains("scritta a mano").doesNotContain("<html");
+    }
+
+    @Test
+    void aCaptionTooLongIsAnExpectedRejectionAndChangesNothing() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = firstImageOf(dataset);
+
+        mockMvc.perform(post("/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption")
+                        .param("caption", "x".repeat(ITrainingCaptions.MAX_CAPTION + 1)).header("HX-Request", "true"))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(datasets.get(dataset.getId()).getImages().get(0).getCaption()).isNull();
+    }
+
+    @Test
+    void regeneratingOneCaptionPutsItPendingAndStartsTheJob() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = firstImageOf(dataset);
+        withImage(dataset.getId(), imageId, i -> i.applyAutoCaption(i.getFilename(), "TOKCAT, vecchia"));
+
+        String box = body(mockMvc.perform(post("/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/recaption")
+                .header("HX-Request", "true")).andExpect(status().isOk()).andReturn());
+
+        assertThat(box).contains("Descrizione in corso").contains("load delay:3s");
+        assertThat(datasets.get(dataset.getId()).getImages().get(0).isCaptionPending()).isTrue();
+        verify(captionJobs, timeout(5000).atLeastOnce()).caption(dataset.getId(), imageId);
+    }
+
+    @Test
+    void onlyAHandWrittenCaptionAsksForConfirmationBeforeBeingReplaced() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG), UploadedFile.of("b.png", PNG)));
+        Long auto = datasets.get(dataset.getId()).getImages().get(0).getId();
+        Long manual = datasets.get(dataset.getId()).getImages().get(1).getId();
+        withImage(dataset.getId(), auto, i -> i.applyAutoCaption(i.getFilename(), "TOKCAT, automatica"));
+        withImage(dataset.getId(), manual, i -> i.writeCaption("TOKCAT, mia"));
+
+        String autoBox = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId() + "/images/" + auto + "/caption")).andReturn());
+        String manualBox = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId() + "/images/" + manual + "/caption")).andReturn());
+
+        assertThat(autoBox).contains("/recaption\"").doesNotContain("hx-confirm");
+        assertThat(manualBox).contains("/recaption\"").contains("hx-confirm=");
+    }
+
+    @Test
+    void aCaptionThatDoesNotNameTheTriggerWordIsFlaggedAndTheBulkActionFixesIt() throws Exception {
+        TrainingDataset dataset = newDataset(); // trigger word TOKCAT
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+        Long imageId = firstImageOf(dataset);
+        withImage(dataset.getId(), imageId, i -> i.writeCaption("a cat on a sofa"));
+        String boxUrl = "/trainings/datasets/" + dataset.getId() + "/images/" + imageId + "/caption";
+
+        String flagged = body(mockMvc.perform(get(boxUrl)).andReturn());
+        String fragment = body(mockMvc.perform(post("/trainings/datasets/" + dataset.getId() + "/captions/trigger-word")
+                .header("HX-Request", "true")).andExpect(status().isOk()).andReturn());
+        String fixed = body(mockMvc.perform(get(boxUrl)).andReturn());
+
+        assertThat(flagged).contains("Non nomina la trigger word");
+        assertThat(fragment).contains("training-image-" + imageId).doesNotContain("<html");
+        assertThat(datasets.get(dataset.getId()).getImages().get(0).getCaption()).isEqualTo("TOKCAT, a cat on a sofa");
+        assertThat(fixed).doesNotContain("Non nomina la trigger word");
+    }
+
+    @Test
+    void regeneratingTheAutomaticCaptionsAnswersWithTheWholeGridAndLeavesTheHandWrittenOnes() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG), UploadedFile.of("b.png", PNG)));
+        Long auto = datasets.get(dataset.getId()).getImages().get(0).getId();
+        Long manual = datasets.get(dataset.getId()).getImages().get(1).getId();
+        withImage(dataset.getId(), auto, i -> i.applyAutoCaption(i.getFilename(), "TOKCAT, automatica"));
+        withImage(dataset.getId(), manual, i -> i.writeCaption("TOKCAT, mia"));
+
+        String fragment = body(mockMvc.perform(post("/trainings/datasets/" + dataset.getId() + "/captions/regenerate")
+                .header("HX-Request", "true")).andExpect(status().isOk()).andReturn());
+
+        TrainingDataset saved = datasets.get(dataset.getId());
+        assertThat(saved.findImage(auto).orElseThrow().isCaptionPending()).isTrue();
+        assertThat(saved.findImage(manual).orElseThrow().getCaption()).isEqualTo("TOKCAT, mia");
+        assertThat(saved.findImage(manual).orElseThrow().isCaptionPending()).isFalse();
+        assertThat(fragment).contains("training-image-" + auto).contains("training-image-" + manual).contains("Descrizione in corso");
+    }
+
+    @Test
+    void theEditorOffersTheBulkCaptionActions() throws Exception {
+        TrainingDataset dataset = newDataset();
+        datasets.addImages(dataset.getId(), List.of(UploadedFile.of("a.png", PNG)));
+
+        String page = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Rigenera le automatiche").contains("/captions/regenerate").contains("Aggiungi la trigger word dove manca")
+                .contains("/captions/trigger-word");
+    }
+
+    @Test
+    void aSnapshotShowsItsCaptionsReadOnly() throws Exception {
+        TrainingDataset snapshot = store.save(new TrainingDataset("snapshot", "TOKCAT", LoraType.SUBJECT, null, true, null, Instant.now()));
+        snapshot.addImage("snap.png", "snap.png", Instant.now()).writeCaption("TOKCAT, una didascalia congelata");
+        snapshot = store.save(snapshot);
+
+        String page = body(mockMvc.perform(get("/trainings/datasets/" + snapshot.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("TOKCAT, una didascalia congelata").doesNotContain("<textarea").doesNotContain("/recaption")
+                .doesNotContain("/captions/regenerate").doesNotContain("/captions/trigger-word");
     }
 
     // --- ritaglio -----------------------------------------------------------------------------------------------

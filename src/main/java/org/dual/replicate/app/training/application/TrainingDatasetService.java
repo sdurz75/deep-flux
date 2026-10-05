@@ -7,12 +7,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.UploadReport;
+import org.dual.replicate.app.training.domain.event.CaptionRequestedEvent;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
@@ -23,37 +26,42 @@ import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
  * Use case delle bozze di dataset di addestramento. NON e' {@code @Transactional} a livello di metodo, come {@code ChatService}: i file dello storage non
  * sono transazionali, e il salvataggio atomico di bozza e immagini lo da' gia' lo store. L'ordine e' sempre "file prima, riga dopo" in scrittura e
  * "riga prima, file dopo" in cancellazione, con la pulizia dei file appena scritti se la riga non si salva: un guasto lascia al peggio un file orfano,
- * mai una riga che punta a un file mancante.
+ * mai una riga che punta a un file mancante. Ogni scrittura sulla bozza passa da {@link DatasetEditor} (rilettura e riapplicazione sui conflitti di
+ * versione: le didascalie automatiche scrivono in parallelo).
  */
 @Service
 public class TrainingDatasetService implements ITrainingDatasets {
 
+    private final DatasetEditor editor;
     private final ITrainingDatasetStore store;
     private final IImageStorageService storage;
     private final ISystemEvents systemEvents;
     private final Messages messages;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final int maxImages;
 
     @Autowired
-    public TrainingDatasetService(ITrainingDatasetStore store, IImageStorageService storage, ISystemEvents systemEvents, Messages messages,
-                                  @Value("${app.training.max-images:25}") int maxImages) {
-        this(store, storage, systemEvents, messages, Clock.systemDefaultZone(), maxImages);
+    public TrainingDatasetService(DatasetEditor editor, ITrainingDatasetStore store, IImageStorageService storage, ISystemEvents systemEvents,
+                                  Messages messages, ApplicationEventPublisher eventPublisher, @Value("${app.training.max-images:25}") int maxImages) {
+        this(editor, store, storage, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), maxImages);
     }
 
-    TrainingDatasetService(ITrainingDatasetStore store, IImageStorageService storage, ISystemEvents systemEvents, Messages messages, Clock clock,
-                           int maxImages) {
+    TrainingDatasetService(DatasetEditor editor, ITrainingDatasetStore store, IImageStorageService storage, ISystemEvents systemEvents,
+                           Messages messages, ApplicationEventPublisher eventPublisher, Clock clock, int maxImages) {
+        this.editor = editor;
         this.store = store;
         this.storage = storage;
         this.systemEvents = systemEvents;
         this.messages = messages;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.maxImages = maxImages;
     }
@@ -75,7 +83,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
 
     @Override
     public TrainingDataset get(Long id) {
-        return find(id).orElseThrow(() -> new TrainingException(messages.get("training.error.notFound")));
+        return editor.get(id);
     }
 
     @Override
@@ -85,14 +93,17 @@ public class TrainingDatasetService implements ITrainingDatasets {
 
     @Override
     public TrainingDataset update(Long id, String name, String triggerWord, LoraType loraType, String note) {
-        TrainingDataset dataset = editable(id);
-        dataset.update(validName(name), validTriggerWord(triggerWord), validType(loraType), optionalNote(note), clock.instant());
-        return save(dataset);
+        // Si valida UNA volta, prima di leggere la bozza: il rifiuto non dipende da cio' che e' nel DB.
+        String validName = validName(name);
+        String validTrigger = validTriggerWord(triggerWord);
+        LoraType validType = validType(loraType);
+        String validNote = optionalNote(note);
+        return editor.mutate(id, dataset -> dataset.update(validName, validTrigger, validType, validNote, clock.instant()));
     }
 
     @Override
     public TrainingDataset duplicate(Long id) {
-        TrainingDataset source = get(id);
+        TrainingDataset source = editor.get(id);
         Instant now = clock.instant();
         TrainingDataset copy = new TrainingDataset(copyName(source.getName()), source.getTriggerWord(), source.getLoraType(), source.getNote(),
                 false, source.getId(), now);
@@ -113,15 +124,15 @@ public class TrainingDatasetService implements ITrainingDatasets {
 
     @Override
     public void delete(Long id) {
-        TrainingDataset dataset = editable(id);
-        store.delete(dataset);
+        TrainingDataset dataset = editor.editable(id);
+        editor.delete(dataset);
         dataset.ownedFilenames().forEach(this::deleteQuietly);
     }
 
     @Override
     public UploadReport addImages(Long datasetId, List<UploadedFile> files) {
-        TrainingDataset dataset = editable(datasetId);
-        int room = maxImages - dataset.getImages().size();
+        TrainingDataset current = editor.editable(datasetId);
+        int room = maxImages - current.getImages().size();
         List<Entry> entries = new ArrayList<>();
         int accepted = 0;
         for (UploadedFile file : files) {
@@ -144,17 +155,24 @@ public class TrainingDatasetService implements ITrainingDatasets {
                 entries.add(Entry.rejected(name, e.isReportable() ? messages.get("training.error.saveFailed", name) : e.getMessage()));
             }
         }
-        List<String> storedFiles = entries.stream().map(Entry::filename).filter(f -> f != null).toList();
+        List<Entry> storedEntries = entries.stream().filter(e -> e.filename() != null).toList();
         Map<String, Long> idByFilename = new HashMap<>();
-        if (!storedFiles.isEmpty()) {
+        if (!storedEntries.isEmpty()) {
             Instant now = clock.instant();
-            entries.stream().filter(e -> e.filename() != null).forEach(e -> dataset.addImage(e.filename(), e.name(), now));
             try {
-                store.save(dataset).getImages().forEach(image -> idByFilename.put(image.getFilename(), image.getId()));
+                editor.mutate(datasetId, dataset -> {
+                    // Il posto si ricontrolla sullo stato riletto: un altro caricamento puo' averlo occupato fra la lettura e il salvataggio.
+                    if (dataset.getImages().size() + storedEntries.size() > maxImages) {
+                        throw new TrainingException(messages.get("training.error.tooManyImages", maxImages));
+                    }
+                    // Ogni immagine nuova parte con la didascalia automatica in sospeso.
+                    storedEntries.forEach(e -> dataset.addImage(e.filename(), e.name(), now).requestAutoCaption(false));
+                }).getImages().forEach(image -> idByFilename.put(image.getFilename(), image.getId()));
             } catch (RuntimeException e) {
-                storedFiles.forEach(this::deleteQuietly);
-                throw translated(e);
+                storedEntries.forEach(entry -> deleteQuietly(entry.filename()));
+                throw e;
             }
+            storedEntries.forEach(e -> requestCaption(datasetId, idByFilename.get(e.filename())));
         }
         return new UploadReport(entries.stream()
                 .map(e -> e.filename() == null ? UploadReport.Result.rejected(e.name(), e.rejection())
@@ -164,11 +182,10 @@ public class TrainingDatasetService implements ITrainingDatasets {
 
     @Override
     public void removeImage(Long datasetId, Long imageId) {
-        TrainingDataset dataset = editable(datasetId);
-        TrainingImage removed = dataset.removeImage(imageId, clock.instant())
-                .orElseThrow(() -> new TrainingException(messages.get("training.error.imageNotFound")));
-        save(dataset);
-        removed.ownedFilenames().forEach(this::deleteQuietly);
+        AtomicReference<TrainingImage> removed = new AtomicReference<>();
+        editor.mutate(datasetId, dataset -> removed.set(dataset.removeImage(imageId, clock.instant())
+                .orElseThrow(() -> new TrainingException(messages.get("training.error.imageNotFound")))));
+        removed.get().ownedFilenames().forEach(this::deleteQuietly);
     }
 
     @Override
@@ -177,62 +194,57 @@ public class TrainingDatasetService implements ITrainingDatasets {
         if (x < 0 || y < 0 || width < 1 || height < 1 || x > MAX_CROP_SIDE || y > MAX_CROP_SIDE || width > MAX_CROP_SIDE || height > MAX_CROP_SIDE) {
             throw new TrainingException(messages.get("training.error.cropInvalid"));
         }
-        TrainingDataset dataset = editable(datasetId);
-        TrainingImage image = imageOf(dataset, imageId);
+        // Prima di salvare il file si verifica che bozza e immagine esistano: un rifiuto non deve lasciare un orfano. Il vero controllo e' nel giro
+        // di mutate, sullo stato riletto.
+        editor.image(editor.editable(datasetId), imageId);
         String croppedFilename = storage.storeUpload(cropped);
-        Optional<String> replaced = image.applyCrop(croppedFilename, x, y, width, height);
-        dataset.touch(clock.instant());
+        AtomicReference<Optional<String>> replaced = new AtomicReference<>(Optional.empty());
+        AtomicBoolean recaption = new AtomicBoolean();
         TrainingDataset saved;
         try {
-            saved = save(dataset);
+            saved = editor.mutate(datasetId, dataset -> {
+                TrainingImage image = editor.image(dataset, imageId);
+                replaced.set(image.applyCrop(croppedFilename, x, y, width, height));
+                // La didascalia automatica descriveva un'altra inquadratura: va rifatta. Quella a mano e' dell'utente e resta.
+                recaption.set(image.requestAutoCaption(false));
+                dataset.touch(clock.instant());
+            });
         } catch (RuntimeException e) {
             deleteQuietly(croppedFilename);
             throw e;
         }
-        replaced.ifPresent(this::deleteQuietly);
+        replaced.get().ifPresent(this::deleteQuietly);
+        if (recaption.get()) {
+            requestCaption(datasetId, imageId);
+        }
         return saved;
     }
 
     @Override
     public TrainingDataset resetCrop(Long datasetId, Long imageId) {
-        TrainingDataset dataset = editable(datasetId);
-        TrainingImage image = imageOf(dataset, imageId);
-        if (!image.isCropped()) {
-            return dataset;
+        if (!editor.image(editor.editable(datasetId), imageId).isCropped()) {
+            return editor.get(datasetId);
         }
-        Optional<String> replaced = image.clearCrop();
-        dataset.touch(clock.instant());
-        TrainingDataset saved = save(dataset);
-        replaced.ifPresent(this::deleteQuietly);
+        AtomicReference<Optional<String>> replaced = new AtomicReference<>(Optional.empty());
+        AtomicBoolean recaption = new AtomicBoolean();
+        TrainingDataset saved = editor.mutate(datasetId, dataset -> {
+            TrainingImage image = editor.image(dataset, imageId);
+            replaced.set(image.clearCrop());
+            recaption.set(image.requestAutoCaption(false));
+            dataset.touch(clock.instant());
+        });
+        replaced.get().ifPresent(this::deleteQuietly);
+        if (recaption.get()) {
+            requestCaption(datasetId, imageId);
+        }
         return saved;
     }
 
     // --- interno ------------------------------------------------------------------------------------------------
 
-    private TrainingImage imageOf(TrainingDataset dataset, Long imageId) {
-        return dataset.findImage(imageId).orElseThrow(() -> new TrainingException(messages.get("training.error.imageNotFound")));
-    }
-
-    /** La bozza da modificare: un id sconosciuto o uno snapshot (sola lettura) e' un rifiuto. */
-    private TrainingDataset editable(Long id) {
-        TrainingDataset dataset = get(id);
-        if (dataset.isFrozen()) {
-            throw new TrainingException(messages.get("training.error.frozen"));
-        }
-        return dataset;
-    }
-
-    private TrainingDataset save(TrainingDataset dataset) {
-        try {
-            return store.save(dataset);
-        } catch (RuntimeException e) {
-            throw translated(e);
-        }
-    }
-
-    /** Una copia vecchia sovrascritta (blocco ottimistico) e' un conflitto da mostrare, non un errore interno. */
-    private RuntimeException translated(RuntimeException e) {
-        return e instanceof OptimisticLockingFailureException ? new TrainingException(messages.get("training.error.conflict")) : e;
+    /** Avvia in background la didascalia di un'immagine gia' salvata come {@code PENDING}. */
+    private void requestCaption(Long datasetId, Long imageId) {
+        eventPublisher.publishEvent(new CaptionRequestedEvent(datasetId, imageId));
     }
 
     private String copyFile(String filename, List<String> copied) {

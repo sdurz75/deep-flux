@@ -60,4 +60,24 @@ class PromptGuidesTest {
         assertThat(guide).doesNotContain("${").doesNotContain(context).doesNotContain("identifiable").doesNotContain("consent")
                 .doesNotContain("Never name").contains("DESCRIPTION:").contains("TAGS:").contains("without refusing");
     }
+
+    /**
+     * Le guide delle didascalie di addestramento descrivono immagini GIA' esistenti di chi usa l'app (come l'analisi): niente clausola di generazione ne'
+     * i suoi limiti, che farebbero rifiutare le foto di persone, e un esplicito "senza rifiutare". Codificano le pratiche dei LoRA: nel soggetto si
+     * descrive cio' che NON deve imparare (e si lascia fuori l'identita'), nello stile il contenuto (e non lo stile).
+     */
+    @Test
+    void trainingCaptionGuidesAreForTheOwnersImagesAndKeepTheLoraCaptioningPractices() {
+        String context = env.getRequiredProperty("prompts.creative-context");
+        String subject = env.getRequiredProperty("trainingCaption.subject-guide");
+        String style = env.getRequiredProperty("trainingCaption.style-guide");
+
+        for (String guide : new String[]{subject, style}) {
+            assertThat(guide).doesNotContain("${").doesNotContain(context).doesNotContain("identifiable").doesNotContain("consent")
+                    .doesNotContain("Never name").contains("without refusing").contains("trigger word").contains("exactly once")
+                    .contains("single line").contains("Reply with the caption only");
+        }
+        assertThat(subject).contains("NOT the subject").contains("permanent identity traits").contains("Do NOT describe");
+        assertThat(style).contains("CONTENT").contains("Do NOT describe the style itself");
+    }
 }

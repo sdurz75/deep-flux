@@ -342,6 +342,16 @@
         th:text="${text}">Ritaglia</button>
 
 <!--
+  trainingAction(text, url, target, swap, confirmText): un'azione leggera su un dataset di addestramento (templates/app/training-dataset.html): "Rigenera" una
+  didascalia o tutte, "Aggiungi la trigger word". POST htmx sul `url` (gia' avvolto in @{...} dal chiamante) che rimpiazza `target` con `swap`; `confirmText` null =
+  nessuna conferma. data-busy="off": e' un'azione leggera (il lavoro vero e' in background), l'overlay "operazione in corso" bloccherebbe la pagina per nulla.
+-->
+<button th:fragment="trainingAction(text, url, target, swap, confirmText)" type="button" th:hx-post="${url}" th:hx-target="${target}" th:hx-swap="${swap}"
+        th:hx-confirm="${confirmText}" data-busy="off"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-1 text-[0.8rem]"
+        th:text="${text}">Rigenera</button>
+
+<!--
   resetTrainingCrop(text, url): "Ripristina l'originale" sulla card di un'immagine ritagliata (training-dataset.html :: images). POST htmx che rimpiazza
   #training-images; `url` e' gia' avvolto in @{...} dal chiamante. data-busy="off": azione leggera, nessun overlay.
 -->

@@ -94,6 +94,9 @@ app:
     # Lato lungo massimo, in pixel, di un'immagine ritagliata nel browser (TrainingController, editor di ritaglio): il canvas la riduce prima dell'invio.
     # Il trainer ridimensiona comunque (~1024): oltre questo valore si spedirebbero solo byte inutili. L'originale resta com'e'.
     max-image-side: 1536
+    # Ogni quanto lo sweep rilancia le didascalie automatiche rimaste in sospeso (evento perso, coda piena): il lavoro e' idempotente e ricorda quali
+    # immagini ha in corso, quindi un rilancio non ne duplica una gia' partita. All'avvio le rilancia tutte. Spento con app.recovery.enabled=false.
+    caption-sweep-interval: 5m
   chat:
     # /deep-chat (ImageGenerationTool, VisionTool, ChatService): tetti di sicurezza per turno e finestra della cronologia mandata al modello.
     # max-generations-per-turn: ogni generateImage e' una predizione a pagamento; max-vision-calls-per-turn: ogni describeImage costa token

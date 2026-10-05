@@ -3,6 +3,7 @@ package org.dual.replicate.app.training.domain;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import jakarta.persistence.Column;
@@ -149,6 +150,85 @@ public class TrainingImage {
             names.add(originalFilename);
         }
         return names;
+    }
+
+    // --- didascalia ---------------------------------------------------------------------------------------------
+    //
+    // Regola unica: una didascalia scritta a mano ({@code MANUAL}) non la sovrascrive mai un lavoro automatico, che quando torna controlla di avere
+    // ancora diritto di scrivere (stessa immagine, ancora PENDING, non diventata MANUAL nel frattempo): la risposta del modello di visione arriva
+    // dopo secondi, in cui l'utente puo' aver scritto, ritagliato o eliminato.
+
+    public boolean isCaptionPending() {
+        return captionStatus == CaptionStatus.PENDING;
+    }
+
+    /**
+     * Chiede la didascalia automatica (immagine nuova, ritaglio rifatto, "Rigenera"): lo stato diventa {@code PENDING}. Il testo attuale resta finche' non
+     * arriva il nuovo, cosi' un fallimento non lo perde. Una didascalia a mano si rispetta, salvo {@code overwriteManual} (richiesta esplicita
+     * dell'utente: da quel momento e' di nuovo "da scrivere" a macchina).
+     *
+     * @return {@code false} se non si e' toccato nulla (didascalia a mano e nessuna richiesta esplicita)
+     */
+    public boolean requestAutoCaption(boolean overwriteManual) {
+        if (captionSource == CaptionSource.MANUAL) {
+            if (!overwriteManual) {
+                return false;
+            }
+            captionSource = CaptionSource.NONE;
+        }
+        captionStatus = CaptionStatus.PENDING;
+        return true;
+    }
+
+    /**
+     * Scrive il risultato del lavoro automatico, se ne ha ancora diritto: {@code captionedFilename} e' il file che il lavoro ha guardato, e se nel frattempo
+     * l'immagine e' stata ritagliata di nuovo la didascalia non vale piu' per quella attuale.
+     *
+     * @return {@code false} se il risultato e' stato scartato
+     */
+    public boolean applyAutoCaption(String captionedFilename, String text) {
+        if (!mayReceiveAutoCaption(captionedFilename)) {
+            return false;
+        }
+        this.caption = text;
+        this.captionSource = CaptionSource.AUTO;
+        this.captionStatus = CaptionStatus.DONE;
+        return true;
+    }
+
+    /** Il lavoro automatico non ha prodotto una didascalia: stessa guardia di {@link #applyAutoCaption}; il testo precedente, se c'era, resta. */
+    public boolean failAutoCaption(String captionedFilename) {
+        if (!mayReceiveAutoCaption(captionedFilename)) {
+            return false;
+        }
+        this.captionStatus = CaptionStatus.FAILED;
+        return true;
+    }
+
+    private boolean mayReceiveAutoCaption(String captionedFilename) {
+        return captionStatus == CaptionStatus.PENDING && captionSource != CaptionSource.MANUAL && filename.equals(captionedFilename);
+    }
+
+    /** La didascalia scritta (o corretta) a mano: {@code text} e' gia' ripulito, vuoto = nessuna didascalia. Chiude anche un lavoro automatico in corso. */
+    public void writeCaption(String text) {
+        boolean empty = text == null || text.isEmpty();
+        this.caption = empty ? null : text;
+        this.captionSource = empty ? CaptionSource.NONE : CaptionSource.MANUAL;
+        this.captionStatus = CaptionStatus.DONE;
+    }
+
+    /** Ha una didascalia che non nomina la trigger word (senza distinguere maiuscole)? Senza didascalia: no, non c'e' nulla a cui aggiungerla. */
+    public boolean isCaptionMissingTrigger(String triggerWord) {
+        return caption != null && !caption.isBlank() && !caption.toLowerCase(Locale.ROOT).contains(triggerWord.toLowerCase(Locale.ROOT));
+    }
+
+    /** Mette la trigger word davanti a una didascalia che non la nomina; l'origine (automatica o a mano) non cambia. */
+    public boolean prependTriggerWord(String triggerWord) {
+        if (!isCaptionMissingTrigger(triggerWord)) {
+            return false;
+        }
+        this.caption = triggerWord + ", " + caption;
+        return true;
     }
 
     public Long getId() {

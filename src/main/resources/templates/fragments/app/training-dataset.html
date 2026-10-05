@@ -35,6 +35,17 @@
 
     <p th:if="${#lists.isEmpty(dataset.images)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.images.empty}">Nessuna immagine ancora.</p>
 
+    <!--/* Azioni di massa sulle didascalie: dopo un caricamento o un cambio di trigger word. Rimpiazzano tutta la griglia (le card in sospeso ripartono col polling). */-->
+    <div th:unless="${dataset.frozen or #lists.isEmpty(dataset.images)}" class="mb-3 flex flex-wrap items-center gap-2">
+        <span class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.caption.bulk.title}">Didascalie</span>
+        <button th:replace="~{fragments/app/button-gen :: trainingAction(text=#{training.caption.bulk.regenerate},
+                    url=@{/trainings/datasets/{id}/captions/regenerate(id=${dataset.id})}, target='#training-images', swap='innerHTML',
+                    confirmText=#{training.caption.bulk.regenerateConfirm})}"></button>
+        <button th:replace="~{fragments/app/button-gen :: trainingAction(text=#{training.caption.bulk.addTrigger},
+                    url=@{/trainings/datasets/{id}/captions/trigger-word(id=${dataset.id})}, target='#training-images', swap='innerHTML',
+                    confirmText=null)}"></button>
+    </div>
+
     <ul th:unless="${#lists.isEmpty(dataset.images)}" class="list-none p-0 m-0 grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
         <li th:each="image : ${dataset.images}" th:id="'training-image-' + ${image.id}"
             class="relative border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark p-2">
@@ -57,6 +68,7 @@
                     </th:block>
                 </div>
             </th:block>
+            <th:block th:replace="~{fragments/app/training-caption :: box(dataset=${dataset}, image=${image})}"></th:block>
         </li>
     </ul>
 </th:block>

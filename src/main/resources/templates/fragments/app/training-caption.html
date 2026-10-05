@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  La didascalia di UNA immagine di un dataset (dentro la card di fragments/app/training-dataset.html :: images). E' anche cio' che rispondono il salvataggio,
+  "Rigenera" e il polling, quindi ha un id proprio e si rimpiazza da sola (outerHTML).
+
+  Tre stati, da image.captionPending e dataset.frozen:
+  - IN SOSPESO: nessuna textarea e un solo elemento che si ricarica da solo ogni 3 s (hx-trigger "load delay:3s": il fragment che torna, se e' ancora in sospeso,
+    porta di nuovo lo stesso trigger, quindi il giro continua da solo e si ferma quando arriva la didascalia). Niente textarea perche' lo scambio ogni 3 s si
+    mangerebbe cio' che l'utente sta scrivendo. data-busy="off": e' un GET, ma lo diciamo comunque per chiarezza.
+  - MODIFICABILE: una textarea che salva al `change` (cioe' quando perde il focus) con un POST htmx; il fragment che torna e' lo stesso. data-busy="off": un non-GET
+    altrimenti bloccherebbe la pagina a ogni correzione.
+  - CONGELATA (snapshot di un training): solo testo.
+
+  Il testo che l'utente vede (in sospeso, non riuscita...) viene dai bundle; l'origine e' un'etichetta, la didascalia a mano non viene mai sovrascritta da un lavoro
+  automatico (vedi TrainingImage).
+-->
+<th:block th:fragment="box(dataset, image)">
+    <!--/* IN SOSPESO: polling, nessuna textarea. */-->
+    <div th:if="${image.captionPending}" th:id="'training-caption-' + ${image.id}" class="mt-2" aria-live="polite" data-busy="off"
+         th:hx-get="@{/trainings/datasets/{id}/images/{imageId}/caption(id=${dataset.id}, imageId=${image.id})}" hx-trigger="load delay:3s" hx-swap="outerHTML">
+        <p class="m-0 text-[0.8rem] italic text-ink-muted dark:text-ink-muted-dark" th:text="#{training.caption.pending}">Descrizione in corso...</p>
+    </div>
+
+    <th:block th:unless="${image.captionPending}">
+        <!--/* CONGELATA: sola lettura. */-->
+        <div th:if="${dataset.frozen}" th:id="'training-caption-' + ${image.id}" class="mt-2">
+            <p th:if="${image.caption != null}" class="m-0 whitespace-pre-wrap text-[0.8rem]" th:text="${image.caption}">didascalia</p>
+            <p th:if="${image.caption == null}" class="m-0 text-[0.8rem] italic text-ink-muted dark:text-ink-muted-dark" th:text="#{training.caption.none}">Nessuna didascalia</p>
+        </div>
+
+        <!--/* MODIFICABILE. */-->
+        <div th:unless="${dataset.frozen}" th:id="'training-caption-' + ${image.id}" class="mt-2">
+            <textarea name="caption" rows="4" maxlength="1000" class="w-full text-[0.8rem]"
+                      th:aria-label="#{training.caption.label}" th:placeholder="#{training.caption.placeholder}"
+                      th:hx-post="@{/trainings/datasets/{id}/images/{imageId}/caption(id=${dataset.id}, imageId=${image.id})}" hx-trigger="change"
+                      th:hx-target="'#training-caption-' + ${image.id}" hx-swap="outerHTML" data-busy="off"
+                      th:text="${image.caption}"></textarea>
+            <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.7rem] text-ink-muted dark:text-ink-muted-dark">
+                <span th:if="${image.captionSource.name() == 'AUTO'}" th:text="#{training.caption.source.auto}">automatica</span>
+                <span th:if="${image.captionSource.name() == 'MANUAL'}" th:text="#{training.caption.source.manual}">a mano</span>
+                <span th:if="${image.captionStatus.name() == 'FAILED'}" class="text-danger dark:text-danger-dark" role="alert" th:text="#{training.caption.failed}">non riuscita</span>
+                <span th:if="${image.isCaptionMissingTrigger(dataset.triggerWord)}" class="text-warning dark:text-warning-dark" th:text="#{training.caption.missingTrigger}">senza trigger word</span>
+            </div>
+            <div class="mt-1">
+                <button th:replace="~{fragments/app/button-gen :: trainingAction(text=#{training.caption.regenerate},
+                            url=@{/trainings/datasets/{id}/images/{imageId}/recaption(id=${dataset.id}, imageId=${image.id})},
+                            target='#training-caption-' + ${image.id}, swap='outerHTML',
+                            confirmText=${image.captionSource.name() == 'MANUAL'} ? #{training.caption.confirmRegenerate} : null)}"></button>
+            </div>
+        </div>
+    </th:block>
+</th:block>
+
+<!--/* Risposta vuota: il polling di un'immagine sparita nel frattempo toglie l'elemento senza un toast d'errore. */-->
+<th:block th:fragment="none"></th:block>
+
+</body>
+</html>

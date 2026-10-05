@@ -9,7 +9,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
+import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.UploadReport;
+import org.dual.replicate.app.training.port.in.ITrainingCaptions;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.core.kernel.Paged;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
@@ -40,11 +42,13 @@ public class TrainingController {
     static final int PAGE_SIZE = 12;
 
     private final ITrainingDatasets datasets;
+    private final ITrainingCaptions captions;
     /** Lato lungo massimo di un ritaglio: lo usa solo il browser (canvas), il server non decodifica le immagini. */
     private final int maxImageSide;
 
-    public TrainingController(ITrainingDatasets datasets, @Value("${app.training.max-image-side:1536}") int maxImageSide) {
+    public TrainingController(ITrainingDatasets datasets, ITrainingCaptions captions, @Value("${app.training.max-image-side:1536}") int maxImageSide) {
         this.datasets = datasets;
+        this.captions = captions;
         this.maxImageSide = maxImageSide;
     }
 
@@ -153,6 +157,49 @@ public class TrainingController {
         return imagesView(id, null, hxRequest, model);
     }
 
+    // --- didascalie ---------------------------------------------------------------------------------------------
+
+    /**
+     * La didascalia di un'immagine: e' il target del polling delle card in sospeso (ogni 3 s). Un'immagine o una bozza sparite nel frattempo non sono un errore
+     * da mostrare: la risposta e' vuota e l'elemento sparisce.
+     */
+    @GetMapping("/datasets/{id}/images/{imageId}/caption")
+    public String captionBox(@PathVariable Long id, @PathVariable Long imageId, Model model) {
+        Optional<TrainingDataset> dataset = datasets.find(id);
+        Optional<TrainingImage> image = dataset.flatMap(d -> d.findImage(imageId));
+        return image.isEmpty() ? "fragments/app/training-caption :: none" : box(model, dataset.get(), image.get());
+    }
+
+    /** Salva la didascalia scritta a mano (al `change` della textarea): risponde con la stessa didascalia. */
+    @PostMapping("/datasets/{id}/images/{imageId}/caption")
+    public String saveCaption(@PathVariable Long id, @PathVariable Long imageId, @RequestParam(defaultValue = "") String caption,
+                              @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        TrainingDataset saved = captions.saveCaption(id, imageId, caption);
+        return captionResponse(id, imageId, saved, hxRequest, model);
+    }
+
+    /** Rigenera la didascalia di una immagine (anche scritta a mano: e' una richiesta esplicita). */
+    @PostMapping("/datasets/{id}/images/{imageId}/recaption")
+    public String recaption(@PathVariable Long id, @PathVariable Long imageId,
+                            @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        TrainingDataset saved = captions.recaption(id, imageId);
+        return captionResponse(id, imageId, saved, hxRequest, model);
+    }
+
+    /** Rigenera le automatiche (e le mancanti o non riuscite): risponde con tutta la griglia, in cui le card in sospeso ripartono col polling. */
+    @PostMapping("/datasets/{id}/captions/regenerate")
+    public String regenerateCaptions(@PathVariable Long id, @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        captions.recaptionAutomatic(id);
+        return imagesView(id, null, hxRequest, model);
+    }
+
+    /** Mette la trigger word davanti alle didascalie che non la nominano. */
+    @PostMapping("/datasets/{id}/captions/trigger-word")
+    public String addTriggerWord(@PathVariable Long id, @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        captions.addTriggerWord(id);
+        return imagesView(id, null, hxRequest, model);
+    }
+
     /** Nuova bozza dalla stessa (anche uno snapshot): e' l'editor della copia che si apre. */
     @PostMapping("/datasets/{id}/duplicate")
     @ResponseBody
@@ -169,6 +216,20 @@ public class TrainingController {
     }
 
     // --- interno ------------------------------------------------------------------------------------------------
+
+    /** Con htmx la sola didascalia; un invio nativo (senza JS) torna all'editor. */
+    private String captionResponse(Long id, Long imageId, TrainingDataset saved, String hxRequest, Model model) {
+        if (!"true".equalsIgnoreCase(hxRequest)) {
+            return "redirect:/trainings/datasets/" + id;
+        }
+        return box(model, saved, saved.findImage(imageId).orElseThrow());
+    }
+
+    private static String box(Model model, TrainingDataset dataset, TrainingImage image) {
+        model.addAttribute("dataset", dataset);
+        model.addAttribute("image", image);
+        return "fragments/app/training-caption :: box(dataset=${dataset}, image=${image})";
+    }
 
     private String imagesView(Long id, UploadReport report, String hxRequest, Model model) {
         TrainingDataset dataset = datasets.get(id);

@@ -11,11 +11,14 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.dual.replicate.app.training.domain.CaptionSource;
+import org.dual.replicate.app.training.domain.CaptionStatus;
 import org.dual.replicate.app.training.domain.LoraType;
+import org.dual.replicate.app.training.domain.PendingCaption;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.UploadReport;
+import org.dual.replicate.app.training.domain.event.CaptionRequestedEvent;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
@@ -27,6 +30,7 @@ import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -35,6 +39,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,10 +52,11 @@ class TrainingDatasetServiceTest {
     private static final Instant NOW = Instant.parse("2026-10-05T10:00:00Z");
     private static final int MAX_IMAGES = 3;
 
-    private final InMemoryStore store = new InMemoryStore();
+    private final InMemoryDatasetStore store = new InMemoryDatasetStore();
     private final IImageStorageService storage = mock(IImageStorageService.class);
     private final ISystemEvents systemEvents = mock(ISystemEvents.class);
     private final Messages messages = mock(Messages.class);
+    private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
     private final AtomicInteger stored = new AtomicInteger();
     private TrainingDatasetService service;
 
@@ -61,7 +68,8 @@ class TrainingDatasetServiceTest {
         when(messages.get("training.dataset.copySuffix")).thenReturn("(copia)");
         when(storage.storeUpload(any(UploadedFile.class))).thenAnswer(i -> "stored-" + stored.incrementAndGet() + ".png");
         when(storage.copy(anyString())).thenAnswer(i -> "copy-of-" + i.getArgument(0));
-        service = new TrainingDatasetService(store, storage, systemEvents, messages, Clock.fixed(NOW, ZoneOffset.UTC), MAX_IMAGES);
+        service = new TrainingDatasetService(new DatasetEditor(store, messages), store, storage, systemEvents, messages, publisher,
+                Clock.fixed(NOW, ZoneOffset.UTC), MAX_IMAGES);
     }
 
     // --- configurazione -----------------------------------------------------------------------------------------
@@ -240,6 +248,140 @@ class TrainingDatasetServiceTest {
         assertThat(service.get(other.getId()).getImages()).hasSize(1);
     }
 
+    // --- scritture concorrenti ----------------------------------------------------------------------------------
+
+    @Test
+    void aWriteThatFindsAStaleCopyIsReappliedOnAFreshOneInsteadOfFailing() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        int before = store.saveAttempts;
+        store.conflictsToThrow = DatasetEditor.MAX_ATTEMPTS - 1;
+
+        TrainingDataset updated = service.update(dataset.getId(), "nuovo", "NEW", LoraType.STYLE, null);
+
+        assertThat(updated.getName()).isEqualTo("nuovo");
+        assertThat(store.saveAttempts - before).as("due conflitti e poi il salvataggio riuscito").isEqualTo(DatasetEditor.MAX_ATTEMPTS);
+    }
+
+    @Test
+    void aWriteThatKeepsFindingAStaleCopyIsAConflictOnlyAfterTheAttempts() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        store.conflictsToThrow = DatasetEditor.MAX_ATTEMPTS;
+
+        assertRejected(() -> service.update(dataset.getId(), "nuovo", "NEW", LoraType.STYLE, null), "training.error.conflict");
+
+        assertThat(store.conflictsToThrow).as("ha provato tutti i tentativi, non uno solo").isZero();
+        assertThat(service.get(dataset.getId()).getName()).as("la bozza non e' stata modificata dai tentativi falliti").isEqualTo("n");
+    }
+
+    @Test
+    void anUploadThatNeedsARetryKeepsItsFilesAndAsksForEachCaptionOnce() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        store.conflictsToThrow = 1;
+
+        UploadReport report = service.addImages(dataset.getId(), List.of(upload("a.png"), upload("b.png")));
+
+        assertThat(report.acceptedCount()).isEqualTo(2);
+        verify(storage, never()).delete(anyString());
+        report.results().forEach(r -> verify(publisher, times(1)).publishEvent((Object) new CaptionRequestedEvent(dataset.getId(), r.imageId())));
+    }
+
+    @Test
+    void anUploadThatLosesItsRoomToAConcurrentOneIsRejectedAndLeavesNoFiles() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        service.addImages(dataset.getId(), List.of(upload("a.png"), upload("b.png"))); // 2 su 3: c'e' posto per UNA
+        reset(publisher);
+        store.conflictsToThrow = 1;
+        // Quando il salvataggio trova la copia vecchia, un altro caricamento ha appena occupato l'ultimo posto.
+        store.onConflict = () -> store.concurrently(dataset.getId(), d -> d.addImage("concorrente.png", "concorrente", NOW));
+
+        assertRejected(() -> service.addImages(dataset.getId(), List.of(upload("c.png"))), "training.error.tooManyImages");
+
+        verify(storage).delete("stored-3.png");
+        verify(publisher, never()).publishEvent(any(Object.class));
+    }
+
+    /** Il caso che il blocco ottimistico deve impedire: una scrittura con una copia vecchia che riporta in silenzio una didascalia appena arrivata a com'era. */
+    @Test
+    void aCaptionThatArrivesBetweenTheReadAndTheSaveOfAnotherWriteIsNotRevertedByIt() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId(); // PENDING
+        store.beforeNextSave = () -> store.concurrently(dataset.getId(),
+                d -> d.findImage(id).orElseThrow().applyAutoCaption("stored-1.png", "TOK, un gatto"));
+
+        service.update(dataset.getId(), "nuovo", "TOK", LoraType.SUBJECT, null);
+
+        TrainingImage image = store.image(dataset.getId(), id);
+        assertThat(image.getCaption()).as("la didascalia arrivata nel frattempo sopravvive").isEqualTo("TOK, un gatto");
+        assertThat(image.getCaptionStatus()).isEqualTo(CaptionStatus.DONE);
+        assertThat(store.rows.get(dataset.getId()).getName()).as("e la modifica riesce, riapplicata sullo stato nuovo").isEqualTo("nuovo");
+    }
+
+    // --- didascalia automatica richiesta da chi modifica le immagini ----------------------------------------------
+
+    @Test
+    void everyNewImageStartsWithItsAutomaticCaptionPendingAndIsAnnounced() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+
+        UploadReport report = service.addImages(dataset.getId(), List.of(upload("a.png"), upload("b.png")));
+
+        assertThat(service.get(dataset.getId()).getImages()).extracting(TrainingImage::getCaptionStatus)
+                .containsOnly(CaptionStatus.PENDING);
+        report.results().forEach(r -> verify(publisher).publishEvent((Object) new CaptionRequestedEvent(dataset.getId(), r.imageId())));
+    }
+
+    @Test
+    void aRejectedUploadAsksForNoCaption() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        when(storage.storeUpload(any(UploadedFile.class))).thenThrow(new StorageException("tipo non valido", null, Kind.REJECTED));
+
+        service.addImages(dataset.getId(), List.of(upload("a.txt")));
+
+        verify(publisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void croppingAgainAsksForANewAutomaticCaptionBecauseTheFramingChanged() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+        store.image(dataset.getId(), id).applyAutoCaption("stored-1.png", "TOK, un gatto"); // arrivata: DONE/AUTO
+        reset(publisher);
+
+        TrainingImage image = service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 100, 100).findImage(id).orElseThrow();
+
+        assertThat(image.getCaptionStatus()).isEqualTo(CaptionStatus.PENDING);
+        assertThat(image.getCaption()).as("il testo resta finche' non arriva il nuovo: un fallimento non lo perde").isEqualTo("TOK, un gatto");
+        verify(publisher).publishEvent((Object) new CaptionRequestedEvent(dataset.getId(), id));
+    }
+
+    @Test
+    void croppingNeverTouchesACaptionTheUserWrote() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+        store.image(dataset.getId(), id).writeCaption("TOK, la mia didascalia");
+        reset(publisher);
+
+        TrainingImage image = service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 100, 100).findImage(id).orElseThrow();
+        service.resetCrop(dataset.getId(), id);
+
+        assertThat(image.getCaption()).isEqualTo("TOK, la mia didascalia");
+        assertThat(image.getCaptionStatus()).isEqualTo(CaptionStatus.DONE);
+        verify(publisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void resettingTheCropAsksForANewAutomaticCaptionToo() {
+        TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
+        Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
+        service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 100, 100);
+        store.image(dataset.getId(), id).applyAutoCaption("stored-2.png", "TOK, ritagliata");
+        reset(publisher);
+
+        TrainingImage image = service.resetCrop(dataset.getId(), id).findImage(id).orElseThrow();
+
+        assertThat(image.getCaptionStatus()).isEqualTo(CaptionStatus.PENDING);
+        verify(publisher).publishEvent((Object) new CaptionRequestedEvent(dataset.getId(), id));
+    }
+
     // --- ritaglio -----------------------------------------------------------------------------------------------
 
     @Test
@@ -382,9 +524,7 @@ class TrainingDatasetServiceTest {
     void duplicateCopiesTheFilesAndKeepsCaptionsAndProvenance() {
         TrainingDataset source = service.create("Gatto", "TOKCAT", LoraType.STYLE, "nota");
         service.addImages(source.getId(), List.of(upload("a.png"), upload("b.png")));
-        TrainingDataset withCaptions = service.get(source.getId());
-        ReflectionTestUtils.setField(withCaptions.getImages().get(0), "caption", "a cat on a sofa");
-        ReflectionTestUtils.setField(withCaptions.getImages().get(0), "captionSource", CaptionSource.MANUAL);
+        store.image(source.getId(), service.get(source.getId()).getImages().get(0).getId()).writeCaption("a cat on a sofa");
 
         TrainingDataset copy = service.duplicate(source.getId());
 
@@ -496,51 +636,4 @@ class TrainingDatasetServiceTest {
     }
 
     /** Il comportamento che conta del DB: assegna gli id, tiene l'ultimo oggetto salvato e puo' essere fatto fallire. */
-    private static final class InMemoryStore implements ITrainingDatasetStore {
-
-        final Map<Long, TrainingDataset> rows = new LinkedHashMap<>();
-        RuntimeException failOnSave;
-        private long nextId = 1;
-        private long nextImageId = 1;
-
-        @Override
-        public TrainingDataset save(TrainingDataset dataset) {
-            if (failOnSave != null) {
-                throw failOnSave;
-            }
-            if (dataset.getId() == null) {
-                ReflectionTestUtils.setField(dataset, "id", nextId++);
-            }
-            for (TrainingImage image : dataset.getImages()) {
-                if (image.getId() == null) {
-                    ReflectionTestUtils.setField(image, "id", nextImageId++);
-                }
-            }
-            rows.put(dataset.getId(), dataset);
-            return dataset;
-        }
-
-        @Override
-        public Optional<TrainingDataset> findById(Long id) {
-            return Optional.ofNullable(rows.get(id));
-        }
-
-        @Override
-        public Paged<TrainingDataset> findDraftsPage(int pageIndex, int pageSize) {
-            List<TrainingDataset> drafts = new ArrayList<>(rows.values().stream().filter(d -> !d.isFrozen()).toList());
-            // Stessa data per tutte (orologio fisso): a parita' di istante vince l'id piu' alto, come nella query vera.
-            drafts.sort((a, b) -> b.getId().compareTo(a.getId()));
-            return new Paged<>(drafts, pageIndex, pageSize, drafts.size());
-        }
-
-        @Override
-        public void delete(TrainingDataset dataset) {
-            rows.remove(dataset.getId());
-        }
-
-        @Override
-        public void deleteAll() {
-            rows.clear();
-        }
-    }
 }
