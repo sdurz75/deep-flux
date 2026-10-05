@@ -390,7 +390,7 @@
                 return '../'.repeat(depth) + path.slice(1);
             };
             const linkAppPaths = (text) => typeof text !== 'string' ? text
-                : text.replace(/(\]\()?(?<![\w\/.])(\/(?:generations\/new|generations\/\d+|generations|import\/\d+|import|gallery|search|loras|tokens|system\/events)(?:\?[\w%=&\-]*)?)(?![\w\/])/g,
+                : text.replace(/(\]\()?(?<![\w\/.])(\/(?:generations\/new|generations\/\d+|generations|import\/\d+|import|gallery|search|loras|tokens|system\/events|manual\/[\w\-]+(?:#[\w\-]+)?|manual)(?:\?[\w%=&\-]*)?)(?![\w\/])/g,
                     (match, inLink, path) => {
                         if (inLink) {
                             return inLink + appHref(path);

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Elenco delle pagine del manuale, raggruppate (core.manual): `groups` e' la lista di ManualController.Group (etichetta + pagine), `current` lo
+  slug della pagina aperta (null nell'indice). Usato due volte dalla pagina (barra laterale da md in su, riquadro a scomparsa sotto md), quindi sta qui.
+  I link passano da @{...} (prefisso del reverse proxy, vedi CLAUDE.md).
+-->
+<nav th:fragment="toc(groups, current)" th:aria-label="#{manual.nav.label}" class="text-[0.95rem]">
+    <th:block th:each="group, state : ${groups}">
+        <p class="m-0 mb-1 text-[0.8rem] font-semibold uppercase tracking-wide text-ink-muted dark:text-ink-muted-dark"
+           th:classappend="${!state.first} ? 'mt-5'" th:text="${group.label()}">Gruppo</p>
+        <ul class="list-none p-0 m-0 flex flex-col gap-0.5">
+            <li th:each="entry : ${group.entries()}">
+                <a th:href="@{/manual/{slug}(slug=${entry.slug()})}" th:text="${entry.title()}"
+                   th:attr="aria-current=${entry.slug() == current} ? 'page'"
+                   th:classappend="${entry.slug() == current} ? 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark font-semibold' : 'text-ink-muted dark:text-ink-muted-dark'"
+                   class="block rounded px-2 py-1 no-underline hover:text-ink dark:hover:text-ink-dark">Pagina</a>
+            </li>
+        </ul>
+    </th:block>
+</nav>
+
+</body>
+</html>

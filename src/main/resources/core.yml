@@ -2,10 +2,10 @@
 # secrets/token, storage dei binari. Caricata da application.yml (spring.config.import); le chiavi qui sono disgiunte da quelle
 # dell'app (application.yml: Spring AI, Replicate, SearXNG, enhancer, recupero e indice di ricerca).
 server:
-  port: 8080
+  port: 7070
   # Senza questo, dietro un reverse proxy (nginx, Traefik, ...) che
   # termina TLS e/o inoltra su un path diverso, l'app vede scheme/host
-  # "interni" (es. http://127.0.0.1:8080) invece di quelli pubblici: i
+  # "interni" (es. http://127.0.0.1:7070) invece di quelli pubblici: i
   # redirect generati con "redirect:..." (i controller
   # delle pagine) verrebbero assolutizzati dal container Servlet
   # con l'host sbagliato, mandando il browser fuori strada. "framework"
@@ -14,7 +14,7 @@ server:
   # dall'applicazione (Thymeleaf incluso) di conseguenza. Presuppone che
   # il proxy sia l'unico punto d'ingresso e sovrascriva/rimuova questi
   # header se un client li invia direttamente: non esporre mai la porta
-  # 8080 dell'app stessa a Internet.
+  # 7070 dell'app stessa a Internet.
   forward-headers-strategy: framework
 
 spring:

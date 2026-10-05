@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="${page != null ? page.entry().title() : #messages.msg('manual.title')}">Manuale</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=${page != null ? '/manual' : null},
+                parentText=${page != null ? #messages.msg('manual.title') : null},
+                current=${page != null ? page.entry().title() : #messages.msg('manual.title')})}"></nav>
+</div>
+<div layout:fragment="content">
+    <!--
+      Manuale online (core.manual). Il Markdown e' contenuto del repo, gia' convertito (HTML grezzo escapato, URL sanitizzati, link riscritti col prefisso
+      della richiesta): th:utext solo sul wrapper. Lo stile e' sul wrapper con varianti arbitrarie Tailwind (preflight azzera titoli, liste e tabelle; niente
+      @layer nuovi ne' plugin Typography, che porta colori propri): i colori sono i token del tema.
+    -->
+    <div class="md:grid md:grid-cols-[14rem_minmax(0,1fr)] md:gap-10">
+        <aside>
+            <!-- Sotto md: riquadro a scomparsa (nativo, senza JS); da md: barra laterale che resta in vista. -->
+            <details class="md:hidden mb-4 rounded-md border border-line dark:border-line-dark px-3 py-2">
+                <summary class="cursor-pointer text-[0.95rem]" th:text="#{manual.nav.toggle}">Indice del manuale</summary>
+                <div class="mt-3">
+                    <nav th:replace="~{fragments/core/manual :: toc(groups=${groups}, current=${page != null} ? ${page.entry().slug()} : null)}"></nav>
+                </div>
+            </details>
+            <div class="max-md:hidden md:sticky md:top-20 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto">
+                <nav th:replace="~{fragments/core/manual :: toc(groups=${groups}, current=${page != null} ? ${page.entry().slug()} : null)}"></nav>
+            </div>
+        </aside>
+
+        <div class="min-w-0">
+            <!-- Indice del manuale: titolo, introduzione e, per ogni gruppo, le pagine con il loro riassunto. -->
+            <th:block th:if="${page == null}">
+                <h1 th:text="#{manual.title}">Manuale</h1>
+                <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{manual.intro}">Come si usa il sistema.</p>
+                <th:block th:each="group : ${groups}">
+                    <h2 class="mt-8 mb-3 text-xl font-semibold" th:text="${group.label()}">Gruppo</h2>
+                    <ul class="list-none p-0 m-0 flex flex-col gap-3">
+                        <li th:each="entry : ${group.entries()}">
+                            <a th:href="@{/manual/{slug}(slug=${entry.slug()})}" th:text="${entry.title()}">Pagina</a>
+                            <span th:if="${!entry.summary().isEmpty()}" class="block text-[0.9rem] text-ink-muted dark:text-ink-muted-dark" th:text="${entry.summary()}">Riassunto</span>
+                        </li>
+                    </ul>
+                </th:block>
+            </th:block>
+
+            <!--
+              Una pagina. "In questa pagina" elenca i titoli di secondo e terzo livello e sta DOPO il titolo (il controller spezza l'HTML al primo </h1>:
+              pageHead = il titolo, pageBody = il resto). Le classi dello stile (`prose`) sono una sola stringa letterale riusata sui due pezzi; il riquadro resta
+              fuori dal wrapper, altrimenti le varianti ([&_ul]:list-disc...) ne cambierebbero la lista. Le tabelle larghe scorrono nel proprio
+              riquadro (`overflow-x-auto`): su mobile non allargano la pagina.
+            -->
+            <article th:if="${page != null}"
+                     th:with="prose='min-w-0 break-words
+                            [&_h1]:scroll-mt-20 [&_h2]:scroll-mt-20 [&_h3]:scroll-mt-20 [&_h4]:scroll-mt-20
+                            [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:pb-1 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:border-b [&_h2]:border-line dark:[&_h2]:border-line-dark
+                            [&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold
+                            [&_h4]:mt-4 [&_h4]:mb-1 [&_h4]:font-semibold
+                            [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1
+                            [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-line dark:[&_blockquote]:border-line-dark [&_blockquote]:pl-4 [&_blockquote]:text-ink-muted dark:[&_blockquote]:text-ink-muted-dark
+                            [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-line dark:[&_pre]:border-line-dark [&_pre]:bg-surface dark:[&_pre]:bg-surface-dark [&_pre]:p-3 [&_pre]:text-[0.85rem]
+                            [&_pre_code]:bg-transparent [&_pre_code]:p-0
+                            [&_table]:my-4 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-[0.9rem]
+                            [&_th]:border [&_th]:border-line dark:[&_th]:border-line-dark [&_th]:bg-surface dark:[&_th]:bg-surface-dark [&_th]:px-3 [&_th]:py-2 [&_th]:text-left
+                            [&_td]:border [&_td]:border-line dark:[&_td]:border-line-dark [&_td]:px-3 [&_td]:py-2 [&_td]:align-top
+                            [&_hr]:my-6 [&_hr]:border-line dark:[&_hr]:border-line-dark'">
+                <div th:if="${pageHead != ''}" th:class="${prose}" th:utext="${pageHead}">Titolo della pagina</div>
+
+                <nav th:with="toc=${page.headings().?[level() == 2 or level() == 3]}" th:if="${#lists.size(page.headings().?[level() == 2]) > 1}"
+                     th:aria-label="#{manual.onThisPage}"
+                     class="mb-6 rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark px-4 py-3 text-[0.9rem]">
+                    <p class="m-0 mb-1 font-semibold" th:text="#{manual.onThisPage}">In questa pagina</p>
+                    <ul class="list-none p-0 m-0 flex flex-col gap-0.5">
+                        <li th:each="heading : ${toc}" th:classappend="${heading.level() == 3} ? 'pl-4'">
+                            <a th:href="${'#' + heading.id()}" th:text="${heading.text()}">Titolo</a>
+                        </li>
+                    </ul>
+                </nav>
+
+                <div th:class="${prose}" th:utext="${pageBody}">Contenuto della pagina</div>
+
+                <nav class="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line dark:border-line-dark pt-4 text-[0.95rem]"
+                     th:if="${previous != null or next != null}">
+                    <a th:if="${previous != null}" th:href="@{/manual/{slug}(slug=${previous.slug()})}" th:text="'« ' + ${previous.title()}">« Precedente</a>
+                    <span th:if="${previous == null}"></span>
+                    <a th:if="${next != null}" th:href="@{/manual/{slug}(slug=${next.slug()})}" th:text="${next.title()} + ' »'">Successiva »</a>
+                </nav>
+            </article>
+        </div>
+    </div>
+</div>
+</body>
+</html>

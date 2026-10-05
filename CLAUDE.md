@@ -4,7 +4,7 @@ Guida di riferimento per questo repository. Leggerla prima di aggiungere pagine,
 sono vincoli deliberati per mantenere il progetto snello. Package radice: `org.dual.replicate`. Java 21, Maven, UN solo modulo.
 
 Il codice e' diviso in un **`core`** generico e riusabile (layout/fragments, remote+retry, eventi di sistema, push SSE, secrets/token,
-storage dei binari) e un'**`app`** specifica (generazione immagini, galleria, chat, ricerca semantica), entrambi organizzati in esagoni
+storage dei binari, manuale online) e un'**`app`** specifica (generazione immagini, galleria, chat, ricerca semantica), entrambi organizzati in esagoni
 (ports & adapters) uno per sottosistema: vedi "Architettura". Il repo e' pensato anche come template per una nuova webapp (si tiene il
 `core`, si sostituisce `app`): vedi `docs/TEMPLATE.md`.
 
@@ -232,7 +232,7 @@ Alpine.js via CDN; Pines UI (componenti Alpine+Tailwind da copiare, `preflight` 
 Spring Data JPA + PostgreSQL con l'estensione pgvector (un'istanza sola per dati e vettori; `compose.yaml` per lo sviluppo); Flyway (`spring-boot-starter-flyway`, `ddl-auto: validate`); `RestClient`
 (`spring-boot-starter-restclient`) verso Replicate; Spring AI (`spring-ai-starter-model-openai`, `ChatClient`, `base-url`
 `https://openrouter.ai/api/v1`, richiede Boot 4.x / Spring AI 2.0.x); embedding locali ONNX (`spring-ai-starter-model-transformers`) e
-`spring-ai-vector-store` + `spring-ai-pgvector-store` (`PgVectorStore`) per la ricerca semantica; ArchUnit (`archunit-junit5`, solo scope test) per far
+`spring-ai-vector-store` + `spring-ai-pgvector-store` (`PgVectorStore`) per la ricerca semantica; `commonmark` + `commonmark-ext-gfm-tables` 0.24 (versione esplicita in `pom.xml`: non e' nelle BOM) per il manuale; ArchUnit (`archunit-junit5`, solo scope test) per far
 rispettare l'architettura; Maven; Java 21.
 
 ## Architettura (core/app, esagoni)
@@ -299,6 +299,7 @@ le uniche classi fuori da `core`/`app`.
 | `core.tokens` | CRUD token API cifrati, scadenze, `/tokens` | in `IApiTokens`; out `IApiTokenStore`, `ITokenProviderCatalog` (app) |
 | `core.storage` | binari (immagini/mp4/upload): nome, validazione, local/WebDAV, `/images/{file}`, migrazione | in `IImageStorageService`, `IBlobMigration`; out `IBlobBackend`, `IBlobImportSource`, `IBlobImportTarget`, `IRemoteFileFetcher` |
 | `core.backup` | `export`/`import` del jar: backup completo (DB + binari) in un archivio cifrato e ripristino; profilo `backup`, vedi "Backup e restore" | in `IBackupExport`, `IBackupImport`, `IBlobReferences` (SPI: la implementa l'app); out `IDatabaseDump`, `IDatabaseRestore`, `IBackupArchive` |
+| `core.manual` | manuale online: pagine Markdown (`manual/<lingua>/<NN-gruppo>/<NN-pagina>.md`) convertite in HTML al volo, `/manual`, ricerca per sezioni; vedi "Manuale online" | in `IManual`; out `IManualSource`, `IMarkdownRenderer` |
 | `app.generation` | generazioni (immagini/video/edit), immagini importate, catalogo modelli, form-type, LoRA, galleria, costo, Replicate, recupero | in `IGenerations`, `IImportedImages`, `IModelCatalog`, `IGenerationForms`, `ILoraPresets`; out `IGenerationStore`, `IModelStore`, `ILoraPresetStore`, `IPredictionGateway` |
 | `app.chat` | `/deep-chat`: conversazioni, turni, assistente (LLM + tool), watcher delle generazioni, recupero | in `IChat`, `IChatConversations`, `IChatRecovery`; out `IAssistant`, `IChatConversationStore`, `IChatMessageStore`, `IChatNotifier`, `IWebSearchGateway` |
 | `app.search` | ricerca semantica, indice (riconciliazione), note, `/search` | in `IArchiveSearch`, `IArchiveNotes`, `IArchiveIndex`, `ISearchableSource` (SPI); out `IVectorIndex` |
@@ -335,6 +336,9 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
 - `core.backup`: comandi `export`/`import` del jar (vedi "Backup e restore"). `BackupRunner` (adapter in `cli`, `ApplicationRunner`, profilo `backup`), `BackupExportService`/`BackupImportService`,
   `JdbcDatabaseDump`/`JdbcDatabaseRestore` (`COPY` via `CopyManager` + Flyway da codice), `ZipBackupArchive` (zip, cifrato per intero con `ChunkedAesGcmCipher#encryptingStream`), domain `BackupManifest`/`BackupSummary`/`TableOrder`.
   Tutti i bean tranne la SPI `IBlobReferences` sono `@Profile("backup")`: il server non li carica.
+- `core.manual`: `ManualService` (impl di `IManual`: indice per lingua costruito una volta, pagina in HTML a ogni richiesta, sezioni, ricerca), `ManualController` (web, `/manual` e `/manual/{slug}`),
+  `ClasspathManualSource` (adapter out, `classpath*:manual/<lingua>/**/*.md`, ricade su `it`), `CommonmarkRenderer` (adapter out, l'UNICO a vedere i tipi di commonmark-java), domain `ManualEntry`/`ManualPage`/
+  `ManualSection`/`ManualHeading`/`HeadingSlugs`/`ManualLinks`. Vedi "Manuale online".
 - `app.generation`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni transizione
   terminale; `GenerationsDeletedEvent`/`GenerationImageDeletedEvent` per le cancellazioni), `GenerationController` (crea, polling/dettaglio,
   listato, cancellazioni, "AI enhance" `POST /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `LoraController`,
@@ -356,12 +360,14 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `ChatRecoveryScheduler`), `DeepChatController` (route HTML `/deep-chat/*`), `DeepChatApiController` (JSON per `<deep-chat>`),
   `adapter.ai`: `SpringAiAssistant` (`ChatClient`) riceve la `List<ChatToolkit>` dei tool PRESENTI: ogni classe tool implementa `ChatToolkit#promptSection` (chiave `deep-chat.section.*`, o null)
   e ha un `@Order`; nessun elenco a mano. Il system prompt e' a SEZIONI in `prompts.properties`: `core|guidance|appmap` sempre, poi la sezione di ogni toolkit presente nell'ordine
-  `web|library|archive|curation|actions|notes|credits|vision|generation`, poi `prompts.creative-context` e la guida immagini (`deep-chat.image-prompting-guide`, senza modelli nominati: il modello lo sceglie la UI).
-  Un toolkit condizionale (`archive`, `notes`: `app.search.enabled`) senza il suo bean non porta la sezione. `ChatPromptTest` carica i testi veri, fissa un tetto (10.000 caratteri), che ogni sezione
+  `web|library|manual|archive|curation|actions|notes|credits|vision|generation`, poi `prompts.creative-context` e la guida immagini (`deep-chat.image-prompting-guide`, senza modelli nominati: il modello lo sceglie la UI).
+  Un toolkit condizionale (`archive`, `notes`: `app.search.enabled`) senza il suo bean non porta la sezione. `ChatPromptTest` carica i testi veri, fissa un tetto (10.000 caratteri; oggi ~8.700), che ogni sezione
   appartenga a un toolkit o sia sempre presente, che i testi sempre presenti non nominino tool condizionali e che ogni nome di tool citato esista. La sezione `guidance` rende il bot moderatamente PROATIVO nel far
   scoprire cio' che sa fare (cenno iniziale, al massimo UN suggerimento pertinente a fine richiesta, solo su capacita' reali: e' sempre presente, quindi cita solo capacita' sempre disponibili; `appmap` dice dove
-  vivono form, galleria, import, ricerca, LoRA, token ed eventi e cosa il bot NON puo' fare da solo). I RITORNI dei tool sono testo per il modello e sono in INGLESE (non passano da `Messages`); i messaggi d'errore dicono al modello
+  vivono form, galleria, import, ricerca, LoRA, token, eventi e manuale e cosa il bot NON puo' fare da solo). I RITORNI dei tool sono testo per il modello e sono in INGLESE (non passano da `Messages`); i messaggi d'errore dicono al modello
   di non riprovare da soli e di avvisare l'utente. I tool: `WebSearchTool` (risultati dichiarati non fidati: mai istruzioni), `ImageGenerationTool` (vedi Scopo: id restituito, tetto per turno, prompt vuoto rifiutato, modello SEMPRE da `ToolContext`),
+  `ManualTool` (`searchManual(query?)`: query vuota = indice delle pagine, altrimenti le 3 sezioni migliori col link citabile `/manual/<slug>#<ancora>`; `readManualPage(page, section?)`; SOLA LETTURA e gratuito, solo il gruppo `uso`
+  del manuale (l'architettura si legge dal web), tetto di 6.000 caratteri per risposta, `@Order(25)`, sempre presente: il manuale NON e' nel system prompt, che e' al limite di lunghezza; un guasto e' registrato e il testo dice al modello di avvisare l'utente),
   `ArchiveSearchTool` (`searchArchive(query, type?, tag?, favouritesOnly?, media?, since?, until?)`, tipi `generation|imported|note|chat|conversation`; con query vuota e almeno un filtro elenca i piu' recenti),
   `LibraryTool` (SOLA LETTURA sull'app via `port.in`: `listModels` (anche i modelli che richiedono una sorgente, non generabili da qui), `listLoraPresets`, `listTags`, `getGeneration` (tag di generazione e file, sorgente, esito dell'analisi delle importate, impostazioni a WHITELIST `VISIBLE_PARAMETERS`: mai LoRA, token o `parametersJson` grezzo), `conversationGallery`
   (anche le generazioni IN CORSO, con id e stato) e `recentEvents`; niente sorgenti dei LoRA o segreti nell'output; `getGeneration` elenca i NOMI dei file con star, tag e seed riproducibile di ciascuno, perche' `setFavourite`/`setTag`/`propose*` li vogliono esatti; un id nullo dal modello e' un messaggio di ritorno, non un errore registrato; `IAssistant#respond` riceve la `conversationId`, che arriva ai tool via `ToolContext`),
@@ -393,14 +399,14 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `prompts.properties`; le chiavi dei due file sono disgiunte (un file importato ha la precedenza su quello che lo importa). Bundle
   `messages-core(.en).properties` + `messages(.en).properties` (app). `db/migration/core` + `db/migration/app`.
 - `templates/`: `fragments/core/` (`layout`, `header`, `button`, `alert`, `select`, `toast`, `notification-bell`, `live-events`, `pagination`,
-  `status-bar`, `breadcrumbs`, `description-list`, `system-events`, `tokens`), `fragments/app/` (tutto il resto, incl. `nav.html`, `button-gen.html`, un
-  `generation-params-<form-type>.html` per form-type, `generation-params-source-upload.html`), pagine `templates/core/` (`system-events`, `tokens`) e
+  `status-bar`, `breadcrumbs`, `description-list`, `system-events`, `tokens`, `manual`), `fragments/app/` (tutto il resto, incl. `nav.html`, `button-gen.html`, un
+  `generation-params-<form-type>.html` per form-type, `generation-params-source-upload.html`), pagine `templates/core/` (`system-events`, `tokens`, `manual`) e
   `templates/app/` (`index`, `generate`, `generation-status`, `generations-list`, `gallery`, `deep-chat`, `loras`, `search`).
   `header.html` e' sticky; sotto `md` link e theme switch stanno in uno slideover Pines (stato Alpine `navOpen`, `button :: navToggle`);
   le voci di navigazione le mette l'app in `fragments/app/nav.html :: links(inline)` (punto di estensione). `layout.html` legge brand/titolo dalle
   chiavi `app.brand|title` del bundle dell'app.
   **Menu** (`nav.html`): azioni frequenti come link diretti (Deep Chat, Galleria, Ricerca), poi `Crea ▾` (immagine/video/importa) e `Gestione ▾`
-  (Generazioni, LoRA, Eventi, Token, tema); niente piu' "Archivio". `header.menu.manage` sta in `messages-core` perche' le pagine core
+  (Generazioni, LoRA, Eventi, Token), infine il link diretto `Manuale` (`header.nav.manual`, bundle dell'app); niente piu' "Archivio" ne' tema (sta nella barra in basso). `header.menu.manage` sta in `messages-core` perche' le pagine core
   (Token, Eventi) lo usano nelle breadcrumbs; `header.menu.create` e' dell'app.
   **Breadcrumbs** (`fragments/core/breadcrumbs.html :: trail(group, parentPath, parentText, current)`): su OGNI pagina tranne la Home, nello slot
   `layout:fragment="breadcrumbs"` di `<main>`: Home › gruppo di menu (solo testo) › un livello intermedio linkato › pagina corrente (`aria-current`).
@@ -868,7 +874,7 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
 - **Link alle pagine dell'app in chat**: i tool e il system prompt (sezione `appmap`) parlano di path assoluti (`/generations/12`, `/import/3`, `/gallery`, `/generations/new?kind=video`...). Dietro un reverse
   proxy su subpath non funzionerebbero, quindi `templates/app/deep-chat.html` li riscrive SOLO in visualizzazione (`linkAppPaths`, su
   `responseInterceptor` e sulla cronologia) in link markdown RELATIVI alla pagina corrente (`/deep-chat` -> `generations/12`,
-  `/deep-chat/5` -> `../generations/12`), senza dipendere da `X-Forwarded-Prefix`. Elenco CHIUSO di path (`/generations[/new|/N]`, `/import[/N]`, `/gallery`, `/search`, `/loras`, `/tokens`, `/system/events`, con query opzionale):
+  `/deep-chat/5` -> `../generations/12`), senza dipendere da `X-Forwarded-Prefix`. Elenco CHIUSO di path (`/generations[/new|/N]`, `/import[/N]`, `/gallery`, `/search`, `/loras`, `/tokens`, `/system/events`, `/manual[/slug][#ancora]`, con query opzionale; le ancore sono ASCII, vedi `HeadingSlugs`):
   un nuovo path che il bot deve poter citare va aggiunto li' e in `appmap`. Gli id diventano `#N`. Il testo salvato resta l'originale.
 - `app.search.enabled=false` (i test, `application-test.yml`) spegne indice, scheduler, tool, servizi `IArchive*` ed `EmbeddingModel`
   (`spring.ai.model.embedding=none`): `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`).
@@ -954,6 +960,35 @@ Lo stesso jar del server e' lo strumento di backup: `java -jar app.jar export <f
 - **Test**: `BackupRoundTripTest` (due database dedicati sul container dei test, come `FlywayCoreAppMigrationTest`; confronta ogni tabella e i byte dei blob, verifica le sequenze, `--replace`, schema piu'
   vecchio, chiave sbagliata, rollback, archivio troncato), `BackupRunnerTest`, `TableOrderTest`, `ChunkedAesGcmCipherTest` (stream). Mai chiamate vere a Replicate.
 
+## Manuale online (`core.manual`)
+
+Manuale in Markdown, parte **Uso** (per l'utente) e parte **Architettura** (per chi sviluppa/gestisce), servito da `/manual` e convertito in HTML a ogni richiesta; il bot di `/deep-chat` lo consulta con `ManualTool`.
+Il motore e' `core.manual` (generico: si tiene col template); i testi e le etichette dei gruppi sono dell'app (si sostituiscono).
+
+- **File**: `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md` (oggi `it/01-uso/*` e `it/02-architettura/*`). Ordine = prefisso numerico a due cifre (cartella e file); **slug = nome del file senza prefisso, unico fra tutti i gruppi**
+  (URL piatta `/manual/{slug}`; un doppione e' `ManualException` all'indice e fa fallire `ManualContentTest`); gruppo = cartella senza prefisso, etichetta dalla chiave `manual.group.<gruppo>` del bundle DELL'APP (senza: il nome della cartella).
+  Titolo = primo `# `, riassunto dell'indice = primo paragrafo. Una lingua senza cartella ricade su `it` (`ClasspathManualSource`): `manual/en/` si aggiunge senza codice. Il contenuto e' in italiano con gli accenti veri (a differenza dei bundle, che usano `e'`).
+- **Slug da richiesta**: `IManual#page` cerca lo slug SOLO nella mappa dell'indice, mai costruisce un percorso (nessun path traversal); uno slug ignoto e' un 404 (`ResponseStatusException`, nessun evento di sistema).
+- **Indice e sezioni**: `ManualService` costruisce l'indice (titoli, riassunti, sezioni) una volta per lingua (i testi stanno nel jar; devtools riavvia al cambio). Una **sezione** va da un titolo `#`/`##` al successivo (i `###` restano nella loro `##`):
+  e' l'unita' che si cerca (`IManual#search`: termini senza accenti, privati della vocale finale cosi' "immagini" trova "immagine", pesi titolo-sezione 6 / titolo-pagina 3 / corpo fino a 5 occorrenze, stopword it/en) e che il bot cita.
+- **Ancore**: UNA sola funzione, `HeadingSlugs` (minuscolo, senza diacritici, non alfanumerici -> `-`, duplicati `-1`, `-2`), usata per gli `id` dell'HTML E per le sezioni: se divergessero il bot citerebbe ancore morte.
+  Per questo i titoli non possono avere formattazione inline (lo verifica `ManualContentTest`).
+- **Link nei `.md`** (regola unica in `ManualLinks`, usata dal renderer e dai test): fra pagine il nome VERO del file, `../01-uso/03-genera-immagini.md#parametri` (funziona anche su GitHub/IDE); verso l'app un path radice, `/gallery`;
+  `#ancora` nella pagina; `http(s)://` esterno (si apre in una scheda nuova). Il renderer li riscrive: pagina -> `{prefisso}/manual/{slug}#ancora`, path dell'app -> `{prefisso}{path}`, dove prefisso = `request.getContextPath()` (l'HTML renderizzato non passa da `@{...}`:
+  vedi "Convenzione: attributi che portano un URL"). Un link senza forma riconoscibile resta com'e' e il test lo segnala.
+- **Sicurezza**: contenuto del repo, ma `CommonmarkRenderer` ha `escapeHtml(true)` (l'HTML grezzo si vede come testo) e `sanitizeUrls(true)`; `manual.html` usa `th:utext` solo sui due `<div>` dell'articolo (titolo e corpo).
+- **Stile**: preflight azzera titoli/liste/tabelle, e il theming vieta nuove regole `@layer` e il plugin Typography (colori propri): `templates/core/manual.html` mette varianti arbitrarie Tailwind (`[&_h2]:...`, `dark:[&_th]:...`) coi token del tema, definite UNA volta (`th:with="prose=..."`) e applicate ai due `<div>`.
+  Le classi restano stringhe letterali (la CLI Tailwind le scansiona). Le tabelle larghe scorrono nel proprio riquadro (`overflow-x-auto`).
+- **Pagina**: `ManualController` (`GET /manual` indice per gruppi, `GET /manual/{slug}`), `templates/core/manual.html` + `fragments/core/manual.html :: toc` (usato due volte: barra laterale da `md`, riquadro `<details>` sotto), "In questa pagina" (h2/h3, solo con piu' di una h2; sta DOPO il titolo: il controller spezza l'HTML al primo `</h1>` in `pageHead`/`pageBody`),
+  Precedente/Successivo. Breadcrumbs `trail(group=null, ...)`: Home › Manuale › pagina (il manuale e' un link diretto del menu, non sta in un gruppo). Chiavi `manual.*` (chrome) in `messages-core(.en)`; `header.nav.manual`, `index.link.manual.suffix`
+  e `manual.group.*` in `messages(.en)`. Dentro un'espressione `${...}` un parametro di fragment non puo' usare `${a} ? x : y` (errore di parsing): una sola `${a ? x : y}`.
+- **Chat**: `ManualTool` (vedi "Struttura del progetto", `app.chat`), sezione `deep-chat.section.manual` (~450 caratteri) e `/manual` in `appmap`; il percorso `/manual/<slug>#<ancora>` e' nell'elenco chiuso di `linkAppPaths`. Il bot cerca/legge solo il gruppo `uso`.
+- **Test**: engine in `core/manual/**` (`ManualServiceTest`, `CommonmarkRendererTest`, `HeadingSlugsTest`, `ManualLinksTest`: dati finti, nessun testo dell'app); contenuto e pagina dell'app in `app/manual/` (`ManualContentTest`: slug unici, un solo `#` per pagina,
+  nessuna formattazione nei titoli, nessuna sezione oltre 6.000 caratteri, ogni link a una pagina e ogni ancora esistono, nessun `localhost`/numero di porta; `ManualControllerTest`: indice, pagina, 404 senza evento, prefisso `X-Forwarded-Prefix`,
+  ogni path dell'app citato e' una rotta vera — `/search` si salta con la ricerca spenta, e' l'unica rotta facoltativa) e `chat/adapter/ai/ManualToolTest`. Al `TemplateRenderingTests` si aggiunge `/manual` nelle breadcrumbs.
+- **Dipendenza**: `commonmark` + `commonmark-ext-gfm-tables` 0.24 (`<commonmark.version>` nel `pom.xml`). Con Maven 3.8.1 su JDK 24 il mirror aziendale puo' fallire il TLS ("No appropriate protocol"): `-Dhttps.protocols=TLSv1.2,TLSv1.3`.
+- **Fuori scope per ora**: ricerca nel manuale dalla pagina web (la fa il bot), un secondo livello di indice, immagini/screenshot, link "Guida" contestuali sulle pagine, il manuale in inglese (la cartella `en/` e' prevista, mancano i testi).
+
 ## Comandi utili
 
 Nessun Maven Wrapper (serve Maven installato; `mvn wrapper:wrapper` per generarlo).
@@ -994,3 +1029,4 @@ un test che vuole WebDAV o la migrazione li sovrascrive con `@SpringBootTest(pro
 8. Serve una `<select>` → wrapper `pinesSelect` (vedi "Convenzione: select (Pines)"), mai nuda.
 9. Un evento che l'utente deve notare → `ISystemEvents#warn` (avviso) o `#record` (errore): finisce in `/system/events`, nel toast e nella campanella.
 10. Nuovo sottosistema/feature, nuova porta, nuova dipendenza fra sottosistemi → vedi "Architettura" e la sua checklist; `ArchitectureTest` deve restare verde.
+11. Cambia cio' che l'utente vede o fa (pagina, bottone, modello, messaggio d'errore, limite) → aggiornare la pagina del manuale che lo descrive (`src/main/resources/manual/it/01-uso/`, o `02-architettura/` se cambia la struttura): `ManualContentTest` blocca solo i link morti, non il testo diventato vecchio. Le etichette dell'interfaccia nel manuale sono quelle dei bundle, con gli accenti veri (`Intensita'` -> Intensità), e per icone e pulsanti il titolo che l'utente vede (`Anima in un video`, non `Anima`): si controlla nel template, non c'e' un test.

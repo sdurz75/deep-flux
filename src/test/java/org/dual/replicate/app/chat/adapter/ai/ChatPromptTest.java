@@ -32,7 +32,7 @@ class ChatPromptTest {
     private static final int MAX_PROMPT_CHARS = 10_000;
 
     private static final List<Class<? extends ChatToolkit>> TOOLKITS = List.of(WebSearchTool.class, LibraryTool.class,
-            ArchiveSearchTool.class, CurationTool.class, ActionProposalTool.class, NoteTool.class, CreditsTool.class, VisionTool.class,
+            ManualTool.class, ArchiveSearchTool.class, CurationTool.class, ActionProposalTool.class, NoteTool.class, CreditsTool.class, VisionTool.class,
             ImageGenerationTool.class);
 
     /** Sezioni sempre presenti, che non appartengono a un toolkit. */
@@ -126,7 +126,7 @@ class ChatPromptTest {
         Set<String> real = TOOLKITS.stream().flatMap(t -> toolNames(t).stream()).collect(Collectors.toSet());
         // Nomi con l'aspetto di un tool (camelCase con prefisso verbo) che i testi citano: devono essere reali.
         java.util.regex.Pattern verbNames = java.util.regex.Pattern.compile(
-                "\\b(?:search|generate|list|get|set|propose|save|describe|rename|recent|conversation)[A-Z]\\w*");
+                "\\b(?:search|generate|list|get|set|propose|save|describe|rename|recent|conversation|read)[A-Z]\\w*");
         for (Map.Entry<String, Object> entry : prompts.entrySet()) {
             if (!entry.getKey().startsWith("deep-chat.")) {
                 continue;

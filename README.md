@@ -45,7 +45,7 @@ set -a; source .env; set +a
 mvn spring-boot:run
 ```
 
-Poi apri http://localhost:8080. Senza il token la navigazione normale
+Poi apri http://localhost:7070. Senza il token la navigazione normale
 funziona comunque: la generazione fallirà con un errore chiaro finché
 non lo imposti.
 

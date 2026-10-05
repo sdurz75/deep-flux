@@ -735,6 +735,12 @@ class TemplateRenderingTests {
         assertThat(tokens).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Token<");
         String events = breadcrumbsOf(mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(events).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Eventi di sistema<");
+
+        // Il manuale e' un link diretto del menu (nessun gruppo): l'indice e' la pagina corrente, una pagina ha l'indice come livello intermedio.
+        String manual = breadcrumbsOf(mockMvc.perform(get("/manual")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(manual).doesNotContain("Gestione").containsPattern("aria-current=\"page\"[^>]*>Manuale<");
+        String manualPage = breadcrumbsOf(mockMvc.perform(get("/manual/introduzione")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(manualPage).contains("href=\"/manual\"").containsPattern("aria-current=\"page\"[^>]*>Introduzione<");
     }
 
     @Test

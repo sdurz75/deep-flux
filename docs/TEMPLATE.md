@@ -22,8 +22,9 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.tokens` | CRUD token API cifrati in `/tokens`, scadenza con avvisi (`TokenExpiryScheduler`) | opzionale `ITokenProviderCatalog` (senza: nessun provider selezionabile) |
 | `core.storage` | `IImageStorageService` (binari su filesystem locale o WebDAV cifrato, cache, migrazione), `ImageController` (`/images/**`) | - |
 | `core.backup` | comandi `export` e `import` del jar (`java -jar app.jar export <file>`): backup completo (tabelle scoperte da `information_schema` + binari) in un archivio cifrato; profilo `backup` (`application-backup.yml`) | la SPI `IBlobReferences` (`port.in`): le coppie (tabella, colonna) con i nomi dei binari; senza, si esporta solo il DB |
+| `core.manual` | manuale online: pagine Markdown di `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md` convertite al volo, `/manual`, ricerca per sezioni (`IManual`) | i TESTI (`manual/`) e le etichette dei gruppi `manual.group.<gruppo>` nel bundle; per il bot di chat un toolkit come `ManualTool` che usa `IManual` (opzionale); la voce di menu `/manual` |
 | `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo` | - |
-| template e bundle | `templates/fragments/core/*` (layout, header, bottoni, select Pines, toast, paginazione...), `templates/core/*` (`/system/events`, `/tokens`), `messages-core(.en).properties` | vedi "Punti di estensione" |
+| template e bundle | `templates/fragments/core/*` (layout, header, bottoni, select Pines, toast, paginazione...), `templates/core/*` (`/system/events`, `/tokens`, `/manual`), `messages-core(.en).properties` | vedi "Punti di estensione" |
 | config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
 | Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token` | - |
 
@@ -97,7 +98,7 @@ del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential so
 
 **Test** (`src/test/java/org/dual/replicate/`)
 
-- Cancellare: `app/` per intero, `controller/TemplateRenderingTests` (quasi tutto sulle pagine dell'app; i test generici su `/system/events`,
+- Cancellare: `app/` per intero (compresi `app/manual/ManualContentTest` e `ManualControllerTest`, che asseriscono pagine e gruppi del manuale di QUESTA app: la nuova app scrive i suoi), `controller/TemplateRenderingTests` (quasi tutto sulle pagine dell'app; i test generici su `/system/events`,
   `/tokens`, bundle, select e toast hanno gia' una copia nei test di `core/`), `config/FlywayCoreAppMigrationTest` (controlla anche le tabelle
   `generation` e `vector_store` dell'app).
 - `app/generation/adapter/out/backup/BackupRoundTripTest` e' lo scenario di riferimento del backup (schema vero, due database dedicati): con `app/` se ne va, e la nuova app ne scrive uno
