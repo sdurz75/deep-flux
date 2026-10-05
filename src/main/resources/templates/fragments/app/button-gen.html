@@ -315,6 +315,20 @@
 </button>
 
 <!--
+  removeTrainingImage(title, url, confirmText): icona "x" sull'immagine di un dataset di addestramento (fragments/app/training-dataset.html :: images, unico
+  chiamante). A differenza di removeFile NON e' lato client: toglie l'immagine dal server con un POST htmx che rimpiazza #training-images. `url` e'
+  gia' avvolto in @{...} dal chiamante (come reuseConfig). data-busy="off": e' un'azione leggera, l'overlay "operazione in corso" bloccherebbe la pagina
+  per nulla. Stesso aspetto di removeFile (p-0 border-0 e colori espliciti, hover:opacity-100: vedi sopra).
+-->
+<button th:fragment="removeTrainingImage(title, url, confirmText)" type="button" th:title="${title}" th:aria-label="${title}"
+        th:hx-post="${url}" hx-target="#training-images" hx-swap="innerHTML" th:hx-confirm="${confirmText}" data-busy="off"
+        class="absolute top-3 right-3 flex items-center justify-center w-6 h-6 p-0 border-0 rounded-full bg-black/60 text-white hover:opacity-100 hover:bg-black/80">
+    <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+</button>
+
+<!--
   creditToggle(text, title, low): chip del credito Replicate nella barra in basso (fragments/app/status-extras.html): apre/chiude il popover
   del saldo. Assume la variabile Alpine `balanceOpen` sul container (stesso accoppiamento esplicito di dialogOpen). Aspetto da testo
   (nessun bordo/sfondo del layer base: e' una riga di stato, non un bottone d'azione); `low` = colore `warning`.

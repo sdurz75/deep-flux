@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Elenco paginato delle bozze di dataset (contenuto di #trainings-content, templates/app/training.html): stesso schema di
+  fragments/app/generations.html :: content, con la paginazione generica (fragments/core/pagination.html) che passa basePath="/trainings" e
+  hxTarget="#trainings-content". Clona ed Elimina rispondono con HX-Redirect (navigazione), quindi non c'e' uno swap da gestire qui.
+-->
+<th:block th:fragment="content(datasets, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
+    <p th:if="${#lists.isEmpty(datasets)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.datasets.empty}">Nessun dataset ancora.</p>
+
+    <ul th:unless="${#lists.isEmpty(datasets)}" class="list-none p-0 m-0 flex flex-col gap-3">
+        <li th:each="dataset : ${datasets}" th:id="'training-dataset-' + ${dataset.id}"
+            class="flex flex-wrap items-center gap-3 border border-line dark:border-line-dark rounded-lg px-3 py-2 bg-surface dark:bg-surface-dark">
+            <a th:href="@{/trainings/datasets/{id}(id=${dataset.id})}" class="shrink-0">
+                <img th:if="${not #lists.isEmpty(dataset.images)}" th:src="@{'/images/' + ${dataset.images[0].filename}}" alt=""
+                     onerror="this.style.visibility='hidden'" class="block w-16 h-16 object-cover rounded-md">
+                <span th:if="${#lists.isEmpty(dataset.images)}" aria-hidden="true"
+                      class="flex w-16 h-16 items-center justify-center rounded-md border border-dashed border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark">&#8212;</span>
+            </a>
+            <a th:href="@{/trainings/datasets/{id}(id=${dataset.id})}" class="flex-1 min-w-[12rem] no-underline text-ink dark:text-ink-dark">
+                <strong class="block truncate" th:text="${dataset.name}">nome</strong>
+                <span class="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">
+                    <code th:text="${dataset.triggerWord}">TOK</code>
+                    <span th:text="${dataset.loraType.name() == 'STYLE'} ? #{training.type.style} : #{training.type.subject}">Soggetto</span>
+                    <span th:text="#{training.dataset.row.images(${#lists.size(dataset.images)})}">N immagini</span>
+                    <span th:text="${#temporals.format(dataset.updatedAt, 'dd/MM/yyyy HH:mm')}">data</span>
+                </span>
+            </a>
+            <div class="flex flex-wrap gap-2">
+                <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{training.dataset.row.duplicate},
+                            hxGet=null, hxPost=@{/trainings/datasets/{id}/duplicate(id=${dataset.id})}, hxTarget=null, hxSwap='none',
+                            extraClass='px-3 py-1 text-[0.85rem]')}">Clona</button>
+                <button th:replace="~{fragments/core/button :: danger(type='button', text=#{training.dataset.row.delete},
+                            hxPost=@{/trainings/datasets/{id}/delete(id=${dataset.id})}, hxDelete=null, hxConfirm=#{training.dataset.confirmDelete},
+                            hxSwap='none', hxTarget=null, extraClass='px-3 py-1 text-[0.85rem]')}">Elimina</button>
+            </div>
+        </li>
+    </ul>
+
+    <div th:replace="~{fragments/core/pagination :: nav('/trainings', '#trainings-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+</th:block>
+
+</body>
+</html>

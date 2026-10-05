@@ -28,6 +28,10 @@
             &mdash; <span th:text="#{index.link.import.suffix}">carica immagini tue: vengono analizzate, ritrovabili per contenuto e usabili come sorgente.</span>
         </li>
         <li class="py-2">
+            <a th:href="@{/trainings}" th:text="#{header.nav.training}">Addestra un LoRA</a>
+            &mdash; <span th:text="#{index.link.training.suffix}">prepara un dataset di immagini e addestra un tuo LoRA.</span>
+        </li>
+        <li class="py-2">
             <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a>
             &mdash; <span th:text="#{index.link.gallery.suffix}">tutte le immagini generate, con prompt e modello usato.</span>
         </li>

@@ -17,17 +17,20 @@ import java.util.Random;
 import javax.sql.DataSource;
 
 import org.dual.replicate.core.backup.adapter.out.archive.ZipBackupArchive;
+import org.dual.replicate.app.training.adapter.out.backup.TrainingBlobReferences;
 import org.dual.replicate.core.backup.adapter.out.jdbc.JdbcDatabaseDump;
 import org.dual.replicate.core.backup.adapter.out.jdbc.JdbcDatabaseRestore;
 import org.dual.replicate.core.backup.application.BackupExportService;
 import org.dual.replicate.core.backup.application.BackupImportService;
 import org.dual.replicate.core.backup.domain.BackupException;
+import org.dual.replicate.core.backup.domain.BlobColumn;
 import org.dual.replicate.core.backup.domain.ExportOptions;
 import org.dual.replicate.core.backup.domain.ExportResult;
 import org.dual.replicate.core.backup.domain.ImportOptions;
 import org.dual.replicate.core.backup.domain.ImportResult;
 import org.dual.replicate.core.backup.domain.TableInfo;
 import org.dual.replicate.core.backup.port.in.IBlobReferences;
+import org.dual.replicate.core.backup.port.out.IDatabaseDump;
 import org.dual.replicate.core.backup.port.out.IDatabaseRestore;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
@@ -170,6 +173,21 @@ class BackupRoundTripTest {
         assertThat(dj.queryForObject("SELECT count(*) FROM generation_tag", Long.class)).isZero();
         assertThat(latestVersion(dst)).isEqualTo(latestKnownVersion());
         assertBlobsRestored();
+    }
+
+    /**
+     * Un DB piu' vecchio del jar che esporta non ha ancora le tabelle di una feature nuova (il profilo backup non migra): la colonna dichiarata non
+     * puo' referenziare nulla. Se si interrogasse comunque, PostgreSQL aborterebbe la transazione dello snapshot e con lei tutto l'export.
+     */
+    @Test
+    void aDeclaredColumnMissingFromTheSourceSchemaHasNoReferencesAndDoesNotBreakTheSnapshot() throws Exception {
+        migrate(src, null);
+
+        try (IDatabaseDump.Snapshot snapshot = new JdbcDatabaseDump(src, messages).open()) {
+            assertThat(snapshot.distinctValues(new BlobColumn("table_that_is_not_there", "filename"))).isEmpty();
+            assertThat(snapshot.distinctValues(new BlobColumn("generation", "column_that_is_not_there"))).isEmpty();
+            assertThat(snapshot.schemaVersion()).as("lo snapshot e' ancora utilizzabile: la transazione non e' stata abortita").isNotBlank();
+        }
     }
 
     @Test
@@ -476,7 +494,9 @@ class BackupRoundTripTest {
     // --- costruzione dei pezzi ----------------------------------------------------------------------------------------------
 
     private BackupExportService exporter(DataSource ds, String encryptionKey) {
-        ObjectProvider<IBlobReferences> references = new StaticListableBeanFactory(Map.of("references", new GenerationBlobReferences()))
+        // Gli stessi bean che il server registra: ogni feature che possiede dei binari dichiara i suoi.
+        ObjectProvider<IBlobReferences> references = new StaticListableBeanFactory(
+                Map.of("generationReferences", new GenerationBlobReferences(), "trainingReferences", new TrainingBlobReferences()))
                 .getBeanProvider(IBlobReferences.class);
         return new BackupExportService(new JdbcDatabaseDump(ds, messages), new ZipBackupArchive(messages), srcStorage, references, messages,
                 "deep-flux", "local", encryptionKey);

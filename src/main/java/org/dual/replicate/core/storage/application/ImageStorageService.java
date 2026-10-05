@@ -75,6 +75,27 @@ public class ImageStorageService implements IImageStorageService {
     }
 
     @Override
+    public String copy(String filename) {
+        StorageNames.checkFilename(filename);
+        String copy = StorageNames.newFilename(extensionOf(filename));
+        try {
+            OptionalLong size = backend.size(filename);
+            if (size.isEmpty()) {
+                throw new NoSuchFileException(filename);
+            }
+            try (InputStream in = backend.openRange(filename, 0, size.getAsLong())) {
+                backend.write(copy, in);
+            }
+            return copy;
+        } catch (NoSuchFileException e) {
+            // Come in readAllBytes: un file che non c'e' e' un esito atteso (riga senza file), non un guasto dello storage.
+            throw new StorageException(messages.get("imagestorage.error.readImage", filename), e, Kind.REJECTED);
+        } catch (IOException e) {
+            throw new StorageException(messages.get("imagestorage.error.saveImage", filename), e, Kind.PERMANENT);
+        }
+    }
+
+    @Override
     public SourceImage inspectUpload(UploadedFile upload) {
         SourceUpload checked = checkUpload(upload);
         return new SourceImage(checked.bytes(), IImageStorageService.mimeOf("x." + checked.extension()));
@@ -168,6 +189,12 @@ public class ImageStorageService implements IImageStorageService {
             return "webp";
         }
         return null;
+    }
+
+    /** L'estensione del filename (anche i file storici hanno la loro); senza, png come il resto dello storage. */
+    private static String extensionOf(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return dot >= 0 && dot < filename.length() - 1 ? filename.substring(dot + 1) : "png";
     }
 
     private static String extensionFrom(String url) {

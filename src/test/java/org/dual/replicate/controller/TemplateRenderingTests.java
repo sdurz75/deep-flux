@@ -682,6 +682,7 @@ class TemplateRenderingTests {
         assertThat(body.split("href=\"/gallery\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/generations\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/loras\"", -1)).hasSize(3);
+        assertThat(body.split("href=\"/trainings\"", -1)).hasSize(3); // dal menu Crea: barra + slideover
         assertThat(body.split("href=\"/system/events\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/tokens\"", -1)).hasSize(3); // da navSystemCore, composto dal nav dell'app
         assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(5); // 2 menu x 2 contenitori
@@ -701,7 +702,7 @@ class TemplateRenderingTests {
         String content = page.substring(page.indexOf("<main"), page.indexOf("</main>"));
 
         assertThat(content).contains("href=\"/deep-chat\"", "href=\"/generations/new\"", "href=\"/generations/new?kind=video\"",
-                        "href=\"/import\"", "href=\"/gallery\"")
+                        "href=\"/import\"", "href=\"/trainings\"", "href=\"/gallery\"")
                 .doesNotContain("kind=edit")
                 .doesNotContain("href=\"/search\"") // ricerca semantica spenta nei test
                 .doesNotContain("Thymeleaf").doesNotContain("Spring MVC");
@@ -728,6 +729,9 @@ class TemplateRenderingTests {
 
         String imports = breadcrumbsOf(mockMvc.perform(get("/import")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(imports).contains("Crea").containsPattern("aria-current=\"page\"[^>]*>Importa immagini<");
+
+        String training = breadcrumbsOf(mockMvc.perform(get("/trainings")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(training).contains("Crea").containsPattern("aria-current=\"page\"[^>]*>Addestra un LoRA<");
 
         String loras = breadcrumbsOf(mockMvc.perform(get("/loras")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(loras).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>LoRA<");

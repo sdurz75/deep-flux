@@ -97,18 +97,40 @@ public class JdbcDatabaseDump implements IDatabaseDump {
             }
         }
 
+        /**
+         * Una colonna che nello schema della SORGENTE non c'e' ancora (un DB piu' vecchio del jar che esporta: il profilo backup non migra) non
+         * puo' referenziare nessun file, quindi vale "nessun valore". Si controlla PRIMA di interrogarla: in PostgreSQL una query fallita
+         * aborta l'intera transazione dello snapshot, e con lei il resto dell'export.
+         */
         @Override
         public Set<String> distinctValues(BlobColumn column) {
-            String sql = "SELECT DISTINCT " + JdbcSchema.quote(column.column()) + " FROM " + JdbcSchema.quote(column.table())
-                    + " WHERE " + JdbcSchema.quote(column.column()) + " IS NOT NULL";
             Set<String> values = new TreeSet<>();
-            try (PreparedStatement st = connection.prepareStatement(sql); ResultSet rs = st.executeQuery()) {
-                while (rs.next()) {
-                    values.add(rs.getString(1));
+            try {
+                if (!columnExists(column)) {
+                    return values;
+                }
+                String sql = "SELECT DISTINCT " + JdbcSchema.quote(column.column()) + " FROM " + JdbcSchema.quote(column.table())
+                        + " WHERE " + JdbcSchema.quote(column.column()) + " IS NOT NULL";
+                try (PreparedStatement st = connection.prepareStatement(sql); ResultSet rs = st.executeQuery()) {
+                    while (rs.next()) {
+                        values.add(rs.getString(1));
+                    }
                 }
                 return values;
             } catch (SQLException e) {
                 throw database(e);
+            }
+        }
+
+        private boolean columnExists(BlobColumn column) throws SQLException {
+            try (PreparedStatement st = connection.prepareStatement("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?""")) {
+                st.setString(1, column.table());
+                st.setString(2, column.column());
+                try (ResultSet rs = st.executeQuery()) {
+                    return rs.next();
+                }
             }
         }
 

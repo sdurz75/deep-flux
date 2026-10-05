@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.util.OptionalLong;
 
 import org.dual.replicate.core.storage.domain.SourceImage;
+import org.dual.replicate.core.storage.domain.StorageException;
 import org.dual.replicate.core.storage.domain.UploadedFile;
 
 /**
@@ -40,6 +41,14 @@ public interface IImageStorageService {
      * solo il confinamento del filename. Scrittura atomica (mai un file parziale col nome definitivo); un file gia' presente si sovrascrive.
      */
     void restore(String filename, InputStream content);
+
+    /**
+     * Duplica {@code filename} in un file NUOVO ({@code "<sha256-casuale>.<ext>"}, stessa estensione) e ne ritorna il nome: ogni riga possiede il proprio
+     * binario (nessuna dedup), quindi clonare o congelare un insieme di righe copia i file invece di condividerli. Non e' un upload dell'utente: nessun
+     * controllo di tipo o dimensione sul contenuto (si copia cio' che e' gia' nello storage). {@link StorageException} {@code REJECTED} se
+     * {@code filename} non esiste.
+     */
+    String copy(String filename);
 
     /** Valida un upload SENZA salvarlo (AI enhance): stessi controlli di {@link #storeUpload}. */
     SourceImage inspectUpload(UploadedFile upload);

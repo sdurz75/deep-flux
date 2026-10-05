@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Immagini di un dataset (contenuto di #training-images, templates/app/training-dataset.html): l'esito dell'ultimo caricamento (se c'e') e la griglia.
+  E' il fragment che rispondono sia il caricamento (POST .../images) sia la rimozione di un'immagine, quindi porta anche il contatore e il form del
+  caricamento (dentro, perche' il tetto residuo cambia a ogni modifica). Il wrapper #training-images e' nella pagina: qui solo il contenuto.
+
+  report: esito per file, o null (nessun caricamento appena fatto). frozen: snapshot di un training, sola lettura (niente caricamento ne' rimozione).
+-->
+<th:block th:fragment="images(dataset, report, maxImages, maxBytes)">
+    <div th:if="${report != null}" class="mb-4" aria-live="polite">
+        <p th:if="${#lists.isEmpty(report.results)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.upload.none}">Nessun file selezionato.</p>
+        <th:block th:unless="${#lists.isEmpty(report.results)}">
+            <p class="font-semibold" th:text="#{training.upload.summary(${report.acceptedCount}, ${report.rejectedCount})}">N aggiunte, M rifiutate</p>
+            <ul class="list-none p-0 m-0 flex flex-col gap-1">
+                <li th:each="r : ${report.results}" th:unless="${r.accepted}" class="text-[0.85rem] text-danger dark:text-danger-dark">
+                    <span th:text="${r.originalName}">foto.png</span>: <span th:text="${r.rejection}">motivo</span>
+                </li>
+            </ul>
+        </th:block>
+    </div>
+
+    <p class="text-[0.9rem] text-ink-muted dark:text-ink-muted-dark"
+       th:text="#{training.images.count(${#lists.size(dataset.images)}, ${maxImages})}">3 di 40 immagini</p>
+
+    <form th:unless="${dataset.frozen or #lists.size(dataset.images) >= maxImages}" id="training-upload-form"
+          th:action="@{/trainings/datasets/{id}/images(id=${dataset.id})}" method="post" enctype="multipart/form-data"
+          th:hx-post="@{/trainings/datasets/{id}/images(id=${dataset.id})}" hx-encoding="multipart/form-data"
+          hx-target="#training-images" hx-swap="innerHTML" th:data-busy-text="#{training.upload.busy}" class="mb-4">
+        <div th:replace="~{fragments/app/training-dropzone :: field(maxBytes=${maxBytes}, maxFiles=${maxImages - #lists.size(dataset.images)})}"></div>
+        <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{training.upload.submit}, extraClass='mt-3')}">Aggiungi</button>
+    </form>
+
+    <p th:if="${#lists.isEmpty(dataset.images)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.images.empty}">Nessuna immagine ancora.</p>
+
+    <ul th:unless="${#lists.isEmpty(dataset.images)}" class="list-none p-0 m-0 grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+        <li th:each="image : ${dataset.images}" th:id="'training-image-' + ${image.id}"
+            class="relative border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark p-2">
+            <img th:src="@{'/images/' + ${image.filename}}" th:alt="${image.originalName}" loading="lazy"
+                 onerror="this.style.visibility='hidden'" class="block w-full aspect-square object-cover rounded-md">
+            <span class="block mt-1 truncate text-[0.75rem] text-ink-muted dark:text-ink-muted-dark" th:text="${image.originalName}">foto.png</span>
+            <!--/* th:unless su un th:block separato: sullo stesso tag di th:replace scatterebbe comunque (precedenza piu' alta). */-->
+            <th:block th:unless="${dataset.frozen}">
+                <button th:replace="~{fragments/app/button-gen :: removeTrainingImage(title=#{training.images.remove},
+                            url=@{/trainings/datasets/{id}/images/{imageId}/delete(id=${dataset.id}, imageId=${image.id})}, confirmText=#{training.images.confirmRemove})}"></button>
+            </th:block>
+        </li>
+    </ul>
+</th:block>
+
+</body>
+</html>

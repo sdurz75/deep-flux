@@ -86,6 +86,11 @@ app:
     # Immagini esterne (pagina /import, ImportedImageService): quante al massimo per importazione. Il limite di richiesta multipart
     # (spring.servlet.multipart.max-request-size in core.yml) deve coprire max-files x dimensione massima di un'immagine.
     max-files: 20
+  training:
+    # Addestramento LoRA (TrainingDatasetService): quante immagini al massimo in un dataset (il trainer ne consiglia 10-20). Come per l'import,
+    # max-images x dimensione massima di un'immagine (10 MB) deve stare nel limite di richiesta multipart (spring.servlet.multipart.max-request-size
+    # in core.yml, 250 MB): 25 x 10 MB. Alzarlo oltre richiede di alzare anche quel limite, altrimenti un caricamento pieno fallisce per intero.
+    max-images: 25
   chat:
     # /deep-chat (ImageGenerationTool, VisionTool, ChatService): tetti di sicurezza per turno e finestra della cronologia mandata al modello.
     # max-generations-per-turn: ogni generateImage e' una predizione a pagamento; max-vision-calls-per-turn: ogni describeImage costa token

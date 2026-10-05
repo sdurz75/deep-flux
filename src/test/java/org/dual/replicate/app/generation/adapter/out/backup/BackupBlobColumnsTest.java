@@ -4,7 +4,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.dual.replicate.app.training.adapter.out.backup.TrainingBlobReferences;
 import org.dual.replicate.core.backup.domain.BlobColumn;
+import org.dual.replicate.core.backup.port.in.IBlobReferences;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,9 +15,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Il backup esporta i binari che il DB referenzia, ed e' {@code GenerationBlobReferences} a dire dove sono. Una colonna con un filename aggiunta da una
- * migrazione futura e dimenticata li' farebbe sparire dal backup in silenzio: questo test obbliga a decidere se e' un riferimento nuovo (da dichiarare)
- * o una copia di nomi che stanno gia' altrove.
+ * Il backup esporta i binari che il DB referenzia, e sono i bean {@link IBlobReferences} (uno per feature: {@code GenerationBlobReferences},
+ * {@code TrainingBlobReferences}) a dire dove sono. Una colonna con un filename aggiunta da una migrazione futura e dimenticata li' farebbe sparire dal
+ * backup in silenzio: questo test obbliga a decidere se e' un riferimento nuovo (da dichiarare) o una copia di nomi che stanno gia' altrove.
  */
 @SpringBootTest
 class BackupBlobColumnsTest {
@@ -30,21 +32,27 @@ class BackupBlobColumnsTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    /** TUTTI i bean registrati, come li vede l'export: se una feature ne aggiunge uno, finisce qui da solo. */
+    @Autowired
+    private List<IBlobReferences> references;
+
     @Test
     void everyColumnHoldingAFilenameIsDeclaredOrKnownToBeDerived() {
         Set<String> inSchema = new HashSet<>(jdbc.queryForList("""
                 SELECT table_name || '.' || column_name FROM information_schema.columns
                 WHERE table_schema = 'public' AND column_name LIKE '%filename%' AND table_name <> 'flyway_schema_history'""", String.class));
         Set<String> declared = new HashSet<>();
-        for (BlobColumn column : new GenerationBlobReferences().blobColumns()) {
-            declared.add(column.table() + "." + column.column());
+        for (IBlobReferences feature : references) {
+            for (BlobColumn column : feature.blobColumns()) {
+                declared.add(column.table() + "." + column.column());
+            }
         }
 
         assertThat(declared).as("colonne dichiarate che non esistono piu'").isSubsetOf(inSchema);
         Set<String> undeclared = new HashSet<>(inSchema);
         undeclared.removeAll(declared);
         undeclared.removeAll(DERIVED);
-        assertThat(undeclared).as("colonne con un filename ne' dichiarate in GenerationBlobReferences ne' note come derivate").isEmpty();
+        assertThat(undeclared).as("colonne con un filename ne' dichiarate in un IBlobReferences ne' note come derivate").isEmpty();
     }
 
     @Test
@@ -53,5 +61,12 @@ class BackupBlobColumnsTest {
                 new BlobColumn("generation_image", "filename"),
                 new BlobColumn("generation", "source_upload_filename"),
                 new BlobColumn("generation", "mask_upload_filename"));
+    }
+
+    @Test
+    void declaresTheFilesATrainingDatasetOwns() {
+        assertThat(new TrainingBlobReferences().blobColumns()).containsExactlyInAnyOrder(
+                new BlobColumn("training_image", "filename"),
+                new BlobColumn("training_image", "original_filename"));
     }
 }

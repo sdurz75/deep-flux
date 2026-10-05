@@ -30,6 +30,7 @@
     <a th:replace="~{fragments/core/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
     <a th:replace="~{fragments/core/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
     <a th:replace="~{fragments/core/header :: navLink(path='/import', text=#{header.nav.import})}">Importa immagini</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/trainings', text=#{header.nav.training})}">Addestra un LoRA</a>
 </th:block>
 
 <th:block th:fragment="navManage">

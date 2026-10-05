@@ -153,6 +153,32 @@ class ImageStorageServiceLocalFsTest {
         assertThat(dir.toFile().list()).isEmpty();
     }
 
+    /** Clonare o congelare un dataset copia i file: ogni riga ne possiede uno suo, quindi cancellare l'uno non deve toccare l'altro. */
+    @Test
+    void copyDuplicatesTheFileUnderANewRandomNameKeepingTheExtension() throws IOException {
+        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 1, 2, 3};
+        String original = service.storeUpload(UploadedFile.of("a.jpg", jpeg));
+
+        String copy = service.copy(original);
+
+        assertThat(copy).matches("[0-9a-f]{64}\\.jpg").isNotEqualTo(original);
+        assertThat(Files.readAllBytes(dir.resolve(StorageNames.shardPath(copy)))).isEqualTo(jpeg);
+        service.delete(original);
+        assertThat(Files.readAllBytes(dir.resolve(StorageNames.shardPath(copy)))).as("la copia sopravvive all'originale").isEqualTo(jpeg);
+    }
+
+    @Test
+    void copyOfAMissingFileIsAnExpectedRejectionAndLeavesNothingBehind() {
+        assertThatThrownBy(() -> service.copy(StorageNames.newFilename("png")))
+                .isInstanceOfSatisfying(StorageException.class, e -> assertThat(e.isReportable()).isFalse());
+        assertThat(dir.toFile().list()).isEmpty();
+    }
+
+    @Test
+    void copyKeepsTheFilenameConfinement() {
+        assertThatThrownBy(() -> service.copy("../x.png")).isInstanceOf(IllegalArgumentException.class);
+    }
+
     private void writeSharded(String filename) throws IOException {
         Path file = dir.resolve(StorageNames.shardPath(filename));
         Files.createDirectories(file.getParent());
