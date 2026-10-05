@@ -10,8 +10,14 @@ public final class AppEventSubjects {
 
     public static final String GENERATION = "generation";
     public static final String CONVERSATION = "conversation";
+    public static final String TRAINING = "training";
 
     private AppEventSubjects() {
+    }
+
+    /** Il subject degli eventi di un training ({@code training:7}). */
+    public static String ofTraining(Long trainingId) {
+        return trainingId == null ? null : TRAINING + ":" + trainingId;
     }
 
     /** Il subject piu' specifico: la generazione se c'e', altrimenti la conversazione, altrimenti {@code null}. */

@@ -1,0 +1,13 @@
+package org.dual.replicate.app.training.port.out;
+
+import java.util.List;
+
+import org.dual.replicate.app.training.domain.ArchiveItem;
+import org.dual.replicate.app.training.domain.DatasetArchive;
+
+/** Costruisce lo zip del dataset (immagini + didascalie) leggendo i file dallo storage. Lo use case non vede ne' file ne' stream di scrittura. */
+public interface IDatasetArchiver {
+
+    /** Lo zip, in un file temporaneo che si elimina chiudendo l'archivio. @throws org.dual.replicate.app.training.domain.TrainingException se un file non si legge */
+    DatasetArchive build(List<ArchiveItem> items);
+}

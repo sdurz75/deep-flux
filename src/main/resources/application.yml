@@ -62,6 +62,11 @@ replicate:
   # IModelCatalog), niente piu' fetch dal vivo di una collection
   # Replicate o di un elenco di modelli personali ad ogni avvio.
 
+# HuggingFace: solo per la copia dei pesi di un LoRA addestrato (repo privato creato prima del training; i pesi li carica il trainer). Il token non e' qui:
+# si sceglie per nome fra quelli salvati in /tokens.
+huggingface:
+  api-base-url: https://huggingface.co/api
+
 # Credito residuo OpenRouter nella barra in basso (CreditsService, GET /credits): serve una MANAGEMENT key
 # (https://openrouter.ai/settings/management-keys), diversa dal token della chat. Senza, il credito OpenRouter non compare.
 # Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_MANAGEMENT_KEY=sk-or-...
@@ -97,6 +102,20 @@ app:
     # Ogni quanto lo sweep rilancia le didascalie automatiche rimaste in sospeso (evento perso, coda piena): il lavoro e' idempotente e ricorda quali
     # immagini ha in corso, quindi un rilancio non ne duplica una gia' partita. All'avvio le rilancia tutte. Spento con app.recovery.enabled=false.
     caption-sweep-interval: 5m
+    # Il training vero (TrainingService, replicate/fast-flux-trainer): A PAGAMENTO su Replicate e un modello Replicate privato nuovo per ogni lancio.
+    # min-images blocca il lancio; warn-images solo lo sconsiglia (lo schema del trainer ne consiglia 10). min-steps/max-steps sono limiti dell'app, non del
+    # trainer (default 1000). timeout: oltre questo tempo il training si annulla (altrimenti Replicate continua e fattura). poll-interval: ogni quanto si
+    # interrogano i training in corso anche a pagina chiusa. trainer-version vuoto = l'ultima, poi pinnata nella riga del training.
+    # destination-hardware: l'hardware con cui si crea il modello di destinazione (POST /models lo richiede; non e' quello dell'addestramento).
+    min-images: 4
+    warn-images: 10
+    min-steps: 100
+    max-steps: 4000
+    timeout: 2h
+    poll-interval: 30s
+    trainer-model: replicate/fast-flux-trainer
+    trainer-version:
+    destination-hardware: gpu-t4
   chat:
     # /deep-chat (ImageGenerationTool, VisionTool, ChatService): tetti di sicurezza per turno e finestra della cronologia mandata al modello.
     # max-generations-per-turn: ogni generateImage e' una predizione a pagamento; max-vision-calls-per-turn: ogni describeImage costa token

@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.dual.replicate.app.training.domain.CaptionSource;
 import org.dual.replicate.app.training.domain.CaptionStatus;
+import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.PendingCaption;
 import org.dual.replicate.app.training.domain.TrainingDataset;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -69,7 +71,7 @@ class TrainingDatasetServiceTest {
         when(storage.storeUpload(any(UploadedFile.class))).thenAnswer(i -> "stored-" + stored.incrementAndGet() + ".png");
         when(storage.copy(anyString())).thenAnswer(i -> "copy-of-" + i.getArgument(0));
         service = new TrainingDatasetService(new DatasetEditor(store, messages), store, storage, systemEvents, messages, publisher,
-                Clock.fixed(NOW, ZoneOffset.UTC), MAX_IMAGES);
+                Clock.fixed(NOW, ZoneOffset.UTC), MAX_IMAGES, 100, 4000);
     }
 
     // --- configurazione -----------------------------------------------------------------------------------------
@@ -620,6 +622,151 @@ class TrainingDatasetServiceTest {
         Paged<TrainingDataset> page = service.page(0, 10);
 
         assertThat(page.content()).extracting(TrainingDataset::getName).containsExactly("nuovo", "vecchio");
+    }
+
+    // --- impostazioni di lancio e snapshot ---------------------------------------------------------------------
+
+    @Test
+    void aNewDraftStartsWithTheDefaultLaunchSettingsAndTheHuggingFaceCopyOn() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+
+        assertThat(draft.launchSettings()).isEqualTo(LaunchSettings.defaults());
+        assertThat(draft.isHfPublish()).as("la copia su HuggingFace e' acceso di default").isTrue();
+        assertThat(draft.isHfPrivate()).as("e privata di default").isTrue();
+        assertThat(draft.getTrainingSteps()).isEqualTo(1000);
+    }
+
+    @Test
+    void saveLaunchSettingsTrimsAndStoresThemWithoutTouchingTheImages() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+        service.addImages(draft.getId(), List.of(upload("a.png")));
+
+        TrainingDataset saved = service.saveLaunchSettings(draft.getId(),
+                new LaunchSettings("  gatto  ", 1500, 42L, true, 7L, "  mio-gatto ", false));
+
+        assertThat(saved.launchSettings()).isEqualTo(new LaunchSettings("gatto", 1500, 42L, true, 7L, "mio-gatto", false));
+        assertThat(service.get(draft.getId()).getImages()).hasSize(1);
+    }
+
+    @Test
+    void anEmptyModelNameOrRepoNameIsNoName() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+
+        TrainingDataset saved = service.saveLaunchSettings(draft.getId(), new LaunchSettings("  ", 1000, null, false, null, "", true));
+
+        assertThat(saved.getModelName()).isNull();
+        assertThat(saved.getHfRepoName()).isNull();
+    }
+
+    @Test
+    void saveLaunchSettingsRejectsValuesOutsideTheLimits() {
+        Long id = service.create("n", "TOK", LoraType.SUBJECT, null).getId();
+
+        assertRejected(() -> service.saveLaunchSettings(id, new LaunchSettings(null, 99, null, true, null, null, true)), "training.error.stepsOutOfRange");
+        assertRejected(() -> service.saveLaunchSettings(id, new LaunchSettings(null, 4001, null, true, null, null, true)), "training.error.stepsOutOfRange");
+        assertRejected(() -> service.saveLaunchSettings(id, new LaunchSettings(null, 1000, -1L, true, null, null, true)), "training.error.seedInvalid");
+        assertRejected(() -> service.saveLaunchSettings(id, new LaunchSettings(null, 1000, Integer.MAX_VALUE + 1L, true, null, null, true)),
+                "training.error.seedInvalid");
+        assertRejected(() -> service.saveLaunchSettings(id, new LaunchSettings("x".repeat(61), 1000, null, true, null, null, true)),
+                "training.error.modelNameTooLong");
+        assertRejected(() -> service.saveLaunchSettings(id, new LaunchSettings(null, 1000, null, true, null, "x".repeat(97), true)),
+                "training.error.hfRepoNameTooLong");
+        assertThat(service.get(id).launchSettings()).as("un rifiuto non cambia nulla").isEqualTo(LaunchSettings.defaults());
+    }
+
+    @Test
+    void aFrozenDatasetKeepsItsLaunchSettings() {
+        TrainingDataset snapshot = store.save(new TrainingDataset("snap", "TOK", LoraType.SUBJECT, null, true, null, NOW));
+
+        assertRejected(() -> service.saveLaunchSettings(snapshot.getId(), LaunchSettings.defaults()), "training.error.frozen");
+    }
+
+    @Test
+    void snapshotFreezesACopyWithItsOwnFilesAndTheSameSettingsAndLeavesTheDraftAlone() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.STYLE, "nota");
+        service.addImages(draft.getId(), List.of(upload("a.png"), upload("b.png")));
+        service.saveLaunchSettings(draft.getId(), new LaunchSettings("gatto", 1500, 42L, true, 7L, "repo", false));
+        TrainingDataset before = service.get(draft.getId());
+
+        TrainingDataset snapshot = service.snapshot(draft.getId());
+
+        assertThat(snapshot.getId()).isNotEqualTo(draft.getId());
+        assertThat(snapshot.isFrozen()).isTrue();
+        assertThat(snapshot.getSourceDatasetId()).isEqualTo(draft.getId());
+        assertThat(snapshot.getName()).as("lo snapshot ha il nome della bozza, senza suffisso di copia").isEqualTo("n");
+        assertThat(snapshot.launchSettings()).isEqualTo(before.launchSettings());
+        assertThat(snapshot.getImages()).extracting(TrainingImage::getFilename).allMatch(f -> f.startsWith("copy-of-"));
+        assertThat(snapshot.getImages()).extracting(TrainingImage::getFilename)
+                .doesNotContainAnyElementsOf(before.getImages().stream().map(TrainingImage::getFilename).toList());
+        assertThat(service.get(draft.getId()).getImages()).extracting(TrainingImage::getFilename)
+                .containsExactlyElementsOf(before.getImages().stream().map(TrainingImage::getFilename).toList());
+        assertThat(service.page(0, 10).content()).as("lo snapshot non e' una bozza").extracting(TrainingDataset::getId).containsExactly(draft.getId());
+    }
+
+    @Test
+    void snapshotOfACroppedImageCopiesBothFilesButOfAnUncroppedOneOnlyOnce() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+        service.addImages(draft.getId(), List.of(upload("a.png"), upload("b.png")));
+        Long croppedId = service.get(draft.getId()).getImages().get(0).getId();
+        service.cropImage(draft.getId(), croppedId, UploadedFile.of("crop.jpg", new byte[] {9}), 0, 0, 10, 10);
+        reset(storage);
+        when(storage.copy(anyString())).thenAnswer(i -> "copy-of-" + i.getArgument(0));
+
+        service.snapshot(draft.getId());
+
+        // ritagliata: ritaglio + originale (2 copie); non ritagliata: un solo file (1 copia)
+        verify(storage, times(3)).copy(anyString());
+    }
+
+    @Test
+    void aFailedSnapshotDeletesTheFilesAlreadyCopiedAndSavesNothing() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+        service.addImages(draft.getId(), List.of(upload("a.png"), upload("b.png")));
+        String second = service.get(draft.getId()).getImages().get(1).getFilename();
+        when(storage.copy(second)).thenThrow(new StorageException("disco pieno", null, Kind.PERMANENT));
+        int rowsBefore = store.rows.size();
+
+        assertThatThrownBy(() -> service.snapshot(draft.getId())).isInstanceOf(StorageException.class);
+
+        assertThat(store.rows).as("nessuna riga a meta'").hasSize(rowsBefore);
+        verify(storage).delete(startsWith("copy-of-"));
+    }
+
+    @Test
+    void snapshotOfAFrozenDatasetIsRejected() {
+        TrainingDataset snapshot = store.save(new TrainingDataset("snap", "TOK", LoraType.SUBJECT, null, true, null, NOW));
+
+        assertRejected(() -> service.snapshot(snapshot.getId()), "training.error.frozen");
+    }
+
+    @Test
+    void deleteSnapshotRemovesTheRowAndItsFilesButNeverADraft() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+        service.addImages(draft.getId(), List.of(upload("a.png")));
+        TrainingDataset snapshot = service.snapshot(draft.getId());
+        String snapshotFile = snapshot.getImages().get(0).getFilename();
+        reset(storage);
+
+        assertRejected(() -> service.deleteSnapshot(draft.getId()), "training.error.notASnapshot");
+        assertThat(store.rows).containsKey(draft.getId());
+        verify(storage, never()).delete(anyString());
+
+        service.deleteSnapshot(snapshot.getId());
+
+        assertThat(store.rows).doesNotContainKey(snapshot.getId());
+        verify(storage).delete(snapshotFile);
+        assertThat(store.rows).as("la bozza resta con i suoi file").containsKey(draft.getId());
+    }
+
+    @Test
+    void duplicateCarriesTheLaunchSettingsOver() {
+        TrainingDataset draft = service.create("n", "TOK", LoraType.SUBJECT, null);
+        service.saveLaunchSettings(draft.getId(), new LaunchSettings("gatto", 1500, 42L, false, 7L, "repo", false));
+
+        TrainingDataset copy = service.duplicate(draft.getId());
+
+        assertThat(copy.launchSettings()).isEqualTo(new LaunchSettings("gatto", 1500, 42L, false, 7L, "repo", false));
+        assertThat(copy.isFrozen()).isFalse();
     }
 
     // --- aiuti --------------------------------------------------------------------------------------------------

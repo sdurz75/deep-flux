@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
@@ -47,15 +48,18 @@ public class TrainingDatasetService implements ITrainingDatasets {
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final int maxImages;
+    private final int minSteps;
+    private final int maxSteps;
 
     @Autowired
     public TrainingDatasetService(DatasetEditor editor, ITrainingDatasetStore store, IImageStorageService storage, ISystemEvents systemEvents,
-                                  Messages messages, ApplicationEventPublisher eventPublisher, @Value("${app.training.max-images:25}") int maxImages) {
-        this(editor, store, storage, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), maxImages);
+                                  Messages messages, ApplicationEventPublisher eventPublisher, @Value("${app.training.max-images:25}") int maxImages,
+                                  @Value("${app.training.min-steps:100}") int minSteps, @Value("${app.training.max-steps:4000}") int maxSteps) {
+        this(editor, store, storage, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), maxImages, minSteps, maxSteps);
     }
 
     TrainingDatasetService(DatasetEditor editor, ITrainingDatasetStore store, IImageStorageService storage, ISystemEvents systemEvents,
-                           Messages messages, ApplicationEventPublisher eventPublisher, Clock clock, int maxImages) {
+                           Messages messages, ApplicationEventPublisher eventPublisher, Clock clock, int maxImages, int minSteps, int maxSteps) {
         this.editor = editor;
         this.store = store;
         this.storage = storage;
@@ -64,11 +68,23 @@ public class TrainingDatasetService implements ITrainingDatasets {
         this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.maxImages = maxImages;
+        this.minSteps = minSteps;
+        this.maxSteps = maxSteps;
     }
 
     @Override
     public int maxImages() {
         return maxImages;
+    }
+
+    @Override
+    public int minSteps() {
+        return minSteps;
+    }
+
+    @Override
+    public int maxSteps() {
+        return maxSteps;
     }
 
     @Override
@@ -104,9 +120,24 @@ public class TrainingDatasetService implements ITrainingDatasets {
     @Override
     public TrainingDataset duplicate(Long id) {
         TrainingDataset source = editor.get(id);
+        return copyOf(source, false, copyName(source.getName()));
+    }
+
+    @Override
+    public TrainingDataset snapshot(Long datasetId) {
+        TrainingDataset source = editor.editable(datasetId);
+        return copyOf(source, true, source.getName());
+    }
+
+    /**
+     * Una copia di {@code source} come nuovo dataset, con i file COPIATI (una riga possiede i suoi binari, nessuna dedup): sia il clone (bozza) sia lo snapshot
+     * di un training (congelato) sono questa operazione. La provenienza e le impostazioni di lancio si portano dietro; se qualcosa fallisce a meta' i file gia'
+     * copiati si eliminano e non si salva nulla.
+     */
+    private TrainingDataset copyOf(TrainingDataset source, boolean frozen, String name) {
         Instant now = clock.instant();
-        TrainingDataset copy = new TrainingDataset(copyName(source.getName()), source.getTriggerWord(), source.getLoraType(), source.getNote(),
-                false, source.getId(), now);
+        TrainingDataset copy = new TrainingDataset(name, source.getTriggerWord(), source.getLoraType(), source.getNote(), frozen, source.getId(), now);
+        copy.copyLaunchSettingsFrom(source);
         List<String> copied = new ArrayList<>();
         try {
             for (TrainingImage image : source.getImages()) {
@@ -120,6 +151,45 @@ public class TrainingDatasetService implements ITrainingDatasets {
             copied.forEach(this::deleteQuietly);
             throw e;
         }
+    }
+
+    @Override
+    public void deleteSnapshot(Long snapshotId) {
+        TrainingDataset snapshot = editor.get(snapshotId);
+        if (!snapshot.isFrozen()) {
+            throw new TrainingException(messages.get("training.error.notASnapshot"));
+        }
+        editor.delete(snapshot);
+        snapshot.ownedFilenames().forEach(this::deleteQuietly);
+    }
+
+    @Override
+    public TrainingDataset saveLaunchSettings(Long datasetId, LaunchSettings settings) {
+        LaunchSettings clean = validSettings(settings);
+        return editor.mutate(datasetId, dataset -> dataset.applyLaunchSettings(clean, clock.instant()));
+    }
+
+    private LaunchSettings validSettings(LaunchSettings raw) {
+        if (raw.trainingSteps() < minSteps || raw.trainingSteps() > maxSteps) {
+            throw new TrainingException(messages.get("training.error.stepsOutOfRange", minSteps, maxSteps));
+        }
+        if (raw.seed() != null && (raw.seed() < 0 || raw.seed() > Integer.MAX_VALUE)) {
+            throw new TrainingException(messages.get("training.error.seedInvalid", Integer.MAX_VALUE));
+        }
+        String modelName = blankToNull(raw.modelName());
+        if (modelName != null && modelName.length() > MAX_MODEL_NAME) {
+            throw new TrainingException(messages.get("training.error.modelNameTooLong", MAX_MODEL_NAME));
+        }
+        String repoName = blankToNull(raw.hfRepoName());
+        if (repoName != null && repoName.length() > MAX_HF_REPO_NAME) {
+            throw new TrainingException(messages.get("training.error.hfRepoNameTooLong", MAX_HF_REPO_NAME));
+        }
+        return new LaunchSettings(modelName, raw.trainingSteps(), raw.seed(), raw.hfPublish(), raw.hfTokenId(), repoName, raw.hfPrivate());
+    }
+
+    private static String blankToNull(String text) {
+        String clean = text == null ? "" : text.strip();
+        return clean.isEmpty() ? null : clean;
     }
 
     @Override

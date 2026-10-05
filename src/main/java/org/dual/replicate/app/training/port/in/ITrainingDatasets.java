@@ -3,6 +3,7 @@ package org.dual.replicate.app.training.port.in;
 import java.util.List;
 import java.util.Optional;
 
+import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.UploadReport;
@@ -18,11 +19,18 @@ public interface ITrainingDatasets {
     int MAX_NAME = 80;
     int MAX_TRIGGER_WORD = 40;
     int MAX_NOTE = 500;
+    int MAX_MODEL_NAME = 60;
+    int MAX_HF_REPO_NAME = 96;
     /** Tetto di sanita' sul rettangolo di ritaglio (pixel dell'originale): il server non decodifica l'immagine, quindi non ne conosce le dimensioni vere. */
     int MAX_CROP_SIDE = 30_000;
 
     /** Quante immagini al massimo in un dataset (config {@code app.training.max-images}): il server e' l'autorita', la UI ripete il limite. */
     int maxImages();
+
+    /** Passi di addestramento ammessi (config {@code app.training.min-steps|max-steps}): sono limiti dell'app, non del trainer. */
+    int minSteps();
+
+    int maxSteps();
 
     /** Le bozze (non gli snapshot), l'ultima modificata prima. {@code pageIndex} parte da 0. */
     Paged<TrainingDataset> page(int pageIndex, int pageSize);
@@ -62,4 +70,16 @@ public interface ITrainingDatasets {
 
     /** Torna all'immagine originale, senza ritaglio: elimina il file del ritaglio. */
     TrainingDataset resetCrop(Long datasetId, Long imageId);
+
+    /** Salva le impostazioni di lancio della bozza (passi, seed, copia su HuggingFace...). I testi si ripuliscono; passi e seed fuori dai limiti sono un rifiuto. */
+    TrainingDataset saveLaunchSettings(Long datasetId, LaunchSettings settings);
+
+    /**
+     * Congela una COPIA della bozza (con i file copiati) per un training: sola lettura, fuori dall'elenco delle bozze, con le stesse impostazioni di lancio.
+     * La bozza non cambia. Chi lo chiama ne e' responsabile e lo elimina con {@link #deleteSnapshot} se il lancio non va a buon fine.
+     */
+    TrainingDataset snapshot(Long datasetId);
+
+    /** Elimina uno snapshot (SOLO un dataset congelato: una bozza si elimina con {@link #delete}) e i suoi file. */
+    void deleteSnapshot(Long snapshotId);
 }

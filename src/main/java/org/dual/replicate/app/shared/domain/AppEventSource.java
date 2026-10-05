@@ -9,5 +9,7 @@ public enum AppEventSource implements EventSource {
     SEARXNG,
     LORAS,
     /** Dataset e training di LoRA: guasti non remoti (file, zip, caption) e rifiuti applicativi. Gli errori del trainer restano {@code REPLICATE}. */
-    TRAINING
+    TRAINING,
+    /** La copia dei pesi di un LoRA su HuggingFace (controllo del token e creazione del repo prima del training). */
+    HUGGINGFACE
 }

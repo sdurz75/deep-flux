@@ -62,6 +62,29 @@ public class TrainingDataset {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    // --- impostazioni di lancio (vedi LaunchSettings): stanno con la bozza, si riprendono con lei e si copiano nei clone e negli snapshot ---
+
+    @Column(length = 60)
+    private String modelName;
+
+    @Column(nullable = false)
+    private int trainingSteps = LaunchSettings.DEFAULT_STEPS;
+
+    @Column
+    private Long seed;
+
+    @Column(nullable = false)
+    private boolean hfPublish = true;
+
+    @Column
+    private Long hfTokenId;
+
+    @Column(length = 96)
+    private String hfRepoName;
+
+    @Column(nullable = false)
+    private boolean hfPrivate = true;
+
     /** Ogni modifica al contenuto aggiorna anche {@code updatedAt}, quindi la versione: una copia vecchia non puo' sovrascrivere in silenzio. */
     @Version
     private long version;
@@ -96,6 +119,33 @@ public class TrainingDataset {
         this.loraType = loraType;
         this.note = note;
         this.updatedAt = now;
+    }
+
+    public LaunchSettings launchSettings() {
+        return new LaunchSettings(modelName, trainingSteps, seed, hfPublish, hfTokenId, hfRepoName, hfPrivate);
+    }
+
+    /** Sostituisce le impostazioni di lancio (gia' validate da chi chiama). */
+    public void applyLaunchSettings(LaunchSettings settings, Instant now) {
+        this.modelName = settings.modelName();
+        this.trainingSteps = settings.trainingSteps();
+        this.seed = settings.seed();
+        this.hfPublish = settings.hfPublish();
+        this.hfTokenId = settings.hfTokenId();
+        this.hfRepoName = settings.hfRepoName();
+        this.hfPrivate = settings.hfPrivate();
+        this.updatedAt = now;
+    }
+
+    /** Un clone o uno snapshot parte con le stesse impostazioni di lancio dell'origine: riprendere un training e' ritrovare come era stato lanciato. */
+    public void copyLaunchSettingsFrom(TrainingDataset source) {
+        this.modelName = source.modelName;
+        this.trainingSteps = source.trainingSteps;
+        this.seed = source.seed;
+        this.hfPublish = source.hfPublish;
+        this.hfTokenId = source.hfTokenId;
+        this.hfRepoName = source.hfRepoName;
+        this.hfPrivate = source.hfPrivate;
     }
 
     /** Segna una modifica al contenuto (immagini, didascalie): la bozza torna in cima all'elenco. */
@@ -177,6 +227,34 @@ public class TrainingDataset {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getModelName() {
+        return modelName;
+    }
+
+    public int getTrainingSteps() {
+        return trainingSteps;
+    }
+
+    public Long getSeed() {
+        return seed;
+    }
+
+    public boolean isHfPublish() {
+        return hfPublish;
+    }
+
+    public Long getHfTokenId() {
+        return hfTokenId;
+    }
+
+    public String getHfRepoName() {
+        return hfRepoName;
+    }
+
+    public boolean isHfPrivate() {
+        return hfPrivate;
     }
 
     public List<TrainingImage> getImages() {
