@@ -28,8 +28,8 @@
   (la griglia CSS vive sul div grid() qui sotto, la paginazione e' un
   fratello separato).
 -->
-<th:block th:fragment="content(items, tab, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
-    <div style="display:contents" th:hx-get="@{/gallery(page=${currentPage}, tab=${tab})}"
+<th:block th:fragment="content(items, tab, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, tag)">
+    <div style="display:contents" th:hx-get="${tag == ''} ? @{/gallery(page=${currentPage}, tab=${tab})} : @{/gallery(page=${currentPage}, tab=${tab}, tag=${tag})}"
          hx-trigger="gallery-update from:body" hx-target="#gallery-content" hx-swap="innerHTML">
         <!--
           Il messaggio "galleria vuota" vive QUI (non piu' in gallery.html,
@@ -46,13 +46,24 @@
         -->
         <nav class="flex gap-1 mb-4 border-b border-line dark:border-line-dark" role="tablist">
             <a th:each="t : ${#strings.arraySplit('all,favourites,imported', ',')}"
-               th:href="@{/gallery(tab=${t})}" th:hx-get="@{/gallery(tab=${t})}"
+               th:href="${tag == ''} ? @{/gallery(tab=${t})} : @{/gallery(tab=${t}, tag=${tag})}"
+               th:hx-get="${tag == ''} ? @{/gallery(tab=${t})} : @{/gallery(tab=${t}, tag=${tag})}"
                hx-target="#gallery-content" hx-swap="innerHTML" role="tab"
                th:aria-selected="${t == tab}"
                th:text="${t == 'all'} ? #{gallery.tab.all} : (${t == 'favourites'} ? #{gallery.tab.favourites} : #{gallery.tab.imported})"
                class="px-4 py-2 -mb-px border-b-2 no-underline text-[0.9rem]"
                th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Tutte</a>
         </nav>
+        <!--/* Filtro per tag utente (generazione o file): invio o scelta dal suggerimento; la datalist known-tags sta nella pagina intera. */-->
+        <form th:hx-get="@{/gallery}" hx-trigger="submit, change" hx-target="#gallery-content" hx-swap="innerHTML" data-busy="off"
+              class="mb-4 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="tab" th:value="${tab}">
+            <label for="gallery-tag" class="mt-0 text-[0.85rem]" th:text="#{tags.filter.label}">Tag</label>
+            <input type="search" id="gallery-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
+                   th:placeholder="#{tags.filter.placeholder}" class="w-48 text-[0.85rem] py-1 px-2">
+            <a th:if="${tag != ''}" th:href="@{/gallery(tab=${tab})}" th:hx-get="@{/gallery(tab=${tab})}" hx-target="#gallery-content" hx-swap="innerHTML"
+               class="text-[0.85rem]" th:text="#{search.query.reset}">Azzera filtri</a>
+        </form>
         <p th:if="${#lists.isEmpty(items) and tab == 'all'}">
             <span th:text="#{gallery.empty.prefix}">Nessuna immagine ancora.</span>
             <a th:href="@{/generations/new}" th:text="#{gallery.empty.link}">Generane una</a>.
@@ -67,7 +78,7 @@
         <th:block th:unless="${#lists.isEmpty(items)}">
             <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab != 'favourites'}, false)}"></div>
         </th:block>
-        <div th:replace="~{fragments/core/pagination :: nav(${tab != 'all'} ? '/gallery?tab=' + ${tab} : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        <div th:replace="~{fragments/core/pagination :: nav(${tab != 'all' or tag != ''} ? '/gallery?tab=' + ${tab} + (${tag != ''} ? '&tag=' + ${#uris.escapeQueryParam(tag)} : '') : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
     </div>
 </th:block>
 

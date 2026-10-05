@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.dual.replicate.app.generation.domain.FileTag;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.domain.Prediction;
@@ -24,10 +25,12 @@ import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.app.generation.port.out.IPredictionGateway;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
+import org.dual.replicate.app.shared.domain.Tags;
 import org.dual.replicate.app.generation.application.TokenInputResolver;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.app.generation.domain.event.GenerationFavouriteToggledEvent;
+import org.dual.replicate.app.generation.domain.event.GenerationTagsChangedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.core.kernel.Paged;
@@ -715,6 +718,31 @@ public class GenerationService implements IGenerations {
     }
 
     @Override
+    public Paged<GalleryItem> galleryPage(String tag, int pageIndex, int pageSize) {
+        String wanted = Tags.normalize(tag);
+        return wanted.isEmpty() ? galleryPage(pageIndex, pageSize)
+                : repository.pageSucceededByTag(wanted, false, pageIndex, pageSize).map(GalleryItem::first);
+    }
+
+    @Override
+    public Paged<GalleryItem> importedPage(String tag, int pageIndex, int pageSize) {
+        String wanted = Tags.normalize(tag);
+        return wanted.isEmpty() ? importedPage(pageIndex, pageSize)
+                : repository.pageSucceededByTag(wanted, true, pageIndex, pageSize).map(GalleryItem::first);
+    }
+
+    @Override
+    public Paged<GalleryItem> favouritesPage(String tag, int pageIndex, int pageSize) {
+        String wanted = Tags.normalize(tag);
+        return wanted.isEmpty() ? favouritesPage(pageIndex, pageSize) : repository.pageFavouriteItemsByTag(wanted, pageIndex, pageSize);
+    }
+
+    @Override
+    public List<String> allTags() {
+        return repository.distinctTags();
+    }
+
+    @Override
     public Paged<GalleryItem> importedPage(int pageIndex, int pageSize) {
         return repository.pageSucceeded(null, GenerationOrigin.IMPORTED, pageIndex, pageSize).map(GalleryItem::first);
     }
@@ -883,6 +911,7 @@ public class GenerationService implements IGenerations {
         remaining.removeAll(filenames);
         generation.setImageFilenames(remaining);
         generation.getFavouriteFilenames().removeAll(filenames);
+        generation.getFileTags().removeIf(tag -> filenames.contains(tag.getFilename()));
         generation.getImageSeeds().keySet().removeAll(filenames);
     }
 
@@ -908,6 +937,58 @@ public class GenerationService implements IGenerations {
         repository.save(generation);
         eventPublisher.publishEvent(new GenerationFavouriteToggledEvent(generationId));
         return nowFavourite;
+    }
+
+    @Override
+    public void addTag(Long generationId, String filename, String tag) {
+        String normalized = Tags.normalize(tag);
+        Generation generation = taggable(generationId, filename);
+        if (normalized.isEmpty()) {
+            return;
+        }
+        boolean added;
+        if (filename == null) {
+            if (generation.getTags().contains(normalized)) {
+                return;
+            }
+            if (generation.getTags().size() >= Tags.MAX_PER_ENTITY) {
+                throw new ReplicateException(messages.get("tags.error.tooMany", Tags.MAX_PER_ENTITY));
+            }
+            added = generation.getTags().add(normalized);
+        } else {
+            if (generation.tagsOf(filename).contains(normalized)) {
+                return;
+            }
+            if (generation.tagsOf(filename).size() >= Tags.MAX_PER_ENTITY) {
+                throw new ReplicateException(messages.get("tags.error.tooMany", Tags.MAX_PER_ENTITY));
+            }
+            added = generation.getFileTags().add(new FileTag(filename, normalized));
+        }
+        if (added) {
+            repository.save(generation);
+            eventPublisher.publishEvent(new GenerationTagsChangedEvent(generationId));
+        }
+    }
+
+    @Override
+    public void removeTag(Long generationId, String filename, String tag) {
+        String normalized = Tags.normalize(tag);
+        Generation generation = taggable(generationId, filename);
+        boolean removed = filename == null ? generation.getTags().remove(normalized)
+                : generation.getFileTags().remove(new FileTag(filename, normalized));
+        if (removed) {
+            repository.save(generation);
+            eventPublisher.publishEvent(new GenerationTagsChangedEvent(generationId));
+        }
+    }
+
+    /** La generazione, con la stessa guardia di {@link #toggleFavourite}: un file deve essere uno di QUELLA generazione. */
+    private Generation taggable(Long generationId, String filename) {
+        Generation generation = get(generationId);
+        if (filename != null && !generation.getImageFilenames().contains(filename)) {
+            throw new ReplicateException(messages.get("gallery.error.imageNotFound"));
+        }
+        return generation;
     }
 
     private String toJson(Map<String, Object> parameters) {

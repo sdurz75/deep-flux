@@ -57,7 +57,7 @@
                     <span class="text-[0.75rem] font-semibold uppercase tracking-wide text-ink-muted dark:text-ink-muted-dark" th:text="#{search.query.filters}">Filtri</span>
                     <a th:href="@{/search}" class="text-[0.8rem]" th:text="#{search.query.reset}">Azzera filtri</a>
                 </div>
-                <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-5">
                     <div>
                         <label for="search-type" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.type}">Tipo</label>
                         <div class="relative" x-data="pinesSelect" x-bind="root">
@@ -75,6 +75,12 @@
                             </select>
                             <div th:replace="~{fragments/core/select :: ui}"></div>
                         </div>
+                    </div>
+                    <div>
+                        <label for="search-tag" class="mt-0 mb-1.5 font-medium" th:text="#{tags.filter.label}" th:title="#{tags.filter.help}">Tag</label>
+                        <input type="search" id="search-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
+                               th:placeholder="#{tags.filter.placeholder}" th:title="#{tags.filter.help}">
+                        <datalist id="known-tags"><option th:each="s : ${knownTags}" th:value="${s}"></option></datalist>
                     </div>
                     <div>
                         <label for="search-from" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.from}">Dal</label>

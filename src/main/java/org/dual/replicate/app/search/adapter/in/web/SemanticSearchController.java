@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.dual.replicate.app.search.domain.DocumentFilter;
+import org.dual.replicate.app.shared.domain.Tags;
 import org.dual.replicate.app.search.domain.DocumentTypes;
 import org.dual.replicate.app.search.domain.IndexStats;
 import org.dual.replicate.app.search.domain.IndexedDocument;
@@ -79,8 +80,10 @@ public class SemanticSearchController {
     public String page(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String type,
                        @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
                        @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "all") String media,
-                       @RequestParam(defaultValue = "false") boolean favourites, Model model) {
+                       @RequestParam(defaultValue = "false") boolean favourites, @RequestParam(defaultValue = "") String tag, Model model) {
         model.addAttribute("stats", stats());
+        model.addAttribute("tag", Tags.normalize(tag));
+        model.addAttribute("knownTags", search.tags());
         model.addAttribute("types", TYPES);
         model.addAttribute("mediaOptions", MEDIA);
         model.addAttribute("media", media);
@@ -90,7 +93,7 @@ public class SemanticSearchController {
         model.addAttribute("from", from);
         model.addAttribute("to", to);
         model.addAttribute("threshold", threshold == null ? defaultThresholdPercent : threshold);
-        populateResults(q, type, from, to, threshold, media, favourites, 1, model);
+        populateResults(q, type, from, to, threshold, media, favourites, tag, 1, model);
         model.addAttribute("noteError", null);
         model.addAttribute("noteText", "");
         model.addAttribute("noteTitle", "");
@@ -106,9 +109,9 @@ public class SemanticSearchController {
     public String results(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String type,
                           @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
                           @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "all") String media,
-                          @RequestParam(defaultValue = "false") boolean favourites, @RequestParam(defaultValue = "1") int page,
-                          Model model) {
-        populateResults(q, type, from, to, threshold, media, favourites, page, model);
+                          @RequestParam(defaultValue = "false") boolean favourites, @RequestParam(defaultValue = "") String tag,
+                          @RequestParam(defaultValue = "1") int page, Model model) {
+        populateResults(q, type, from, to, threshold, media, favourites, tag, page, model);
         return "fragments/app/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
                 + "currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, "
                 + "pageNumbers=${pageNumbers})";
@@ -197,14 +200,15 @@ public class SemanticSearchController {
     }
 
     private void populateResults(String q, String type, String from, String to, Integer threshold, String media, boolean favourites,
-                                 int page, Model model) {
+                                 String rawTag, int page, Model model) {
+        String tag = Tags.normalize(rawTag);
         String query = q.strip();
         int minPercent = threshold == null ? defaultThresholdPercent : threshold;
         model.addAttribute("query", query);
         model.addAttribute("error", null);
         model.addAttribute("hits", List.of());
         model.addAttribute("total", 0L);
-        model.addAttribute("baseQuery", baseQuery(query, type, from, to, minPercent, media, favourites));
+        model.addAttribute("baseQuery", baseQuery(query, type, from, to, minPercent, media, favourites, tag));
         model.addAttribute("currentPage", 1);
         model.addAttribute("totalPages", 1);
         model.addAttribute("hasPrevious", false);
@@ -234,7 +238,7 @@ public class SemanticSearchController {
         // Media/preferiti sono metadata delle sole generazioni e immagini importate: gli altri tipi non li hanno e non combaciano, quindi col tipo "tutti" non serve restringere.
         String kind = "image".equals(media) ? "IMAGE" : "video".equals(media) ? "VIDEO" : null;
         String wantedType = type.isBlank() || "all".equals(type) ? null : type;
-        DocumentFilter filter = new DocumentFilter(wantedType, start, end, kind, favourites);
+        DocumentFilter filter = new DocumentFilter(wantedType, start, end, kind, favourites, tag);
         List<Hit> hits;
         long total;
         int current;
@@ -265,12 +269,13 @@ public class SemanticSearchController {
     }
 
     /** Query string (gia' codificata) dei filtri correnti: la paginazione ci accoda {@code page=N} e non li perde. */
-    private static String baseQuery(String q, String type, String from, String to, int threshold, String media, boolean favourites) {
+    private static String baseQuery(String q, String type, String from, String to, int threshold, String media, boolean favourites,
+                                        String tag) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance().queryParam("q", "{q}").queryParam("type", "{type}")
                 .queryParam("from", "{from}").queryParam("to", "{to}").queryParam("threshold", "{threshold}")
-                .queryParam("media", "{media}").queryParam("favourites", "{favourites}");
+                .queryParam("media", "{media}").queryParam("favourites", "{favourites}").queryParam("tag", "{tag}");
         String query = builder.encode().build(Map.of("q", q, "type", type, "from", from, "to", to, "threshold", threshold,
-                "media", media, "favourites", favourites)).getRawQuery();
+                "media", media, "favourites", favourites, "tag", tag)).getRawQuery();
         return query == null ? "" : query;
     }
 

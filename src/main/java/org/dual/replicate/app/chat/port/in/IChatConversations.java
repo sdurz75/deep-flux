@@ -23,6 +23,15 @@ public interface IChatConversations {
     ChatConversation rename(Long id, String title);
 
     /**
+     * Aggiunge un tag utente (normalizzato da {@code Tags}; uno vuoto e' ignorato, oltre {@code Tags.MAX_PER_ENTITY} e' un rifiuto).
+     * Come {@link #rename}: non riordina la sidebar.
+     */
+    ChatConversation addTag(Long id, String tag);
+
+    /** Toglie un tag utente (assente = nessun effetto). */
+    ChatConversation removeTag(Long id, String tag);
+
+    /**
      * Salva lo stato grezzo del form di generazione della conversazione (JSON-oggetto di modello e parametri: la chat non lo interpreta,
      * lo rilegge solo il form alla selezione). Non cambia l'ordine "piu' recente prima".
      *

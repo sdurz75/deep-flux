@@ -461,6 +461,71 @@ class TemplateRenderingTests {
         assertThat(empty).doesNotContain("/images/7-1.png");
     }
 
+    /** Tag utente: editor per generazione e per file (si sostituisce da solo), chip in galleria e filtro /gallery?tag= su ogni tab. */
+    @Test
+    @Transactional
+    void tagEndpointsSwapTheEditorAndTheGalleryFiltersByGenerationOrFileTag() throws Exception {
+        Generation g = new Generation("pred-tag", "owner/model", null, "taggata", null);
+        g.setStatus(GenerationStatus.SUCCEEDED);
+        g.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("8-0.png", "8-1.png")));
+        g.setFavouriteFilenames(new java.util.LinkedHashSet<>(java.util.List.of("8-1.png")));
+        g = repository.save(g);
+        Generation other = new Generation("pred-other", "owner/model", null, "altra", null);
+        other.setStatus(GenerationStatus.SUCCEEDED);
+        other.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("9-0.png")));
+        repository.save(other);
+
+        String generationEditor = mockMvc.perform(post("/generations/" + g.getId() + "/tags/add").param("tag", " Estate "))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String fileEditor = mockMvc.perform(post("/generations/" + g.getId() + "/tags/add").param("tag", "Rosso").param("filename", "8-1.png"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(generationEditor).contains("id=\"gen-tags-" + g.getId() + "\"").contains("<span>estate</span>").contains("id=\"known-tags\"")
+                .contains("/generations/" + g.getId() + "/tags/remove").contains("name=\"tag\"");
+        assertThat(fileEditor).contains("id=\"file-tags-" + g.getId() + "-8-1-png\"").contains("<span>rosso</span>").doesNotContain("estate")
+                .contains("name=\"filename\" value=\"8-1.png\"").doesNotContain("id=\"known-tags\"");
+
+        // filtro: tag della generazione (tab Tutte), tag del solo file (tab Tutte e Preferiti), nessun risultato per un tag sconosciuto
+        String byGeneration = mockMvc.perform(get("/gallery").param("tag", "ESTATE")).andReturn().getResponse().getContentAsString();
+        String byFile = mockMvc.perform(get("/gallery").param("tag", "rosso")).andReturn().getResponse().getContentAsString();
+        String favouritesByFile = mockMvc.perform(get("/gallery").param("tab", "favourites").param("tag", "rosso")).andReturn().getResponse().getContentAsString();
+        String unknown = mockMvc.perform(get("/gallery").param("tag", "inesistente")).andReturn().getResponse().getContentAsString();
+        assertThat(byGeneration).contains("/images/8-0.png").doesNotContain("/images/9-0.png").contains("href=\"/gallery?tag=estate\"")
+                .contains("name=\"tag\"").contains("id=\"known-tags\"");
+        assertThat(byFile).contains("/images/8-0.png").doesNotContain("/images/9-0.png");
+        assertThat(favouritesByFile).contains("/images/8-1.png");
+        assertThat(unknown).doesNotContain("/images/8-0.png").doesNotContain("/images/9-0.png");
+
+        // il dettaglio mostra gli editor (generazione e file) e togliere un tag lo fa sparire dal filtro
+        String detail = mockMvc.perform(get("/generations/" + g.getId())).andReturn().getResponse().getContentAsString();
+        assertThat(detail).contains("id=\"gen-tags-" + g.getId() + "\"").contains("id=\"file-tags-" + g.getId() + "-8-0-png\"");
+        mockMvc.perform(post("/generations/" + g.getId() + "/tags/remove").param("tag", "estate")).andExpect(status().isOk());
+        assertThat(mockMvc.perform(get("/gallery").param("tag", "estate")).andReturn().getResponse().getContentAsString()).doesNotContain("/images/8-0.png");
+
+        // un file che non e' della generazione e' un rifiuto, non un 500
+        mockMvc.perform(post("/generations/" + g.getId() + "/tags/add").param("tag", "x").param("filename", "9-0.png"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    /** Tag di conversazione: la sidebar mostra l'editor per la conversazione aperta e per quelle gia' taggate. */
+    @Test
+    @Transactional
+    void conversationTagEndpointsReRenderTheSidebar() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        ChatConversation other = chatConversationRepository.save(new ChatConversation());
+
+        String added = mockMvc.perform(post("/deep-chat/" + conversation.getId() + "/tags/add").param("tag", "Lavoro")
+                        .param("activeConversationId", String.valueOf(other.getId())))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(added).contains("id=\"conversation-list-items\"").contains("id=\"conv-tags-" + conversation.getId() + "\"").contains("<span>lavoro</span>")
+                .contains("id=\"conv-tags-" + other.getId() + "\"").contains("id=\"known-tags\"");
+        String removed = mockMvc.perform(post("/deep-chat/" + conversation.getId() + "/tags/remove").param("tag", "lavoro")
+                        .param("activeConversationId", String.valueOf(other.getId())))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(removed).doesNotContain("id=\"conv-tags-" + conversation.getId() + "\"").contains("id=\"conv-tags-" + other.getId() + "\"");
+    }
+
     /** /system/events (e il vecchio /errors che reindirizza): pagina intera e frammento htmx, e "Svuota" cancella il registro. */
     @Test
     @Transactional
@@ -1816,7 +1881,7 @@ class TemplateRenderingTests {
     @Transactional
     void detailHidesTheMaskWhenTheSourceFileIsUnknown() throws Exception {
         Generation old = inpainting("old", null, null);
-        old.setSourceGenerationId(1L);
+        old.setSourceGenerationId(repository.save(inpainting("older", null, null)).getId()); // una riga vera: la pagina legge i tag (query = flush) e la FK deve reggere
         old = repository.save(old);
 
         String body = mockMvc.perform(get("/generations/" + old.getId()))

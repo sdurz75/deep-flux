@@ -7,6 +7,7 @@ import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.port.in.IGenerations;
+import org.dual.replicate.app.shared.domain.Tags;
 import org.dual.replicate.core.kernel.Paged;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -46,11 +47,13 @@ public class GalleryController {
     @GetMapping
     public String list(@RequestParam(defaultValue = "1") int page,
                         @RequestParam(defaultValue = TAB_ALL) String tab,
+                        @RequestParam(defaultValue = "") String tag,
                         @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                         Model model) {
         int pageIndex = Math.max(0, page - 1);
         String activeTab = TAB_FAVOURITES.equals(tab) ? TAB_FAVOURITES : (TAB_IMPORTED.equals(tab) ? TAB_IMPORTED : TAB_ALL);
-        Paged<GalleryItem> result = fetch(activeTab, pageIndex);
+        String activeTag = Tags.normalize(tag);
+        Paged<GalleryItem> result = fetch(activeTab, activeTag, pageIndex);
 
         // Una pagina che esisteva puo' smettere di esistere fra un refresh e
         // l'altro (cancellazione in blocco dell'ultima pagina, vedi
@@ -61,12 +64,13 @@ public class GalleryController {
         // le pagine precedenti hanno ancora contenuto.
         if (result.isEmpty() && result.totalPages() > 0 && pageIndex >= result.totalPages()) {
             pageIndex = result.totalPages() - 1;
-            result = fetch(activeTab, pageIndex);
+            result = fetch(activeTab, activeTag, pageIndex);
         }
         int currentPage = pageIndex + 1;
 
         model.addAttribute("items", result.content());
         model.addAttribute("tab", activeTab);
+        model.addAttribute("tag", activeTag);
         model.addAttribute("currentPage", currentPage);
         model.addAttribute("totalPages", result.totalPages());
         model.addAttribute("hasPrevious", result.hasPrevious());
@@ -78,7 +82,7 @@ public class GalleryController {
         // Thymeleaf richiede parametri nominati, non posizionali.
         return isHtmxRequest
                 ? "fragments/app/gallery :: content(items=${items}, tab=${tab}, currentPage=${currentPage}, "
-                        + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
+                        + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers}, tag=${tag})"
                 : "app/gallery";
     }
 
@@ -86,11 +90,11 @@ public class GalleryController {
      * Tab "Tutte": una card per generazione (primo file); "Preferiti": una card per file con la star; "Importate": le immagini arrivate
      * dall'esterno (una card per immagine).
      */
-    private Paged<GalleryItem> fetch(String tab, int pageIndex) {
+    private Paged<GalleryItem> fetch(String tab, String tag, int pageIndex) {
         return switch (tab) {
-            case TAB_FAVOURITES -> generationService.favouritesPage(pageIndex, PAGE_SIZE);
-            case TAB_IMPORTED -> generationService.importedPage(pageIndex, PAGE_SIZE);
-            default -> generationService.galleryPage(pageIndex, PAGE_SIZE);
+            case TAB_FAVOURITES -> generationService.favouritesPage(tag, pageIndex, PAGE_SIZE);
+            case TAB_IMPORTED -> generationService.importedPage(tag, pageIndex, PAGE_SIZE);
+            default -> generationService.galleryPage(tag, pageIndex, PAGE_SIZE);
         };
     }
 

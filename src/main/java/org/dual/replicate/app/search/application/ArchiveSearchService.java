@@ -48,6 +48,11 @@ public class ArchiveSearchService implements IArchiveSearch {
     }
 
     @Override
+    public List<String> tags() {
+        return List.copyOf(index.tagCounts().keySet());
+    }
+
+    @Override
     public IndexStats stats() {
         var counts = index.countsByType();
         return new IndexStats(counts.values().stream().mapToLong(Long::longValue).sum(), counts, index.embeddingModelId(),

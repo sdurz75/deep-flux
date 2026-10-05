@@ -36,6 +36,9 @@
                 </th:block>
             </dd>
 
+            <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.tags})}">Tag</dt>
+            <dd class="ms-0 mt-1"><th:block th:replace="~{fragments/app/tag-editor :: generationEditor(generation=${generation}, filename=null, suggestions=true)}"></th:block></dd>
+
             <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.importedAt})}">Importata il</dt>
             <dd class="ms-0 mt-1" th:text="${generation.completedAt}">timestamp</dd>
         </dl>

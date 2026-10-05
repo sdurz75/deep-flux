@@ -169,6 +169,33 @@ public class DeepChatController {
         return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
+    /** Tag utente della conversazione: come {@link #rename}, risponde con la sola sidebar. Oltre il tetto di tag e' un 422 (toast di errore di htmx). */
+    @PostMapping("/deep-chat/{id}/tags/add")
+    public String addTag(@PathVariable Long id, @RequestParam String tag, @RequestParam Long activeConversationId, Model model) {
+        try {
+            conversations.addTag(id, tag);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+        }
+        return conversationItems(activeConversationId, model);
+    }
+
+    @PostMapping("/deep-chat/{id}/tags/remove")
+    public String removeTag(@PathVariable Long id, @RequestParam String tag, @RequestParam Long activeConversationId, Model model) {
+        try {
+            conversations.removeTag(id, tag);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+        }
+        return conversationItems(activeConversationId, model);
+    }
+
+    private String conversationItems(Long activeConversationId, Model model) {
+        model.addAttribute("conversations", conversations.list());
+        model.addAttribute("activeConversationId", activeConversationId);
+        return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
+    }
+
     /**
      * Se si cancella la conversazione attualmente aperta, il browser
      * deve navigare altrove: verso /deep-chat "nudo", che risolve da

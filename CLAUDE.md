@@ -123,6 +123,19 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   `Generation.favouriteFilenames`) su `/gallery`, galleria di chat, dettaglio. `/gallery` ha tab `?tab=all|favourites`:
   Tutte (una card per generazione) e Preferiti (una card per file, `GalleryItem`, senza checkbox/cancellazione in
   blocco). `deleteImage` toglie anche la star.
+- **Tag utente** (immagini importate, generazioni, singoli file, conversazioni di `/deep-chat`; NON sono i tag AI `analysisTags` delle importate, che `applyAnalysis`
+  riscrive al "Riprova", ne' le tag d'indice `#tags:` di `GenerationSearchText`): per generazione (`Generation.tags`, tabella `generation_tag`) E per file
+  (`Generation.fileTags`, `FileTag`, `generation_file_tag`, sottoinsieme di `imageFilenames`: `removeFiles` li toglie col file); per conversazione
+  `ChatConversation.tags` (`chat_conversation_tag`). Normalizzazione UNICA `app.shared.domain.Tags` (minuscolo, spazi collassati, niente virgole/virgolette/backslash
+  perche' finiscono in un filtro jsonpath, max 40 caratteri, `MAX_PER_ENTITY` 20): il match nell'indice e' esatto. Casi d'uso: `IGenerations#addTag/removeTag(id, filename|null, tag)`
+  (stessa guardia anti path-traversal di `toggleFavourite`; `allTags` per i suggerimenti), `IChatConversations#addTag/removeTag` (come `rename`: niente `touch()`).
+  Eventi `GenerationTagsChangedEvent` e `ChatConversationChangedEvent` (pubblicato anche da `rename`: il titolo e' il testo indicizzato) → riconciliazione dell'indice
+  subito (`GenerationSearchSource`, `ChatSearchSource`). UI: `fragments/app/tag-editor.html` (`generationEditor` per generazione e per file, `conversationEditor` nella sidebar:
+  chip con "x" e un campo che aggiunge con Invio, form htmx `data-busy="off"`, endpoint `POST /generations/{id}/tags/add|remove` e `POST /deep-chat/{id}/tags/add|remove`;
+  UNA `<datalist id="known-tags">` per pagina con `@generationService.allTags()`, quindi un solo editor per pagina passa `suggestions=true`). Nella sidebar l'editor c'e' per la
+  conversazione aperta e per quelle gia' taggate. Chip di sola lettura nelle card di `/gallery` e nelle righe di `/search`. Ricerca: `/gallery?tag=` (tutte le tab; tag della
+  generazione O di un suo file; nei preferiti, della generazione o di QUEL file), campo `tag` in `/search`, parametro `tag` di `ArchiveSearchTool`. Un test che renderizza un
+  editor in una transazione con righe incoerenti (FK) fallisce al flush della query dei suggerimenti: nei test le righe devono essere valide.
 - **Immagini esterne (import)**: l'archivio riceve anche immagini NON generate. Un'immagine importata e' una normale `Generation` con
   `origin=IMPORTED` (`GenerationOrigin`; `model`/`externalId` NULL, kind IMAGE, SUCCEEDED subito): galleria, star, cancellazione, lightbox,
   "Anima"/"Usa come sorgente", dettaglio e indice sono quelli di sempre. Per le importate `Generation#prompt` e' la DESCRIZIONE prodotta dall'analisi.
@@ -281,7 +294,7 @@ le uniche classi fuori da `core`/`app`.
 | `app.search` | ricerca semantica, indice (riconciliazione), note, `/search` | in `IArchiveSearch`, `IArchiveNotes`, `IArchiveIndex`, `ISearchableSource` (SPI); out `IVectorIndex` |
 | `app.prompt` | "AI enhance" del prompt (one-shot) e descrizione/tag di un'immagine con il modello di visione | in `IPromptEnhancer`, `IImageDescriber`; out `IPromptModel` |
 | `app.credits` | credito residuo Replicate (stima) e OpenRouter per la barra in basso | in `ICredits`; out `IOpenRouterCreditGateway`, `IReplicateBalanceStore` |
-| `app.shared` | `AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `HomeController`, `AppEventLinks` | (dominio comune dell'app) |
+| `app.shared` | `AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `Tags` (normalizzazione dei tag utente), `HomeController`, `AppEventLinks` | (dominio comune dell'app) |
 
 ### Checklist: aggiungere un sottosistema o una feature
 
@@ -831,7 +844,7 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   `GenerationFavouriteToggledEvent` (li ascolta `GenerationSearchSource` con `@TransactionalEventListener(fallbackExecution = true)`, cioe' DOPO il commit:
   la riconciliazione gira su un altro thread; chiama `IArchiveIndex#reindexAsync` solo se la ricerca e' attiva). Un documento che fallisce e'
   registrato (`ISystemEvents`) e non ferma gli altri. Una nuova fonte ricercabile = un nuovo `ISearchableSource` nel suo sottosistema.
-- **`ArchiveSearchTool`** (`searchArchive(query, type?)`, in `chat.adapter.ai`, sopra `IArchiveSearch`) e' tra i tool di `SpringAiAssistant` solo se `app.search.enabled`.
+- **`ArchiveSearchTool`** (`searchArchive(query, type?, tag?)`, in `chat.adapter.ai`, sopra `IArchiveSearch`) e' tra i tool di `SpringAiAssistant` solo se `app.search.enabled`; con query vuota e un tag elenca i piu' recenti con quel tag (`IArchiveSearch#list`).
 - **Link alle generazioni in chat**: `searchArchive` restituisce al modello path assoluti (`/generations/12`). Dietro un reverse
   proxy su subpath non funzionerebbero, quindi `templates/app/deep-chat.html` li riscrive SOLO in visualizzazione (`linkGenerations`, su
   `responseInterceptor` e sulla cronologia) in link markdown RELATIVI alla pagina corrente (`/deep-chat` -> `generations/12`,
@@ -853,6 +866,10 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   `getCreatedAt` della sorgente, backfill a costo zero: cambiano solo i metadata) e le note (alla creazione, conservato in modifica;
   la riconciliazione timbra con `refId` quelle vecchie). Nei test, i documenti finti di tipo derivato (`chat`/`generation`) possono essere
   cancellati dalla riconciliazione di fondo del contesto: per liste lunghe usare `type=note`.
+  **Tag utente nell'indice**: metadata `tags` (lista, esatta, scritta da `GenerationSearchSource` = tag della generazione + dei suoi file, e da `ChatSearchSource` per le
+  conversazioni; i messaggi di chat NON li ereditano) e, come vocabolario d'indice, nel testo dopo `TAGS_SEPARATOR`. Una conversazione senza titolo ma taggata ha per testo i soli tag
+  (un testo vuoto verrebbe scartato dalla riconciliazione). `DocumentFilter#tag` → `Filter.Expression` EQ su `tags` (jsonpath lax: combacia con un ELEMENTO dell'array, verificato
+  in `VectorIndexerTest`); suggerimenti `IArchiveSearch#tags()` ← `VectorDocumentRepository#tagCounts`. Il campo `tag` di `/search` sta in `baseQuery` (la paginazione lo conserva).
   **Solo le note manuali (`type=note`) sono creabili/modificabili/eliminabili** (`IArchiveNotes`, `ArchiveNoteService`): la riconciliazione non le crea ne' rimuove. I documenti
   derivati (generation/chat/conversation) sono in sola lettura (la fonte di verita' e' il DB, una modifica o cancellazione a mano
   verrebbe annullata al giro dopo): su di essi solo "Ri-embedda" (`IArchiveIndex#reembed`, anche dopo un cambio di modello). Un id non-nota su

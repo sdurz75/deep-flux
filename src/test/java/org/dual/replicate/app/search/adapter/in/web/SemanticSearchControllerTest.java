@@ -136,10 +136,10 @@ class SemanticSearchControllerTest {
         String rankedSecond = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01").param("page", "2"));
 
         assertThat(first).contains("25 risultati").contains("castello numero 24").doesNotContain("altro tipo")
-                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;page=2");
+                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;tag=&amp;page=2");
         assertThat(second).contains("castello numero").doesNotContain("page=3");
         assertThat(ranked).contains("Somiglianza").contains("25 risultati")
-                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;page=2");
+                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;tag=&amp;page=2");
         assertThat(rankedSecond).contains("castello numero").doesNotContain("page=3");
         mockMvc.perform(get("/search/list/chat")).andExpect(status().is4xxClientError());
     }
@@ -164,6 +164,26 @@ class SemanticSearchControllerTest {
                 .contains("Immagine").contains("Video");
         String preview = html.substring(0, html.indexOf("<details"));
         assertThat(preview).doesNotContain("tag-interno-xyz");
+    }
+
+    @Test
+    void tagFilterNarrowsTheListAndTheRankingKeepsTheTagInThePageLinksAndShowsChips() throws Exception {
+        indexer.upsertIfChanged(List.of(
+                Document.builder().id("generation:921").text("una barca").metadata(Map.of("type", "generation", "refId", 921L, "tags", List.of("mare", "estate"))).build(),
+                Document.builder().id("imported:922").text("una barca ferma").metadata(Map.of("type", "imported", "refId", 922L, "tags", List.of("mare"))).build(),
+                Document.builder().id("generation:923").text("una barca in porto").metadata(Map.of("type", "generation", "refId", 923L, "tags", List.of("porto"))).build()));
+
+        String ranked = body(get("/search/results").param("q", "barca").param("tag", "  Mare "));
+        String browsed = body(get("/search/results").param("tag", "estate"));
+        String none = body(get("/search/results").param("tag", "mar"));
+        String page = mockMvc.perform(get("/search").param("tag", "estate")).andReturn().getResponse().getContentAsString();
+
+        assertThat(ranked).contains("una barca").contains("una barca ferma").doesNotContain("in porto")
+                .contains("href=\"/search?tag=mare\"").contains("href=\"/search?tag=estate\"");
+        assertThat(browsed).contains(">una barca<").doesNotContain("ferma").doesNotContain("in porto");
+        assertThat(none).contains("Nessun documento");
+        assertThat(page).contains("name=\"tag\"").contains("value=\"estate\"").contains("id=\"known-tags\"").contains("value=\"porto\"");
+        assertThat(ranked).doesNotContain("/search/results?"); // un solo risultato per pagina: niente paginazione
     }
 
     @Test

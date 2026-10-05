@@ -51,6 +51,15 @@ public interface IGenerationStore {
     /** Tab "Preferiti" della galleria: un item per ogni file con la star, di generazioni SUCCEEDED, piu' recenti prima. */
     Paged<GalleryItem> pageFavouriteItems(int pageIndex, int pageSize);
 
+    /** Generazioni RIUSCITE con il tag utente (sulla generazione o su un suo file), opzionalmente solo le importate, piu' recenti prima. */
+    Paged<Generation> pageSucceededByTag(String tag, boolean importedOnly, int pageIndex, int pageSize);
+
+    /** Come {@link #pageFavouriteItems} ma solo i file con il tag (proprio o della generazione). */
+    Paged<GalleryItem> pageFavouriteItemsByTag(String tag, int pageIndex, int pageSize);
+
+    /** Tutti i tag utente (di generazione e di file) senza doppioni, in ordine alfabetico. */
+    List<String> distinctTags();
+
     /** Listato /generations: tutte le generazioni, qualunque stato, piu' recenti prima. */
     Paged<Generation> pageAll(int pageIndex, int pageSize);
 

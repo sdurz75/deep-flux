@@ -706,6 +706,34 @@ public class GenerationController {
     }
 
     /**
+     * Tag utente di una generazione (filename assente) o di UN suo file: aggiunge/toglie e risponde con l'editor aggiornato
+     * (fragments/app/tag-editor.html), che si sostituisce da solo. Un file non della generazione o troppi tag e' un rifiuto
+     * ({@code ReplicateException} REJECTED: il resolver risponde 422 con il toast).
+     */
+    @PostMapping("/{id}/tags/add")
+    public String addTag(@PathVariable Long id, @RequestParam String tag, @RequestParam(required = false) String filename, Model model) {
+        generationService.addTag(id, blankToNull(filename), tag);
+        return tagEditor(id, blankToNull(filename), model);
+    }
+
+    @PostMapping("/{id}/tags/remove")
+    public String removeTag(@PathVariable Long id, @RequestParam String tag, @RequestParam(required = false) String filename, Model model) {
+        generationService.removeTag(id, blankToNull(filename), tag);
+        return tagEditor(id, blankToNull(filename), model);
+    }
+
+    private String tagEditor(Long id, String filename, Model model) {
+        model.addAttribute("generation", generationService.get(id));
+        model.addAttribute("filename", filename);
+        model.addAttribute("suggestions", filename == null);
+        return "fragments/app/tag-editor :: generationEditor(generation=${generation}, filename=${filename}, suggestions=${suggestions})";
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    /**
      * Percorso "indietro" dopo la cancellazione di una generazione (o
      * della sua ultima immagine, o la scomparsa per race mentre la si
      * pollava, vedi status(...) sopra) dal proprio dettaglio:

@@ -1,13 +1,21 @@
 package org.dual.replicate.app.chat.domain;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -47,6 +55,13 @@ public class ChatConversation {
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String generationSettingsJson;
 
+    /** Tag utente (normalizzati da {@code Tags}). EAGER con SUBSELECT: open-in-view e' disattivato e la sidebar li mostra fuori dalla transazione. */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "chat_conversation_tag", joinColumns = @JoinColumn(name = "conversation_id"))
+    @Column(name = "tag")
+    @Fetch(FetchMode.SUBSELECT)
+    private Set<String> tags = new LinkedHashSet<>();
+
     /**
      * Nessun costruttore protetto separato "richiesto da JPA" come nelle
      * altre entity: qui l'unico costruttore e' gia' senza argomenti
@@ -82,6 +97,10 @@ public class ChatConversation {
     /** Non chiama touch(): cambiare un parametro non e' attivita' di chat, non deve riordinare la sidebar. */
     public void setGenerationSettingsJson(String generationSettingsJson) {
         this.generationSettingsJson = generationSettingsJson;
+    }
+
+    public Set<String> getTags() {
+        return tags;
     }
 
     public Instant getCreatedAt() {

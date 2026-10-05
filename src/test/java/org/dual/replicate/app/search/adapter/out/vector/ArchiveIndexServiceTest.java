@@ -153,6 +153,35 @@ class ArchiveIndexServiceTest {
     }
 
     @Test
+    void userTagsOfGenerationsFilesAndConversationsAreIndexedAsMetadataAndAsIndexVocabulary() {
+        Generation g = generation("una volpe", GenerationStatus.SUCCEEDED);
+        g.setImageFilenames(new java.util.ArrayList<>(List.of("a.png", "b.png")));
+        g.getTags().add("animali");
+        g.getFileTags().add(new org.dual.replicate.app.generation.domain.FileTag("b.png", "bosco"));
+        g = generations.save(g);
+        // senza titolo ma taggata: il testo sono i soli tag, altrimenti la riconciliazione la scarterebbe
+        ChatConversation conversation = new ChatConversation();
+        conversation.getTags().add("progetti");
+        conversation = conversations.save(conversation);
+
+        service.reconcile();
+
+        var generationDoc = documents.find("generation:" + g.getId()).orElseThrow();
+        assertThat(generationDoc.metadata()).containsEntry("tags", List.of("animali", "bosco"));
+        assertThat(generationDoc.content()).contains("animali").contains("bosco");
+        assertThat(generationDoc.visibleContent()).isEqualTo("una volpe");
+        var conversationDoc = documents.find("conversation:" + conversation.getId()).orElseThrow();
+        assertThat(conversationDoc.metadata()).containsEntry("tags", List.of("progetti"));
+        assertThat(conversationDoc.content()).isEqualTo("progetti");
+        assertThat(documents.tagCounts()).containsEntry("animali", 1L).containsEntry("progetti", 1L);
+
+        conversation.setTitle("Il progetto");
+        conversations.save(conversation);
+        service.reconcile();
+        assertThat(documents.find("conversation:" + conversation.getId()).orElseThrow().visibleContent()).isEqualTo("Il progetto");
+    }
+
+    @Test
     void documentsCarryTheCreationDateOfTheirSourceAndLegacyOnesGetItWithoutReEmbedding() {
         Generation g = generation("gatto", GenerationStatus.SUCCEEDED);
         ChatConversation conversation = new ChatConversation();
@@ -245,7 +274,7 @@ class ArchiveIndexServiceTest {
         var generationsSource = new GenerationSearchSource(generationsPort(), mock(org.dual.replicate.app.generation.port.in.ILoraPresets.class),
                 org.mockito.Mockito.mock(ObjectProvider.class), objectMapper);
         return new ArchiveIndexService(new PgVectorIndex(vectorStore, over, documents),
-                List.of(generationsSource, new ChatSearchSource(messages, conversations)), systemEvents, transactionManager);
+                List.of(generationsSource, new ChatSearchSource(messages, conversations, org.mockito.Mockito.mock(ObjectProvider.class))), systemEvents, transactionManager);
     }
 
     /** La porta delle generazioni vista dall'indice: solo le riuscite, lette dallo store di test. */

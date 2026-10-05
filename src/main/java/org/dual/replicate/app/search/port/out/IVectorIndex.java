@@ -32,6 +32,9 @@ public interface IVectorIndex {
 
     Map<String, Long> countsByType();
 
+    /** I tag utente indicizzati (metadata {@code tags}) con il numero di documenti, i piu' usati prima. */
+    Map<String, Long> tagCounts();
+
     long count();
 
     String embeddingModelId();

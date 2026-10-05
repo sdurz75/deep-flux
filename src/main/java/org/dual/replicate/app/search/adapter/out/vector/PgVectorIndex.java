@@ -83,6 +83,11 @@ class PgVectorIndex implements IVectorIndex {
     }
 
     @Override
+    public Map<String, Long> tagCounts() {
+        return documents.tagCounts();
+    }
+
+    @Override
     public long count() {
         return documents.count();
     }
@@ -97,7 +102,7 @@ class PgVectorIndex implements IVectorIndex {
         return VectorIndexer.DIMENSIONS;
     }
 
-    /** {@code type} AND {@code createdAt} nel periodo AND {@code kind} AND {@code favourite}; {@code null} se nessun vincolo. */
+    /** {@code type} AND {@code createdAt} nel periodo AND {@code kind} AND {@code favourite} AND {@code tags} (tag utente); {@code null} se nessun vincolo. */
     static Filter.Expression expression(DocumentFilter filter) {
         if (filter == null) {
             return null;
@@ -119,6 +124,9 @@ class PgVectorIndex implements IVectorIndex {
         }
         if (filter.favouriteOnly()) {
             result = and(result, new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("favourite"), new Filter.Value(true)));
+        }
+        if (filter.tag() != null && !filter.tag().isBlank()) {
+            result = and(result, new Filter.Expression(Filter.ExpressionType.EQ, new Filter.Key("tags"), new Filter.Value(filter.tag())));
         }
         return result;
     }

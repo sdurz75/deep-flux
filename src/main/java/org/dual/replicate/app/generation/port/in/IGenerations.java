@@ -144,4 +144,25 @@ public interface IGenerations {
 
     /** Aggiunge/toglie la star a un file; ritorna il nuovo stato. */
     boolean toggleFavourite(Long generationId, String filename);
+
+    /**
+     * Aggiunge un tag utente alla generazione ({@code filename} nullo) o a UN suo file. Il tag e' normalizzato (vuoto = ignorato);
+     * un file non della generazione o oltre {@code Tags.MAX_PER_ENTITY} tag e' un rifiuto.
+     */
+    void addTag(Long generationId, String filename, String tag);
+
+    /** Toglie un tag utente (assente = nessun effetto); stessa guardia sul filename di {@link #addTag}. */
+    void removeTag(Long generationId, String filename, String tag);
+
+    /** Tutti i tag utente usati (generazioni e file), in ordine alfabetico: suggerimenti dei campi tag. */
+    List<String> allTags();
+
+    /** Come {@link #galleryPage(int, int)} ma solo le generazioni col tag (sulla generazione o su un file); tag vuoto = nessun filtro. */
+    Paged<GalleryItem> galleryPage(String tag, int pageIndex, int pageSize);
+
+    /** Come {@link #importedPage(int, int)} filtrata per tag. */
+    Paged<GalleryItem> importedPage(String tag, int pageIndex, int pageSize);
+
+    /** Come {@link #favouritesPage(int, int)} filtrata per tag: i file preferiti col tag proprio o della loro generazione. */
+    Paged<GalleryItem> favouritesPage(String tag, int pageIndex, int pageSize);
 }

@@ -41,7 +41,7 @@ class ChatConversationServiceTest {
 
     @Test
     void resolveDefaultReturnsMostRecentWhenPresent() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
         ChatConversation existing = new ChatConversation();
         when(conversationRepository.findMostRecent()).thenReturn(Optional.of(existing));
 
@@ -53,7 +53,7 @@ class ChatConversationServiceTest {
 
     @Test
     void resolveDefaultCreatesNewWhenNoneExist() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
         when(conversationRepository.findMostRecent()).thenReturn(Optional.empty());
         when(conversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -66,7 +66,7 @@ class ChatConversationServiceTest {
     /** Rinominare non e' attivita' di chat: non deve riordinare la sidebar per recenza (vedi ChatConversationService). */
     @Test
     void renameSetsTitleWithoutTouchingUpdatedAt() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
         ChatConversation conversation = new ChatConversation();
         Instant originalUpdatedAt = conversation.getUpdatedAt();
         when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
@@ -88,7 +88,7 @@ class ChatConversationServiceTest {
      */
     @Test
     void renameWithBlankTitleNormalizesToNull() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
         ChatConversation conversation = new ChatConversation();
         when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
         when(conversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -101,7 +101,7 @@ class ChatConversationServiceTest {
     /** Le Generation appartengono al registro globale della galleria: non si cancellano, si scollegano soltanto dalla conversazione (vedi CLAUDE.md, Scopo). */
     @Test
     void deleteRemovesMessagesBeforeConversationAndOnlyDetachesGenerations() {
-        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
         ChatConversation conversation = new ChatConversation();
         ChatMessage message = new ChatMessage(conversation, ChatMessageRole.USER, "ciao", null);
         when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
@@ -115,9 +115,53 @@ class ChatConversationServiceTest {
         verify(generations, org.mockito.Mockito.never()).delete(org.mockito.ArgumentMatchers.anyLong());
     }
 
+    @Test
+    void addTagNormalizesDedupesCapsAndDoesNotTouchUpdatedAt() {
+        org.springframework.context.ApplicationEventPublisher events = org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages,
+                new tools.jackson.databind.ObjectMapper(), events);
+        ChatConversation conversation = new ChatConversation();
+        java.time.Instant before = conversation.getUpdatedAt();
+        when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(messages.get(org.mockito.ArgumentMatchers.eq("tags.error.tooMany"), org.mockito.ArgumentMatchers.<Object[]>any())).thenReturn("troppi");
+
+        service.addTag(1L, "  Mare ");
+        service.addTag(1L, "mare");   // doppione: nessun effetto
+        service.addTag(1L, "   ");    // vuoto: ignorato
+
+        assertThat(conversation.getTags()).containsExactly("mare");
+        assertThat(conversation.getUpdatedAt()).isEqualTo(before);
+        verify(events, org.mockito.Mockito.times(1)).publishEvent(any(org.dual.replicate.app.chat.domain.event.ChatConversationChangedEvent.class));
+
+        for (int i = 0; i < org.dual.replicate.app.shared.domain.Tags.MAX_PER_ENTITY - 1; i++) {
+            service.addTag(1L, "t" + i);
+        }
+        assertThat(conversation.getTags()).hasSize(org.dual.replicate.app.shared.domain.Tags.MAX_PER_ENTITY);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.addTag(1L, "uno-di-troppo")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void removeTagOnlyPublishesWhenSomethingChanged() {
+        org.springframework.context.ApplicationEventPublisher events = org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class);
+        ChatConversationService service = new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages,
+                new tools.jackson.databind.ObjectMapper(), events);
+        ChatConversation conversation = new ChatConversation();
+        conversation.getTags().add("mare");
+        when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.removeTag(1L, "Altro");
+        verify(events, never()).publishEvent(any(Object.class));
+        service.removeTag(1L, "MARE");
+
+        assertThat(conversation.getTags()).isEmpty();
+        verify(events).publishEvent(any(org.dual.replicate.app.chat.domain.event.ChatConversationChangedEvent.class));
+    }
+
     private ChatConversationService settingsService() {
         lenient().when(messages.get("deepchat.error.settingsInvalid")).thenReturn("non valida");
-        return new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper());
+        return new ChatConversationService(conversationRepository, chatMessageRepository, generations, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
     }
 
     /** Ogni conversazione nuova parte dai default del catalogo ("{}"); NULL esiste solo per le righe precedenti alla migrazione. */

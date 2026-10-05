@@ -52,7 +52,7 @@ class SemanticSearchWiringTest {
         try {
             indexService.reconcile();
 
-            String result = tool.searchArchive("un gatto che riposa", "generation");
+            String result = tool.searchArchive("un gatto che riposa", "generation", null);
 
             System.out.println("WIRING result:\n" + result);
             assertThat(result.lines().findFirst().orElseThrow()).contains("felino domestico");

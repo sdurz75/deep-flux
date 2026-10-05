@@ -24,6 +24,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.OrderColumn;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -99,6 +101,22 @@ public class Generation {
     @CollectionTable(name = "generation_favourite", joinColumns = @JoinColumn(name = "generation_id"))
     @Column(name = "filename")
     private Set<String> favouriteFilenames = new LinkedHashSet<>();
+
+    /**
+     * Tag utente della generazione intera (normalizzati da {@code Tags}); distinti da {@link #analysisTags}, che sono dell'analisi AI e
+     * si riscrivono al "Riprova". EAGER con SUBSELECT per lo stesso motivo di imageFilenames, senza moltiplicare le righe del join.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "generation_tag", joinColumns = @JoinColumn(name = "generation_id"))
+    @Column(name = "tag")
+    @Fetch(FetchMode.SUBSELECT)
+    private Set<String> tags = new LinkedHashSet<>();
+
+    /** Tag utente per singolo file (sottoinsieme di {@link #imageFilenames}). */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "generation_file_tag", joinColumns = @JoinColumn(name = "generation_id"))
+    @Fetch(FetchMode.SUBSELECT)
+    private Set<FileTag> fileTags = new LinkedHashSet<>();
 
     /**
      * Seed per singolo file, solo quando i log della prediction ne riportano uno per output (vedi
@@ -354,6 +372,26 @@ public class Generation {
     /** True se il seed mostrato per il file e' quello del batch condiviso da piu' file, non uno suo. */
     public boolean isBatchSeed(String filename) {
         return !imageSeeds.containsKey(filename) && seed != null && imageFilenames.size() > 1;
+    }
+
+    public Set<String> getTags() {
+        return tags;
+    }
+
+    public Set<FileTag> getFileTags() {
+        return fileTags;
+    }
+
+    /** I tag utente di un file (ordinati per inserimento). */
+    public List<String> tagsOf(String filename) {
+        return fileTags.stream().filter(t -> t.getFilename().equals(filename)).map(FileTag::getTag).toList();
+    }
+
+    /** Tutti i tag utente, della generazione e dei suoi file, senza doppioni (cio' che si indicizza e si filtra). */
+    public List<String> allTags() {
+        Set<String> all = new java.util.TreeSet<>(tags);
+        fileTags.forEach(t -> all.add(t.getTag()));
+        return List.copyOf(all);
     }
 
     public Set<String> getFavouriteFilenames() {

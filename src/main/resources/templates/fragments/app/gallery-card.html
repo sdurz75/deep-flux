@@ -170,7 +170,16 @@
     </div>
 
     <!--/* Un'immagine importata non ha un modello: al suo posto l'etichetta "Importata". */-->
-    <p th:text="${item.generation.imported} ? #{gallery.card.imported} : ${item.generation.model}" class="mt-2 mx-3 mb-3 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">modello</p>
+    <p th:text="${item.generation.imported} ? #{gallery.card.imported} : ${item.generation.model}" class="mt-2 mx-3 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">modello</p>
+    <!--/* Tag utente della generazione e di QUESTO file: link alla galleria filtrata (sola lettura, si modificano nel dettaglio). */-->
+    <p th:with="cardTags=${item.generation.tagsOf(item.filename)}" th:if="${!#sets.isEmpty(item.generation.tags) or !#lists.isEmpty(cardTags)}"
+       class="mt-1 mx-3 mb-0 flex flex-wrap gap-1">
+        <a th:each="t : ${item.generation.tags}" th:href="@{/gallery(tag=${t})}" th:text="${t}"
+           class="text-[0.7rem] rounded-full px-2 border border-line dark:border-line-dark no-underline text-ink-muted dark:text-ink-muted-dark">tag</a>
+        <a th:each="t : ${cardTags}" th:unless="${item.generation.tags.contains(t)}" th:href="@{/gallery(tag=${t})}" th:text="${t}"
+           class="text-[0.7rem] rounded-full px-2 border border-line dark:border-line-dark no-underline text-ink-muted dark:text-ink-muted-dark">tag</a>
+    </p>
+    <div class="mb-3"></div>
 </div>
 
 </body>

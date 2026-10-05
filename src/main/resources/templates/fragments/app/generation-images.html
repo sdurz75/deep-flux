@@ -106,6 +106,8 @@
                     hxSwap='outerHTML', hxTarget='#generation-images-grid',
                     extraClass='absolute top-1 right-1 px-1.5 py-0.5 text-[0.75rem]')}">Elimina</button>
         </div>
+        <!--/* Tag utente di QUESTO file (la datalist dei suggerimenti sta nell'editor della generazione, una per pagina). */-->
+        <div class="mt-1"><th:block th:replace="~{fragments/app/tag-editor :: generationEditor(generation=${generation}, filename=${filename}, suggestions=false)}"></th:block></div>
         <!--/*
           Seed di QUESTO file. Riproducibile da solo (Generation#reusableSeedOf): quello suo se i log ne davano uno per file, altrimenti il
           seed del batch SOLO per la prima immagine ("(batch)" se i file sono piu' d'uno): e' l'unica che riproduce (verificato su flux-lora-ff3). Le

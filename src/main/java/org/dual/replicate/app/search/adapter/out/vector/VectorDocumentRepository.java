@@ -94,6 +94,15 @@ public class VectorDocumentRepository {
         return counts;
     }
 
+    /** I tag utente usati dai documenti (metadata {@code tags}) con quanti documenti li portano, i piu' usati prima. */
+    public Map<String, Long> tagCounts() {
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        jdbc.sql("select t as tag, count(*) as n from vector_store, jsonb_array_elements_text(metadata::jsonb->'tags') t "
+                        + "where jsonb_typeof(metadata::jsonb->'tags') = 'array' group by t order by n desc, t")
+                .query((rs, row) -> counts.put(rs.getString("tag"), rs.getLong("n"))).list();
+        return counts;
+    }
+
     public long count() {
         return jdbc.sql("select count(*) from vector_store").query(Long.class).single();
     }

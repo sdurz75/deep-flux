@@ -291,6 +291,27 @@ class VectorIndexerTest {
         assertThat(indexedAt("generation:1")).isEqualTo(before);
     }
 
+    @Test
+    void tagFilterMatchesAnElementOfTheTagsArrayOnSearchAndList() {
+        Document two = Document.builder().id("generation:1").text("un faro").metadata(Map.of("type", "generation", "refId", 1L,
+                "tags", List.of("mare", "vacanze 2026"))).build();
+        Document one = Document.builder().id("imported:2").text("un faro").metadata(Map.of("type", "imported", "refId", 2L,
+                "tags", List.of("montagna"))).build();
+        add(two, one, doc("note:1", "un faro", "note", 3)); // senza chiave tags: non combacia
+
+        var sea = new org.dual.replicate.app.search.domain.DocumentFilter(null, null, null, null, false, "mare");
+        var holidays = new org.dual.replicate.app.search.domain.DocumentFilter(null, null, null, null, false, "vacanze 2026");
+        var seaNotes = new org.dual.replicate.app.search.domain.DocumentFilter("note", null, null, null, false, "mare");
+        var missing = new org.dual.replicate.app.search.domain.DocumentFilter(null, null, null, null, false, "mar"); // niente match parziale
+
+        assertThat(search(SearchRequest.builder().query("faro").topK(10).filterExpression(PgVectorIndex.expression(sea)).build()))
+                .extracting(Document::getId).containsExactly("generation:1");
+        assertThat(repository.list(PgVectorIndex.expression(holidays), 1, 10).documents()).extracting(d -> d.id()).containsExactly("generation:1");
+        assertThat(repository.list(PgVectorIndex.expression(seaNotes), 1, 10).documents()).isEmpty();
+        assertThat(repository.list(PgVectorIndex.expression(missing), 1, 10).documents()).isEmpty();
+        assertThat(repository.find("generation:1").orElseThrow().metadata()).containsEntry("tags", List.of("mare", "vacanze 2026"));
+    }
+
     private long indexedAt(String id) {
         return ((Number) repository.find(id).orElseThrow().metadata().get("indexedAt")).longValue();
     }

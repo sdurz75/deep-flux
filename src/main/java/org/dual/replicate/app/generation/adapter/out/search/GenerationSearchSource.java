@@ -11,6 +11,7 @@ import org.dual.replicate.app.generation.domain.AnalysisStatus;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationFavouriteToggledEvent;
+import org.dual.replicate.app.generation.domain.event.GenerationTagsChangedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.app.generation.port.in.IGenerations;
@@ -86,6 +87,11 @@ public class GenerationSearchSource implements ISearchableSource {
         reindex();
     }
 
+    @TransactionalEventListener(fallbackExecution = true)
+    void onTagsChanged(GenerationTagsChangedEvent event) {
+        reindex();
+    }
+
     private void reindex() {
         index.ifAvailable(IArchiveIndex::reindexAsync);
     }
@@ -103,6 +109,7 @@ public class GenerationSearchSource implements ISearchableSource {
             extra.put("model", generation.getModel());
         }
         extra.put("favourite", !favourites.isEmpty());
+        extra.put("tags", generation.allTags()); // tag utente (generazione + file): il filtro di /search li confronta esatti
         extra.put("outputs", files.size());
         extra.put("files", List.copyOf(shown));
         extra.put("favouriteFiles", shown.stream().filter(favourites::contains).toList());

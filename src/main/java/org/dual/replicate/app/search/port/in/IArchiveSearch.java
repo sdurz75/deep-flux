@@ -24,4 +24,7 @@ public interface IArchiveSearch {
     Optional<IndexedDocument> find(String id);
 
     IndexStats stats();
+
+    /** I tag utente in uso (dei documenti indicizzati), i piu' usati prima: suggerimenti del filtro per tag. */
+    List<String> tags();
 }

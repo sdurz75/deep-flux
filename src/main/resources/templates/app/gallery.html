@@ -16,8 +16,10 @@
 
     <!-- Messaggio "galleria vuota" spostato dentro fragments/app/gallery :: content, vedi commento li'. -->
     <div id="gallery-content">
-        <div th:replace="~{fragments/app/gallery :: content(${items}, ${tab}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers})}"></div>
+        <div th:replace="~{fragments/app/gallery :: content(${items}, ${tab}, ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, ${tag})}"></div>
     </div>
+    <!-- Suggerimenti del filtro per tag (id known-tags): fuori da #gallery-content, che si ricarica. -->
+    <datalist id="known-tags"><option th:each="s : ${@generationService.allTags()}" th:value="${s}"></option></datalist>
 
     <div th:replace="~{fragments/core/live-events :: connect}"></div>
 </div>

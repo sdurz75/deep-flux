@@ -38,7 +38,7 @@ class ArchiveSearchToolTest {
                 hit("chatmessage:5", "vorrei un castello", Map.of("type", "chat", "refId", 5, "conversationId", 3, "role", "USER")),
                 hit("conversation:3", "Il castello del drago", Map.of("type", "conversation", "refId", 3))));
 
-        String result = tool.searchArchive("gatto", null);
+        String result = tool.searchArchive("gatto", null, null);
 
         assertThat(result).contains("[generation #12] (/generations/12) un felino sul divano")
                 .contains("[chat, conversation #3, USER] vorrei un castello")
@@ -52,13 +52,35 @@ class ArchiveSearchToolTest {
     void aTypeFilterIsAppliedAndAnInvalidOneIsRefusedWithoutSearching() {
         when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenReturn(List.of());
 
-        assertThat(tool.searchArchive("gatto", "Generation")).isEqualTo("Nessun risultato nell'archivio.");
+        assertThat(tool.searchArchive("gatto", "Generation", null)).isEqualTo("Nessun risultato nell'archivio.");
         ArgumentCaptor<DocumentFilter> filter = ArgumentCaptor.forClass(DocumentFilter.class);
         verify(search).search(anyString(), filter.capture(), anyDouble(), anyInt());
         assertThat(filter.getValue().type()).isEqualTo("generation");
 
         org.mockito.Mockito.clearInvocations(search);
-        assertThat(tool.searchArchive("gatto", "immagini")).contains("Tipo non valido");
+        assertThat(tool.searchArchive("gatto", "immagini", null)).contains("Tipo non valido");
+        verify(search, never()).search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt());
+    }
+
+    @Test
+    void aTagFilterIsNormalizedAndShownInTheResultsAndAnEmptyQueryJustListsTheTaggedItems() {
+        when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenReturn(List.of(
+                hit("imported:7", "una barca", Map.of("type", "imported", "refId", 7, "tags", List.of("mare", "vacanze")))));
+
+        String result = tool.searchArchive("barca", null, "  Mare ");
+
+        assertThat(result).contains("[imported image #7] (/import/7) [tags: mare, vacanze] una barca");
+        ArgumentCaptor<DocumentFilter> filter = ArgumentCaptor.forClass(DocumentFilter.class);
+        verify(search).search(anyString(), filter.capture(), anyDouble(), anyInt());
+        assertThat(filter.getValue().tag()).isEqualTo("mare");
+
+        // senza testo ma con il tag: nessuna ricerca per significato, l'elenco dei piu' recenti col tag
+        when(search.list(any(DocumentFilter.class), org.mockito.ArgumentMatchers.eq(0), org.mockito.ArgumentMatchers.eq(3)))
+                .thenReturn(new org.dual.replicate.core.kernel.Paged<>(List.of(new org.dual.replicate.app.search.domain.IndexedDocument(
+                        "generation:2", "generation", 2L, null, "un faro", Map.of("type", "generation", "refId", 2, "tags", List.of("mare")),
+                        "m", "h", java.time.Instant.EPOCH, 384)), 0, 3, 1));
+        org.mockito.Mockito.clearInvocations(search);
+        assertThat(tool.searchArchive("", null, "mare")).contains("[generation #2] (/generations/2) [tags: mare] un faro");
         verify(search, never()).search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt());
     }
 
@@ -67,7 +89,7 @@ class ArchiveSearchToolTest {
         RuntimeException failure = new IllegalStateException("modello non caricato");
         when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenThrow(failure);
 
-        String result = tool.searchArchive("gatto", null);
+        String result = tool.searchArchive("gatto", null, null);
 
         assertThat(result).contains("non disponibile").contains("modello non caricato");
         verify(systemEvents).record("searchArchive", failure);

@@ -235,6 +235,20 @@
 </button>
 
 <!--
+  tagRemove(title): la "x" di un chip tag (fragments/app/tag-editor.html, unico chiamante). type="submit": sta nel <form> del chip (hx-post su
+  removeUrl). p-0/border-0/bg-transparent: senza, il layer base darebbe al bottone sfondo e padding. hover:opacity-100 esplicito: la regola globale
+  "button:hover{opacity:.9}" del layer base vincerebbe su una bare utility.
+-->
+<button th:fragment="tagRemove(title)" type="submit"
+        th:title="${title}" th:aria-label="${title}"
+        class="flex items-center justify-center w-4 h-4 p-0 border-0 bg-transparent rounded-full
+               text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:opacity-100">
+    <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+</button>
+
+<!--
   resetSeed(title): icona overlay "torna a casuale" nel campo seed (fragments/app/generation-params-seed.html, unico chiamante). Svuota
   l'input fratello precedente (`peer`) e dispatcha `input` con bubbles, come una cancellazione digitata: il listener delegato di
   generation-settings-persist.html salva lo stato (localStorage / server della conversazione). Visibile solo con un seed valorizzato

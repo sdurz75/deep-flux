@@ -71,6 +71,11 @@
         <a th:if="${d.type == 'conversation'}" th:href="@{/deep-chat/{id}(id=${d.refId})}" th:text="#{search.row.openConversation}">Apri</a>
         <a th:if="${d.type == 'chat' && d.conversationId != null}" th:href="@{/deep-chat/{id}(id=${d.conversationId})}" th:text="#{search.row.openConversation}">Apri</a>
     </div>
+    <!--/* Tag utente (metadata `tags`, gia' normalizzati): link alla stessa ricerca filtrata per quel tag. Non sono le tag d'indice (#tags:) del testo. */-->
+    <div th:if="${d.metadata['tags'] != null && !#lists.isEmpty(d.metadata['tags'])}" class="mt-2 flex flex-wrap gap-1">
+        <a th:each="t : ${d.metadata['tags']}" th:href="@{/search(tag=${t})}" th:text="${t}"
+           class="text-[0.75rem] rounded-full px-2 py-0.5 border border-line dark:border-line-dark no-underline text-ink-muted dark:text-ink-muted-dark">tag</a>
+    </div>
     <!--/* Artefatti della generazione: miniature dai metadata (search non conosce generation). Un file appena cancellato si nasconde (onerror) fino alla riconciliazione. */-->
     <div th:if="${(d.type == 'generation' || d.type == 'imported') && d.metadata['files'] != null && !#lists.isEmpty(d.metadata['files'])}" class="mt-2 flex flex-wrap gap-2">
         <a th:each="f : ${d.metadata['files']}" th:href="${d.type == 'imported'} ? @{/import/{id}(id=${d.refId})} : @{/generations/{id}(id=${d.refId})}"

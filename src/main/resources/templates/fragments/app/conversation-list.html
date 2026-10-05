@@ -38,7 +38,7 @@
 
     <li th:each="c : ${conversations}"
         th:classappend="${c.id == activeConversationId} ? 'bg-canvas dark:bg-canvas-dark' : ''"
-        class="flex items-center gap-1 rounded-md px-1 py-1"
+        class="flex flex-wrap items-center gap-1 rounded-md px-1 py-1"
         x-data="{ editing: false }">
 
         <a th:href="@{/deep-chat/{id}(id=${c.id})}"
@@ -75,6 +75,16 @@
               x-show="!editing" class="shrink-0">
             <button th:replace="~{fragments/core/button :: danger(type='submit', text='✕', hxPost=null, hxDelete=null, hxConfirm=null, hxSwap=null, hxTarget=null, extraClass='px-2 py-1 text-[0.85rem] leading-none')}">✕</button>
         </form>
+
+        <!--/* Tag utente: sempre per la conversazione aperta e per quelle gia' taggate (le altre si taggano aprendole, per non riempire la sidebar di campi). */-->
+        <div th:if="${c.id == activeConversationId or !#sets.isEmpty(c.tags)}" x-show="!editing" class="basis-full px-1">
+            <th:block th:replace="~{fragments/app/tag-editor :: conversationEditor(conversation=${c}, activeConversationId=${activeConversationId})}"></th:block>
+        </div>
+    </li>
+
+    <!--/* Unica datalist dei suggerimenti per tutti i campi tag della sidebar (id known-tags). */-->
+    <li class="hidden" aria-hidden="true">
+        <datalist id="known-tags"><option th:each="s : ${@generationService.allTags()}" th:value="${s}"></option></datalist>
     </li>
 </ul>
 

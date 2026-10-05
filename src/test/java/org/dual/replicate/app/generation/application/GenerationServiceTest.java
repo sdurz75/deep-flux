@@ -825,6 +825,48 @@ class GenerationServiceTest {
     }
 
     @Test
+    void tagsOfAGenerationAndOfItsFilesAreNormalizedScopedToTheFileAndPublishAnEvent() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        ReflectionTestUtils.setField(generation, "id", 1L);
+        generation.setImageFilenames(List.of("1-0.png", "1-1.png"));
+        when(repository.findById(1L)).thenReturn(Optional.of(generation));
+        when(messages.get("gallery.error.imageNotFound")).thenReturn("immagine non trovata");
+
+        service.addTag(1L, null, "  Gatti ");
+        service.addTag(1L, "1-1.png", "Rosso");
+        service.addTag(1L, "1-1.png", "rosso"); // doppione
+
+        assertThat(generation.getTags()).containsExactly("gatti");
+        assertThat(generation.tagsOf("1-1.png")).containsExactly("rosso");
+        assertThat(generation.tagsOf("1-0.png")).isEmpty();
+        assertThat(generation.allTags()).containsExactly("gatti", "rosso");
+        verify(eventPublisher, org.mockito.Mockito.times(2)).publishEvent(any(org.dual.replicate.app.generation.domain.event.GenerationTagsChangedEvent.class));
+
+        assertThatThrownBy(() -> service.addTag(1L, "../etc/passwd", "x")).isInstanceOf(ReplicateException.class);
+        assertThatThrownBy(() -> service.removeTag(1L, "altro.png", "rosso")).isInstanceOf(ReplicateException.class);
+
+        service.removeTag(1L, "1-1.png", "ROSSO");
+        service.removeTag(1L, null, "gatti");
+        assertThat(generation.allTags()).isEmpty();
+    }
+
+    @Test
+    void deletingAFileAlsoDropsItsFileTags() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+        Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
+        ReflectionTestUtils.setField(generation, "id", 1L);
+        generation.setImageFilenames(List.of("1-0.png", "1-1.png"));
+        generation.getFileTags().add(new org.dual.replicate.app.generation.domain.FileTag("1-0.png", "uno"));
+        generation.getFileTags().add(new org.dual.replicate.app.generation.domain.FileTag("1-1.png", "due"));
+        when(repository.findById(1L)).thenReturn(Optional.of(generation));
+
+        service.deleteImage(1L, "1-0.png");
+
+        assertThat(generation.allTags()).containsExactly("due");
+    }
+
+    @Test
     void deleteImageAlsoDropsItsFavouriteMark() {
         GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
 

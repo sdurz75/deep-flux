@@ -42,6 +42,36 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
             + "where g.status = org.dual.replicate.app.generation.domain.GenerationStatus.SUCCEEDED")
     Page<GalleryItem> findFavouriteItems(Pageable pageable);
 
+    /**
+     * Galleria filtrata per tag utente: generazioni riuscite col tag sulla generazione O su uno dei suoi file; {@code importedOnly}
+     * restringe alle importate.
+     */
+    @Query(value = "select g from Generation g where g.status = org.dual.replicate.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:importedOnly = false or g.origin = org.dual.replicate.app.generation.domain.GenerationOrigin.IMPORTED) "
+            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.tag = :tag)) order by g.createdAt desc",
+            countQuery = "select count(g) from Generation g where g.status = org.dual.replicate.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:importedOnly = false or g.origin = org.dual.replicate.app.generation.domain.GenerationOrigin.IMPORTED) "
+            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.tag = :tag))")
+    Page<Generation> findSucceededByTag(@Param("tag") String tag, @Param("importedOnly") boolean importedOnly, Pageable pageable);
+
+    /** Tab "Preferiti" filtrata per tag: tag della generazione o di QUEL file. */
+    @Query(value = "select new org.dual.replicate.app.generation.domain.GalleryItem(g, f) from Generation g join g.favouriteFilenames f "
+            + "where g.status = org.dual.replicate.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.filename = f and ft.tag = :tag)) "
+            + "order by g.createdAt desc, f",
+            countQuery = "select count(f) from Generation g join g.favouriteFilenames f "
+            + "where g.status = org.dual.replicate.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.filename = f and ft.tag = :tag))")
+    Page<GalleryItem> findFavouriteItemsByTag(@Param("tag") String tag, Pageable pageable);
+
+    /** Tag utente distinti delle generazioni intere (suggerimenti dei campi tag). */
+    @Query("select distinct t from Generation g join g.tags t")
+    List<String> findDistinctGenerationTags();
+
+    /** Tag utente distinti dei file. */
+    @Query("select distinct ft.tag from Generation g join g.fileTags ft")
+    List<String> findDistinctFileTags();
+
     /** Usata dal listato /generations: tutte le generazioni, qualunque stato, piu' recenti prima. */
     Page<Generation> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
