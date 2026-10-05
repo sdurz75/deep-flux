@@ -61,10 +61,10 @@ class FluxLoraFinetuneParameterHandlerTest {
         assertThat(type.sourceImageParam()).isEqualTo("image");
         assertThat(type.maskParam()).isEqualTo("mask");
         assertThat(type.takesMask()).isTrue();
-        assertThat(type.requiresMask()).isFalse();
-        assertThat(type.isEdit()).isFalse();
-        assertThat(GenerationFormType.FLUX_FILL_DEV.requiresMask()).isTrue();
-        assertThat(GenerationFormType.FLUX_FILL_PRO.requiresMask()).isTrue();
+        assertThat(type.maskRequired()).isFalse();
+        assertThat(type.sourceRequired()).isFalse();
+        assertThat(GenerationFormType.FLUX_FILL_DEV.maskRequired()).isTrue();
+        assertThat(GenerationFormType.FLUX_FILL_PRO.maskRequired()).isTrue();
     }
 
     /** Enum dello schema Replicate: solo 0.25 e 1 (niente step da 0,5), il resto e' un 422 e si scarta. */

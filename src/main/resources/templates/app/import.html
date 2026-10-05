@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{import.title}">Importa immagini</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.create}, parentPath=null, parentText=null, current=#{import.title})}"></nav>
+</div>
+<div layout:fragment="content">
+    <h1 th:text="#{import.title}">Importa immagini</h1>
+    <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{import.intro}">Importa immagini esterne.</p>
+
+    <!--/* Il componente Alpine `importDropzone` si registra una volta (alpine:init) da questo script; il markup e' in :: field. */-->
+    <div th:replace="~{fragments/app/import-dropzone :: script}"></div>
+
+    <form id="import-form" th:action="@{/import}" method="post" enctype="multipart/form-data"
+          th:hx-post="@{/import}" hx-encoding="multipart/form-data" hx-target="#import-result" hx-swap="innerHTML"
+          th:data-busy-text="#{import.busy}">
+        <div th:replace="~{fragments/app/import-dropzone :: field(maxBytes=${maxBytes}, maxFiles=${maxFiles})}"></div>
+        <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{import.button.submit}, extraClass='mt-4')}">Importa</button>
+    </form>
+
+    <!--/* Esito dell'ultima importazione: lo sostituisce l'htmx del form, la pagina intera lo mostra dopo un invio nativo. */-->
+    <div id="import-result" class="mt-4" aria-live="polite">
+        <th:block th:if="${report != null}">
+            <div th:replace="~{fragments/app/import-result :: result(report=${report})}"></div>
+        </th:block>
+    </div>
+
+    <h2 class="mt-8" th:text="#{import.recent.title}">Ultime importate</h2>
+    <div id="import-recent">
+        <div th:replace="~{fragments/app/import-recent :: section(items=${items})}"></div>
+    </div>
+
+    <div th:replace="~{fragments/core/live-events :: connect}"></div>
+</div>
+</body>
+</html>

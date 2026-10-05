@@ -53,25 +53,18 @@ public class ModelCatalogService implements IModelCatalog {
     }
 
     /**
-     * Solo i modelli attivi del tipo di media dato, ESCLUSI quelli di modifica
-     * (vedi {@link #editModels()}): /deep-chat e /generations/new propongono i
-     * soli modelli text-to-image, che non richiedono un'immagine sorgente.
+     * Solo i modelli attivi del tipo di media dato che funzionano senza un'immagine
+     * sorgente ({@link GenerationFormType#sourceRequired()} falso): /deep-chat e il default
+     * di /generations/new non possono proporre kontext o flux-fill-*.
      */
     @Override
     public List<ReplicateModel> models(GenerationKind kind) {
-        return models().stream().filter(m -> m.getFormType().kind() == kind && !m.getFormType().isEdit()).toList();
+        return formModels(kind).stream().filter(m -> !m.getFormType().sourceRequired()).toList();
     }
 
-    /** Modelli attivi di modifica immagine (sorgente obbligatoria), pagina /generations/new?kind=edit. */
     @Override
-    public List<ReplicateModel> editModels() {
-        return models().stream().filter(m -> m.getFormType().isEdit()).toList();
-    }
-
-    /** True se {@code id} e' un modello di modifica censito attivo. */
-    @Override
-    public boolean containsEdit(String id) {
-        return formTypeOf(id).map(GenerationFormType::isEdit).orElse(false);
+    public List<ReplicateModel> formModels(GenerationKind kind) {
+        return models().stream().filter(m -> m.getFormType().kind() == kind).toList();
     }
 
     /** Primo modello attivo del catalogo, se ce n'e' uno: preselezionato in /generations/new e /deep-chat. */
@@ -84,7 +77,7 @@ public class ModelCatalogService implements IModelCatalog {
     /** True se {@code id} e' un modello censito attivo che produce media del tipo dato. */
     @Override
     public boolean contains(String id, GenerationKind kind) {
-        return formTypeOf(id).map(t -> t.kind() == kind && !t.isEdit()).orElse(false);
+        return formTypeOf(id).map(t -> t.kind() == kind && !t.sourceRequired()).orElse(false);
     }
 
     @Override

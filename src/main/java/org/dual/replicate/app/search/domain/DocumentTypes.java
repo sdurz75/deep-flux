@@ -4,6 +4,8 @@ package org.dual.replicate.app.search.domain;
 public final class DocumentTypes {
 
     public static final String GENERATION = "generation";
+    /** Immagini esterne importate (non generate): stessa sorgente dati di {@code generation}, ma un tipo proprio per la UI e i filtri. */
+    public static final String IMPORTED = "imported";
     public static final String CHAT = "chat";
     public static final String CONVERSATION = "conversation";
     /** Note manuali (create dalla UI /search): la riconciliazione non le crea ne' le rimuove, le timbra soltanto. */

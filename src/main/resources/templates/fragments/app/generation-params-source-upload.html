@@ -21,6 +21,8 @@
                     $el.setCustomValidity(f && f.size > Number($el.dataset.maxBytes) ? $el.dataset.tooLarge : '');
                     $el.reportValidity();
                     preview = f ? URL.createObjectURL(f) : null">
+    <!--/* Alternativa all'upload: scegliere un'immagine gia' nell'archivio (generata o importata). kind = tipo di pagina, per tornarci con la sorgente. */-->
+    <div th:replace="~{fragments/app/archive-picker :: picker(kind=${videoPage} ? null : 'image')}"></div>
     <!--/* La maschera dell'inpainting (mask-editor.html, evento `mask-changed`) si sovrappone a questa anteprima. */-->
     <div x-show="preview" x-cloak class="relative mt-2 inline-block">
         <img :src="preview" alt="" class="block h-32 w-auto rounded-md">

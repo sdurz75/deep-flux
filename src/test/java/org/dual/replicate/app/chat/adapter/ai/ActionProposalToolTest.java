@@ -9,7 +9,6 @@ import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.app.generation.port.in.IGenerations;
-import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -25,9 +24,8 @@ import static org.mockito.Mockito.when;
 class ActionProposalToolTest {
 
     private final IGenerations generations = mock(IGenerations.class);
-    private final IModelCatalog modelCatalog = mock(IModelCatalog.class);
     private final ISystemEvents systemEvents = mock(ISystemEvents.class);
-    private final ActionProposalTool tool = new ActionProposalTool(generations, modelCatalog, systemEvents);
+    private final ActionProposalTool tool = new ActionProposalTool(generations, systemEvents);
     private final ActionProposalHolder holder = new ActionProposalHolder();
     private final ToolContext context = new ToolContext(Map.of(ActionProposalHolder.CONTEXT_KEY, holder));
 
@@ -38,6 +36,8 @@ class ActionProposalToolTest {
         when(generation.getKind()).thenReturn(GenerationKind.IMAGE);
         when(generation.getModel()).thenReturn("owner/model");
         when(generation.getPrompt()).thenReturn("a cat");
+        // Un mock restituirebbe 0L per un Long: "nessuna sorgente da generazione" va dichiarato.
+        when(generation.getSourceGenerationId()).thenReturn(null);
         when(generation.getImageFilenames()).thenReturn(List.of("a.png"));
         when(generation.reusableSeedOf("a.png")).thenReturn(42L);
         when(generations.find(12L)).thenReturn(Optional.of(generation));
@@ -91,7 +91,7 @@ class ActionProposalToolTest {
     }
 
     @Test
-    void proposeRegenerateRefusesEditModelsUnknownFilesAndFilesWithoutSeed() {
+    void proposeRegenerateRefusesUnknownFilesAndFilesWithoutSeed() {
         Generation generation = generation(true);
 
         assertThat(tool.proposeRegenerateWithSeed(12L, "zzz.png", context)).contains("no file named");
@@ -99,9 +99,33 @@ class ActionProposalToolTest {
         // Un mock restituirebbe 0L per un Long: il "nessun seed" va dichiarato.
         when(generation.reusableSeedOf("b.png")).thenReturn(null);
         assertThat(tool.proposeRegenerateWithSeed(12L, "b.png", context)).contains("no reproducible seed");
-        when(modelCatalog.containsEdit("owner/model")).thenReturn(true);
-        assertThat(tool.proposeRegenerateWithSeed(12L, "a.png", context)).contains("Only plain image");
         assertThat(holder.getActions()).isEmpty();
+    }
+
+    @Test
+    void proposeRegenerateRefusesAGenerationStartedFromAnUploadOrAMask() {
+        Generation generation = generation(true);
+        when(generation.getSourceUploadFilename()).thenReturn("up.png");
+        assertThat(tool.proposeRegenerateWithSeed(12L, "a.png", context)).contains("uploaded image or mask");
+
+        when(generation.getSourceUploadFilename()).thenReturn(null);
+        when(generation.getMaskUploadFilename()).thenReturn("mask.png");
+        assertThat(tool.proposeRegenerateWithSeed(12L, "a.png", context)).contains("uploaded image or mask");
+        assertThat(holder.getActions()).isEmpty();
+    }
+
+    @Test
+    void proposeRegenerateChecksThatTheSourceGenerationStillExists() {
+        Generation generation = generation(true);
+        when(generation.getSourceGenerationId()).thenReturn(7L);
+        when(generation.getSourceImageFilename()).thenReturn("src.png");
+        when(generations.findAnimatableSource(7L, "src.png")).thenReturn(Optional.empty());
+        assertThat(tool.proposeRegenerateWithSeed(12L, "a.png", context)).contains("no longer exists");
+        assertThat(holder.getActions()).isEmpty();
+
+        when(generations.findAnimatableSource(7L, "src.png")).thenReturn(Optional.of(mock(Generation.class)));
+        assertThat(tool.proposeRegenerateWithSeed(12L, "a.png", context)).contains("Proposal prepared");
+        assertThat(holder.getActions()).containsExactly(ChatAction.regenerate(12L, "a.png", "owner/model"));
     }
 
     @Test

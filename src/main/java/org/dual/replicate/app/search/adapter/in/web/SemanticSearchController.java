@@ -46,9 +46,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class SemanticSearchController {
 
     static final int PAGE_SIZE = 20;
-    /** Filtro "media" della form (solo generazioni): valori ammessi, il resto e' ignorato come "tutti". */
+    /** Filtro "media" della form (solo generazioni e immagini importate): valori ammessi, il resto e' ignorato come "tutti". */
     static final List<String> MEDIA = List.of("all", "image", "video");
-    static final List<String> TYPES = List.of("all", DocumentTypes.GENERATION, DocumentTypes.CHAT, DocumentTypes.CONVERSATION,
+    static final List<String> TYPES = List.of("all", DocumentTypes.GENERATION, DocumentTypes.IMPORTED, DocumentTypes.CHAT, DocumentTypes.CONVERSATION,
             DocumentTypes.NOTE);
 
     /** Un documento con, se viene da una ricerca, il suo punteggio di similarita' (0..1). */
@@ -231,12 +231,9 @@ public class SemanticSearchController {
             return;
         }
 
-        // Media/preferiti sono metadata delle sole generazioni: con uno dei due il tipo "tutti" diventa "generazioni".
+        // Media/preferiti sono metadata delle sole generazioni e immagini importate: gli altri tipi non li hanno e non combaciano, quindi col tipo "tutti" non serve restringere.
         String kind = "image".equals(media) ? "IMAGE" : "video".equals(media) ? "VIDEO" : null;
         String wantedType = type.isBlank() || "all".equals(type) ? null : type;
-        if (wantedType == null && (kind != null || favourites)) {
-            wantedType = DocumentTypes.GENERATION;
-        }
         DocumentFilter filter = new DocumentFilter(wantedType, start, end, kind, favourites);
         List<Hit> hits;
         long total;

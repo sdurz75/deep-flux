@@ -196,7 +196,8 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String video = mockMvc.perform(get("/generations/new").param("kind", "video"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
+        // Vecchi link della pagina di modifica (kind=edit): ora e' la pagina delle immagini.
+        String oldEditLink = mockMvc.perform(get("/generations/new").param("kind", "edit"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String reused = mockMvc.perform(get("/generations/new").param("prompt", "a cat"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -204,12 +205,11 @@ class TemplateRenderingTests {
         assertThat(image).contains("data-persist-key=\"generate.image\"").contains("data-persist-ignore=\"version\"")
                 .doesNotContainPattern("data-persist-no-restore=\"[^\"]*(prompt|seed)");
         assertThat(video).contains("data-persist-key=\"generate.video\"");
-        assertThat(edit).contains("data-persist-key=\"generate.edit\"");
+        assertThat(oldEditLink).contains("data-persist-key=\"generate.image\"").doesNotContain("generate.edit");
         assertThat(reused).contains("data-persist-no-restore=\"prompt\"");
-        // Slot globale prompt/seed: l'edit non prende il prompt (e' un'istruzione), le altre pagine entrambi.
+        // Slot globale prompt/seed: entrambi, su ogni pagina.
         assertThat(image).contains("data-shared-accept=\"prompt seed\"");
         assertThat(video).contains("data-shared-accept=\"prompt seed\"");
-        assertThat(edit).contains("data-shared-accept=\"seed\"");
         // Script condiviso incluso una volta, bottone di reset che punta ai default del tipo di pagina.
         assertThat(image).contains("form[data-persist-key]").contains("generation-settings:sync");
         assertThat(video).containsPattern("data-default-model=\"prunaai/p-video\"")
@@ -625,10 +625,13 @@ class TemplateRenderingTests {
         String content = page.substring(page.indexOf("<main"), page.indexOf("</main>"));
 
         assertThat(content).contains("href=\"/deep-chat\"", "href=\"/generations/new\"", "href=\"/generations/new?kind=video\"",
-                        "href=\"/generations/new?kind=edit\"", "href=\"/gallery\"")
+                        "href=\"/import\"", "href=\"/gallery\"")
+                .doesNotContain("kind=edit")
                 .doesNotContain("href=\"/search\"") // ricerca semantica spenta nei test
                 .doesNotContain("Thymeleaf").doesNotContain("Spring MVC");
         assertThat(page).doesNotContain("<footer").doesNotContain("Spring Boot");
+        // /import e' raggiungibile dalla Home (in <main>) e dal menu Crea (barra e slideover): almeno un link fuori da <main> oltre a quello della Home.
+        assertThat(page.split("href=\"/import\"", -1).length - 1).isGreaterThan(1);
     }
 
     /** Ogni pagina tranne la Home mostra Home › [gruppo] › pagina, con la pagina corrente non linkata. */
@@ -646,8 +649,9 @@ class TemplateRenderingTests {
         assertThat(image).contains("Crea").containsPattern("aria-current=\"page\"[^>]*>Genera immagine<");
         String video = breadcrumbsOf(mockMvc.perform(get("/generations/new").param("kind", "video")).andReturn().getResponse().getContentAsString());
         assertThat(video).containsPattern("aria-current=\"page\"[^>]*>Genera video<");
-        String edit = breadcrumbsOf(mockMvc.perform(get("/generations/new").param("kind", "edit")).andReturn().getResponse().getContentAsString());
-        assertThat(edit).containsPattern("aria-current=\"page\"[^>]*>Modifica immagine<");
+
+        String imports = breadcrumbsOf(mockMvc.perform(get("/import")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(imports).contains("Crea").containsPattern("aria-current=\"page\"[^>]*>Importa immagini<");
 
         String loras = breadcrumbsOf(mockMvc.perform(get("/loras")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(loras).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>LoRA<");
@@ -894,6 +898,21 @@ class TemplateRenderingTests {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(body).contains("id=\"prompt-field\"", "name=\"prompt\"");
+    }
+
+    /** Il campo prompt ha sempre "Svuota il prompt": nella pagina e nella risposta di "AI enhance" (lo stesso fragment), nascosto via CSS a textarea vuota. */
+    @Test
+    void promptFieldAlwaysOffersAClearButton() throws Exception {
+        String page = mockMvc.perform(get("/generations/new")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String enhanced = mockMvc.perform(post("/generations/enhance-prompt").param("prompt", "   "))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        for (String body : new String[] {page, enhanced}) {
+            assertThat(body).contains("title=\"Svuota il prompt\"").contains("peer-placeholder-shown:hidden");
+            assertThat(body).containsPattern("(?s)<textarea[^>]*id=\"prompt\"[^>]*placeholder=\" \"[^>]*class=\"peer ");
+        }
+        // Cliccandolo sta nel form che spende su Replicate: type=button, mai un submit.
+        assertThat(page).containsPattern("(?s)<button[^>]*type=\"button\"[^>]*title=\"Svuota il prompt\"");
     }
 
     /**
@@ -1714,27 +1733,29 @@ class TemplateRenderingTests {
         assertThat(body).contains("name=\"sourceUpload\"");
     }
 
-    /** Modifica: pagina dedicata, solo il modello di modifica, upload obbligatorio; le altre pagine non lo elencano. */
+    /** Kontext e flux-fill-* stanno nel combobox delle immagini (segnati come "richiede un'immagine") ma non in /deep-chat. */
     @Test
     @Transactional
-    void editPageListsOnlyTheEditModelWithARequiredUpload() throws Exception {
+    void sourceRequiredModelsAreOnTheImagePageWithARequiredUploadButNotInTheChat() throws Exception {
         ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
-        String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String images = mockMvc.perform(get("/generations/new"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String video = mockMvc.perform(get("/generations/new").param("kind", "video"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String kontext = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-kontext-dev"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(edit).contains("black-forest-labs/flux-kontext-dev").doesNotContain("black-forest-labs/flux-krea-dev")
-                .doesNotContain("prunaai/p-video");
+        assertThat(images).contains("black-forest-labs/flux-kontext-dev", "black-forest-labs/flux-fill-dev", "black-forest-labs/flux-fill-pro",
+                "black-forest-labs/flux-krea-dev").doesNotContain("prunaai/p-video");
+        assertThat(images).containsPattern("black-forest-labs/flux-kontext-dev · [^<]+<");
+        assertThat(images).doesNotContain("flux-krea-dev ·").doesNotContain("kind=edit");
+        assertThat(video).doesNotContain("black-forest-labs/flux-kontext-dev");
         // Il tag contiene un '>' dentro @change (f.size > ...): si cerca fino al '<' successivo, non al '>'.
-        assertThat(edit).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
-        assertThat(edit).contains("name=\"aspect_ratio\"").contains("match_input_image");
-        assertThat(images).doesNotContain("black-forest-labs/flux-kontext-dev");
+        assertThat(kontext).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        assertThat(kontext).contains("name=\"aspect_ratio\"").contains("match_input_image");
         assertThat(chat).doesNotContain("black-forest-labs/flux-kontext-dev");
-        // Link nell'header su ogni pagina.
-        assertThat(images).contains("/generations/new?kind=edit");
     }
 
     /** flux-fill-pro: stesso editor della maschera, ma senza LoRA ne' numero di immagini (una prediction = un'immagine). */
@@ -1807,13 +1828,13 @@ class TemplateRenderingTests {
     /** Nel form la maschera si sovrappone all'anteprima della sorgente (evento `mask-changed` dell'editor), non e' una miniatura. */
     @Test
     @Transactional
-    void editFormOverlaysTheMaskOnTheSourcePreview() throws Exception {
+    void imageFormOverlaysTheMaskOnTheSourcePreview() throws Exception {
         Generation image = new Generation("pred-ov-src", "owner/model", null, "a cat", null);
         image.setStatus(GenerationStatus.SUCCEEDED);
         image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("5-0.png")));
         image = repository.save(image);
 
-        String fromGeneration = mockMvc.perform(get("/generations/new").param("kind", "edit")
+        String fromGeneration = mockMvc.perform(get("/generations/new").param("kind", "image")
                         .param("source", String.valueOf(image.getId())).param("sourceImage", "5-0.png"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String fromUpload = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev"))
@@ -1824,13 +1845,11 @@ class TemplateRenderingTests {
                 .doesNotContain("h-12 w-auto rounded border");
     }
 
-    /** Inpainting: il modello sta fra i modelli di modifica, con editor maschera e un solo LoRA (senza token); non compare altrove. */
+    /** Inpainting: il modello sta nel combobox delle immagini, con editor maschera e un solo LoRA (senza token); non compare in chat. */
     @Test
     @Transactional
-    void inpaintingModelOffersTheMaskEditorOnTheEditPageOnly() throws Exception {
+    void inpaintingModelOffersTheMaskEditorOnTheImagePageButNotInTheChat() throws Exception {
         ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
-        String edit = mockMvc.perform(get("/generations/new").param("kind", "edit"))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String images = mockMvc.perform(get("/generations/new"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String chat = mockMvc.perform(get("/deep-chat/" + conversation.getId()))
@@ -1838,11 +1857,10 @@ class TemplateRenderingTests {
         String fill = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-fill-dev"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(edit).contains("black-forest-labs/flux-fill-dev").contains("black-forest-labs/flux-fill-pro")
+        assertThat(images).contains("black-forest-labs/flux-fill-dev").contains("black-forest-labs/flux-fill-pro")
                 .contains("black-forest-labs/flux-kontext-dev");
         // Il componente Alpine e' registrato a livello di pagina (il fragment dei campi viene sostituito al cambio modello).
-        assertThat(edit).contains("Alpine.data('maskEditor'").contains("function featherAlpha(");
-        assertThat(images).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro");
+        assertThat(images).contains("Alpine.data('maskEditor'").contains("function featherAlpha(");
         assertThat(chat).doesNotContain("black-forest-labs/flux-fill-dev").doesNotContain("black-forest-labs/flux-fill-pro");
         // Il modello di default della chat (un fine-tune LoRA) ha la maschera opzionale: nel pannello l'editor non deve esistere (il componente
         // `maskEditor` non e' registrato li'), quindi sta in un <template x-if> che non si istanzia e non entra nel FormData.
@@ -1878,23 +1896,28 @@ class TemplateRenderingTests {
         assertThat(images).doesNotContain("name=\"mask\"");
     }
 
-    /** "Modifica" da una generazione: preseleziona il modello di modifica (non p-video), porta la sorgente, niente upload. */
+    /** "Usa come sorgente" da una generazione: preseleziona un modello immagine con sorgente opzionale (mai kontext/fill, mai p-video), porta la sorgente, niente upload. */
     @Test
     @Transactional
-    void editFormWithSourceCarriesTheSourceAndPreselectsTheEditModel() throws Exception {
+    void imageFormWithSourceCarriesTheSourceAndPreselectsAnImg2ImgModel() throws Exception {
         Generation image = new Generation("pred-edit-src", "owner/model", null, "a cat", null);
         image.setStatus(GenerationStatus.SUCCEEDED);
         image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("1-0.png")));
         image = repository.save(image);
 
-        String body = mockMvc.perform(get("/generations/new").param("kind", "edit")
+        String body = mockMvc.perform(get("/generations/new").param("kind", "image")
                         .param("source", String.valueOf(image.getId())).param("sourceImage", "1-0.png"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(body).doesNotContain("name=\"sourceUpload\"");
         assertThat(body).containsPattern("name=\"sourceGenerationId\"[^>]*value=\"" + image.getId() + "\"");
-        assertThat(body).containsPattern("<option value=\"black-forest-labs/flux-kontext-dev\"[^>]*selected");
+        assertThat(body).containsPattern("<option value=\"(sdurz75/flux-lora-ff3|black-forest-labs/flux-dev-lora)\"[^>]*selected");
+        assertThat(body).doesNotContainPattern("<option value=\"black-forest-labs/flux-kontext-dev\"[^>]*selected");
         assertThat(body).doesNotContain("prunaai/p-video");
+        // Il vecchio link della pagina di modifica porta alla stessa pagina.
+        assertThat(mockMvc.perform(get("/generations/new").param("kind", "edit")
+                        .param("source", String.valueOf(image.getId())).param("sourceImage", "1-0.png"))
+                .andReturn().getResponse().getContentAsString()).containsPattern("<option value=\"(sdurz75/flux-lora-ff3|black-forest-labs/flux-dev-lora)\"[^>]*selected");
     }
 
     /**
@@ -1926,25 +1949,25 @@ class TemplateRenderingTests {
         assertThat(wrongFile).containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
     }
 
-    /** La pagina di modifica con sorgente fa viaggiare la sorgente anche nella select modello e nel "Reimposta ai default". */
+    /** La pagina con sorgente da generazione fa viaggiare la sorgente anche nella select modello e nel "Reimposta ai default". */
     @Test
     @Transactional
-    void editPageWithSourceSendsTheSourceWithEveryParamsRequest() throws Exception {
+    void imagePageWithSourceSendsTheSourceWithEveryParamsRequest() throws Exception {
         Generation image = new Generation("pred-params-url", "owner/model", null, "a cat", null);
         image.setStatus(GenerationStatus.SUCCEEDED);
         image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("6-0.png")));
         image = repository.save(image);
 
-        String withSource = mockMvc.perform(get("/generations/new").param("kind", "edit")
+        String withSource = mockMvc.perform(get("/generations/new").param("kind", "image")
                         .param("source", String.valueOf(image.getId())).param("sourceImage", "6-0.png"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String standalone = mockMvc.perform(get("/generations/new").param("kind", "edit"))
+        String standalone = mockMvc.perform(get("/generations/new").param("kind", "image"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(withSource).contains("hx-include=\"#generation-params-fields, [name=sourceGenerationId], [name=sourceImage]\"")
                 .containsPattern("hx-get=\"[^\"]*/generations/params\\?model=[^\"]*sourceGenerationId=" + image.getId() + "[^\"]*sourceImage=6-0\\.png");
-        // Stand-alone: nessuna sorgente da portare nel reset, e l'upload obbligatorio c'e'.
-        assertThat(standalone).doesNotContain("sourceGenerationId=").containsPattern("(?s)<input[^<]*name=\"sourceUpload\"[^<]*\\brequired");
+        // Stand-alone: nessuna sorgente da portare nel reset.
+        assertThat(standalone).doesNotContain("sourceGenerationId=");
         // Il restore dello script di persistenza chiede i campi con la stessa sorgente.
         assertThat(withSource).contains("function sourceQuery(form)");
     }
@@ -1970,10 +1993,10 @@ class TemplateRenderingTests {
                 .containsPattern("id=\"param-steps\"[^>]*value=\"28\"");
     }
 
-    /** Ogni thumbnail immagine offre "Modifica" verso la pagina di modifica. */
+    /** Ogni thumbnail immagine offre "Usa come sorgente" (img2img); non c'e' piu' un overlay "Modifica" a parte. */
     @Test
     @Transactional
-    void galleryCardOffersEditForImages() throws Exception {
+    void galleryCardOffersUseAsSourceForImagesAndNoSeparateEdit() throws Exception {
         Generation image = new Generation("pred-edit-card", "owner/model", null, "a cat", null);
         image.setStatus(GenerationStatus.SUCCEEDED);
         image.setImageFilenames(new java.util.ArrayList<>(java.util.List.of("2-0.png")));
@@ -1981,6 +2004,6 @@ class TemplateRenderingTests {
 
         String body = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(body).contains("kind=edit").contains("source=" + image.getId());
+        assertThat(body).contains("kind=image").contains("source=" + image.getId()).doesNotContain("kind=edit");
     }
 }

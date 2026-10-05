@@ -61,18 +61,19 @@
               th:classappend="${d.type == 'note'} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark' : 'border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark'">tipo</span>
         <span th:if="${hit.score != null}" class="font-semibold"
               th:text="#{search.row.score} + ' ' + ${#numbers.formatDecimal(hit.score * 100, 1, 1)} + '%'">Somiglianza 85.0%</span>
-        <span th:if="${d.type == 'generation' && d.metadata['kind'] != null}" class="rounded-full px-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark"
+        <span th:if="${(d.type == 'generation' || d.type == 'imported') && d.metadata['kind'] != null}" class="rounded-full px-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark"
               th:text="#{'search.kind.' + ${#strings.toLowerCase(d.metadata['kind'])}}">Foto</span>
         <span th:if="${d.type == 'generation' && d.metadata['model'] != null}" class="text-ink-muted dark:text-ink-muted-dark" th:text="${d.metadata['model']}">modello</span>
         <strong th:if="${d.metadata['title'] != null}" th:text="${d.metadata['title']}">titolo</strong>
         <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${#temporals.format(d.createdAt, 'dd/MM/yyyy HH:mm')}">data</span>
         <a th:if="${d.type == 'generation'}" th:href="@{/generations/{id}(id=${d.refId})}" th:text="#{search.row.openGeneration}">Apri</a>
+        <a th:if="${d.type == 'imported'}" th:href="@{/import/{id}(id=${d.refId})}" th:text="#{search.row.openImported}">Apri</a>
         <a th:if="${d.type == 'conversation'}" th:href="@{/deep-chat/{id}(id=${d.refId})}" th:text="#{search.row.openConversation}">Apri</a>
         <a th:if="${d.type == 'chat' && d.conversationId != null}" th:href="@{/deep-chat/{id}(id=${d.conversationId})}" th:text="#{search.row.openConversation}">Apri</a>
     </div>
     <!--/* Artefatti della generazione: miniature dai metadata (search non conosce generation). Un file appena cancellato si nasconde (onerror) fino alla riconciliazione. */-->
-    <div th:if="${d.type == 'generation' && d.metadata['files'] != null && !#lists.isEmpty(d.metadata['files'])}" class="mt-2 flex flex-wrap gap-2">
-        <a th:each="f : ${d.metadata['files']}" th:href="@{/generations/{id}(id=${d.refId})}"
+    <div th:if="${(d.type == 'generation' || d.type == 'imported') && d.metadata['files'] != null && !#lists.isEmpty(d.metadata['files'])}" class="mt-2 flex flex-wrap gap-2">
+        <a th:each="f : ${d.metadata['files']}" th:href="${d.type == 'imported'} ? @{/import/{id}(id=${d.refId})} : @{/generations/{id}(id=${d.refId})}"
            class="relative block w-24 h-24 overflow-hidden rounded-md border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark">
             <!--/* Video: la src si assegna solo quando la miniatura entra nel viewport (x-intersect.once), cosi' una pagina di 20 risultati non apre decine di Range request insieme. */-->
             <video th:if="${d.metadata['kind'] == 'VIDEO'}" th:data-src="@{'/images/' + ${f}}" class="w-full h-full object-cover block"

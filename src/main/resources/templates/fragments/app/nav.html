@@ -28,7 +28,7 @@
 <th:block th:fragment="navCreate">
     <a th:replace="~{fragments/core/header :: navLink(path='/generations/new', text=#{header.nav.generate})}">Genera immagine</a>
     <a th:replace="~{fragments/core/header :: navLink(path='/generations/new?kind=video', text=#{header.nav.generateVideo})}">Genera video</a>
-    <a th:replace="~{fragments/core/header :: navLink(path='/generations/new?kind=edit', text=#{header.nav.editImage})}">Modifica immagine</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/import', text=#{header.nav.import})}">Importa immagini</a>
 </th:block>
 
 <th:block th:fragment="navManage">

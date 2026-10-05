@@ -46,7 +46,8 @@
                     hx-target="#generation-params-fields" hx-swap="innerHTML"
                     hx-trigger="change" hx-include="#generation-params-fields, [name=sourceGenerationId], [name=sourceImage]"
                     class="sr-only" tabindex="-1" aria-hidden="true">
-                <option th:each="m : ${models}" th:value="${m.identifier}" th:text="${m.identifier}"
+                <option th:each="m : ${models}" th:value="${m.identifier}"
+                        th:text="${m.formType.sourceRequired()} ? ${m.identifier} + ' · ' + #{generationParams.option.needsImage} : ${m.identifier}"
                         th:title="${m.description}" th:selected="${m.identifier == model}"></option>
             </select>
             <div th:replace="~{fragments/core/select :: ui}"></div>

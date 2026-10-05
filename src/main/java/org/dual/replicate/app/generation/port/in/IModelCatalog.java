@@ -16,19 +16,19 @@ public interface IModelCatalog {
     /** Modelli censiti attivi, ordinati per visualizzazione nel combobox. */
     List<ReplicateModel> models();
 
-    /** Solo i modelli attivi del tipo di media dato, ESCLUSI quelli di modifica (vedi {@link #editModels()}). */
+    /**
+     * Solo i modelli attivi del tipo di media dato che funzionano SENZA una sorgente (vedi {@link GenerationFormType#sourceRequired()}):
+     * quelli che puo' usare /deep-chat e il default di /generations/new. Per il combobox del form vedi {@link #formModels(GenerationKind)}.
+     */
     List<ReplicateModel> models(GenerationKind kind);
 
-    /** Modelli attivi di modifica immagine (sorgente obbligatoria), pagina /generations/new?kind=edit. */
-    List<ReplicateModel> editModels();
-
-    /** True se {@code id} e' un modello di modifica censito attivo. */
-    boolean containsEdit(String id);
+    /** Tutti i modelli attivi del tipo di media dato, anche quelli a sorgente obbligatoria: il combobox di /generations/new. */
+    List<ReplicateModel> formModels(GenerationKind kind);
 
     /** Primo modello attivo (immagine) del catalogo, se ce n'e' uno: preselezionato in /generations/new e /deep-chat. */
     Optional<ReplicateModel> defaultModel();
 
-    /** True se {@code id} e' un modello censito attivo che produce media del tipo dato (e non e' di modifica). */
+    /** True se {@code id} e' un modello censito attivo che produce media del tipo dato (e non richiede una sorgente). */
     boolean contains(String id, GenerationKind kind);
 
     boolean contains(String id);

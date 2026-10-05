@@ -16,26 +16,31 @@
 
         <!--/*
           Stato persistito lato client (fragments/app/generation-settings-persist.html, incluso da generate.html): chiave per
-          TIPO di pagina (modelli e campi differiscono), separata da quella della chat. Il prompt valorizzato dal server
+          TIPO di pagina (immagini | video: modelli e campi differiscono), separata da quella della chat. Il prompt valorizzato dal server
           ("Anima") NON si ripristina: vince il link. `version` (hash pinnato) non si persiste mai.
-          data-shared-accept: cosa prende dallo slot globale prompt/seed (generation-shared-slot.html). Su "edit" solo il seed:
-          il prompt di una modifica e' un'istruzione, non la descrizione di un'immagine.
+          data-shared-accept: cosa prende dallo slot globale prompt/seed (generation-shared-slot.html).
         */-->
         <form th:hx-post="@{/generations}" hx-target="#generation-panel" hx-swap="innerHTML" hx-encoding="multipart/form-data"
               th:data-busy-text="#{generateForm.busy.create}"
-              th:data-persist-key="${editPage} ? 'generate.edit' : (${videoPage} ? 'generate.video' : 'generate.image')"
+              th:data-persist-key="${videoPage} ? 'generate.video' : 'generate.image'"
               th:data-persist-no-restore="${prompt != null ? 'prompt' : ''}"
               th:attr="data-persist-fresh=${persistFresh != null} ? 'true' : null"
-              th:data-shared-accept="${editPage} ? 'seed' : 'prompt seed'"
+              data-shared-accept="prompt seed"
               data-persist-ignore="version">
             <div th:if="${sourceGeneration}" class="mb-4">
                 <input type="hidden" name="sourceGenerationId" th:value="${sourceGeneration.id}">
                 <input type="hidden" name="sourceImage" th:value="${sourceImage}">
-                <p th:text="${editPage} ? #{generateForm.label.editSource(${sourceGeneration.id})} : #{generateForm.label.sourceImage(${sourceGeneration.id})}">Animazione della generazione</p>
+                <p th:text="#{generateForm.label.sourceImage(${sourceGeneration.id})}">Animazione della generazione</p>
                 <!--/* L'editor della maschera (mask-editor.html) annuncia la maschera con l'evento window `mask-changed` (URL del blob o null): qui si sovrappone all'anteprima. */-->
                 <div class="relative mt-1 inline-block" x-data="{ mask: null }" @mask-changed.window="mask = $event.detail">
                     <img id="generate-source-preview" th:src="@{'/images/' + ${sourceImage}}" alt="" class="block h-32 w-auto rounded-md">
                     <span th:replace="~{fragments/app/mask-overlay :: layerBound(show='mask')}"></span>
+                </div>
+                <!--/* Cambia la sorgente scegliendone un'altra dall'archivio, o torna a un upload (stessa pagina senza `source`). */-->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div th:replace="~{fragments/app/archive-picker :: picker(kind=${videoPage} ? null : 'image')}"></div>
+                    <a class="mt-2 text-[0.85rem]" th:href="@{/generations/new(kind=${videoPage} ? 'video' : 'image')}"
+                       th:text="#{picker.link.useUpload}">Usa un file caricato</a>
                 </div>
             </div>
 
@@ -80,8 +85,10 @@
 <div th:fragment="promptField(prompt, enhanceError)" id="prompt-field">
     <label for="prompt" th:text="#{generateForm.label.prompt}">Prompt</label>
     <div class="relative">
-        <textarea id="prompt" name="prompt" rows="3" required class="w-full pr-10" th:text="${prompt}"></textarea>
+        <!--/* placeholder " " + peer: lo stato :placeholder-shown (textarea vuota) nasconde "Svuota" in puro CSS, come resetSeed. */-->
+        <textarea id="prompt" name="prompt" rows="3" required placeholder=" " class="peer w-full pr-10" th:text="${prompt}"></textarea>
         <button th:replace="~{fragments/app/button-gen :: aiEnhance(title=#{generateForm.button.enhance})}">AI enhance</button>
+        <button th:replace="~{fragments/app/button-gen :: clearPrompt(title=#{generateForm.button.clearPrompt})}">Svuota il prompt</button>
     </div>
     <th:block th:if="${enhanceError}">
         <p th:replace="~{fragments/core/alert :: error(text=${enhanceError})}">Errore</p>

@@ -1,7 +1,5 @@
 package org.dual.replicate.app.prompt.application;
 
-import java.util.regex.Pattern;
-
 import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.app.prompt.domain.PromptEnhancementRefusedException;
 import org.dual.replicate.app.prompt.port.in.IPromptEnhancer;
@@ -18,20 +16,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class PromptEnhancementService implements IPromptEnhancer {
 
-    /** Un rifiuto tipico ("I'm sorry, I can't...") o una risposta vuota. */
-    private static final Pattern REFUSAL = Pattern.compile(
-            "^\\s*(i['\u2019]?m sorry|i am sorry|sorry|i can(['\u2019]?t|not)|i['\u2019]?m (unable|not able)|i am (unable|not able)|unable to|as an ai)",
-            Pattern.CASE_INSENSITIVE);
-
     private final IPromptModel model;
-    private final ISourceImageScaler scaler;
+    private final VisionRunner vision;
     private final String imageGuide;
     private final String videoGuide;
     private final String editGuide;
     private final String inpaintGuide;
     private final String img2imgGuide;
-    private final String visionModel;
-    private final String visionFallbackModel;
 
     public PromptEnhancementService(IPromptModel model,
                                      ISourceImageScaler scaler,
@@ -43,14 +34,12 @@ public class PromptEnhancementService implements IPromptEnhancer {
                                      @Value("${enhancer.vision-model}") String visionModel,
                                      @Value("${enhancer.vision-fallback-model}") String visionFallbackModel) {
         this.model = model;
-        this.scaler = scaler;
+        this.vision = new VisionRunner(model, scaler, visionModel, visionFallbackModel);
         this.imageGuide = promptEnhancementGuide;
         this.videoGuide = videoGuide;
         this.editGuide = editGuide;
         this.inpaintGuide = inpaintGuide;
         this.img2imgGuide = img2imgGuide;
-        this.visionModel = visionModel;
-        this.visionFallbackModel = visionFallbackModel;
     }
 
     @Override
@@ -108,40 +97,7 @@ public class PromptEnhancementService implements IPromptEnhancer {
         if (image == null) {
             return requireText(model.complete("enhance", guide, text, null, null));
         }
-        SourceImage sized = scaler.fitForVision(image);
-        boolean fallbackAvailable = !visionFallbackModel.isBlank() && !visionFallbackModel.equals(visionModel);
-
-        // Il fallback scatta sia per un rifiuto sia per un ERRORE del modello principale (timeout, 402, modello
-        // non disponibile): prima un errore lo faceva abortire senza nemmeno provare il secondo modello.
-        String result = null;
-        RuntimeException failure = null;
-        try {
-            result = askVision(guide, visionModel, text, sized);
-        } catch (RuntimeException e) {
-            failure = e;
-        }
-        if ((failure != null || isRefusal(result)) && fallbackAvailable) {
-            try {
-                result = askVision(guide, visionFallbackModel, text, sized);
-                failure = null;
-            } catch (RuntimeException e) {
-                if (failure != null) {
-                    e.addSuppressed(failure);
-                }
-                failure = e;
-            }
-        }
-        if (failure != null) {
-            throw failure;
-        }
-        if (isRefusal(result)) {
-            throw new PromptEnhancementRefusedException(result == null ? "" : result.trim());
-        }
-        return result.trim();
-    }
-
-    private String askVision(String guide, String visionModel, String text, SourceImage image) {
-        return model.complete("enhanceVision", guide, text, visionModel, image);
+        return vision.ask("enhanceVision", guide, text, image);
     }
 
     /**
@@ -157,6 +113,6 @@ public class PromptEnhancementService implements IPromptEnhancer {
     }
 
     static boolean isRefusal(String result) {
-        return result == null || result.isBlank() || REFUSAL.matcher(result).find();
+        return VisionRunner.isRefusal(result);
     }
 }

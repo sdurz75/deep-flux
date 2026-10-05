@@ -2,15 +2,15 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/core/layout}">
 <head>
-    <title th:text="${editPage} ? #{generate.edit.title} : (${videoPage} ? #{generate.video.title} : #{generate.title})">Genera immagine</title>
+    <title th:text="${videoPage} ? #{generate.video.title} : #{generate.title}">Genera immagine</title>
 </head>
 <body>
 <div layout:fragment="breadcrumbs">
-    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.create}, parentPath=null, parentText=null, current=${editPage} ? #{generate.edit.title} : (${videoPage} ? #{generate.video.title} : #{generate.title}))}"></nav>
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.create}, parentPath=null, parentText=null, current=${videoPage} ? #{generate.video.title} : #{generate.title})}"></nav>
 </div>
 <div layout:fragment="content">
-    <h1 th:text="${editPage} ? #{generate.edit.title} : (${videoPage} ? #{generate.video.title} : #{generate.title})">Genera immagine</h1>
-    <p th:text="${editPage} ? #{generate.edit.intro} : (${videoPage} ? #{generate.video.intro} : #{generate.intro})">Scegli un modello censito, scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</p>
+    <h1 th:text="${videoPage} ? #{generate.video.title} : #{generate.title}">Genera immagine</h1>
+    <p th:text="${videoPage} ? #{generate.video.intro} : #{generate.intro}">Scegli un modello censito, scrivi un prompt e regola larghezza, altezza, formato e gli altri parametri di generazione nei campi dedicati.</p>
 
     <div id="generation-panel">
         <div th:replace="~{fragments/app/generate-form :: form}"></div>

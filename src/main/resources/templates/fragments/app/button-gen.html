@@ -85,6 +85,25 @@
 </button>
 
 <!--
+  clearPrompt(title): icona overlay "Svuota il prompt" sotto "AI enhance" nella textarea #prompt (generate-form.html :: promptField, unico chiamante;
+  `peer` sulla textarea). Visibile solo con del testo (`peer-placeholder-shown:hidden`: la textarea ha placeholder " ", CSS puro, segue anche i
+  .value scritti da codice e il risultato di "AI enhance"). Svuota e dispatcha `input` con bubbles come una cancellazione digitata: lo script di
+  persistenza salva lo stato. type="button" CRITICO: sta nel form che spende su Replicate. hover:opacity-100 esplicito (la regola globale
+  "button:hover{opacity:.9}" vincerebbe su una bare utility); `p-1 border-0 bg-transparent`: senza, il layer base darebbe al bottone sfondo e padding propri.
+-->
+<button th:fragment="clearPrompt(title)" type="button"
+        th:title="${title}" th:aria-label="${title}"
+        class="absolute right-2 top-10 bg-transparent border-0 p-1 leading-none cursor-pointer
+               text-ink-muted dark:text-ink-muted-dark hover:text-accent dark:hover:text-accent-dark
+               opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity
+               peer-placeholder-shown:hidden"
+        @click="const t = document.getElementById('prompt'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); t.focus()">
+    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+</button>
+
+<!--
   Bottone "Interrompi" del placeholder di generazione
   (fragments/app/generation-placeholder.html). Stili INLINE, non Tailwind:
   lo stesso markup finisce anche dentro lo shadow DOM di <deep-chat>, che
@@ -150,19 +169,18 @@
 </a>
 
 <!--
-  editOverlay(url, title, extraClass): icona overlay "Modifica immagine" (matita) sul
-  thumbnail di UNA singola immagine: apre /generations/new?kind=edit&source=..&sourceImage=..
-  col modello di modifica. Stesso aspetto/visibilita' di animateOverlay; extraClass posiziona
-  l'icona. Sibling dell'<img>, SVG inline.
+  sourceOverlay(url, title, extraClass): icona overlay "Usa come sorgente" (img2img) sul thumbnail di UNA singola immagine: apre
+  /generations/new?kind=image&source=..&sourceImage=.. col modello immagine che prende una sorgente (ff3, flux-dev-lora; kontext e flux-fill-* dal combobox). Stesso aspetto/visibilita'
+  di animateOverlay; extraClass posiziona l'icona. Sibling dell'<img>, SVG inline.
 -->
-<a th:fragment="editOverlay(url, title, extraClass)"
+<a th:fragment="sourceOverlay(url, title, extraClass)"
    th:href="${url}" th:title="${title}" th:aria-label="${title}"
    th:classappend="${extraClass}"
    class="absolute z-10 flex items-center justify-center w-8 h-8 rounded-full
           bg-black/50 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100
           [@media(hover:none)]:opacity-100 transition-opacity duration-150">
     <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
     </svg>
 </a>
 
@@ -266,6 +284,18 @@
     <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
         <path th:if="${direction == 'up'}" stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         <path th:unless="${direction == 'up'}" stroke-linecap="round" stroke-linejoin="round" d="M19.5 12h-15" />
+    </svg>
+</button>
+
+<!--
+  removeFile(title): icona "x" sull'anteprima di un file nella dropzone di /import (fragments/app/import-dropzone.html, unico chiamante). Assume lo
+  scope del componente Alpine `importDropzone` (metodo `remove`) e la variabile `index` del suo x-for. type="button" CRITICO: sta in un form che
+  invia file. `p-0 border-0` e colori espliciti: senza, il layer base darebbe al bottone sfondo e padding propri.
+-->
+<button th:fragment="removeFile(title)" type="button" th:title="${title}" th:aria-label="${title}" @click="remove(index)"
+        class="absolute top-1 right-1 flex items-center justify-center w-6 h-6 p-0 border-0 rounded-full bg-black/60 text-white hover:opacity-100 hover:bg-black/80">
+    <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
     </svg>
 </button>
 

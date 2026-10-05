@@ -50,11 +50,9 @@ class ModelCatalogServiceTest {
         assertThat(catalog.formTypeOf("black-forest-labs/flux-dev-lora")).contains(GenerationFormType.FLUX_DEV_LORA);
         assertThat(catalog.versionOf("black-forest-labs/flux-dev-lora")).isEmpty();
         assertThat(catalog.contains("black-forest-labs/flux-dev-lora", GenerationKind.IMAGE)).isTrue();
-        assertThat(catalog.containsEdit("black-forest-labs/flux-dev-lora")).isFalse();
+        assertThat(catalog.formTypeOf("black-forest-labs/flux-dev-lora").orElseThrow().sourceRequired()).isFalse();
         assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
                 .contains("black-forest-labs/flux-dev-lora");
-        assertThat(catalog.editModels()).extracting(ReplicateModel::getIdentifier)
-                .doesNotContain("black-forest-labs/flux-dev-lora");
         assertThat(catalog.defaultModel().orElseThrow().getIdentifier()).isNotEqualTo("black-forest-labs/flux-dev-lora");
     }
 
@@ -90,24 +88,22 @@ class ModelCatalogServiceTest {
     }
 
     @Test
-    void editModelIsSeparatedFromImageAndVideoModels() {
+    void sourceRequiredModelsAreOnTheFormButNotInTheChatList() {
         assertThat(catalog.formTypeOf("black-forest-labs/flux-kontext-dev")).contains(GenerationFormType.FLUX_KONTEXT_DEV);
         assertThat(catalog.versionOf("black-forest-labs/flux-kontext-dev")).isEmpty();
-        assertThat(catalog.containsEdit("black-forest-labs/flux-kontext-dev")).isTrue();
-        assertThat(catalog.containsEdit("black-forest-labs/flux-krea-dev")).isFalse();
-        assertThat(catalog.editModels()).extracting(ReplicateModel::getIdentifier)
-                .containsExactly("black-forest-labs/flux-kontext-dev", "black-forest-labs/flux-fill-dev", "black-forest-labs/flux-fill-pro");
         assertThat(catalog.formTypeOf("black-forest-labs/flux-fill-pro")).contains(GenerationFormType.FLUX_FILL_PRO);
-        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
-                .doesNotContain("black-forest-labs/flux-fill-pro");
         assertThat(catalog.formTypeOf("black-forest-labs/flux-fill-dev")).contains(GenerationFormType.FLUX_FILL_DEV);
-        assertThat(catalog.containsEdit("black-forest-labs/flux-fill-dev")).isTrue();
+        // Il combobox di /generations/new li include (insieme agli altri modelli immagine, mai i video)...
+        assertThat(catalog.formModels(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
+                .contains("black-forest-labs/flux-kontext-dev", "black-forest-labs/flux-fill-dev", "black-forest-labs/flux-fill-pro",
+                        "black-forest-labs/flux-dev-lora", "black-forest-labs/flux-krea-dev")
+                .doesNotContain("prunaai/p-video");
+        // ...ma la chat (che non ha una sorgente da dare), il default e la validazione per tipo no.
         assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
-                .doesNotContain("black-forest-labs/flux-fill-dev");
-        // Ne' i modelli immagine (chat, /generations/new) ne' il default lo includono.
-        assertThat(catalog.models(GenerationKind.IMAGE)).extracting(ReplicateModel::getIdentifier)
-                .doesNotContain("black-forest-labs/flux-kontext-dev");
+                .doesNotContain("black-forest-labs/flux-kontext-dev", "black-forest-labs/flux-fill-dev", "black-forest-labs/flux-fill-pro")
+                .contains("black-forest-labs/flux-dev-lora");
         assertThat(catalog.contains("black-forest-labs/flux-kontext-dev", GenerationKind.IMAGE)).isFalse();
+        assertThat(catalog.contains("black-forest-labs/flux-kontext-dev")).isTrue();
         assertThat(catalog.defaultModel().orElseThrow().getIdentifier()).isNotEqualTo("black-forest-labs/flux-kontext-dev");
     }
 }

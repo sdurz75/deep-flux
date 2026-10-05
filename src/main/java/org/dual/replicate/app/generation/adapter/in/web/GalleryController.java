@@ -35,6 +35,7 @@ public class GalleryController {
     private static final int PAGE_SIZE = 12;
     private static final String TAB_ALL = "all";
     private static final String TAB_FAVOURITES = "favourites";
+    private static final String TAB_IMPORTED = "imported";
 
     private final IGenerations generationService;
 
@@ -48,8 +49,8 @@ public class GalleryController {
                         @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                         Model model) {
         int pageIndex = Math.max(0, page - 1);
-        boolean favourites = TAB_FAVOURITES.equals(tab);
-        Paged<GalleryItem> result = fetch(favourites, pageIndex);
+        String activeTab = TAB_FAVOURITES.equals(tab) ? TAB_FAVOURITES : (TAB_IMPORTED.equals(tab) ? TAB_IMPORTED : TAB_ALL);
+        Paged<GalleryItem> result = fetch(activeTab, pageIndex);
 
         // Una pagina che esisteva puo' smettere di esistere fra un refresh e
         // l'altro (cancellazione in blocco dell'ultima pagina, vedi
@@ -60,12 +61,12 @@ public class GalleryController {
         // le pagine precedenti hanno ancora contenuto.
         if (result.isEmpty() && result.totalPages() > 0 && pageIndex >= result.totalPages()) {
             pageIndex = result.totalPages() - 1;
-            result = fetch(favourites, pageIndex);
+            result = fetch(activeTab, pageIndex);
         }
         int currentPage = pageIndex + 1;
 
         model.addAttribute("items", result.content());
-        model.addAttribute("tab", favourites ? TAB_FAVOURITES : TAB_ALL);
+        model.addAttribute("tab", activeTab);
         model.addAttribute("currentPage", currentPage);
         model.addAttribute("totalPages", result.totalPages());
         model.addAttribute("hasPrevious", result.hasPrevious());
@@ -81,11 +82,39 @@ public class GalleryController {
                 : "app/gallery";
     }
 
-    /** Tab "Tutte": una card per generazione (primo file); tab "Preferiti": una card per file con la star. */
-    private Paged<GalleryItem> fetch(boolean favourites, int pageIndex) {
-        return favourites
-                ? generationService.favouritesPage(pageIndex, PAGE_SIZE)
-                : generationService.galleryPage(pageIndex, PAGE_SIZE);
+    /**
+     * Tab "Tutte": una card per generazione (primo file); "Preferiti": una card per file con la star; "Importate": le immagini arrivate
+     * dall'esterno (una card per immagine).
+     */
+    private Paged<GalleryItem> fetch(String tab, int pageIndex) {
+        return switch (tab) {
+            case TAB_FAVOURITES -> generationService.favouritesPage(pageIndex, PAGE_SIZE);
+            case TAB_IMPORTED -> generationService.importedPage(pageIndex, PAGE_SIZE);
+            default -> generationService.galleryPage(pageIndex, PAGE_SIZE);
+        };
+    }
+
+    /**
+     * Selettore dell'archivio nel dialog "Scegli dall'archivio" (fragments/app/archive-picker.html): le immagini riuscite (mai i video),
+     * tutte o solo le importate. {@code kind} e' il tipo di pagina di /generations/new da cui si e' aperto (image, vuoto = video):
+     * la scelta porta a quella stessa pagina con la sorgente.
+     */
+    @GetMapping("/picker")
+    public String picker(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = TAB_ALL) String tab,
+                         @RequestParam(required = false) String kind, Model model) {
+        boolean importedOnly = TAB_IMPORTED.equals(tab);
+        Paged<GalleryItem> result = generationService.imagePickerPage(importedOnly, Math.max(0, page - 1), PAGE_SIZE);
+        int currentPage = result.pageIndex() + 1;
+        model.addAttribute("items", result.content());
+        model.addAttribute("tab", importedOnly ? TAB_IMPORTED : TAB_ALL);
+        model.addAttribute("kind", kind);
+        model.addAttribute("currentPage", currentPage);
+        model.addAttribute("totalPages", result.totalPages());
+        model.addAttribute("hasPrevious", result.hasPrevious());
+        model.addAttribute("hasNext", result.hasNext());
+        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));
+        return "fragments/app/gallery-picker :: picker(items=${items}, tab=${tab}, kind=${kind}, currentPage=${currentPage}, "
+                + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})";
     }
 
 

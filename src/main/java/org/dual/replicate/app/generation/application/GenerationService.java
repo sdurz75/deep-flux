@@ -38,6 +38,7 @@ import org.dual.replicate.app.generation.domain.GenerationConfig;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.GenerationOrigin;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.domain.ReplicatePricing;
@@ -174,7 +175,8 @@ public class GenerationService implements IGenerations {
         if (id == null) {
             return Optional.empty();
         }
-        return repository.findById(id).map(generation -> {
+        // Un'immagine importata non e' stata prodotta da una configurazione: niente da riproporre.
+        return repository.findById(id).filter(generation -> !generation.isImported()).map(generation -> {
             boolean ofFile = file != null && generation.getImageFilenames().contains(file);
             Map<String, Object> parameters = storedParameters(generation);
             if (ofFile && parameters.containsKey("num_outputs")) {
@@ -245,7 +247,7 @@ public class GenerationService implements IGenerations {
         GenerationKind kind = formType == null ? GenerationKind.IMAGE : formType.kind();
         boolean takesSource = formType != null && formType.takesSourceImage();
         String sourceImageParam = takesSource ? formType.sourceImageParam() : DEFAULT_SOURCE_IMAGE_PARAM;
-        boolean sourceRequired = formType != null && formType.isEdit();
+        boolean sourceRequired = formType != null && formType.sourceRequired();
         String sourceUploadFilename = storedUpload;
         Long sourceGenerationId = takesSource ? command.sourceGenerationId() : null;
         String sourceImage = takesSource ? command.sourceImage() : null;
@@ -291,7 +293,7 @@ public class GenerationService implements IGenerations {
         // sorgente non ha niente da mascherare: rifiuto anche qui.
         if (formType != null && formType.takesMask()) {
             if (storedMask == null) {
-                if (formType.requiresMask()) {
+                if (formType.maskRequired()) {
                     throw new ReplicateException(messages.get("generation.error.maskRequired"));
                 }
             } else {
@@ -710,6 +712,17 @@ public class GenerationService implements IGenerations {
     @Override
     public Paged<GalleryItem> galleryPage(int pageIndex, int pageSize) {
         return repository.pageByStatus(GenerationStatus.SUCCEEDED, pageIndex, pageSize).map(GalleryItem::first);
+    }
+
+    @Override
+    public Paged<GalleryItem> importedPage(int pageIndex, int pageSize) {
+        return repository.pageSucceeded(null, GenerationOrigin.IMPORTED, pageIndex, pageSize).map(GalleryItem::first);
+    }
+
+    @Override
+    public Paged<GalleryItem> imagePickerPage(boolean importedOnly, int pageIndex, int pageSize) {
+        return repository.pageSucceeded(GenerationKind.IMAGE, importedOnly ? GenerationOrigin.IMPORTED : null, pageIndex, pageSize)
+                .map(GalleryItem::first);
     }
 
     @Override

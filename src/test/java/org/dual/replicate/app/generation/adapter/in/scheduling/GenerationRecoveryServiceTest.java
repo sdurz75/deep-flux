@@ -3,6 +3,7 @@ package org.dual.replicate.app.generation.adapter.in.scheduling;
 import java.util.List;
 
 import org.dual.replicate.app.generation.port.in.IGenerations;
+import org.dual.replicate.app.generation.port.in.IImportedImages;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.app.generation.domain.Generation;
@@ -24,10 +25,13 @@ class GenerationRecoveryServiceTest {
     private IGenerations generationService;
 
     @Mock
+    private IImportedImages importedImages;
+
+    @Mock
     private ISystemEvents systemEvents;
 
     private GenerationRecoveryService service() {
-        return new GenerationRecoveryService(generationService, systemEvents);
+        return new GenerationRecoveryService(generationService, importedImages, systemEvents);
     }
 
     private static Generation generation(long id, GenerationStatus status, Long conversationId) {
@@ -78,5 +82,29 @@ class GenerationRecoveryServiceTest {
 
         verify(generationService, never()).refresh(1L);
         verify(generationService).refresh(2L);
+    }
+
+    /** Le analisi di contenuto rimaste PENDING si rilanciano: tutte all'avvio, solo le piu' vecchie della tolleranza nello sweep. */
+    @Test
+    void pendingAnalysesAreRelaunchedAtStartupAndInTheSweep() {
+        when(generationService.inProgress()).thenReturn(List.of());
+
+        service().recoverOnStartup();
+        service().sweep();
+
+        verify(importedImages).recoverPendingAnalyses(true);
+        verify(importedImages).recoverPendingAnalyses(false);
+    }
+
+    /** Un guasto nel recupero delle analisi e' un evento di sistema e non rompe il recupero delle generazioni. */
+    @Test
+    void aFailingAnalysisRecoveryIsRecorded() {
+        when(generationService.inProgress()).thenReturn(List.of());
+        RuntimeException boom = new RuntimeException("db giu'");
+        when(importedImages.recoverPendingAnalyses(true)).thenThrow(boom);
+
+        service().recoverOnStartup();
+
+        verify(systemEvents).record(CoreEventSource.INTERNAL, "recoverImportedAnalyses", boom);
     }
 }

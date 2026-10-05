@@ -25,7 +25,8 @@ spring:
       # (IImageStorageService.MAX_UPLOAD_BYTES, 10 MB): un rifiuto del container arriverebbe a htmx
       # come 413 senza swap (nessun messaggio), cosi' invece l'errore tradotto finisce nel form.
       max-file-size: 12MB
-      max-request-size: 15MB
+      # Una importazione porta fino a app.import.max-files immagini in UNA richiesta multipart (20 x 12 MB, con margine).
+      max-request-size: 250MB
   thymeleaf:
     # In produzione: true (o meglio, usare un profilo 'prod' dedicato)
     cache: false

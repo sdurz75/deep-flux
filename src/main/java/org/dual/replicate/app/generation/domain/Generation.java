@@ -41,17 +41,16 @@ public class Generation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Id della prediction lato Replicate (es. "ufawqhfynnddngldkgtslldrkq"). */
-    @Column(nullable = false)
+    /** Id della prediction lato Replicate (es. "ufawqhfynnddngldkgtslldrkq"). Null per le immagini importate. */
     private String externalId;
 
-    /** "owner/name" del modello Replicate usato. */
-    @Column(nullable = false)
+    /** "owner/name" del modello Replicate usato. Null per le immagini importate. */
     private String model;
 
     /** Version hash pinnata, se l'utente l'ha specificata. Puo' essere null. */
     private String version;
 
+    /** Il prompt; per le immagini importate ({@link #isImported()}) e' la descrizione prodotta dall'analisi (vuota finche' non c'e'). */
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(nullable = false)
     private String prompt;
@@ -166,6 +165,19 @@ public class Generation {
      */
     private Long conversationId;
 
+    /** Prodotta da una prediction o ricevuta dall'esterno (vedi V2026_10_04_1000). */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GenerationOrigin origin = GenerationOrigin.GENERATED;
+
+    /** Stato dell'analisi di contenuto: solo per le importate, null per le generate. */
+    @Enumerated(EnumType.STRING)
+    private AnalysisStatus analysisStatus;
+
+    /** Tag dell'analisi (separati da virgola): vocabolario d'indice, non testo da mostrare come descrizione. */
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    private String analysisTags;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -188,6 +200,63 @@ public class Generation {
         this.seed = seed;
         this.status = GenerationStatus.PENDING;
         this.createdAt = Instant.now();
+    }
+
+    /**
+     * Un'immagine ricevuta dall'esterno e salvata in {@code filename}: gia' riuscita (usabile subito come sorgente e visibile in galleria),
+     * senza prediction ne' modello; la descrizione ({@link #getPrompt()}) arriva dall'analisi ({@link AnalysisStatus#PENDING} fino ad allora).
+     */
+    public static Generation imported(String filename, Instant now) {
+        Generation generation = new Generation();
+        generation.prompt = "";
+        generation.status = GenerationStatus.SUCCEEDED;
+        generation.kind = GenerationKind.IMAGE;
+        generation.origin = GenerationOrigin.IMPORTED;
+        generation.analysisStatus = AnalysisStatus.PENDING;
+        generation.imageFilenames = new ArrayList<>(List.of(filename));
+        generation.createdAt = now;
+        generation.completedAt = now;
+        return generation;
+    }
+
+    public GenerationOrigin getOrigin() {
+        return origin;
+    }
+
+    public boolean isImported() {
+        return origin == GenerationOrigin.IMPORTED;
+    }
+
+    public AnalysisStatus getAnalysisStatus() {
+        return analysisStatus;
+    }
+
+    /** I tag dell'analisi come lista (vuota se assenti). */
+    public List<String> getAnalysisTagList() {
+        if (analysisTags == null || analysisTags.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(analysisTags.split(",")).map(String::strip).filter(t -> !t.isEmpty()).toList();
+    }
+
+    /** L'analisi e' riuscita: la descrizione prende il posto del prompt, i tag restano per l'indice. */
+    public void applyAnalysis(String description, List<String> tags) {
+        this.prompt = description == null ? "" : description;
+        this.analysisTags = tags == null ? null : String.join(", ", tags);
+        this.analysisStatus = AnalysisStatus.DONE;
+        this.errorMessage = null;
+    }
+
+    /** L'analisi non e' riuscita: l'immagine resta valida e l'analisi si puo' ritentare ({@link #restartAnalysis()}). */
+    public void failAnalysis(String message) {
+        this.analysisStatus = AnalysisStatus.FAILED;
+        this.errorMessage = message;
+    }
+
+    /** Riporta un'analisi non riuscita (o da rifare) allo stato da eseguire. */
+    public void restartAnalysis() {
+        this.analysisStatus = AnalysisStatus.PENDING;
+        this.errorMessage = null;
     }
 
     public Long getId() {

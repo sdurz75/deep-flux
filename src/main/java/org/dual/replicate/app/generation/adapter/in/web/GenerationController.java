@@ -130,26 +130,24 @@ public class GenerationController {
             defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
                     .map(ReplicateModel::getIdentifier).orElse(defaultModel);
         }
-        // Modifica immagine (link dell'header, o "Modifica" su un thumbnail): pagina dedicata ai modelli
-        // di modifica, separata da immagini e video.
-        boolean edit = "edit".equalsIgnoreCase(kind);
-        if (edit) {
-            defaultModel = modelCatalog.editModels().stream().findFirst()
-                    .map(ReplicateModel::getIdentifier).orElse(defaultModel);
-        }
-        // "Anima"/"Modifica" (vedi fragments/app/generation.html :: status): preseleziona il primo modello
-        // video (o di modifica se kind=edit) e porta con se' la generazione immagine sorgente (hidden
-        // sourceGenerationId nel form).
+        // "Anima"/"Usa come sorgente" (vedi fragments/app/generation.html :: status): preseleziona il primo modello
+        // video (immagine con sorgente se kind=image) e porta con se' la generazione immagine sorgente (hidden sourceGenerationId nel form).
+        // kind=edit (vecchi link della pagina di modifica, ormai unita a quella delle immagini) vale kind=image.
         Generation sourceGeneration = source == null ? null : animatableSource(source, sourceImage);
         if (sourceGeneration != null) {
-            if (!edit) {
+            if ("image".equalsIgnoreCase(kind) || "edit".equalsIgnoreCase(kind)) {
+                // "Usa come sorgente" / "Scegli dall'archivio": img2img, il primo modello immagine che prende una sorgente (ff3, flux-dev-lora);
+                // kontext e flux-fill-* li sceglie l'utente dal combobox.
+                defaultModel = modelCatalog.models(GenerationKind.IMAGE).stream()
+                        .filter(m -> m.getFormType().takesSourceImage()).findFirst()
+                        .map(ReplicateModel::getIdentifier).orElse(defaultModel);
+            } else {
                 defaultModel = modelCatalog.models(GenerationKind.VIDEO).stream().findFirst()
                         .map(ReplicateModel::getIdentifier).orElse(defaultModel);
             }
             model.addAttribute("sourceGeneration", sourceGeneration);
             model.addAttribute("sourceImage", sourceImage);
-            // Per una modifica il prompt della sorgente non ha senso (e' la descrizione, non l'istruzione).
-            if (prompt == null && !edit) {
+            if (prompt == null) {
                 prompt = sourceGeneration.getPrompt();
             }
         }
@@ -248,7 +246,7 @@ public class GenerationController {
 
     /** {@code MultipartFile} -> tipo di dominio dello storage (che non conosce il framework web). */
     private static UploadedFile uploaded(MultipartFile file) {
-        return new UploadedFile(file.getOriginalFilename(), file.getSize(), file::getInputStream);
+        return UploadedFiles.of(file);
     }
 
     private SourceImage resolveEnhanceImage(MultipartFile upload, Long sourceGenerationId, String sourceImage) {
@@ -341,8 +339,9 @@ public class GenerationController {
         // resta img2img (con sorgente) o text-to-image.
         boolean maskPresent = maskUpload != null && !maskUpload.isEmpty();
         boolean inpaint = model != null && modelCatalog.formTypeOf(model)
-                .map(t -> t.takesMask() && (t.requiresMask() || maskPresent)).orElse(false);
-        boolean edit = model != null && !inpaint && modelCatalog.containsEdit(model);
+                .map(t -> t.takesMask() && (t.maskRequired() || maskPresent)).orElse(false);
+        // Istruzione di modifica (kontext): sorgente obbligatoria e nessuna maschera.
+        boolean edit = model != null && !inpaint && modelCatalog.formTypeOf(model).map(GenerationFormType::isInstructionEdit).orElse(false);
         // img2img (flux-dev-lora con upload): il modello descrive il risultato finale e quanto conta l'immagine lo dice prompt_strength.
         // Senza upload e' un normale text-to-image (l'immagine e' opzionale su questo modello).
         boolean takesSource = model != null && !video && !edit && !inpaint
@@ -388,19 +387,19 @@ public class GenerationController {
      * valori inseriti dall'utente.
      */
     private void populateGenerationParamsModel(Model model, String modelValue, Map<String, String> allParams) {
-        // Immagini, video e modifiche non si mescolano nel select: il tipo di pagina lo decide il
-        // modello corrente (video -> solo video, modifica -> solo modifica, altrimenti solo
-        // text-to-image). Si passa da un'altra pagina (header), non dal select.
+        // Immagini e video non si mescolano nel select: il tipo di pagina lo decide il modello corrente
+        // (video -> solo video, altrimenti tutte le immagini, anche quelle a sorgente obbligatoria come kontext
+        // e flux-fill-*). Si passa da un'altra pagina (header), non dal select.
         GenerationFormType current = modelCatalog.formTypeOf(modelValue).orElse(null);
-        boolean edit = current != null && current.isEdit();
         GenerationKind kind = current == null ? GenerationKind.IMAGE : current.kind();
-        List<ReplicateModel> pageModels = edit ? modelCatalog.editModels() : modelCatalog.models(kind);
+        List<ReplicateModel> pageModels = modelCatalog.formModels(kind);
         model.addAttribute("models", pageModels);
         model.addAttribute("videoPage", kind == GenerationKind.VIDEO);
-        model.addAttribute("editPage", edit);
         model.addAttribute("model", modelValue);
-        // Target del "Reimposta ai default" della form: il primo modello del tipo di pagina, non quello corrente.
-        model.addAttribute("defaultModel", pageModels.stream().findFirst().map(ReplicateModel::getIdentifier).orElse(modelValue));
+        // Target del "Reimposta ai default" della form: il primo modello del tipo di pagina che funziona senza sorgente
+        // (mai uno a sorgente obbligatoria), non quello corrente.
+        model.addAttribute("defaultModel", modelCatalog.models(kind).stream().findFirst().or(() -> pageModels.stream().findFirst())
+                .map(ReplicateModel::getIdentifier).orElse(modelValue));
         GenerationFormType shown = current != null ? current
                 : pageModels.stream().findFirst().map(ReplicateModel::getFormType).orElse(null);
         model.addAttribute("formType", shown == null ? null : shown.name());
@@ -553,6 +552,10 @@ public class GenerationController {
 
     private String renderStatus(Generation generation, Long conversationId, Integer generationsPage,
                                  Boolean cancelDisabled, boolean isHtmxRequest, Model model) {
+        if (generation.isImported()) {
+            // Un'immagine importata non e' una "Generazione": ha il suo dettaglio (ImportController#detail).
+            return "redirect:/import/" + generation.getId();
+        }
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
         model.addAttribute("generationsPage", generationsPage);

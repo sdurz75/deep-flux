@@ -47,4 +47,17 @@ class PromptGuidesTest {
             assertThat(env.getRequiredProperty(key)).as(key).contains(context).doesNotContain("${");
         }
     }
+
+    /**
+     * La guida dell'analisi descrive un'immagine GIA' esistente: i limiti della clausola di generazione (persona reale senza consenso, minori) la
+     * facevano rifiutare qualunque foto di una persona. Non deve includerla ne' ripetere quei limiti, e deve chiedere di non rifiutare.
+     */
+    @Test
+    void imageAnalysisGuideDoesNotImportGenerationLimitsAndNeverAsksToRefuse() {
+        String guide = env.getRequiredProperty("imageAnalysis.guide");
+        String context = env.getRequiredProperty("prompts.creative-context");
+
+        assertThat(guide).doesNotContain("${").doesNotContain(context).doesNotContain("identifiable").doesNotContain("consent")
+                .doesNotContain("Never name").contains("DESCRIPTION:").contains("TAGS:").contains("without refusing");
+    }
 }

@@ -6,8 +6,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.dual.replicate.app.generation.domain.AnalysisStatus;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.GenerationOrigin;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.core.kernel.Paged;
@@ -64,6 +67,32 @@ class JpaGenerationStore implements IGenerationStore {
     @Override
     public Paged<Generation> pageByStatus(GenerationStatus status, int pageIndex, int pageSize) {
         return paged(repository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(pageIndex, pageSize)));
+    }
+
+    @Override
+    public Paged<Generation> pageSucceeded(GenerationKind kind, GenerationOrigin origin, int pageIndex, int pageSize) {
+        PageRequest page = PageRequest.of(pageIndex, pageSize);
+        GenerationStatus succeeded = GenerationStatus.SUCCEEDED;
+        if (kind == null && origin == null) {
+            return pageByStatus(succeeded, pageIndex, pageSize);
+        }
+        if (kind == null) {
+            return paged(repository.findByStatusAndOriginOrderByCreatedAtDesc(succeeded, origin, page));
+        }
+        if (origin == null) {
+            return paged(repository.findByStatusAndKindOrderByCreatedAtDesc(succeeded, kind, page));
+        }
+        return paged(repository.findByStatusAndKindAndOriginOrderByCreatedAtDesc(succeeded, kind, origin, page));
+    }
+
+    @Override
+    public List<Generation> findByAnalysisStatus(AnalysisStatus status) {
+        return repository.findByAnalysisStatus(status);
+    }
+
+    @Override
+    public List<Generation> findByAnalysisStatusAndCreatedAtBefore(AnalysisStatus status, Instant before) {
+        return repository.findByAnalysisStatusAndCreatedAtBefore(status, before);
     }
 
     @Override

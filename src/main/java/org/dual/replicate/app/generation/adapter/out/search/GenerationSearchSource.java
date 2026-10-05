@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.dual.replicate.app.generation.domain.AnalysisStatus;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
 import org.dual.replicate.app.generation.domain.event.GenerationFavouriteToggledEvent;
@@ -25,8 +26,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Contributo di {@code generation} alla ricerca semantica: UN documento per ogni generazione riuscita ({@code type=generation}) col
- * prompt piu' le tag d'indice ({@link GenerationSearchText}) e, nei metadata, cio' che serve a filtrare e a mostrare i file trovati
+ * Contributo di {@code generation} alla ricerca semantica: UN documento per ogni generazione riuscita ({@code type=generation}, o {@code type=imported} per le immagini
+ * importate, con id {@code imported:<id>}) col prompt piu' le tag d'indice ({@link GenerationSearchText}) e, nei metadata, cio' che serve a filtrare e a mostrare i file trovati
  * ({@code kind}, {@code model}, {@code favourite}, {@code files}, {@code favouriteFiles}, {@code outputs}). Inoltre il giro di
  * riconciliazione quando i dati indicizzati cambiano (l'indice non ascolta {@code generation}: e' questo adapter a chiamarlo, se la
  * ricerca e' attiva): generazione completata, file o generazioni cancellati, star cambiata.
@@ -52,13 +53,16 @@ public class GenerationSearchSource implements ISearchableSource {
 
     @Override
     public Set<String> types() {
-        return Set.of(DocumentTypes.GENERATION);
+        return Set.of(DocumentTypes.GENERATION, DocumentTypes.IMPORTED);
     }
 
     @Override
     public List<SearchableDocument> documents() {
         List<ILoraPresets.LoraView> presets = loraPresets.list();
-        return generations.succeeded().stream().map(generation -> document(generation, presets)).toList();
+        // Un'immagine importata entra nell'indice solo con l'analisi riuscita: senza descrizione sarebbe un documento fatto di sole tag generiche.
+        return generations.succeeded().stream()
+                .filter(generation -> !generation.isImported() || generation.getAnalysisStatus() == AnalysisStatus.DONE)
+                .map(generation -> document(generation, presets)).toList();
     }
 
     // Dopo il commit (la riconciliazione gira su un altro thread e deve leggere lo stato nuovo); senza transazione in corso scatta subito.
@@ -95,12 +99,15 @@ public class GenerationSearchSource implements ISearchableSource {
 
         Map<String, Object> extra = new HashMap<>();
         extra.put("kind", String.valueOf(generation.getKind()));
-        extra.put("model", generation.getModel());
+        if (generation.getModel() != null) { // le importate non hanno un modello (il metadata non puo' essere null)
+            extra.put("model", generation.getModel());
+        }
         extra.put("favourite", !favourites.isEmpty());
         extra.put("outputs", files.size());
         extra.put("files", List.copyOf(shown));
         extra.put("favouriteFiles", shown.stream().filter(favourites::contains).toList());
-        return SearchableDocument.of("generation:" + generation.getId(), DocumentTypes.GENERATION, generation.getId(),
+        String type = generation.isImported() ? DocumentTypes.IMPORTED : DocumentTypes.GENERATION;
+        return SearchableDocument.of(type + ":" + generation.getId(), type, generation.getId(),
                 generation.getConversationId(), generation.getCreatedAt(), GenerationSearchText.of(generation, presets, objectMapper),
                 extra);
     }

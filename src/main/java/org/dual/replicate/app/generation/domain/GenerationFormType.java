@@ -15,10 +15,10 @@ package org.dual.replicate.app.generation.domain;
  * sorgente, la chiave Replicate sotto cui va inviata ({@link #sourceImageParam()}:
  * "image" per p-video, flux-dev-lora, flux-fill-dev e flux-fill-pro, "input_image" per kontext-dev) e, per l'inpainting,
  * quella della maschera ({@link #maskParam()}); flux-lora-finetune ha entrambe ma e' un text-to-image: sorgente e maschera sono OPZIONALI
- * (img2img/inpainting col fine-tune, vedi {@link #requiresMask()}). {@link #isEdit()}
- * distingue i modelli di modifica (sorgente obbligatoria, output immagine)
- * dai text-to-image: hanno la loro pagina e non compaiono ne' nel combobox
- * delle immagini ne' in /deep-chat.
+ * (img2img/inpainting col fine-tune, vedi {@link #maskRequired()}). {@link #sourceRequired()}
+ * distingue i modelli che SENZA un'immagine sorgente non hanno senso (kontext, flux-fill-*: l'output eredita
+ * dimensione e composizione dalla sorgente) da quelli dove e' opzionale o assente: compaiono nel combobox
+ * di /generations/new ma non in /deep-chat, che non puo' fornirla.
  */
 public enum GenerationFormType {
     FLUX_LORA_FINETUNE(GenerationKind.IMAGE, "image", "mask", false),
@@ -33,13 +33,13 @@ public enum GenerationFormType {
     private final GenerationKind kind;
     private final String sourceImageParam;
     private final String maskParam;
-    private final boolean edit;
+    private final boolean sourceRequired;
 
-    GenerationFormType(GenerationKind kind, String sourceImageParam, String maskParam, boolean edit) {
+    GenerationFormType(GenerationKind kind, String sourceImageParam, String maskParam, boolean sourceRequired) {
         this.kind = kind;
         this.sourceImageParam = sourceImageParam;
         this.maskParam = maskParam;
-        this.edit = edit;
+        this.sourceRequired = sourceRequired;
     }
 
     public GenerationKind kind() {
@@ -56,22 +56,34 @@ public enum GenerationFormType {
         return maskParam;
     }
 
-    /** True se il modello accetta una maschera di inpainting (bianco = zona da ridipingere), obbligatoria o no ({@link #requiresMask()}). */
+    /** True se il modello accetta una maschera di inpainting (bianco = zona da ridipingere), obbligatoria o no ({@link #maskRequired()}). */
     public boolean takesMask() {
         return maskParam != null;
     }
 
     /**
-     * True se la maschera e' OBBLIGATORIA: i modelli di inpainting puri (flux-fill-*, di modifica). Per gli altri che la prendono
-     * (flux-lora-finetune, text-to-image) e' opzionale: senza e' una normale generazione; con una maschera serve anche la sorgente.
+     * True se la maschera e' OBBLIGATORIA: i modelli di inpainting puri (flux-fill-*), dove la sorgente e' obbligatoria e la maschera
+     * dice cosa ridipingere. Per gli altri che la prendono (flux-lora-finetune, text-to-image) e' opzionale: senza e' una normale
+     * generazione; con una maschera serve anche la sorgente.
      */
-    public boolean requiresMask() {
-        return takesMask() && edit;
+    public boolean maskRequired() {
+        return takesMask() && sourceRequired;
     }
 
-    /** True per i modelli di modifica immagine: sorgente obbligatoria. */
-    public boolean isEdit() {
-        return edit;
+    /**
+     * True se la sorgente e' OBBLIGATORIA (kontext, flux-fill-*): senza immagine il modello non ha senso e {@code GenerationService#create}
+     * rifiuta prima di chiamare Replicate. Non compaiono in /deep-chat (la chat non ha una sorgente da dare).
+     */
+    public boolean sourceRequired() {
+        return sourceRequired;
+    }
+
+    /**
+     * True se la bozza del prompt e' un'ISTRUZIONE di modifica ("cambia X in Y"): sorgente obbligatoria e nessuna maschera (kontext).
+     * Con la maschera il prompt descrive la sola zona dipinta ({@link #maskRequired()}).
+     */
+    public boolean isInstructionEdit() {
+        return sourceRequired && !takesMask();
     }
 
     /**

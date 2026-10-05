@@ -45,11 +45,11 @@
           stato attivo e' deciso dal server a ogni swap, SSE incluso. Sempre da pagina 1.
         -->
         <nav class="flex gap-1 mb-4 border-b border-line dark:border-line-dark" role="tablist">
-            <a th:each="t : ${#strings.arraySplit('all,favourites', ',')}"
+            <a th:each="t : ${#strings.arraySplit('all,favourites,imported', ',')}"
                th:href="@{/gallery(tab=${t})}" th:hx-get="@{/gallery(tab=${t})}"
                hx-target="#gallery-content" hx-swap="innerHTML" role="tab"
                th:aria-selected="${t == tab}"
-               th:text="${t == 'all'} ? #{gallery.tab.all} : #{gallery.tab.favourites}"
+               th:text="${t == 'all'} ? #{gallery.tab.all} : (${t == 'favourites'} ? #{gallery.tab.favourites} : #{gallery.tab.imported})"
                class="px-4 py-2 -mb-px border-b-2 no-underline text-[0.9rem]"
                th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Tutte</a>
         </nav>
@@ -57,13 +57,17 @@
             <span th:text="#{gallery.empty.prefix}">Nessuna immagine ancora.</span>
             <a th:href="@{/generations/new}" th:text="#{gallery.empty.link}">Generane una</a>.
         </p>
+        <p th:if="${#lists.isEmpty(items) and tab == 'imported'}">
+            <span th:text="#{gallery.empty.imported}">Nessuna immagine importata ancora.</span>
+            <a th:href="@{/import}" th:text="#{gallery.empty.imported.link}">Importane una</a>.
+        </p>
         <p th:if="${#lists.isEmpty(items) and tab == 'favourites'}" th:text="#{gallery.empty.favourites}"
            class="text-ink-muted dark:text-ink-muted-dark">Nessun preferito ancora.</p>
         <!-- th:unless su un th:block separato, non th:if sullo stesso tag di th:replace: stesso principio gia' documentato altrove in questo file (th:each+th:replace), th:replace ha precedenza piu' alta e scatterebbe comunque. Altrimenti la toolbar di selezione (dentro grid(...)) comparirebbe anche a galleria vuota. -->
         <th:block th:unless="${#lists.isEmpty(items)}">
-            <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab == 'all'}, false)}"></div>
+            <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab != 'favourites'}, false)}"></div>
         </th:block>
-        <div th:replace="~{fragments/core/pagination :: nav(${tab == 'favourites'} ? '/gallery?tab=favourites' : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        <div th:replace="~{fragments/core/pagination :: nav(${tab != 'all'} ? '/gallery?tab=' + ${tab} : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
     </div>
 </th:block>
 

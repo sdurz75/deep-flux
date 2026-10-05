@@ -14,7 +14,7 @@ class FluxKontextDevParameterHandlerTest {
     @Test
     void formTypeIsAnEditTypeWithInputImageAsSource() {
         assertThat(handler.formType()).isEqualTo(GenerationFormType.FLUX_KONTEXT_DEV);
-        assertThat(handler.formType().isEdit()).isTrue();
+        assertThat(handler.formType().sourceRequired()).isTrue();
         assertThat(handler.formType().sourceImageParam()).isEqualTo("input_image");
     }
 

@@ -109,6 +109,15 @@ public interface IGenerations {
     /** Galleria: tab "Tutte" (una card per generazione RIUSCITA, primo file), piu' recenti prima. */
     Paged<GalleryItem> galleryPage(int pageIndex, int pageSize);
 
+    /** Galleria: tab "Importate" (una card per immagine importata RIUSCITA), piu' recenti prima. */
+    Paged<GalleryItem> importedPage(int pageIndex, int pageSize);
+
+    /**
+     * Selettore dell'archivio (sorgente img2img/video/modifica): una card per generazione RIUSCITA con un'IMMAGINE (mai un video), piu'
+     * recenti prima; {@code importedOnly} restringe alle importate.
+     */
+    Paged<GalleryItem> imagePickerPage(boolean importedOnly, int pageIndex, int pageSize);
+
     /** Galleria: tab "Preferiti" (una card per file con la star, di generazioni riuscite), piu' recenti prima. */
     Paged<GalleryItem> favouritesPage(int pageIndex, int pageSize);
 

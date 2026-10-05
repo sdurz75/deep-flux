@@ -14,7 +14,7 @@ class FluxFillDevParameterHandlerTest {
     @Test
     void formTypeIsAnInpaintingEditTypeWithImageAndMask() {
         assertThat(handler.formType()).isEqualTo(GenerationFormType.FLUX_FILL_DEV);
-        assertThat(handler.formType().isEdit()).isTrue();
+        assertThat(handler.formType().sourceRequired()).isTrue();
         assertThat(handler.formType().sourceImageParam()).isEqualTo("image");
         assertThat(handler.formType().maskParam()).isEqualTo("mask");
         assertThat(handler.formType().takesMask()).isTrue();

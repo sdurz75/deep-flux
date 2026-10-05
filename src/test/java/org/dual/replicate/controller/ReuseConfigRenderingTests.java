@@ -89,13 +89,13 @@ class ReuseConfigRenderingTests {
     }
 
     @Test
-    void configOfAnInpaintingGenerationOpensTheEditPage() throws Exception {
+    void configOfAnInpaintingGenerationOpensTheImagePage() throws Exception {
         Generation fill = saved("black-forest-labs/flux-fill-dev", "a smiling face", "{\"lora_weights\":\"me/face\"}", 5L,
                 GenerationKind.IMAGE, "f.png");
 
         String body = page("config", String.valueOf(fill.getId()));
 
-        assertThat(body).contains("data-persist-key=\"generate.edit\"");
+        assertThat(body).contains("data-persist-key=\"generate.image\"");
         assertThat(body).containsPattern("<option value=\"black-forest-labs/flux-fill-dev\"[^>]*selected");
         assertThat(body).containsPattern("name=\"lora_weights\"[^>]*value=\"me/face\"");
     }

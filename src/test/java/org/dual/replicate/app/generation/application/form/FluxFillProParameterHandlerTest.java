@@ -14,7 +14,7 @@ class FluxFillProParameterHandlerTest {
     @Test
     void formTypeIsAnInpaintingEditTypeWithoutDisableSafetyChecker() {
         assertThat(handler.formType()).isEqualTo(GenerationFormType.FLUX_FILL_PRO);
-        assertThat(handler.formType().isEdit()).isTrue();
+        assertThat(handler.formType().sourceRequired()).isTrue();
         assertThat(handler.formType().takesMask()).isTrue();
         assertThat(handler.formType().sourceImageParam()).isEqualTo("image");
         assertThat(handler.formType().maskParam()).isEqualTo("mask");

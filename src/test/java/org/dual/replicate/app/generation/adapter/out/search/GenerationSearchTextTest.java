@@ -84,4 +84,17 @@ class GenerationSearchTextTest {
         assertThat(GenerationSearchText.shortName("https://civitai.com/api/download/models/9?type=Model")).isEqualTo("9");
         assertThat(GenerationSearchText.shortName("https://hf.co/x/Detail.SAFETENSORS")).isEqualTo("Detail");
     }
+
+    /** Un'immagine importata e' indicizzata per la descrizione e per le tag dell'analisi, con la provenienza; senza modello ne' parametri. */
+    @Test
+    void anImportedImageIsIndexedByItsDescriptionAndAnalysisTags() {
+        Generation generation = Generation.imported("a.png", java.time.Instant.parse("2026-10-04T10:00:00Z"));
+        generation.applyAnalysis("Un gatto rosso su un divano.", List.of("gatto", "cat", "divano"));
+
+        String text = GenerationSearchText.of(generation, List.of(), mapper);
+
+        assertThat(DocumentTypes.visibleText(text)).isEqualTo("Un gatto rosso su un divano.");
+        assertThat(text).contains("immagine importata").contains("imported image").contains("gatto").contains("cat").contains("foto");
+        assertThat(text).doesNotContain("null");
+    }
 }

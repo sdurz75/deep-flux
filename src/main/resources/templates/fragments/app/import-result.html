@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Esito di un'importazione (ImportController#importImages): riepilogo e una riga per file, nell'ordine in cui sono arrivati. Un file accettato
+  porta miniatura e link al dettaglio (dove si vede lo stato dell'analisi), uno rifiutato il motivo gia' tradotto dal server.
+-->
+<div th:fragment="result(report)">
+    <p th:if="${#lists.isEmpty(report.results)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{import.result.none}">Nessun file selezionato.</p>
+    <th:block th:unless="${#lists.isEmpty(report.results)}">
+        <p class="font-semibold" th:text="#{import.result.summary(${report.acceptedCount}, ${report.rejectedCount})}">N importate, M rifiutate</p>
+        <ul class="list-none p-0 m-0 flex flex-col gap-2">
+            <li th:each="r : ${report.results}" class="flex items-center gap-3">
+                <a th:if="${r.accepted}" th:href="@{/import/{id}(id=${r.generationId})}" class="shrink-0">
+                    <img th:src="@{'/images/' + ${r.filename}}" alt="" class="block w-14 h-14 object-cover rounded-md">
+                </a>
+                <span th:unless="${r.accepted}" class="shrink-0 w-14 h-14 flex items-center justify-center rounded-md border border-danger dark:border-danger-dark text-danger dark:text-danger-dark" aria-hidden="true">!</span>
+                <div class="min-w-0">
+                    <div class="truncate" th:text="${r.originalName}">foto.png</div>
+                    <div th:if="${r.accepted}" class="text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{import.result.accepted}">Importata</div>
+                    <div th:unless="${r.accepted}" class="text-[0.8rem] text-danger dark:text-danger-dark" th:text="${r.rejection}">Rifiutata</div>
+                </div>
+            </li>
+        </ul>
+    </th:block>
+</div>
+
+</body>
+</html>

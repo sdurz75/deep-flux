@@ -115,6 +115,20 @@ class ArchiveIndexServiceTest {
     }
 
     @Test
+    void importedImagesAreIndexedAsTheirOwnTypeAndNotAsGenerations() {
+        Generation ok = generation("un felino sul divano", GenerationStatus.SUCCEEDED);
+        Generation imported = Generation.imported("importata.png", java.time.Instant.parse("2026-10-04T10:00:00Z"));
+        imported.applyAnalysis("una barca a vela al tramonto", List.of("barca", "mare"));
+        imported = generations.save(imported);
+
+        service.reconcile();
+
+        assertThat(documents.idsOfType("generation")).containsExactly("generation:" + ok.getId());
+        assertThat(documents.idsOfType("imported")).containsExactly("imported:" + imported.getId());
+        assertThat(documents.find("imported:" + imported.getId()).orElseThrow().metadata()).containsEntry("kind", "IMAGE");
+    }
+
+    @Test
     void generationDocumentsCarryTagsAndArtifactMetadataAndASecondReconcileChangesNothing() {
         Generation g = new Generation("pred-art", "owner/model-x", null, "una volpe", "{\"aspect_ratio\":\"9:16\"}");
         g.setStatus(GenerationStatus.SUCCEEDED);

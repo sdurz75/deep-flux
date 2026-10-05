@@ -3,6 +3,7 @@ package org.dual.replicate.app.generation.adapter.in.scheduling;
 import java.util.List;
 
 import org.dual.replicate.app.generation.port.in.IGenerations;
+import org.dual.replicate.app.generation.port.in.IImportedImages;
 import org.dual.replicate.app.AppStartupOrder;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
@@ -26,7 +27,8 @@ import org.springframework.stereotype.Service;
  *   <li><b>Periodicamente</b>: solo le righe OLTRE il proprio timeout di business (a quel punto watcher e poller sono comunque
  *       irrilevanti, nessuna corsa con loro).</li>
  * </ul>
- * La parte di chat (riavvio dei watcher persi, turni di esito mancanti) e' di {@code ChatRecoveryService}, che all'avvio gira
+ * Anche le analisi di contenuto delle immagini importate rimaste PENDING si rilanciano (all'avvio tutte, nello sweep solo le piu' vecchie
+ * della tolleranza). La parte di chat (riavvio dei watcher persi, turni di esito mancanti) e' di {@code ChatRecoveryService}, che all'avvio gira
  * DOPO questo (ordine dei listener). Disattivabile con {@code app.recovery.enabled=false} (i test, che non devono toccare il
  * ReplicateClient reale).
  */
@@ -37,10 +39,12 @@ public class GenerationRecoveryService {
     private static final Logger log = LoggerFactory.getLogger(GenerationRecoveryService.class);
 
     private final IGenerations generationService;
+    private final IImportedImages importedImages;
     private final ISystemEvents systemEvents;
 
-    public GenerationRecoveryService(IGenerations generationService, ISystemEvents systemEvents) {
+    public GenerationRecoveryService(IGenerations generationService, IImportedImages importedImages, ISystemEvents systemEvents) {
         this.generationService = generationService;
+        this.importedImages = importedImages;
         this.systemEvents = systemEvents;
     }
 
@@ -52,6 +56,7 @@ public class GenerationRecoveryService {
             log.info("Recupero all'avvio: {} generazioni in corso da verificare", pending.size());
         }
         pending.forEach(this::recover);
+        recoverAnalyses(true);
     }
 
     @Scheduled(fixedDelayString = "${app.recovery.sweep-interval:2m}", initialDelayString = "${app.recovery.sweep-interval:2m}")
@@ -62,6 +67,19 @@ public class GenerationRecoveryService {
                     .forEach(this::recover);
         } catch (RuntimeException e) {
             systemEvents.record(CoreEventSource.INTERNAL, "recoverySweep", e);
+        }
+        recoverAnalyses(false);
+    }
+
+    /** Le immagini importate con l'analisi rimasta in sospeso (riavvio a meta', analisi persa): si rilancia, come le generazioni in corso. */
+    private void recoverAnalyses(boolean startup) {
+        try {
+            int restarted = importedImages.recoverPendingAnalyses(startup);
+            if (restarted > 0) {
+                log.info("Recupero: {} analisi di immagini importate rilanciate", restarted);
+            }
+        } catch (RuntimeException e) {
+            systemEvents.record(CoreEventSource.INTERNAL, "recoverImportedAnalyses", e);
         }
     }
 

@@ -82,6 +82,10 @@ searxng:
   password: ${SEARXNG_PASSWORD:}
 
 app:
+  import:
+    # Immagini esterne (pagina /import, ImportedImageService): quante al massimo per importazione. Il limite di richiesta multipart
+    # (spring.servlet.multipart.max-request-size in core.yml) deve coprire max-files x dimensione massima di un'immagine.
+    max-files: 20
   recovery:
     # Recupero delle generazioni rimaste "in corso" (riavvio a meta' polling, watcher perso): all'avvio e
     # ogni pochi minuti (GenerationRecoveryService). Disattivato nei test (application-test.yml).

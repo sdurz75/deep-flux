@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Stato dell'analisi di contenuto di UN'immagine importata (ImportController#analysis/#retry): chip dello stato, descrizione e tag, e "Riprova" se non
+  e' riuscita. Finche' e' in corso (PENDING) si ricarica da sola ogni 3 s (outerHTML su se' stessa), poi si ferma. Usato dall'elenco "Ultime importate"
+  e dal dettaglio della generazione (fragments/app/generation.html).
+-->
+<div th:fragment="box(generation)" th:id="'analysis-' + ${generation.id}" class="min-w-0"
+     th:with="pending=${generation.analysisStatus != null and generation.analysisStatus.name() == 'PENDING'}, failed=${generation.analysisStatus != null and generation.analysisStatus.name() == 'FAILED'}"
+     th:hx-get="${pending} ? @{/import/{id}/analysis(id=${generation.id})} : null"
+     th:attr="hx-trigger=${pending} ? 'every 3s' : null, hx-swap=${pending} ? 'outerHTML' : null"
+     th:data-busy="${pending} ? 'off' : null">
+    <span th:if="${pending}" class="text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{import.analysis.pending}">Analisi in corso...</span>
+    <p th:if="${failed}" class="m-0 text-[0.85rem] text-warning dark:text-warning-dark" th:text="${generation.errorMessage}">Analisi non riuscita</p>
+    <th:block th:if="${generation.analysisStatus != null and generation.analysisStatus.name() == 'DONE'}">
+        <p class="m-0 text-[0.9rem]" th:text="${generation.prompt}">Descrizione</p>
+        <p th:if="${!#lists.isEmpty(generation.analysisTagList)}" class="mt-1 mb-0 flex flex-wrap gap-1">
+            <span th:each="tag : ${generation.analysisTagList}" th:text="${tag}"
+                  class="text-[0.75rem] rounded-full px-2 py-0.5 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark">tag</span>
+        </p>
+    </th:block>
+    <!--/* th:if insieme a th:replace sullo stesso elemento verrebbe ignorato: il bottone sta in un th:block condizionale. */-->
+    <th:block th:if="${failed}">
+        <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{import.analysis.retry}, hxGet=null, hxPost=@{/import/{id}/retry(id=${generation.id})}, hxTarget=${'#analysis-' + generation.id}, hxSwap='outerHTML', extraClass='mt-1 text-[0.8rem] py-1')}">Riprova</button>
+    </th:block>
+</div>
+
+</body>
+</html>

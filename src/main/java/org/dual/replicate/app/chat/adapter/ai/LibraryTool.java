@@ -145,8 +145,11 @@ public class LibraryTool {
     }
 
     private static String describe(Generation g) {
-        StringBuilder out = new StringBuilder("Generation #%d: %s, status %s, model %s".formatted(g.getId(), g.getKind(), g.getStatus(), g.getModel()));
-        out.append("\nPrompt: ").append(oneLine(g.getPrompt(), 600));
+        // Un'immagine importata non ha un modello ne' un prompt: ha una descrizione prodotta dall'analisi (vuota finche' non c'e').
+        StringBuilder out = new StringBuilder(g.isImported()
+                ? "Generation #%d: imported image (not generated, no model), status %s".formatted(g.getId(), g.getStatus())
+                : "Generation #%d: %s, status %s, model %s".formatted(g.getId(), g.getKind(), g.getStatus(), g.getModel()));
+        out.append(g.isImported() ? "\nDescription: " : "\nPrompt: ").append(oneLine(g.getPrompt(), 600));
         out.append("\nFiles: %d of %d requested".formatted(g.getImageFilenames().size(), g.getRequestedOutputs()));
         for (String filename : g.getImageFilenames()) {
             Long seed = g.reusableSeedOf(filename);

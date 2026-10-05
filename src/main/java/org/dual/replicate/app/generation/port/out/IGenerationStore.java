@@ -6,8 +6,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.dual.replicate.app.generation.domain.AnalysisStatus;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.GenerationOrigin;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.core.kernel.Paged;
 
@@ -32,6 +35,18 @@ public interface IGenerationStore {
 
     /** Usata dalla galleria: solo le generazioni completate, piu' recenti prima. */
     Paged<Generation> pageByStatus(GenerationStatus status, int pageIndex, int pageSize);
+
+    /**
+     * Generazioni RIUSCITE filtrate per tipo di media e/o origine ({@code null} = nessun filtro), piu' recenti prima: la tab "Importate"
+     * della galleria e il selettore dell'archivio (solo immagini).
+     */
+    Paged<Generation> pageSucceeded(GenerationKind kind, GenerationOrigin origin, int pageIndex, int pageSize);
+
+    /** Le importate in un dato stato di analisi (recupero all'avvio). */
+    List<Generation> findByAnalysisStatus(AnalysisStatus status);
+
+    /** Le importate in un dato stato di analisi create prima di {@code before} (sweep periodico: niente corsa con un'analisi appena partita). */
+    List<Generation> findByAnalysisStatusAndCreatedAtBefore(AnalysisStatus status, Instant before);
 
     /** Tab "Preferiti" della galleria: un item per ogni file con la star, di generazioni SUCCEEDED, piu' recenti prima. */
     Paged<GalleryItem> pageFavouriteItems(int pageIndex, int pageSize);

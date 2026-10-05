@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  "Ultime importate" (ImportController#recent): le immagini importate piu' recenti con lo stato dell'analisi. Il wrapper con hx-trigger="gallery-update
+  from:body" sta QUI dentro (non sul contenitore #import-recent, che e' il target dello swap) per lo stesso motivo di fragments/app/gallery.html
+  :: content: importazione e fine analisi pubblicano GenerationCompletedEvent, che il push SSE ri-dispatcha come gallery-update.
+-->
+<div th:fragment="section(items)" style="display:contents" th:hx-get="@{/import/recent}" hx-trigger="gallery-update from:body"
+     hx-target="#import-recent" hx-swap="innerHTML">
+    <p th:if="${#lists.isEmpty(items)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{import.recent.empty}">Nessuna immagine importata ancora.</p>
+    <ul th:unless="${#lists.isEmpty(items)}" class="list-none p-0 m-0 flex flex-col gap-4">
+        <li th:each="item : ${items}" class="flex gap-3">
+            <a th:href="@{/import/{id}(id=${item.generation.id})}" class="shrink-0">
+                <img th:src="@{'/images/' + ${item.filename}}" alt="" class="block w-24 h-24 object-cover rounded-md" loading="lazy">
+            </a>
+            <div class="min-w-0 flex-1" th:replace="~{fragments/app/import-analysis :: box(generation=${item.generation})}"></div>
+        </li>
+    </ul>
+</div>
+
+</body>
+</html>

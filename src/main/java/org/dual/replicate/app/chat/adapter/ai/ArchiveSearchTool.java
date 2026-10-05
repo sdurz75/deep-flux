@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "app.search.enabled", havingValue = "true", matchIfMissing = true)
 public class ArchiveSearchTool {
 
-    private static final Set<String> TYPES = Set.of(DocumentTypes.GENERATION, DocumentTypes.CHAT, DocumentTypes.CONVERSATION);
+    private static final Set<String> TYPES = Set.of(DocumentTypes.GENERATION, DocumentTypes.IMPORTED, DocumentTypes.CHAT, DocumentTypes.CONVERSATION);
     private static final int SNIPPET = 300;
 
     private final IArchiveSearch search;
@@ -41,16 +41,16 @@ public class ArchiveSearchTool {
             + "videos generated in the past, messages of earlier conversations and conversation titles. Use it when the "
             + "user refers to something made or discussed before (\"the cat picture from last week\", \"that prompt "
             + "about the castle\") or asks for something similar to past work. Returns the best matches with their type, "
-            + "id and text; generations can be opened at /generations/{id}.")
+            + "id and text; generations can be opened at /generations/{id}, imported images at /import/{id}.")
     public String searchArchive(
             @ToolParam(description = "What to look for, in natural language (Italian or English)") String query,
-            @ToolParam(description = "Optional filter: generation, chat or conversation", required = false) String type) {
+            @ToolParam(description = "Optional filter: generation, imported, chat or conversation", required = false) String type) {
         try {
             DocumentFilter filter = DocumentFilter.NONE;
             if (type != null && !type.isBlank()) {
                 String wanted = type.strip().toLowerCase(java.util.Locale.ROOT);
                 if (!TYPES.contains(wanted)) {
-                    return "Tipo non valido (" + type + "): usa generation, chat o conversation, oppure ometti il filtro.";
+                    return "Tipo non valido (" + type + "): usa generation, imported, chat o conversation, oppure ometti il filtro.";
                 }
                 filter = DocumentFilter.ofType(wanted);
             }
@@ -74,6 +74,7 @@ public class ArchiveSearchTool {
         String text = DocumentTypes.visibleText(result.document().text()).replaceAll("\\s+", " ");
         String snippet = text.length() > SNIPPET ? text.substring(0, SNIPPET) + "…" : text;
         return switch (type) {
+            case DocumentTypes.IMPORTED -> "- [imported image #%s] (/import/%s) %s".formatted(refId, refId, snippet);
             case DocumentTypes.GENERATION -> "- [generation #%s] (/generations/%s) %s".formatted(refId, refId, snippet);
             case DocumentTypes.CONVERSATION -> "- [conversation #%s] %s".formatted(refId, snippet);
             default -> "- [chat, conversation #%s, %s] %s".formatted(conversationId, metadata.get("role"), snippet);

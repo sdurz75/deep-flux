@@ -6,6 +6,9 @@ import java.util.Collection;
 import java.util.List;
 
 import org.dual.replicate.app.generation.domain.Generation;
+import org.dual.replicate.app.generation.domain.AnalysisStatus;
+import org.dual.replicate.app.generation.domain.GenerationKind;
+import org.dual.replicate.app.generation.domain.GenerationOrigin;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.springframework.data.domain.Page;
@@ -20,6 +23,17 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
 
     /** Usata dalla galleria: solo le generazioni completate, piu' recenti prima. */
     Page<Generation> findByStatusOrderByCreatedAtDesc(GenerationStatus status, Pageable pageable);
+
+    Page<Generation> findByStatusAndOriginOrderByCreatedAtDesc(GenerationStatus status, GenerationOrigin origin, Pageable pageable);
+
+    Page<Generation> findByStatusAndKindOrderByCreatedAtDesc(GenerationStatus status, GenerationKind kind, Pageable pageable);
+
+    Page<Generation> findByStatusAndKindAndOriginOrderByCreatedAtDesc(GenerationStatus status, GenerationKind kind,
+                                                                      GenerationOrigin origin, Pageable pageable);
+
+    List<Generation> findByAnalysisStatus(AnalysisStatus status);
+
+    List<Generation> findByAnalysisStatusAndCreatedAtBefore(AnalysisStatus status, Instant before);
 
     /** Tab "Preferiti" della galleria: un item per ogni file con la star, di generazioni SUCCEEDED, piu' recenti prima. */
     @Query(value = "select new org.dual.replicate.app.generation.domain.GalleryItem(g, f) from Generation g join g.favouriteFilenames f "

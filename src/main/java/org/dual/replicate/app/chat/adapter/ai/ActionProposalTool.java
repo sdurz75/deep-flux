@@ -4,7 +4,6 @@ import org.dual.replicate.app.chat.domain.ChatAction;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.port.in.IGenerations;
-import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
@@ -25,12 +24,10 @@ public class ActionProposalTool {
             + "and decides there. Tell them so; never say the action was carried out.";
 
     private final IGenerations generations;
-    private final IModelCatalog modelCatalog;
     private final ISystemEvents systemEvents;
 
-    public ActionProposalTool(IGenerations generations, IModelCatalog modelCatalog, ISystemEvents systemEvents) {
+    public ActionProposalTool(IGenerations generations, ISystemEvents systemEvents) {
         this.generations = generations;
-        this.modelCatalog = modelCatalog;
         this.systemEvents = systemEvents;
     }
 
@@ -58,8 +55,18 @@ public class ActionProposalTool {
             @ToolParam(description = "The exact file name whose seed to reuse, from getGeneration or conversationGallery") String filename,
             ToolContext toolContext) {
         return propose("proposeRegenerateWithSeed", generationId, toolContext, generation -> {
-            if (generation.getKind() != GenerationKind.IMAGE || modelCatalog.containsEdit(generation.getModel())) {
-                return "Only plain image generations can be regenerated this way (not videos or edits).";
+            if (generation.getKind() != GenerationKind.IMAGE) {
+                return "Only image generations can be regenerated this way (not videos).";
+            }
+            // La form riapre modello, parametri, prompt e seed, ma non puo' rimettere un file caricato (sorgente o maschera): il
+            // risultato sarebbe un'altra immagine, non la stessa col seed.
+            if (generation.getSourceUploadFilename() != null || generation.getMaskUploadFilename() != null) {
+                return "This generation started from an uploaded image or mask, which cannot be reopened from a link: it cannot be regenerated this way.";
+            }
+            // Una sorgente presa da un'altra generazione si rimette solo se quell'immagine esiste ancora.
+            if (generation.getSourceGenerationId() != null
+                    && generations.findAnimatableSource(generation.getSourceGenerationId(), generation.getSourceImageFilename()).isEmpty()) {
+                return "The source image of this generation no longer exists: it cannot be regenerated this way.";
             }
             if (filename == null || !generation.getImageFilenames().contains(filename)) {
                 return "Generation #" + generationId + " has no file named " + filename + ".";

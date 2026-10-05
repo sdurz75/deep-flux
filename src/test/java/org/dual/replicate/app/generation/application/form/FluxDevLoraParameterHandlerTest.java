@@ -15,7 +15,7 @@ class FluxDevLoraParameterHandlerTest {
     void formTypeIsFluxDevLoraAndTakesAnOptionalSourceImage() {
         assertThat(handler.formType()).isEqualTo(GenerationFormType.FLUX_DEV_LORA);
         assertThat(GenerationFormType.FLUX_DEV_LORA.sourceImageParam()).isEqualTo("image");
-        assertThat(GenerationFormType.FLUX_DEV_LORA.isEdit()).isFalse();
+        assertThat(GenerationFormType.FLUX_DEV_LORA.sourceRequired()).isFalse();
     }
 
     @Test
