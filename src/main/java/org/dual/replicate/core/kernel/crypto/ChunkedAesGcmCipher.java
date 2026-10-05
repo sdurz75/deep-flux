@@ -112,6 +112,18 @@ public final class ChunkedAesGcmCipher {
         }
     }
 
+    /**
+     * Versione "a spinta" di {@link #encrypt}: cio' che si scrive nello stream esce cifrato su {@code out} nello STESSO formato
+     * (si legge con {@link #decryptRange}), per chi produce i dati mentre li scrive (es. uno zip). Un chunk pieno si emette solo quando
+     * arriva un altro byte, perche' l'ultimo chunk e' marcato nell'AAD: {@code close} scrive l'ultimo (anche vuoto, se non e' stato scritto
+     * nulla) e CHIUDE {@code out}. Senza {@code close} il blob risulta troncato e non si autentica.
+     */
+    public OutputStream encryptingStream(OutputStream out) throws IOException {
+        byte[] header = newHeader();
+        out.write(header);
+        return new EncryptingStream(out, header);
+    }
+
     /** Dimensione in chiaro del blob (legge solo l'header). */
     public long plainSize(EncryptedBlobSource source) throws IOException {
         long total = source.length();
@@ -186,6 +198,65 @@ public final class ChunkedAesGcmCipher {
             return cipher.doFinal(data);
         } catch (GeneralSecurityException e) {
             throw new IOException("Cifratura/decifratura fallita (dati manomessi o chiave errata)", e);
+        }
+    }
+
+    private final class EncryptingStream extends OutputStream {
+
+        private final OutputStream out;
+        private final byte[] header;
+        private final byte[] buffer = new byte[chunkSize];
+        private int count;
+        private long index;
+        private boolean closed;
+
+        EncryptingStream(OutputStream out, byte[] header) {
+            this.out = out;
+            this.header = header;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            write(new byte[] {(byte) b}, 0, 1);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            if (closed) {
+                throw new IOException("Stream chiuso");
+            }
+            java.util.Objects.checkFromIndexSize(off, len, b.length);
+            int pos = off;
+            int end = off + len;
+            while (pos < end) {
+                if (count == chunkSize) {
+                    // C'e' altro dopo un chunk pieno: non e' l'ultimo.
+                    out.write(crypt(Cipher.ENCRYPT_MODE, header, index++, false, buffer));
+                    count = 0;
+                }
+                int n = Math.min(chunkSize - count, end - pos);
+                System.arraycopy(b, pos, buffer, count, n);
+                count += n;
+                pos += n;
+            }
+        }
+
+        @Override
+        public void flush() throws IOException {
+            out.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            try {
+                out.write(crypt(Cipher.ENCRYPT_MODE, header, index, true, Arrays.copyOf(buffer, count)));
+            } finally {
+                out.close();
+            }
         }
     }
 

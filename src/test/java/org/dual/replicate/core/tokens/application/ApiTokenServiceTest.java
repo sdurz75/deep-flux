@@ -113,6 +113,33 @@ class ApiTokenServiceTest {
         assertRejected(() -> service.update(999_999L, "x", "", null));
     }
 
+    /** Dopo il ripristino di un backup su un sistema con un'altra chiave: i token copiati non si aprono e vanno reinseriti. */
+    @Test
+    void undecryptableCountSeesTheTokensTheCurrentKeyCannotOpen() {
+        saved("HUGGINGFACE", "Buono", "hf_secret_abcd", null);
+        assertThat(service.undecryptableCount()).isZero();
+
+        byte[] otherKey = new byte[32];
+        otherKey[0] = 1;
+        repository.save(new ApiToken("CIVITAI", "Altra chiave", new org.dual.replicate.core.kernel.crypto.ChunkedAesGcmCipher(otherKey)
+                .encryptBytes("cv_secret".getBytes()), "cret", null, Instant.now()));
+
+        assertThat(service.undecryptableCount()).isEqualTo(1);
+        assertThat(service.resolve(repository.findByProvider("HUGGINGFACE").get(0).getId(), "HUGGINGFACE")).isEqualTo("hf_secret_abcd");
+    }
+
+    @Test
+    void withoutAnyKeyEveryStoredTokenIsUndecryptable() {
+        saved("HUGGINGFACE", "Uno", "hf_secret_abcd", null);
+        saved("CIVITAI", "Due", "cv_secret_wxyz", null);
+        org.dual.replicate.core.secrets.port.in.ISecretCipher noKey = org.mockito.Mockito.mock(org.dual.replicate.core.secrets.port.in.ISecretCipher.class);
+        org.mockito.Mockito.when(noKey.isConfigured()).thenReturn(false);
+
+        var withoutKey = new ApiTokenService(repository, noKey, events, messages, 15, Clock.systemDefaultZone(), Optional.empty());
+
+        assertThat(withoutKey.undecryptableCount()).isEqualTo(2);
+    }
+
     @Test
     void resolveRefusesAnotherProviderAnUnknownIdAndAnExpiredToken() {
         var hf = service.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null);

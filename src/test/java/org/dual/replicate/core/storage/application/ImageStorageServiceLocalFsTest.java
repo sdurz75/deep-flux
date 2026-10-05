@@ -90,6 +90,21 @@ class ImageStorageServiceLocalFsTest {
         assertThat(Files.readString(dir.resolve(StorageNames.shardPath(filename)))).isEqualTo("video-bytes");
     }
 
+    /** Il ripristino di un backup: il nome lo decide chi chiama (il DB lo referenzia gia'), anche per un mp4, e resta confinato nello storage. */
+    @Test
+    void restoreWritesUnderTheGivenNameWithoutUploadChecksAndStaysConfined() throws IOException {
+        byte[] notAnImage = "mp4-or-whatever".getBytes(StandardCharsets.UTF_8);
+
+        service.restore("legacy-1-0.mp4", new java.io.ByteArrayInputStream(notAnImage));
+
+        assertThat(Files.readAllBytes(dir.resolve(StorageNames.shardPath("legacy-1-0.mp4")))).isEqualTo(notAnImage);
+        assertThat(service.size("legacy-1-0.mp4")).hasValue(notAnImage.length);
+        assertThatThrownBy(() -> service.restore("../escape.png", new java.io.ByteArrayInputStream(notAnImage)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.restore("a/b.png", new java.io.ByteArrayInputStream(notAnImage)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     void everyDownloadGetsADistinctName() {
         assertThat(service.downloadAndStore(url("/x.mp4"))).isNotEqualTo(service.downloadAndStore(url("/x.mp4")));

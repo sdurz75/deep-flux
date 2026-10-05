@@ -65,6 +65,16 @@ public class ImageStorageService implements IImageStorageService {
     }
 
     @Override
+    public void restore(String filename, InputStream content) {
+        StorageNames.checkFilename(filename);
+        try {
+            backend.write(filename, content);
+        } catch (IOException e) {
+            throw new StorageException(messages.get("imagestorage.error.saveImage", filename), e, Kind.PERMANENT);
+        }
+    }
+
+    @Override
     public SourceImage inspectUpload(UploadedFile upload) {
         SourceUpload checked = checkUpload(upload);
         return new SourceImage(checked.bytes(), IImageStorageService.mimeOf("x." + checked.extension()));

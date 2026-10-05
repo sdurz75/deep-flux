@@ -73,6 +73,29 @@ la ricerca semantica). Per lo sviluppo basta `docker compose up -d`
 In alternativa, la stessa cosa si fa conversando in **Deep Chat** (`/deep-chat`): l'assistente genera sempre col modello
 scelto nel pannello impostazioni e l'esito arriva in chat via SSE.
 
+## Backup e ripristino
+
+Lo stesso jar eseguibile fa il backup completo del sistema (database + immagini/video, da `./data/images` o da WebDAV) in UN file, e lo ripristina:
+
+```bash
+mvn -DskipTests package
+java -jar target/spring-htmx-starter-*.jar export backup.dfb            # crea backup.dfb (cifrato)
+java -jar target/spring-htmx-starter-*.jar import backup.dfb            # su un database vergine
+java -jar target/spring-htmx-starter-*.jar import backup.dfb --replace  # azzera lo schema esistente (CANCELLA i dati attuali)
+```
+
+- **Credenziali**: servono solo quelle di cio' che il comando tocca, lette dal `.env` della **directory da cui lanci il jar** (o da variabili d'ambiente), come per il server:
+  `DB_*` (database sorgente per `export`, di destinazione per `import`) e, se `storage.type=webdav`, `STORAGE_WEBDAV_URL/USERNAME/PASSWORD`. Le credenziali di Replicate, OpenRouter
+  e SearXNG **non servono** e il backup non le contiene (ne' contiene il `.env`).
+- **Chiave**: l'archivio e' cifrato (AES-256-GCM) con `BACKUP_ENCRYPTION_KEY`, che se manca vale `STORAGE_WEBDAV_ENCRYPTION_KEY`; senza una chiave valida `export` si rifiuta (usa
+  `--no-encrypt` per un file in chiaro, sconsigliato: contiene prompt, chat e immagini). Per ripristinare serve la **stessa chiave**: conservane una copia fuori dal backup. Le immagini
+  stanno nell'archivio in chiaro (dentro la cifratura), quindi si puo' esportare da WebDAV e importare in locale, o su un altro WebDAV con un'altra chiave dello storage.
+- **Token API** (`/tokens`): si copiano cifrati con la chiave dello storage. Se sul nuovo sistema la chiave e' diversa non si aprono: l'import lo segnala (campanella) e vanno reinseriti.
+- **Database di destinazione**: deve essere vergine (es. `docker compose up -d` appena creato). Un backup di una versione piu' vecchia dell'app si importa in un jar piu' nuovo (le migrazioni
+  mancanti si applicano dopo il caricamento); uno piu' nuovo del jar si rifiuta.
+- **Server fermo** durante l'import (obbligatorio) e, meglio, anche durante l'export: lo snapshot del database e' coerente anche a server acceso, ma i file creati o cancellati nel
+  frattempo possono mancare (l'export li elenca come avvisi). Un import interrotto sui file si rilancia (quelli gia' scritti si saltano).
+
 ## Dietro un reverse proxy
 
 L'app (`server.forward-headers-strategy: framework` in `application.yml`)

@@ -151,6 +151,23 @@ public class ApiTokenService implements IApiTokens {
         return cipher.decrypt(token.getTokenEncrypted());
     }
 
+    @Override
+    public int undecryptableCount() {
+        List<ApiToken> all = repository.findAll();
+        if (!cipher.isConfigured()) {
+            return all.size();
+        }
+        int broken = 0;
+        for (ApiToken token : all) {
+            try {
+                cipher.decrypt(token.getTokenEncrypted());
+            } catch (RuntimeException e) {
+                broken++;
+            }
+        }
+        return broken;
+    }
+
     /** Controllo di scadenza di tutti i token (job periodico, avvio): un avviso per ogni token scaduto o in scadenza. */
     @Override
     public int checkExpiries() {

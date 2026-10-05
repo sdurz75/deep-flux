@@ -21,6 +21,7 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.secrets` | `ISecretCipher` (AES-256-GCM, stessa chiave dei binari WebDAV) | - |
 | `core.tokens` | CRUD token API cifrati in `/tokens`, scadenza con avvisi (`TokenExpiryScheduler`) | opzionale `ITokenProviderCatalog` (senza: nessun provider selezionabile) |
 | `core.storage` | `IImageStorageService` (binari su filesystem locale o WebDAV cifrato, cache, migrazione), `ImageController` (`/images/**`) | - |
+| `core.backup` | comandi `export` e `import` del jar (`java -jar app.jar export <file>`): backup completo (tabelle scoperte da `information_schema` + binari) in un archivio cifrato; profilo `backup` (`application-backup.yml`) | la SPI `IBlobReferences` (`port.in`): le coppie (tabella, colonna) con i nomi dei binari; senza, si esporta solo il DB |
 | `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo` | - |
 | template e bundle | `templates/fragments/core/*` (layout, header, bottoni, select Pines, toast, paginazione...), `templates/core/*` (`/system/events`, `/tokens`), `messages-core(.en).properties` | vedi "Punti di estensione" |
 | config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
@@ -99,6 +100,8 @@ del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential so
 - Cancellare: `app/` per intero, `controller/TemplateRenderingTests` (quasi tutto sulle pagine dell'app; i test generici su `/system/events`,
   `/tokens`, bundle, select e toast hanno gia' una copia nei test di `core/`), `config/FlywayCoreAppMigrationTest` (controlla anche le tabelle
   `generation` e `vector_store` dell'app).
+- `app/generation/adapter/out/backup/BackupRoundTripTest` e' lo scenario di riferimento del backup (schema vero, due database dedicati): con `app/` se ne va, e la nuova app ne scrive uno
+  sul proprio schema (stessa struttura: esporta, importa in un DB vergine, confronta tabelle e binari, controlla le sequenze).
 - Restano e passano senza `app/`: `ApplicationTests` (carica il contesto), `architecture/ArchitectureTest`, `core/**`, `support/PostgresTestContainerInitializer`
   (+ `META-INF/spring.factories`). I test del core non dipendono dall'app: `SystemEventServiceTest` usa una `EventSource` locale al test,
   `TokenControllerTest` porta un proprio `ITokenProviderCatalog` (`@Primary`, vince su quello dell'app).

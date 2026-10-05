@@ -34,6 +34,13 @@ public interface IImageStorageService {
      */
     String storeUpload(UploadedFile upload);
 
+    /**
+     * Scrive {@code content} come {@code filename}, un nome deciso da chi chiama e NON generato qui: serve al ripristino di un backup, dove le
+     * righe del DB referenziano gia' quei nomi. Non e' un upload dell'utente: nessun controllo di tipo o dimensione (si accettano anche gli mp4),
+     * solo il confinamento del filename. Scrittura atomica (mai un file parziale col nome definitivo); un file gia' presente si sovrascrive.
+     */
+    void restore(String filename, InputStream content);
+
     /** Valida un upload SENZA salvarlo (AI enhance): stessi controlli di {@link #storeUpload}. */
     SourceImage inspectUpload(UploadedFile upload);
 

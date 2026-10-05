@@ -45,6 +45,12 @@ public interface IApiTokens {
     /** Plaintext del token scelto. Inesistente o scaduto: rifiuto atteso ({@code TokenException} REJECTED). */
     String resolve(Long id, String provider);
 
+    /**
+     * Quanti token salvati NON si decifrano con la chiave attuale (chiave diversa da quella con cui furono salvati, o assente): dopo il
+     * ripristino di un backup su un sistema con un'altra chiave vanno reinseriti. Non lancia e non espone alcun segreto.
+     */
+    int undecryptableCount();
+
     /** Controllo di scadenza di tutti i token (job periodico, avvio): un avviso per ogni token scaduto o in scadenza. */
     int checkExpiries();
 }

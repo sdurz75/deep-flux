@@ -122,6 +122,12 @@ storage:
       enabled: false
       delete-local: false
 
+backup:
+  # Chiave AES-256 (base64) che cifra l'archivio di `java -jar app.jar export` (core.backup, formato DFX1 come i binari WebDAV): per
+  # default la STESSA dello storage (nessun segreto nuovo da conservare); BACKUP_ENCRYPTION_KEY la separa. Senza chiave l'export rifiuta
+  # di partire (mai un backup in chiaro per omissione: serve --no-encrypt). L'import usa la stessa chiave dell'export.
+  encryption-key: ${BACKUP_ENCRYPTION_KEY:${storage.webdav.encryption-key:}}
+
 logging:
   level:
     org.springframework.web: INFO

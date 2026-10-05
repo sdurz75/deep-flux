@@ -74,6 +74,38 @@ class ChunkedAesGcmCipherTest {
     }
 
     @Test
+    void anEncryptingStreamProducesTheSameFormatWhateverTheWriteSizes() throws IOException {
+        for (int length : new int[] {0, 1, CHUNK - 1, CHUNK, CHUNK + 1, 3 * CHUNK, 3 * CHUNK + 5}) {
+            byte[] plain = data(length);
+            for (int step : new int[] {1, 5, CHUNK, 3 * CHUNK + 7}) {
+                ByteArrayOutputStream sink = new ByteArrayOutputStream();
+                try (java.io.OutputStream out = cipher.encryptingStream(sink)) {
+                    for (int at = 0; at < length; at += step) {
+                        out.write(plain, at, Math.min(step, length - at));
+                    }
+                }
+                byte[] blob = sink.toByteArray();
+
+                assertThat(decrypt(blob, 0, length)).as("length %d step %d", length, step).isEqualTo(plain);
+                assertThat(cipher.plainSize(source(blob))).as("size %d step %d", length, step).isEqualTo(length);
+                assertThat(blob).as("same layout as encrypt()").hasSameSizeAs(encrypt(plain));
+            }
+        }
+    }
+
+    @Test
+    void anEncryptingStreamNotClosedLeavesATruncatedBlob() throws IOException {
+        byte[] plain = data(3 * CHUNK + 4);
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        java.io.OutputStream out = cipher.encryptingStream(sink);
+        out.write(plain);
+        out.flush();
+        byte[] partial = sink.toByteArray();
+
+        assertThatThrownBy(() -> decrypt(partial, 0, plain.length)).isInstanceOf(IOException.class);
+    }
+
+    @Test
     void ciphertextDoesNotContainThePlaintext() throws IOException {
         byte[] plain = "PLAINTEXT-MARKER-PLAINTEXT-MARKER-PLAINTEXT-MARKER".getBytes();
 

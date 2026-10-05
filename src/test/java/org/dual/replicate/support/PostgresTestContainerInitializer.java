@@ -22,6 +22,9 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
     public void initialize(ConfigurableApplicationContext context) {
         synchronized (POSTGRES) {
             if (!POSTGRES.isRunning()) {
+                // Ogni contesto Spring tenuto in cache apre un pool Hikari da 10 connessioni: oltre una decina di contesti diversi il default di PostgreSQL
+                // (max_connections = 100) finisce e i test falliscono a caso con "too many clients already" (dipende da quale contesto e' vivo).
+                POSTGRES.withCommand("postgres", "-c", "max_connections=400");
                 POSTGRES.start();
             }
         }

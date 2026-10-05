@@ -109,10 +109,10 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
+        <!-- Compile scope (non runtime): il backup (core.backup, adapter jdbc) usa org.postgresql.copy.CopyManager per COPY ... STDOUT/STDIN. -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
         </dependency>
 
 

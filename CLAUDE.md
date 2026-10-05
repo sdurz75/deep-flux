@@ -298,6 +298,7 @@ le uniche classi fuori da `core`/`app`.
 | `core.secrets` | cifratura dei segreti a riposo | in `ISecretCipher` |
 | `core.tokens` | CRUD token API cifrati, scadenze, `/tokens` | in `IApiTokens`; out `IApiTokenStore`, `ITokenProviderCatalog` (app) |
 | `core.storage` | binari (immagini/mp4/upload): nome, validazione, local/WebDAV, `/images/{file}`, migrazione | in `IImageStorageService`, `IBlobMigration`; out `IBlobBackend`, `IBlobImportSource`, `IBlobImportTarget`, `IRemoteFileFetcher` |
+| `core.backup` | `export`/`import` del jar: backup completo (DB + binari) in un archivio cifrato e ripristino; profilo `backup`, vedi "Backup e restore" | in `IBackupExport`, `IBackupImport`, `IBlobReferences` (SPI: la implementa l'app); out `IDatabaseDump`, `IDatabaseRestore`, `IBackupArchive` |
 | `app.generation` | generazioni (immagini/video/edit), immagini importate, catalogo modelli, form-type, LoRA, galleria, costo, Replicate, recupero | in `IGenerations`, `IImportedImages`, `IModelCatalog`, `IGenerationForms`, `ILoraPresets`; out `IGenerationStore`, `IModelStore`, `ILoraPresetStore`, `IPredictionGateway` |
 | `app.chat` | `/deep-chat`: conversazioni, turni, assistente (LLM + tool), watcher delle generazioni, recupero | in `IChat`, `IChatConversations`, `IChatRecovery`; out `IAssistant`, `IChatConversationStore`, `IChatMessageStore`, `IChatNotifier`, `IWebSearchGateway` |
 | `app.search` | ricerca semantica, indice (riconciliazione), note, `/search` | in `IArchiveSearch`, `IArchiveNotes`, `IArchiveIndex`, `ISearchableSource` (SPI); out `IVectorIndex` |
@@ -331,6 +332,9 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
 - `core.storage`: `ImageStorageService` (impl di `IImageStorageService`), `StorageNames` (`newFilename`, `shardPath`), backend `LocalFsBlobBackend`
   e `WebDavBlobBackend` (+ `EncryptedBlobCache`), `HttpFileFetcher`, `ImageController` (`GET /images/{file}`, unico punto da cui escono i binari,
   Range per il seek dei video ed ETag), `LocalToWebDavMigrator`.
+- `core.backup`: comandi `export`/`import` del jar (vedi "Backup e restore"). `BackupRunner` (adapter in `cli`, `ApplicationRunner`, profilo `backup`), `BackupExportService`/`BackupImportService`,
+  `JdbcDatabaseDump`/`JdbcDatabaseRestore` (`COPY` via `CopyManager` + Flyway da codice), `ZipBackupArchive` (zip, cifrato per intero con `ChunkedAesGcmCipher#encryptingStream`), domain `BackupManifest`/`BackupSummary`/`TableOrder`.
+  Tutti i bean tranne la SPI `IBlobReferences` sono `@Profile("backup")`: il server non li carica.
 - `app.generation`: `GenerationService` (crea prediction, avanza stato, download; pubblica `GenerationCompletedEvent` a ogni transizione
   terminale; `GenerationsDeletedEvent`/`GenerationImageDeletedEvent` per le cancellazioni), `GenerationController` (crea, polling/dettaglio,
   listato, cancellazioni, "AI enhance" `POST /generations/enhance-prompt`), `GalleryController` (solo SUCCEEDED), `LoraController`,
@@ -903,6 +907,53 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   Test del controller con embedding finto: `SemanticSearchControllerTest`.
 - Fuori scope per ora: ricerca semantica nelle liste/galleria esistenti, descrizione PERSISTENTE delle immagini GENERATE con un modello di visione (le importate la hanno: vedi "Immagini esterne (import)"; la chat puo' guardarne una su richiesta con `VisionTool`, senza salvare nulla), allegati in `/deep-chat`.
 
+## Backup e restore (`export` / `import` del jar)
+
+Lo stesso jar del server e' lo strumento di backup: `java -jar app.jar export <file> [--no-encrypt]` e `java -jar app.jar import <file> [--replace]` (esito 0 = ok,
+1 = errore, 2 = uso errato). Esagono `core.backup` (generico, non conosce le tabelle dell'app: le scopre da `information_schema`); testi della console in `messages-core*`
+(`backup.*`).
+
+- **Come parte**: `Application.main` vede `export|import` come primo argomento e avvia il profilo `backup` (`application-backup.yml`) con `WebApplicationType.NONE`; un
+  `ApplicationRunner` esegue il comando e ESCE (`System.exit(SpringApplication.exit(...))` dentro il runner: i runner girano PRIMA di `ApplicationReadyEvent`, quindi i listener
+  "all'avvio" non partono). Il profilo spegne `app.recovery`, `app.search` (niente modello ONNX), il controllo dei token, la migrazione WebDAV e la cache dei blob, e imposta
+  `spring.jpa.hibernate.ddl-auto=none` + `spring.flyway.enabled=false` (`validate` e la migrazione automatica romperebbero un import su DB vuoto o piu' vecchio). Un profilo batte
+  `application.yml`, dei default programmatici NO: per questo le sovrascritture stanno li'. `BackupProfileContextTest` verifica che nessun bean abbia `@Scheduled` o ascolti
+  `ApplicationReadyEvent` e che il contesto parta con i token Replicate/OpenRouter VUOTI (un job aggiunto in futuro lo fa fallire invece di partire di nascosto durante un backup).
+- **Formato**: uno zip scritto in streaming. Voci, in quest'ordine: `manifest.json` (versione del formato, versione dello schema Flyway, tabelle con colonne in ordine di caricamento),
+  `blobs/<file>` (IN CHIARO), `db/<tabella>.copy` (formato testo di `COPY`), `summary.json` (righe per tabella, file, file mancanti). DEFLATED sempre (blob a livello 0: `ZipInputStream`
+  non legge le voci STORED senza dimensioni). Cifrato, e' l'INTERO zip a passare dal formato `DFX1` di `ChunkedAesGcmCipher` (lo stesso dei binari WebDAV e dei token; `encryptingStream`
+  e' la versione "a spinta" di `encrypt`): ne' contenuto ne' nomi delle voci si vedono, ogni chunk e' autenticato e un file troncato non si autentica. Cifrato o no lo si riconosce dai
+  primi byte (`DFX1` o `PK`): l'import non ha un flag.
+- **DB**: `COPY ... TO/FROM STDIN` in formato testo con il driver JDBC (`org.postgresql.copy.CopyManager`, per questo il driver non e' piu' `runtime`), non `pg_dump` (non e' nel jar e vuole un
+  client della stessa versione del server). Il testo regge `vector`, `bytea`, `json` e `timestamptz`. Si esportano TUTTE le tabelle tranne `flyway_schema_history` (che le migrazioni
+  ricreano), `vector_store` compresa: **le note manuali (`type=note`) vivono SOLO li** e nessuna riconciliazione le ricrea. L'export gira in UNA transazione REPEATABLE READ di sola lettura
+  (snapshot coerente, nessuna scrittura sulla sorgente: server acceso possibile, ma file creati o cancellati nel frattempo possono mancare; consigliato fermarlo). L'ordine di caricamento e'
+  topologico sulle FK (`TableOrder`); le FK su se' stessa (`generation.source_generation_id`) non contano: i controlli non differibili scattano a fine statement.
+- **Quali binari**: quelli REFERENZIATI dal DB, non un elenco del backend (WebDAV non ne ha uno praticabile). La SPI `IBlobReferences` (`core.backup.port.in`, come `ISearchableSource`: NON e'
+  una `port.out` del core, quindi `CORE_EXTENSION_POINTS` non cambia) dichiara coppie (tabella, colonna); la implementa `GenerationBlobReferences` (`generation_image.filename`,
+  `generation.source_upload_filename`, `generation.mask_upload_filename`) e `BackupBlobColumnsTest` fa fallire una colonna `%filename%` nuova non dichiarata ne' nota come derivata. Un file
+  referenziato ma assente e' un avviso nel summary, non un errore. Si leggono/scrivono da `IImageStorageService` (`openRange` / il nuovo `restore(filename, stream)`: nome deciso da chi chiama,
+  nessun controllo da upload), quindi l'archivio e' indipendente dal backend: si esporta da WebDAV e si importa in locale o su un altro WebDAV (con un'altra chiave dello storage).
+- **Import**: (1) controlli in sola lettura: formato supportato, versione dello schema nota al jar (altrimenti "serve un jar piu' recente"), DB vergine (nessuna `flyway_schema_history`)
+  oppure `--replace` (`DROP SCHEMA ... CASCADE` + `CREATE SCHEMA`: cancella i dati attuali); (2) **binari prima**: un file gia' presente si salta (nomi casuali + scrittura atomica: presente =
+  completo), quindi un errore qui lascia il DB intatto e l'import si rilancia; (3) **DB per ultimo**, in una transazione: Flyway `migrate` con `target` = versione del backup, `TRUNCATE ... RESTART
+  IDENTITY CASCADE` di tutte le tabelle (le migrazioni seminano `replicate_model`), `COPY` in ordine FK, `setval` di OGNI colonna identity al massimo caricato (tutte `GENERATED BY DEFAULT`:
+  senza, il primo insert dopo il ripristino collide), verifica delle righe contro il summary, commit; (4) Flyway `migrate` all'ultima versione, cosi' un backup piu' vecchio entra in un jar
+  piu' nuovo (uno piu' nuovo del jar si rifiuta). Se il caricamento fallisce il DB resta migrato ma vuoto: si rilancia con `--replace` (il messaggio lo dice).
+- **Credenziali** (la parte non ovvia):
+  - Servono SOLO quelle di cio' che il comando tocca: `DB_*` (sorgente per l'export, destinazione per l'import) e, se `storage.type=webdav`, `STORAGE_WEBDAV_URL/USERNAME/PASSWORD`. Si leggono
+    dal `.env` della working directory (`spring.config.import: optional:file:.env[.properties]`: lanciare il jar da li' o usare variabili d'ambiente) come per il server.
+  - **Mai necessarie ne' usate**: `REPLICATE_API_TOKEN`, `OPENROUTER_*`, `SEARXNG_*`. Non stanno nel DB, quindi non stanno nel backup; il comando parte anche con tutte vuote.
+  - **La chiave**: `backup.encryption-key` (`core.yml`) = `${BACKUP_ENCRYPTION_KEY:${storage.webdav.encryption-key:}}`, cioe' per default la STESSA chiave dello storage (nessun segreto nuovo; `BACKUP_ENCRYPTION_KEY` la
+    separa). Un export senza chiave valida RIFIUTA di partire (mai un backup in chiaro per omissione: serve `--no-encrypt`); l'import cifrato senza la chiave giusta fallisce all'autenticazione
+    del primo chunk, prima di toccare DB o storage. La chiave NON e' mai nel backup: va conservata a parte (come gia' per i binari WebDAV).
+  - **Token API**: `api_token.token_encrypted` si copia com'e', cifrato con la chiave dello STORAGE (non con quella dell'archivio). Se sul sistema di destinazione la chiave e' un'altra non si apre:
+    a fine import `IApiTokens#undecryptableCount` lo conta e si registra un AVVISO (`ISystemEvents#warn`, source TOKENS, nella campanella) piu' una riga in console; il ripristino non si ferma e i
+    token si reinseriscono in `/tokens`. Ri-cifrare i token con un'altra chiave e' fuori scope.
+- **Fuori scope**: backup incrementale/pianificato; `verify` dell'archivio senza importarlo; esportare `data/cache` e `data/models` (derivati); salvare `.env`; unire a un DB gia' popolato.
+- **Test**: `BackupRoundTripTest` (due database dedicati sul container dei test, come `FlywayCoreAppMigrationTest`; confronta ogni tabella e i byte dei blob, verifica le sequenze, `--replace`, schema piu'
+  vecchio, chiave sbagliata, rollback, archivio troncato), `BackupRunnerTest`, `TableOrderTest`, `ChunkedAesGcmCipherTest` (stream). Mai chiamate vere a Replicate.
+
 ## Comandi utili
 
 Nessun Maven Wrapper (serve Maven installato; `mvn wrapper:wrapper` per generarlo).
@@ -914,6 +965,7 @@ mvn test                     # test (include ArchitectureTest)
 mvn test -Dtest=ArchitectureTest   # solo le regole di architettura (le altre richiedono Docker)
 mvn clean package            # jar eseguibile (Tailwind via Play CDN)
 mvn -Ptailwind clean package # + CSS Tailwind compilato/minificato (richiede rete per il binario)
+java -jar target/spring-htmx-starter-*.jar export backup.dfb   # backup cifrato di DB + binari (vedi "Backup e restore"); import <file> [--replace] per ripristinare
 ```
 
 `mvn test` richiede **Docker** e non tocca mai il DB di sviluppo: `PostgresTestContainerInitializer` (`support`, registrato in
