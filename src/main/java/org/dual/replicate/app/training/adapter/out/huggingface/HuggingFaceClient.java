@@ -1,7 +1,10 @@
 package org.dual.replicate.app.training.adapter.out.huggingface;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.dual.replicate.app.training.domain.HfAccount;
 import org.dual.replicate.app.training.domain.HuggingFaceException;
@@ -73,19 +76,33 @@ class HuggingFaceClient extends RestRemoteClient implements IHuggingFaceRepos {
     }
 
     @Override
-    public boolean repoExists(String token, String repoId) {
+    public Optional<List<String>> repoFiles(String token, String repoId) {
         String[] userAndName = repoId.split("/", 2);
         if (userAndName.length != 2) {
-            return false;
+            return Optional.empty();
         }
-        return remote.call("repoExists", () -> {
+        return remote.call("repoFiles", () -> {
             try {
-                restClient.get().uri("/models/{user}/{name}", userAndName[0], userAndName[1]).headers(h -> h.setBearerAuth(token)).retrieve()
-                        .toBodilessEntity();
-                return true;
+                Map<String, Object> repo = restClient.get().uri("/models/{user}/{name}", userAndName[0], userAndName[1]).headers(h -> h.setBearerAuth(token))
+                        .retrieve().body(JSON_OBJECT);
+                return Optional.of(filesOf(repo));
             } catch (HttpClientErrorException.NotFound e) {
-                return false;
+                return Optional.<List<String>>empty();
             }
         });
+    }
+
+    /** {@code siblings[].rfilename}: l'elenco dei file che HuggingFace riporta nella scheda del repo; vuoto se la forma e' inattesa. */
+    private static List<String> filesOf(Map<String, Object> repo) {
+        if (repo == null || !(repo.get("siblings") instanceof List<?> siblings)) {
+            return List.of();
+        }
+        List<String> files = new ArrayList<>();
+        for (Object sibling : siblings) {
+            if (sibling instanceof Map<?, ?> entry && entry.get("rfilename") instanceof String name) {
+                files.add(name);
+            }
+        }
+        return files;
     }
 }

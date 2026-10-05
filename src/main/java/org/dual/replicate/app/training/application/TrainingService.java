@@ -26,6 +26,7 @@ import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.TrainingStatus;
 import org.dual.replicate.app.training.domain.event.TrainingChangedEvent;
+import org.dual.replicate.app.training.domain.event.TrainingCompletedEvent;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.app.training.port.out.IDatasetArchiver;
@@ -54,15 +55,12 @@ import org.springframework.stereotype.Service;
  *   <li><b>nessun training senza riga</b>: se il salvataggio fallisce dopo l'avvio remoto, il training si annulla.</li>
  * </ul>
  * Il token HuggingFace in chiaro esiste solo dentro {@link #start}: va a Replicate come {@code hf_token} (un segreto del trainer) e non entra in nessuna riga, log o
- * evento. Un solo aggiornamento alla volta per training (poller della pagina, sweep di recupero e utente si incrociano).
+ * evento. Un solo aggiornamento alla volta per training (poller della pagina, sweep di recupero e utente si incrociano; i lock sono di {@code TrainingLocks}).
  */
 @Service
 public class TrainingService implements ITrainings {
 
     private static final Logger log = LoggerFactory.getLogger(TrainingService.class);
-
-    /** Lock a strisce per training (id % N): nessuna mappa che cresce, collisioni innocue (solo serializzazione in piu'). */
-    private static final Object[] LOCKS = java.util.stream.Stream.generate(Object::new).limit(64).toArray();
 
     /** Lock a strisce per BOZZA (id % N), distinti da quelli per training: serializzano i lanci della stessa bozza (vedi {@link #start}). */
     private static final Object[] START_LOCKS = java.util.stream.Stream.generate(Object::new).limit(64).toArray();
@@ -358,7 +356,7 @@ public class TrainingService implements ITrainings {
 
     @Override
     public Training refresh(Long id) {
-        synchronized (lockOf(id)) {
+        synchronized (TrainingLocks.of(id)) {
             return doRefresh(id);
         }
     }
@@ -447,7 +445,7 @@ public class TrainingService implements ITrainings {
 
     @Override
     public Training cancel(Long id) {
-        synchronized (lockOf(id)) {
+        synchronized (TrainingLocks.of(id)) {
             Training training = get(id);
             if (training.isTerminal()) {
                 throw new TrainingException(messages.get("training.error.alreadyFinished"));
@@ -478,7 +476,7 @@ public class TrainingService implements ITrainings {
 
     @Override
     public void delete(Long id) {
-        synchronized (lockOf(id)) {
+        synchronized (TrainingLocks.of(id)) {
             Training training = get(id);
             if (!training.isTerminal()) {
                 cancelQuietly(training.getExternalId(), training.getId());
@@ -501,6 +499,10 @@ public class TrainingService implements ITrainings {
         Training saved = store.save(training);
         if (saved.getStatus() != before) {
             changed(saved);
+            if (saved.getStatus() == TrainingStatus.SUCCEEDED) {
+                // Una volta sola, qualunque strada porti a "riuscito" (poll, annullamento che trova il training finito, recupero): ora serve il risultato.
+                eventPublisher.publishEvent(new TrainingCompletedEvent(saved.getId()));
+            }
         }
         return saved;
     }
@@ -537,10 +539,6 @@ public class TrainingService implements ITrainings {
         } catch (RuntimeException cleanupFailure) {
             cause.addSuppressed(cleanupFailure); // il guasto vero e' la causa: la pulizia fallita non deve nasconderlo
         }
-    }
-
-    private static Object lockOf(Long id) {
-        return LOCKS[(int) (Math.abs(id) % LOCKS.length)];
     }
 
     private static boolean isBlank(String text) {

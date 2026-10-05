@@ -23,6 +23,7 @@ import org.dual.replicate.app.training.domain.TrainingStatus;
 import org.dual.replicate.app.training.port.in.ICaptionJobs;
 import org.dual.replicate.app.training.port.in.ITrainingCaptions;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
+import org.dual.replicate.app.training.port.in.ITrainingResults;
 import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.app.training.port.out.IHuggingFaceRepos;
 import org.dual.replicate.app.training.port.out.ITrainerGateway;
@@ -71,6 +72,9 @@ class TrainingLaunchIntegrationTest {
     /** Il lavoro di didascalia chiamerebbe il modello di visione vero. */
     @MockitoBean
     private ICaptionJobs captionJobs;
+    /** Un annullamento che trova il training riuscito pubblica il completamento: il risultato (preset, modelli) non si crea nel DB condiviso dei test. */
+    @MockitoBean
+    private ITrainingResults results;
 
     @Autowired
     private ITrainings trainings;

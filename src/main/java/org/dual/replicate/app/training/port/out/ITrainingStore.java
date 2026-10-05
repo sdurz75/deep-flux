@@ -1,5 +1,6 @@
 package org.dual.replicate.app.training.port.out;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,9 @@ public interface ITrainingStore {
     Paged<Training> findPage(int pageIndex, int pageSize);
 
     List<Training> findByStatusIn(Collection<TrainingStatus> statuses);
+
+    /** I training riusciti da {@code completedSince} in poi il cui risultato non e' completo (preset, modello utilizzabile, copia su HuggingFace). */
+    List<Training> findResultsToComplete(Instant completedSince);
 
     /** Il training che usa questo dataset congelato, se c'e' (per riconoscere uno snapshot dalla pagina del dataset). */
     Optional<Training> findBySnapshotDatasetId(Long snapshotDatasetId);

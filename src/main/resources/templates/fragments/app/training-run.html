@@ -5,9 +5,11 @@
 <!--
   Un training: il badge di stato (usato anche dallo storico) e il blocco stato di templates/app/training-run.html.
 
-  status(training, snapshot): #training-status e' il target del polling ogni 5 s finche' il training non e' terminale: il polling lo fa un `hx-get` +
-  `hx-trigger="every 5s"` SULL'ELEMENTO, che a stato terminale non ci sono piu' nel fragment appena reso, quindi si ferma da solo (stesso schema di
-  fragments/app/generation.html :: status). Il GET chiama ITrainings#refresh (una chiamata a Replicate). `snapshot` e' il dataset congelato (o null).
+  status(training, snapshot, preset): #training-status e' il target del polling ogni 5 s finche' il training non e' terminale E il suo risultato (preset, modello,
+  copia su HuggingFace) e' completo: il polling lo fa un `hx-get` + `hx-trigger="every 5s"` SULL'ELEMENTO, che a quel punto non ci sono piu' nel fragment appena reso,
+  quindi si ferma da solo (stesso schema di
+  fragments/app/generation.html :: status). Il GET chiama ITrainings#refresh (una chiamata a Replicate). `snapshot` e' il dataset congelato (o null);
+  `preset` e' il preset creato dal training (LoraView) o null (non ancora creato, o eliminato dall'utente).
 -->
 <span th:fragment="badge(status)" class="inline-block rounded-full border px-2.5 py-0.5 text-[0.75rem] whitespace-nowrap"
       th:classappend="${status.name() == 'SUCCEEDED'} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark'
@@ -16,9 +18,9 @@
                       : 'border-warning dark:border-warning-dark text-warning dark:text-warning-dark'))"
       th:text="#{${'training.status.' + status.name()}}">Stato</span>
 
-<div th:fragment="status(training, snapshot)" id="training-status" aria-live="polite"
-     th:hx-get="${training.terminal} ? null : @{/trainings/{id}/status(id=${training.id})}"
-     th:hx-trigger="${training.terminal} ? null : 'every 5s'" hx-target="this" hx-swap="outerHTML">
+<div th:fragment="status(training, snapshot, preset)" id="training-status" aria-live="polite"
+     th:hx-get="${training.terminal and not training.resultIncomplete} ? null : @{/trainings/{id}/status(id=${training.id})}"
+     th:hx-trigger="${training.terminal and not training.resultIncomplete} ? null : 'every 5s'" hx-target="this" hx-swap="outerHTML">
     <div class="flex flex-wrap items-center gap-3 mb-3">
         <span th:replace="~{fragments/app/training-run :: badge(status=${training.status})}"></span>
         <span th:unless="${training.terminal}" class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark"
@@ -69,6 +71,20 @@
             <dd class="m-0" th:text="#{training.run.compute(${#numbers.formatDecimal(training.predictTimeSeconds, 1, 0)})}">512 s</dd>
         </th:block>
     </dl>
+
+    <!--/* Il risultato nasce in background dopo il successo (preset, modello censito, copia su HuggingFace): il polling del blocco continua finche' e' incompleto (training.resultIncomplete), cosi' lo si vede apparire senza ricaricare. Su un training terminale il GET non chiama Replicate. */-->
+    <th:block th:if="${training.status.name() == 'SUCCEEDED'}">
+        <h2 class="mt-6" th:text="#{training.result.title}">Risultato</h2>
+        <ul class="m-0 pl-5">
+            <li th:if="${training.presetId == null}" th:text="#{training.result.presetPending}">Preset in creazione</li>
+            <li th:if="${training.presetId != null and preset != null}"><a th:href="@{/loras}" th:text="#{training.result.presetLink(${preset.name})}">Preset</a></li>
+            <li th:if="${training.presetId != null and preset == null}" th:text="#{training.result.presetGone}">Preset eliminato</li>
+            <li th:text="#{${'training.result.model.' + training.modelStatus.name()}}">Modello</li>
+            <li th:if="${training.modelStatus.name() == 'REJECTED' or training.hfStatus.name() == 'NOT_FOUND'}">
+                <a th:href="@{/system/events}" th:text="#{training.result.events}">Eventi di sistema</a>
+            </li>
+        </ul>
+    </th:block>
 
     <h2 class="mt-6" th:text="#{training.run.logs}">Log del trainer</h2>
     <p th:if="${training.logs == null or #strings.isEmpty(training.logs)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.run.logs.empty}">Nessun log ancora.</p>

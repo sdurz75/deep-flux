@@ -3,8 +3,10 @@ package org.dual.replicate.app.training.adapter.out.persistence;
 import java.time.Instant;
 import java.util.List;
 
+import org.dual.replicate.app.training.domain.HfStatus;
 import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.LoraType;
+import org.dual.replicate.app.training.domain.ModelStatus;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingStatus;
@@ -120,6 +122,58 @@ class JpaTrainingStoreTest {
         List<Training> running = trainings.findByStatusIn(List.of(TrainingStatus.PENDING, TrainingStatus.PROCESSING));
 
         assertThat(running).extracting(Training::getId).containsExactlyInAnyOrder(pending.getId(), processing.getId());
+    }
+
+    @Test
+    void findResultsToCompleteFindsOnlyRecentSucceededTrainingsWithSomethingLeftToDo() {
+        Instant now = NOW.plusSeconds(3600);
+        Training noPreset = succeededAt("a", now);
+        Training modelPending = succeededAt("b", now);
+        modelPending.setPresetId(1L);
+        modelPending.setHfStatus(HfStatus.VERIFIED);
+        Training hfPending = succeededAt("c", now);
+        hfPending.setPresetId(2L);
+        hfPending.setModelStatus(ModelStatus.REGISTERED);
+        Training complete = succeededAt("d", now);
+        complete.setPresetId(3L);
+        complete.setModelStatus(ModelStatus.REGISTERED);
+        complete.setHfStatus(HfStatus.VERIFIED);
+        Training rejected = succeededAt("e", now);
+        rejected.setPresetId(4L);
+        rejected.setModelStatus(ModelStatus.REJECTED);
+        rejected.setHfStatus(HfStatus.NOT_FOUND);
+        Training tooOld = succeededAt("f", now.minusSeconds(8 * 3600));
+        Training running = training(snapshot("g"), "t-g", TrainingStatus.PROCESSING, now);
+        List.of(noPreset, modelPending, hfPending, complete, rejected, tooOld).forEach(trainings::save);
+
+        List<Training> found = trainings.findResultsToComplete(now.minusSeconds(6 * 3600));
+
+        assertThat(found).extracting(Training::getId).containsExactlyInAnyOrder(noPreset.getId(), modelPending.getId(), hfPending.getId());
+        assertThat(found).doesNotContain(running);
+    }
+
+    @Test
+    void theResultStateRoundTrips() {
+        Training saved = succeededAt("a", NOW);
+        saved.setPresetId(77L);
+        saved.setModelStatus(ModelStatus.REJECTED);
+        saved.setHfStatus(HfStatus.UNVERIFIED);
+        trainings.save(saved);
+
+        Training read = trainings.findById(saved.getId()).orElseThrow();
+
+        assertThat(read.getPresetId()).isEqualTo(77L);
+        assertThat(read.getModelStatus()).isEqualTo(ModelStatus.REJECTED);
+        assertThat(read.getHfStatus()).isEqualTo(HfStatus.UNVERIFIED);
+        assertThat(trainings.findById(training(snapshot("fresh"), "t-fresh", TrainingStatus.PENDING, NOW).getId()).orElseThrow().getModelStatus())
+                .as("un training nuovo ha il modello da preparare").isEqualTo(ModelStatus.PENDING);
+    }
+
+    /** Un training riuscito alla data data, salvato (con il suo snapshot), con il risultato ancora da fare. */
+    private Training succeededAt(String name, Instant completedAt) {
+        Training training = training(snapshot(name), "t-" + name, TrainingStatus.PROCESSING, completedAt.minusSeconds(60));
+        training.succeed("ok", 1.0, completedAt);
+        return trainings.save(training);
     }
 
     @Test

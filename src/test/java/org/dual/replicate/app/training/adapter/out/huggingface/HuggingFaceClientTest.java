@@ -1,5 +1,7 @@
 package org.dual.replicate.app.training.adapter.out.huggingface;
 
+import java.util.List;
+
 import org.dual.replicate.app.training.domain.HfAccount;
 import org.dual.replicate.app.training.domain.HuggingFaceException;
 import org.dual.replicate.core.kernel.i18n.Messages;
@@ -142,26 +144,42 @@ class HuggingFaceClientTest {
     }
 
     @Test
-    void repoExistsIsTrueFor200AndFalseFor404() {
-        server.expect(requestTo(BASE + "/models/sandro/c1")).andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer hf_tok"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-        server.expect(requestTo(BASE + "/models/sandro/c2")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+    void repoFilesListsTheFilesOfTheRepoFromItsSiblings() {
+        server.expect(ExpectedCount.once(), requestTo(BASE + "/models/sandro/c1")).andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer hf_tok"))
+                .andRespond(withSuccess("{\"id\":\"sandro/c1\",\"siblings\":[{\"rfilename\":\".gitattributes\"},{\"rfilename\":\"lora.safetensors\"}]}",
+                        MediaType.APPLICATION_JSON));
 
-        assertThat(client.repoExists("hf_tok", "sandro/c1")).isTrue();
-        assertThat(client.repoExists("hf_tok", "sandro/c2")).isFalse();
+        assertThat(client.repoFiles("hf_tok", "sandro/c1")).contains(List.of(".gitattributes", "lora.safetensors"));
         server.verify();
     }
 
     @Test
-    void repoExistsOfAMalformedIdIsFalseWithoutACall() {
-        assertThat(client.repoExists("hf_tok", "senza-utente")).isFalse();
+    void aRepoWithoutSiblingsIsEmptyOfFilesButExists() {
+        server.expect(requestTo(BASE + "/models/sandro/c1")).andRespond(withSuccess("{\"id\":\"sandro/c1\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/models/sandro/c2")).andRespond(withSuccess("{\"siblings\":[{\"x\":1},\"strano\"]}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.repoFiles("hf_tok", "sandro/c1")).contains(List.of());
+        assertThat(client.repoFiles("hf_tok", "sandro/c2")).as("forma inattesa: nessun file, ma il repo c'e'").contains(List.of());
+    }
+
+    @Test
+    void aMissingRepoIsEmpty() {
+        server.expect(ExpectedCount.once(), requestTo(BASE + "/models/sandro/c2")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.repoFiles("hf_tok", "sandro/c2")).isEmpty();
         server.verify();
     }
 
     @Test
-    void repoExistsRaisesAnAuthFailureInsteadOfPretendingTheRepoIsMissing() {
+    void repoFilesOfAMalformedIdIsEmptyWithoutACall() {
+        assertThat(client.repoFiles("hf_tok", "senza-utente")).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void repoFilesRaisesAnAuthFailureInsteadOfPretendingTheRepoIsMissing() {
         server.expect(ExpectedCount.once(), requestTo(BASE + "/models/sandro/c1")).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
 
-        assertThatThrownBy(() -> client.repoExists("scaduto", "sandro/c1")).isInstanceOf(HuggingFaceException.class);
+        assertThatThrownBy(() -> client.repoFiles("scaduto", "sandro/c1")).isInstanceOf(HuggingFaceException.class);
     }
 }

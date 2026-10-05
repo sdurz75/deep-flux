@@ -4,11 +4,13 @@ import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.in.ITrainings;
+import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,10 +34,12 @@ public class TrainingRunController {
 
     private final ITrainings trainings;
     private final ITrainingDatasets datasets;
+    private final ILoraPresets presets;
 
-    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets) {
+    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets) {
         this.trainings = trainings;
         this.datasets = datasets;
+        this.presets = presets;
     }
 
     // --- pannello "Avvia" di una bozza --------------------------------------------------------------------------
@@ -129,12 +133,25 @@ public class TrainingRunController {
 
     private String statusView(Training training, Model model) {
         populateRun(model, training);
-        return "fragments/app/training-run :: status(training=${training}, snapshot=${snapshot})";
+        return "fragments/app/training-run :: status(training=${training}, snapshot=${snapshot}, preset=${preset})";
     }
 
     private void populateRun(Model model, Training training) {
         model.addAttribute("training", training);
         model.addAttribute("snapshot", datasets.find(training.getSnapshotDatasetId()).orElse(null));
+        model.addAttribute("preset", presetOf(training));
+    }
+
+    /** Il preset creato dal training, o null se non c'e' ancora (il risultato nasce in background) o l'utente lo ha eliminato. */
+    private ILoraPresets.LoraView presetOf(Training training) {
+        if (training.getPresetId() == null) {
+            return null;
+        }
+        try {
+            return presets.get(training.getPresetId());
+        } catch (RemoteServiceException e) {
+            return null;
+        }
     }
 
     private static int parseInt(String text) {

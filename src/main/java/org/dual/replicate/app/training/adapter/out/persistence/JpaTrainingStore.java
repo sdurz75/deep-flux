@@ -1,9 +1,12 @@
 package org.dual.replicate.app.training.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.dual.replicate.app.training.domain.HfStatus;
+import org.dual.replicate.app.training.domain.ModelStatus;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingStatus;
 import org.dual.replicate.app.training.port.out.ITrainingStore;
@@ -41,6 +44,11 @@ class JpaTrainingStore implements ITrainingStore {
     @Override
     public List<Training> findByStatusIn(Collection<TrainingStatus> statuses) {
         return repository.findByStatusIn(statuses);
+    }
+
+    @Override
+    public List<Training> findResultsToComplete(Instant completedSince) {
+        return repository.findResultsToComplete(completedSince, ModelStatus.PENDING, HfStatus.PENDING);
     }
 
     @Override

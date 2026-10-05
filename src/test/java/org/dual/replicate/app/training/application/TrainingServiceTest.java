@@ -31,6 +31,7 @@ import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.TrainingStatus;
 import org.dual.replicate.app.training.domain.event.TrainingChangedEvent;
+import org.dual.replicate.app.training.domain.event.TrainingCompletedEvent;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.out.IDatasetArchiver;
 import org.dual.replicate.app.training.port.out.IHuggingFaceRepos;
@@ -511,6 +512,41 @@ class TrainingServiceTest {
         assertThat(training.getCompletedAt()).isEqualTo(NOW.plusSeconds(600));
         assertThat(training.getLogs()).isEqualTo("done");
         verify(publisher).publishEvent(new TrainingChangedEvent(training.getId()));
+    }
+
+    /** Da qui parte il risultato (preset, modello, copia su HuggingFace): una volta sola, qualunque strada porti a "riuscito". */
+    @Test
+    void aTrainingThatSucceedsPublishesTheCompletionOnceAndOnlyOnTheTransition() {
+        Training training = running(TrainingStatus.PROCESSING);
+        when(trainer.getTraining("train-1")).thenReturn(new TrainerJob("train-1", TrainingStatus.SUCCEEDED, null, "ok", 5.0));
+
+        service.refresh(training.getId());
+        service.refresh(training.getId()); // gia' terminale: nessuna chiamata, nessun secondo evento
+
+        verify(publisher, times(1)).publishEvent(new TrainingCompletedEvent(training.getId()));
+        verify(trainer, times(1)).getTraining(anyString());
+    }
+
+    @Test
+    void aTrainingThatFailsOrIsCancelledDoesNotPublishTheCompletion() {
+        Training failed = running(TrainingStatus.PROCESSING);
+        when(trainer.getTraining("train-1")).thenReturn(new TrainerJob("train-1", TrainingStatus.FAILED, "boom", null, null));
+        service.refresh(failed.getId());
+        Training cancelled = running(TrainingStatus.PROCESSING);
+        when(trainer.cancelTraining("train-1")).thenReturn(job("train-1", TrainingStatus.CANCELED));
+        service.cancel(cancelled.getId());
+
+        verify(publisher, never()).publishEvent(any(TrainingCompletedEvent.class));
+    }
+
+    @Test
+    void aCancelThatFindsTheTrainingAlreadySucceededStillTriggersTheResult() {
+        Training training = running(TrainingStatus.PROCESSING);
+        when(trainer.cancelTraining("train-1")).thenReturn(new TrainerJob("train-1", TrainingStatus.SUCCEEDED, null, "ok", 9.0));
+
+        service.cancel(training.getId());
+
+        verify(publisher).publishEvent(new TrainingCompletedEvent(training.getId()));
     }
 
     @Test

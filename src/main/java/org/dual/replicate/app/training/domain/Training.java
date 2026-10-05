@@ -89,6 +89,10 @@ public class Training {
     @Column
     private Long presetId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ModelStatus modelStatus = ModelStatus.PENDING;
+
     @Column
     private Double predictTimeSeconds;
 
@@ -164,6 +168,15 @@ public class Training {
 
     public void setPresetId(Long presetId) {
         this.presetId = presetId;
+    }
+
+    public void setModelStatus(ModelStatus modelStatus) {
+        this.modelStatus = modelStatus;
+    }
+
+    /** Ha ancora qualcosa da fare dopo il successo: preset da creare, modello da censire o copia su HuggingFace da verificare. */
+    public boolean isResultIncomplete() {
+        return status == TrainingStatus.SUCCEEDED && (presetId == null || modelStatus == ModelStatus.PENDING || hfStatus == HfStatus.PENDING);
     }
 
     private static String tail(String text) {
@@ -253,6 +266,10 @@ public class Training {
 
     public Long getPresetId() {
         return presetId;
+    }
+
+    public ModelStatus getModelStatus() {
+        return modelStatus;
     }
 
     public Double getPredictTimeSeconds() {

@@ -116,6 +116,12 @@ app:
     trainer-model: replicate/fast-flux-trainer
     trainer-version:
     destination-hardware: gpu-t4
+    # Il risultato di un training riuscito (TrainingResultService: preset in /loras, modello censito, copia su HuggingFace verificata). result-grace: subito dopo
+    # il successo la versione del modello o l'elenco dei file su HuggingFace possono non essere ancora visibili, quindi un rifiuto entro questo tempo si ritenta.
+    # result-retry-window: per quanto tempo lo sweep riprende un risultato rimasto a meta'; result-sweep-interval: ogni quanto.
+    result-grace: 10m
+    result-retry-window: 6h
+    result-sweep-interval: 5m
   chat:
     # /deep-chat (ImageGenerationTool, VisionTool, ChatService): tetti di sicurezza per turno e finestra della cronologia mandata al modello.
     # max-generations-per-turn: ogni generateImage e' una predizione a pagamento; max-vision-calls-per-turn: ogni describeImage costa token

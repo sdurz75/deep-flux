@@ -1,5 +1,6 @@
 package org.dual.replicate.app.training.application;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -52,6 +53,11 @@ final class InMemoryTrainingStore implements ITrainingStore {
     @Override
     public List<Training> findByStatusIn(Collection<TrainingStatus> statuses) {
         return rows.values().stream().filter(t -> statuses.contains(t.getStatus())).toList();
+    }
+
+    @Override
+    public List<Training> findResultsToComplete(Instant completedSince) {
+        return rows.values().stream().filter(t -> t.isResultIncomplete() && t.getCompletedAt() != null && !t.getCompletedAt().isBefore(completedSince)).toList();
     }
 
     @Override

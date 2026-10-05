@@ -1,5 +1,8 @@
 package org.dual.replicate.app.training.port.out;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.dual.replicate.app.training.domain.HfAccount;
 
 /**
@@ -14,6 +17,9 @@ public interface IHuggingFaceRepos {
     /** Crea il repo modello {@code <utente del token>/<repoName>} con la visibilita' data; uno gia' esistente va bene (idempotente). Scrive su HuggingFace. */
     void createModelRepo(String token, String repoName, boolean isPrivate);
 
-    /** Il repo {@code utente/nome} esiste (e il token lo vede)? Sola lettura. */
-    boolean repoExists(String token, String repoId);
+    /**
+     * I file del repo {@code utente/nome} (nomi relativi), o vuoto se il repo non esiste (o il token non lo vede). Sola lettura. Serve a controllare che i pesi ci
+     * siano finiti: il repo lo crea l'app PRIMA del training, quindi la sua sola esistenza non prova nulla.
+     */
+    Optional<List<String>> repoFiles(String token, String repoId);
 }

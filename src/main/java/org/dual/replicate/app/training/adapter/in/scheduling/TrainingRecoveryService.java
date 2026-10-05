@@ -5,6 +5,7 @@ import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.port.in.ICaptionJobs;
+import org.dual.replicate.app.training.port.in.ITrainingResults;
 import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
@@ -25,7 +26,8 @@ import org.springframework.stereotype.Service;
  *
  * <p>E poi i TRAINING: un training dura decine di minuti e la pagina che lo guarda puo' essere chiusa, quindi nessuno lo interrogherebbe. Qui si fa avanzare ogni
  * training non terminale all'avvio e ogni {@code app.training.poll-interval} (il timeout di business lo applica {@code ITrainings#refresh}). Disattivabile con
- * {@code app.recovery.enabled=false} (i test e il profilo {@code backup}, che non devono avviare nulla di nascosto).
+ * {@code app.recovery.enabled=false} (i test e il profilo {@code backup}, che non devono avviare nulla di nascosto). Un training RIUSCITO ha ancora un risultato da
+ * completare (preset, modello utilizzabile, copia su HuggingFace): se il lavoro in background e' andato perso, lo riprende qui.
  */
 @Service
 @ConditionalOnProperty(name = "app.recovery.enabled", havingValue = "true", matchIfMissing = true)
@@ -35,11 +37,13 @@ public class TrainingRecoveryService {
 
     private final ICaptionJobs captionJobs;
     private final ITrainings trainings;
+    private final ITrainingResults results;
     private final ISystemEvents systemEvents;
 
-    public TrainingRecoveryService(ICaptionJobs captionJobs, ITrainings trainings, ISystemEvents systemEvents) {
+    public TrainingRecoveryService(ICaptionJobs captionJobs, ITrainings trainings, ITrainingResults results, ISystemEvents systemEvents) {
         this.captionJobs = captionJobs;
         this.trainings = trainings;
+        this.results = results;
         this.systemEvents = systemEvents;
     }
 
@@ -48,6 +52,13 @@ public class TrainingRecoveryService {
     public void recoverOnStartup() {
         recoverCaptions();
         pollTrainings();
+        recoverResults();
+    }
+
+    /** I risultati rimasti a meta' (preset non creato, modello non ancora censibile, copia su HuggingFace da verificare) dei training finiti di recente. */
+    @Scheduled(fixedDelayString = "${app.training.result-sweep-interval:5m}", initialDelayString = "${app.training.result-sweep-interval:5m}")
+    public void sweepResults() {
+        recoverResults();
     }
 
     @Scheduled(fixedDelayString = "${app.training.poll-interval:30s}", initialDelayString = "${app.training.poll-interval:30s}")
@@ -89,6 +100,17 @@ public class TrainingRecoveryService {
             }
         } catch (RuntimeException e) {
             systemEvents.record(CoreEventSource.INTERNAL, "pollTrainings", e);
+        }
+    }
+
+    private void recoverResults() {
+        try {
+            int resumed = results.recoverPending();
+            if (resumed > 0) {
+                log.info("Recupero: {} risultati di training ripresi", resumed);
+            }
+        } catch (RuntimeException e) {
+            systemEvents.record(CoreEventSource.INTERNAL, "recoverTrainingResults", e);
         }
     }
 }

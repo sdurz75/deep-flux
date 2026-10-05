@@ -11,6 +11,7 @@ import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingStatus;
 import org.dual.replicate.app.training.port.in.ICaptionJobs;
+import org.dual.replicate.app.training.port.in.ITrainingResults;
 import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
@@ -35,8 +36,9 @@ class TrainingRecoveryServiceTest {
 
     private final ICaptionJobs captionJobs = mock(ICaptionJobs.class);
     private final ITrainings trainings = mock(ITrainings.class);
+    private final ITrainingResults results = mock(ITrainingResults.class);
     private final ISystemEvents systemEvents = mock(ISystemEvents.class);
-    private final TrainingRecoveryService service = new TrainingRecoveryService(captionJobs, trainings, systemEvents);
+    private final TrainingRecoveryService service = new TrainingRecoveryService(captionJobs, trainings, results, systemEvents);
 
     private static Training training(long id) {
         TrainingDataset snapshot = new TrainingDataset("n", "TOK", LoraType.SUBJECT, null, true, null, NOW);
@@ -101,6 +103,26 @@ class TrainingRecoveryServiceTest {
 
         verify(captionJobs).recoverPending();
         verify(trainings).refresh(1L);
+    }
+
+    @Test
+    void theStartupAndTheSweepResumeTheIncompleteResults() {
+        when(results.recoverPending()).thenReturn(1);
+
+        service.recoverOnStartup();
+        service.sweepResults();
+
+        verify(results, org.mockito.Mockito.times(2)).recoverPending();
+    }
+
+    @Test
+    void aFailureResumingResultsIsRecordedAsInternalAndDoesNotBreakTheStartup() {
+        RuntimeException broken = new IllegalStateException("db");
+        when(results.recoverPending()).thenThrow(broken);
+
+        service.recoverOnStartup();
+
+        verify(systemEvents).record(CoreEventSource.INTERNAL, "recoverTrainingResults", broken);
     }
 
     @Test

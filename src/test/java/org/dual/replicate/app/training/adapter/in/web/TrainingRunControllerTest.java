@@ -4,8 +4,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.dual.replicate.app.generation.port.in.ILoraPresets;
+import org.dual.replicate.app.generation.port.out.IPredictionGateway;
+import org.dual.replicate.app.training.domain.HfStatus;
 import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.LoraType;
+import org.dual.replicate.app.training.domain.ModelStatus;
 import org.dual.replicate.app.training.domain.TrainerJob;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
@@ -14,6 +18,7 @@ import org.dual.replicate.app.training.domain.TrainingStatus;
 import org.dual.replicate.app.training.port.in.ICaptionJobs;
 import org.dual.replicate.app.training.port.in.ITrainingCaptions;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
+import org.dual.replicate.app.training.port.in.ITrainingResults;
 import org.dual.replicate.app.training.port.out.IHuggingFaceRepos;
 import org.dual.replicate.app.training.port.out.ITrainerGateway;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
@@ -36,6 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -66,6 +72,17 @@ class TrainingRunControllerTest {
     private IHuggingFaceRepos huggingFace;
     @MockitoBean
     private ICaptionJobs captionJobs;
+    /** Creare un preset prova a censire il modello leggendone la versione da Replicate: qui e' finto (nessuna rete). */
+    @MockitoBean
+    private IPredictionGateway predictions;
+    /**
+     * Un training portato a "riuscito" pubblica il completamento e il listener asincrono creerebbe davvero preset e modelli nel DB condiviso dei test: qui il
+     * risultato e' finto (la sua logica e' provata in TrainingResultServiceTest e TrainingResultIntegrationTest).
+     */
+    @MockitoBean
+    private ITrainingResults results;
+    @Autowired
+    private ILoraPresets presets;
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -94,6 +111,7 @@ class TrainingRunControllerTest {
     void cleanUp() {
         trainingStore.deleteAll();
         datasetStore.deleteAll();
+        presets.list().stream().filter(p -> "acct/il-mio-gatto-20261005-100000".equals(p.source())).forEach(p -> presets.delete(p.id()));
     }
 
     private String body(MvcResult result) throws Exception {
@@ -119,6 +137,15 @@ class TrainingRunControllerTest {
         snapshot = datasetStore.save(snapshot);
         // Creato "adesso": il servizio usa l'orologio vero e un training piu' vecchio del timeout di business verrebbe chiuso dal poll.
         Training training = new Training(snapshot, "train-1", status, "v-trainer", "acct", "il-mio-gatto-20261005-100000", "sandro/il-mio-gatto", Instant.now());
+        return trainingStore.save(training);
+    }
+
+    /** Un training riuscito col risultato gia' completo (un preset c'e', il modello e' censito, la copia su HuggingFace verificata). */
+    private Training succeededWithResult(Long presetId) {
+        Training training = training(TrainingStatus.SUCCEEDED);
+        training.setPresetId(presetId);
+        training.setModelStatus(ModelStatus.REGISTERED);
+        training.setHfStatus(HfStatus.VERIFIED);
         return trainingStore.save(training);
     }
 
@@ -185,12 +212,56 @@ class TrainingRunControllerTest {
 
     @Test
     void aFinishedTrainingPageHasNoPollingAndNoCancel() throws Exception {
-        Training done = training(TrainingStatus.SUCCEEDED);
+        Training done = succeededWithResult(1L);
 
         String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
 
         assertThat(page).contains("Completato").doesNotContain("every 5s").doesNotContain("Annulla il training")
                 .contains("href=\"/trainings/datasets/" + done.getSnapshotDatasetId() + "\"");
+    }
+
+    @Test
+    void aSucceededTrainingWhoseResultIsIncompleteKeepsPollingAndSaysThePresetIsBeingCreated() throws Exception {
+        Training done = training(TrainingStatus.SUCCEEDED);
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Risultato").contains("Preset in /loras: in creazione").contains("Il modello si sta preparando")
+                .contains("hx-trigger=\"every 5s\"").doesNotContain("Annulla il training");
+    }
+
+    @Test
+    void aSucceededTrainingShowsItsPresetAndTheUsableModel() throws Exception {
+        ILoraPresets.LoraView preset = presets.create("Il mio gatto", "acct/il-mio-gatto-20261005-100000", 1.0, "TOKCAT", "nota");
+        Training done = succeededWithResult(preset.id());
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Risultato").contains("Preset &quot;Il mio gatto&quot; in /loras").contains("href=\"/loras\"")
+                .contains("utilizzabile").contains("Presente su HuggingFace").doesNotContain("every 5s");
+    }
+
+    @Test
+    void aDeletedPresetIsSaidSoInsteadOfBreakingThePage() throws Exception {
+        Training done = succeededWithResult(987654L);
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Il preset creato da questo training e&#39; stato eliminato").doesNotContain("every 5s");
+    }
+
+    @Test
+    void aRejectedModelPointsToTheSystemEventsAndStopsPolling() throws Exception {
+        Training done = training(TrainingStatus.SUCCEEDED);
+        done.setPresetId(1L);
+        done.setModelStatus(ModelStatus.REJECTED);
+        done.setHfStatus(HfStatus.NOT_FOUND);
+        trainingStore.save(done);
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("non e&#39; utilizzabile nell&#39;app").contains("href=\"/system/events\"").contains("Pesi non trovati su HuggingFace")
+                .doesNotContain("every 5s");
     }
 
     @Test
@@ -220,7 +291,9 @@ class TrainingRunControllerTest {
         when(trainer.getTraining("train-1")).thenReturn(new TrainerJob("train-1", TrainingStatus.SUCCEEDED, null, "finito", 600.0));
         String done = body(mockMvc.perform(get("/trainings/" + running.getId() + "/status")).andExpect(status().isOk()).andReturn());
 
-        assertThat(done).contains("Completato").contains("600 s").contains("finito").doesNotContain("every 5s").doesNotContain("Annulla il training");
+        assertThat(done).contains("Completato").contains("600 s").contains("finito").doesNotContain("Annulla il training")
+                .as("il risultato (preset, modello) nasce in background: il blocco continua a controllare finche' e' incompleto").contains("every 5s");
+        verify(results, timeout(5000)).complete(running.getId()); // il completamento parte da solo: l'evento e' ascoltato in background
         assertThat(trainingStore.findById(running.getId()).orElseThrow().getStatus()).isEqualTo(TrainingStatus.SUCCEEDED);
     }
 
