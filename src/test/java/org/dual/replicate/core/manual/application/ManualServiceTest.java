@@ -1,4 +1,4 @@
-package org.dual.replicate.core.manual.application;
+git package org.dual.replicate.core.manual.application;
 
 import java.util.List;
 import java.util.Optional;

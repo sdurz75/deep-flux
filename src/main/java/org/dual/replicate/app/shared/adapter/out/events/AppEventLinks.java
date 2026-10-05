@@ -8,7 +8,7 @@ import org.dual.replicate.core.events.port.out.IEventLinkResolver;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.springframework.stereotype.Component;
 
-/** Link dagli eventi alle pagine dell'app: {@code generation:<id>} -> /generations/{id}, {@code conversation:<id>} -> /deep-chat/{id}. */
+/** Link dagli eventi alle pagine dell'app: {@code generation:<id>} -> /generations/{id}, {@code conversation:<id>} -> /deep-chat/{id}, {@code training:<id>} -> /trainings/{id}. */
 @Component
 public class AppEventLinks implements IEventLinkResolver {
 
@@ -38,6 +38,7 @@ public class AppEventLinks implements IEventLinkResolver {
         return switch (type) {
             case AppEventSubjects.GENERATION -> List.of(new EventLink("/generations/" + id, messages.get("events.link.generation", id)));
             case AppEventSubjects.CONVERSATION -> List.of(new EventLink("/deep-chat/" + id, messages.get("events.link.conversation")));
+            case AppEventSubjects.TRAINING -> List.of(new EventLink("/trainings/" + id, messages.get("events.link.training", id)));
             default -> List.of();
         };
     }

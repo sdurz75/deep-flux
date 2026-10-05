@@ -6,15 +6,19 @@ import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.training.domain.LoraType;
+import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.UploadReport;
 import org.dual.replicate.app.training.port.in.ITrainingCaptions;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
+import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.core.kernel.Paged;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.dual.replicate.core.web.PaginationSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -29,8 +33,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Addestramento di un LoRA, parte dei dataset ({@link ITrainingDatasets}): l'elenco delle bozze con il form di creazione ({@code /trainings}) e l'editor
- * di una bozza ({@code /trainings/datasets/{id}}). I form di creazione e di modifica sono NATIVI (POST + redirect: la bozza e' sul server, funzionano anche senza JS);
+ * Addestramento di un LoRA, parte dei dataset ({@link ITrainingDatasets}): l'hub ({@code /trainings}: elenco delle bozze con il form di creazione, oppure lo storico
+ * dei training con {@code ?tab=history}) e l'editor di una bozza ({@code /trainings/datasets/{id}}), che porta anche il pannello "Avvia" (impostazioni di lancio e
+ * controlli: le azioni sono in {@link TrainingRunController}, qui si prepara solo il Model). I form di creazione e di modifica sono NATIVI (POST + redirect: la bozza e' sul server, funzionano anche senza JS);
  * caricamento e rimozione delle immagini sono htmx e rimpiazzano {@code #training-images}; Clona ed Elimina rispondono con {@code HX-Redirect}.
  * Un rifiuto di validazione ricompare nella pagina; un rifiuto su un'azione htmx lo traduce il resolver in un toast.
  */
@@ -43,24 +48,42 @@ public class TrainingController {
 
     private final ITrainingDatasets datasets;
     private final ITrainingCaptions captions;
+    private final ITrainings trainings;
+    private final IApiTokens tokens;
     /** Lato lungo massimo di un ritaglio: lo usa solo il browser (canvas), il server non decodifica le immagini. */
     private final int maxImageSide;
 
-    public TrainingController(ITrainingDatasets datasets, ITrainingCaptions captions, @Value("${app.training.max-image-side:1536}") int maxImageSide) {
+    public TrainingController(ITrainingDatasets datasets, ITrainingCaptions captions, ITrainings trainings, IApiTokens tokens,
+                              @Value("${app.training.max-image-side:1536}") int maxImageSide) {
         this.datasets = datasets;
         this.captions = captions;
+        this.trainings = trainings;
+        this.tokens = tokens;
         this.maxImageSide = maxImageSide;
     }
 
-    /** Stessa URL, due risposte: la paginazione htmx riceve il solo contenuto, la navigazione la pagina intera. */
+    /**
+     * L'hub, con due schede: {@code datasets} (le bozze, con il form di creazione) e {@code history} (lo storico dei training). Stessa URL, due risposte: la
+     * paginazione htmx riceve il solo contenuto della scheda, la navigazione la pagina intera. Le schede sono link normali (pagina intera).
+     */
     @GetMapping
-    public String list(@RequestParam(defaultValue = "1") int page,
+    public String list(@RequestParam(defaultValue = "datasets") String tab, @RequestParam(defaultValue = "1") int page,
                        @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
+        boolean htmx = "true".equalsIgnoreCase(hxRequest);
+        if ("history".equals(tab)) {
+            populateHistory(model, page);
+            model.addAttribute("tab", "history");
+            return htmx
+                    ? "fragments/app/training-history :: content(trainings=${trainings}, currentPage=${currentPage}, totalPages=${totalPages}, "
+                            + "hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
+                    : "app/training";
+        }
         populateList(model, page);
+        model.addAttribute("tab", "datasets");
         model.addAttribute("formName", "");
         model.addAttribute("formTriggerWord", "TOK");
         model.addAttribute("formType", "subject");
-        return "true".equalsIgnoreCase(hxRequest)
+        return htmx
                 ? "fragments/app/training-datasets :: content(datasets=${datasets}, currentPage=${currentPage}, totalPages=${totalPages}, "
                         + "hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
                 : "app/training";
@@ -77,6 +100,7 @@ public class TrainingController {
                 throw e;
             }
             populateList(model, 1);
+            model.addAttribute("tab", "datasets");
             model.addAttribute("createError", e.getMessage());
             model.addAttribute("formName", name);
             model.addAttribute("formTriggerWord", triggerWord);
@@ -94,6 +118,7 @@ public class TrainingController {
         }
         populateEditor(model, found.get(), null);
         populateForm(model, found.get());
+        populateLaunch(model, found.get());
         return "app/training-dataset";
     }
 
@@ -112,6 +137,7 @@ public class TrainingController {
                 return "redirect:/trainings";
             }
             populateEditor(model, found.get(), null);
+            populateLaunch(model, found.get());
             model.addAttribute("error", e.getMessage());
             model.addAttribute("formName", name);
             model.addAttribute("formTriggerWord", triggerWord);
@@ -238,7 +264,22 @@ public class TrainingController {
             return "fragments/app/training-dataset :: images(dataset=${dataset}, report=${report}, maxImages=${maxImages}, maxBytes=${maxBytes})";
         }
         populateForm(model, dataset);
+        populateLaunch(model, dataset);
         return "app/training-dataset";
+    }
+
+    /**
+     * Il pannello "Avvia" di una bozza: controlli di lancio (sola lettura, nessuna chiamata remota) e i token HuggingFace fra cui scegliere (nome e scadenza,
+     * mai il segreto). Per uno snapshot, invece, il training a cui appartiene (per il link): non ha impostazioni da cambiare.
+     */
+    private void populateLaunch(Model model, TrainingDataset dataset) {
+        if (dataset.isFrozen()) {
+            Training owner = trainings.findBySnapshot(dataset.getId()).orElse(null);
+            model.addAttribute("snapshotTraining", owner);
+            return;
+        }
+        model.addAttribute("launchCheck", trainings.check(dataset.getId()));
+        model.addAttribute("hfTokens", tokens.options(ApiTokenProvider.HUGGINGFACE.name()));
     }
 
     /** I valori del form di configurazione: quelli salvati (dopo un errore di validazione il chiamante li sovrascrive con quelli digitati). */
@@ -267,6 +308,23 @@ public class TrainingController {
         }
         int currentPage = pageIndex + 1;
         model.addAttribute("datasets", result.content());
+        model.addAttribute("currentPage", currentPage);
+        model.addAttribute("totalPages", result.totalPages());
+        model.addAttribute("hasPrevious", result.hasPrevious());
+        model.addAttribute("hasNext", result.hasNext());
+        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));
+    }
+
+    /** Una pagina dello storico (1-based), con lo stesso riporto all'ultima pagina esistente dell'elenco delle bozze. */
+    private void populateHistory(Model model, int page) {
+        int pageIndex = Math.max(0, page - 1);
+        Paged<Training> result = trainings.page(pageIndex, PAGE_SIZE);
+        if (result.isEmpty() && result.totalPages() > 0 && pageIndex >= result.totalPages()) {
+            pageIndex = result.totalPages() - 1;
+            result = trainings.page(pageIndex, PAGE_SIZE);
+        }
+        int currentPage = pageIndex + 1;
+        model.addAttribute("trainings", result.content());
         model.addAttribute("currentPage", currentPage);
         model.addAttribute("totalPages", result.totalPages());
         model.addAttribute("hasPrevious", result.hasPrevious());

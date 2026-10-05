@@ -419,13 +419,15 @@ public class TrainingService implements ITrainings {
 
     /**
      * Il poll e' fallito (dopo i ritentativi). Sempre registrato (la serie evita righe e toast a ogni poll). Un errore PERMANENTE fa fallire il training subito e
-     * lo ferma; uno TRANSITORIO lo lascia in corso e riprova al prossimo giro (il training su Replicate continua: il suo esito non va perso per un'interruzione di
+     * lo ferma; uno TRANSITORIO (o di configurazione) lo lascia in corso e riprova al prossimo giro (il training su Replicate continua: il suo esito non va perso per un'interruzione di
      * pochi secondi), ma il timeout di business vale comunque, cosi' non esiste attesa infinita.
      */
     private Training handlePollFailure(Training training, RuntimeException e) {
         systemEvents.record("getTraining", e, AppEventSubjects.ofTraining(training.getId()));
         TrainingStatus before = training.getStatus();
-        boolean permanent = e instanceof RemoteServiceException remote && !remote.isTransient();
+        // Solo un 4xx/risposta illeggibile (PERMANENT) chiude il training: un token di Replicate mancante (CONFIGURATION) e' un problema di chi lo gestisce, non del
+        // training, che su Replicate gira comunque. Resta in corso, l'evento e' registrato, e il timeout di business vale lo stesso.
+        boolean permanent = e instanceof RemoteServiceException remote && remote.kind() == RemoteServiceException.Kind.PERMANENT;
         Instant now = clock.instant();
         if (permanent) {
             training.fail(TrainingStatus.FAILED, messages.get("training.error.contactFailed", ISystemEvents.sanitize(e)), null, null, now);
