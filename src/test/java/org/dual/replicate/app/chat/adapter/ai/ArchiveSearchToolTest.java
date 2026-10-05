@@ -38,7 +38,7 @@ class ArchiveSearchToolTest {
                 hit("chatmessage:5", "vorrei un castello", Map.of("type", "chat", "refId", 5, "conversationId", 3, "role", "USER")),
                 hit("conversation:3", "Il castello del drago", Map.of("type", "conversation", "refId", 3))));
 
-        String result = tool.searchArchive("gatto", null, null);
+        String result = tool.searchArchive("gatto", null, null, null, null, null, null);
 
         assertThat(result).contains("[generation #12] (/generations/12) un felino sul divano")
                 .contains("[chat, conversation #3, USER] vorrei un castello")
@@ -52,13 +52,13 @@ class ArchiveSearchToolTest {
     void aTypeFilterIsAppliedAndAnInvalidOneIsRefusedWithoutSearching() {
         when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenReturn(List.of());
 
-        assertThat(tool.searchArchive("gatto", "Generation", null)).isEqualTo("Nessun risultato nell'archivio.");
+        assertThat(tool.searchArchive("gatto", "Generation", null, null, null, null, null)).isEqualTo("No results in the archive.");
         ArgumentCaptor<DocumentFilter> filter = ArgumentCaptor.forClass(DocumentFilter.class);
         verify(search).search(anyString(), filter.capture(), anyDouble(), anyInt());
         assertThat(filter.getValue().type()).isEqualTo("generation");
 
         org.mockito.Mockito.clearInvocations(search);
-        assertThat(tool.searchArchive("gatto", "immagini", null)).contains("Tipo non valido");
+        assertThat(tool.searchArchive("gatto", "immagini", null, null, null, null, null)).contains("Invalid type");
         verify(search, never()).search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt());
     }
 
@@ -67,7 +67,7 @@ class ArchiveSearchToolTest {
         when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenReturn(List.of(
                 hit("imported:7", "una barca", Map.of("type", "imported", "refId", 7, "tags", List.of("mare", "vacanze")))));
 
-        String result = tool.searchArchive("barca", null, "  Mare ");
+        String result = tool.searchArchive("barca", null, "  Mare ", null, null, null, null);
 
         assertThat(result).contains("[imported image #7] (/import/7) [tags: mare, vacanze] una barca");
         ArgumentCaptor<DocumentFilter> filter = ArgumentCaptor.forClass(DocumentFilter.class);
@@ -80,8 +80,46 @@ class ArchiveSearchToolTest {
                         "generation:2", "generation", 2L, null, "un faro", Map.of("type", "generation", "refId", 2, "tags", List.of("mare")),
                         "m", "h", java.time.Instant.EPOCH, 384)), 0, 3, 1));
         org.mockito.Mockito.clearInvocations(search);
-        assertThat(tool.searchArchive("", null, "mare")).contains("[generation #2] (/generations/2) [tags: mare] un faro");
+        assertThat(tool.searchArchive("", null, "mare", null, null, null, null)).contains("[generation #2] (/generations/2) [tags: mare] un faro");
         verify(search, never()).search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt());
+    }
+
+    @Test
+    void notesAreSearchableAndDescribedByTitleNotByTheirTimestampRefId() {
+        when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenReturn(List.of(
+                hit("note:abc", "la trigger word e' sks", Map.of("type", "note", "refId", 1_700_000_000_000L, "title", "LoRA mio"))));
+
+        String result = tool.searchArchive("trigger", "Note", null, null, null, null, null);
+
+        assertThat(result).isEqualTo("- [note \"LoRA mio\"] (note:abc) la trigger word e' sks");
+        ArgumentCaptor<DocumentFilter> filter = ArgumentCaptor.forClass(DocumentFilter.class);
+        verify(search).search(anyString(), filter.capture(), anyDouble(), anyInt());
+        assertThat(filter.getValue().type()).isEqualTo("note");
+    }
+
+    @Test
+    void mediaFavouritesAndDatesFillTheFilterAndEndOfDayIsInclusive() {
+        when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenReturn(List.of());
+
+        tool.searchArchive("faro", null, null, true, "Video", "2026-01-01", "2026-01-31");
+
+        ArgumentCaptor<DocumentFilter> filter = ArgumentCaptor.forClass(DocumentFilter.class);
+        verify(search).search(anyString(), filter.capture(), anyDouble(), anyInt());
+        assertThat(filter.getValue().kind()).isEqualTo("VIDEO");
+        assertThat(filter.getValue().favouriteOnly()).isTrue();
+        assertThat(filter.getValue().from()).isEqualTo(java.time.LocalDate.of(2026, 1, 1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant());
+        assertThat(filter.getValue().to()).isEqualTo(java.time.LocalDate.of(2026, 2, 1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().minusMillis(1));
+    }
+
+    @Test
+    void anEmptyQueryNeedsAFilterAndInvalidMediaOrDatesAreRefusedWithoutSearching() {
+        assertThat(tool.searchArchive("  ", null, null, null, null, null, null)).contains("at least one filter");
+        assertThat(tool.searchArchive("faro", null, null, null, "audio", null, null)).contains("Invalid media");
+        assertThat(tool.searchArchive("faro", null, null, null, null, "ieri", null)).contains("Invalid date");
+        assertThat(tool.searchArchive(null, null, null, false, null, null, null)).contains("at least one filter");
+
+        verify(search, never()).search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt());
+        verify(search, never()).list(any(DocumentFilter.class), anyInt(), anyInt());
     }
 
     @Test
@@ -89,9 +127,9 @@ class ArchiveSearchToolTest {
         RuntimeException failure = new IllegalStateException("modello non caricato");
         when(search.search(anyString(), any(DocumentFilter.class), anyDouble(), anyInt())).thenThrow(failure);
 
-        String result = tool.searchArchive("gatto", null, null);
+        String result = tool.searchArchive("gatto", null, null, null, null, null, null);
 
-        assertThat(result).contains("non disponibile").contains("modello non caricato");
+        assertThat(result).contains("not available").contains("modello non caricato");
         verify(systemEvents).record("searchArchive", failure);
     }
 }

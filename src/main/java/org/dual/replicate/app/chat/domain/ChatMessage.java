@@ -64,8 +64,8 @@ public class ChatMessage {
     /**
      * True per il turno ASSISTANT scritto quando la chiamata all'LLM fallisce (vedi V18,
      * ChatService#reply): tiene la cronologia coerente (nessun turno USER senza risposta) e
-     * viene mostrato con stile d'errore. Non entra mai nel contesto inviato all'LLM: il contesto
-     * arriva dal client (history html non e' rimandata al server).
+     * viene mostrato con stile d'errore. Non entra mai nel contesto inviato all'LLM
+     * (ChatHistoryBuilder lo salta).
      */
     @Column(name = "error", nullable = false)
     private boolean error;

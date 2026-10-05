@@ -86,6 +86,14 @@ app:
     # Immagini esterne (pagina /import, ImportedImageService): quante al massimo per importazione. Il limite di richiesta multipart
     # (spring.servlet.multipart.max-request-size in core.yml) deve coprire max-files x dimensione massima di un'immagine.
     max-files: 20
+  chat:
+    # /deep-chat (ImageGenerationTool, VisionTool, ChatService): tetti di sicurezza per turno e finestra della cronologia mandata al modello.
+    # max-generations-per-turn: ogni generateImage e' una predizione a pagamento; max-vision-calls-per-turn: ogni describeImage costa token
+    # del modello di visione; history-max-turns/-chars: quanta cronologia (dal DB, non dal client) rientra nel contesto del modello.
+    max-generations-per-turn: 3
+    max-vision-calls-per-turn: 2
+    history-max-turns: 40
+    history-max-chars: 60000
   recovery:
     # Recupero delle generazioni rimaste "in corso" (riavvio a meta' polling, watcher perso): all'avvio e
     # ogni pochi minuti (GenerationRecoveryService). Disattivato nei test (application-test.yml).

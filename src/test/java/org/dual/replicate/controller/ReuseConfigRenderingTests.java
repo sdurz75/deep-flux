@@ -150,6 +150,9 @@ class ReuseConfigRenderingTests {
                 .andReturn().getResponse().getRedirectedUrl();
         chat = mockMvc.perform(get(chat)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-        assertThat(chat).contains("'?config='").doesNotContain("sharedPrompt").doesNotContain("sharedSeed");
+        // Rigenera apre /generations/new con ?config=<id>&file=<file> (il server ricostruisce la form); anima/usa come sorgente con ?source=&sourceImage=.
+        assertThat(chat).contains("REGENERATE: {config: button.dataset.generationId, file: button.dataset.file}")
+                .contains("target.searchParams.set(name, value)")
+                .doesNotContain("sharedPrompt").doesNotContain("sharedSeed");
     }
 }

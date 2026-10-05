@@ -10,7 +10,8 @@ import org.dual.replicate.app.chat.domain.ChatTurn;
 public interface IChat {
 
     /**
-     * Risponde all'ultimo turno di {@code history} nella conversazione {@code conversationId}.
+     * Risponde all'ultimo turno utente di {@code history} nella conversazione {@code conversationId}. Del {@code history} del client conta solo
+     * quell'ultimo turno (il client manda solo l'ultimo messaggio): la cronologia per il modello la ricostruisce il servizio dal DB.
      * {@code selectedModel} e {@code generationParameters} sono le scelte della UI per l'eventuale generazione di immagini
      * (il modello e' SEMPRE quello scelto, mai deciso dall'LLM).
      *

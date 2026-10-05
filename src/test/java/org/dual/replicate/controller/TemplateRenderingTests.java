@@ -244,11 +244,22 @@ class TemplateRenderingTests {
         assertThat(cancel).contains("class=\"chat-action\"", "data-action-type=\"CANCEL\"", "data-url=\"/generations/GENID/cancel\"",
                 "data-confirm=\"").doesNotContain("hx-post");
         String delete = templateOf(chat, "chat-action-delete-tpl");
+        // Messaggi SENZA parametri: l'apostrofo resta letterale, raddoppiarlo (''), come nei messaggi con parametri, lo mostrerebbe due volte.
+        assertThat(cancel + delete).doesNotContain("&#39;&#39;");
         assertThat(delete).contains("data-action-type=\"DELETE\"", "data-url=\"/generations/GENID/delete\"", "data-confirm=\"");
         String regenerate = templateOf(chat, "chat-action-regenerate-tpl");
         assertThat(regenerate).contains("data-action-type=\"REGENERATE\"", "data-url=\"/generations/new\"", "ACTMODEL")
                 .doesNotContain("data-confirm");
         assertThat(chat).contains("'chat-action': {");
+        // Animazione e sorgente aprono una form (nessuna conferma); l'eliminazione di un file passa dall'endpoint della galleria contestuale.
+        String animate = templateOf(chat, "chat-action-animate-tpl");
+        assertThat(animate).contains("data-action-type=\"ANIMATE\"", "data-url=\"/generations/new\"", "GENID", "ACTFILE").doesNotContain("data-confirm");
+        String useAsSource = templateOf(chat, "chat-action-use-as-source-tpl");
+        assertThat(useAsSource).contains("data-action-type=\"USE_AS_SOURCE\"", "data-url=\"/generations/new?kind=image\"", "ACTFILE").doesNotContain("data-confirm");
+        String deleteFile = templateOf(chat, "chat-action-delete-file-tpl");
+        assertThat(deleteFile).contains("data-action-type=\"DELETE_FILE\"", "data-url=\"/gallery/delete-selected-files\"", "data-confirm=\"", "ACTFILE");
+        // Il client manda solo l'ultimo messaggio: la cronologia per il modello la costruisce il server.
+        assertThat(chat).contains("requestBodyLimits='{\"maxMessages\": 1}'");
     }
 
     private static String templateOf(String page, String id) {

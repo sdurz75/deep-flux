@@ -2,7 +2,10 @@ package org.dual.replicate.app.chat.adapter.ai;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GalleryItem;
@@ -17,16 +20,20 @@ import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
- * Tool di SOLA LETTURA del modello di /deep-chat sul resto dell'app: catalogo modelli, LoRA anagrafati, dettaglio di una generazione,
- * contenuto della conversazione corrente, eventi di sistema recenti. Nessun tool qui modifica qualcosa. Niente segreti nell'output:
- * dei LoRA non esce la sorgente (potrebbe essere un URL privato), delle generazioni non i parametri grezzi (portano gli id dei token),
+ * Tool di SOLA LETTURA del modello di /deep-chat sul resto dell'app: catalogo modelli, LoRA anagrafati, tag in uso, dettaglio di una
+ * generazione o immagine importata, contenuto della conversazione corrente, eventi di sistema recenti. Nessun tool qui modifica qualcosa. Niente segreti nell'output:
+ * dei LoRA non esce la sorgente (potrebbe essere un URL privato), delle generazioni non i parametri grezzi (portano gli id dei token: solo un riassunto a whitelist),
  * degli eventi solo il messaggio gia' sanitizzato. Come gli altri tool, un guasto e' registrato e il modello riceve un testo d'errore.
  */
 @Component
-public class LibraryTool {
+@Order(20)
+public class LibraryTool implements ChatToolkit {
 
     /** Chiave ToolContext con l'id della conversazione corrente (messo da SpringAiAssistant). */
     public static final String CONVERSATION_ID_CONTEXT_KEY = "conversationId";
@@ -35,16 +42,23 @@ public class LibraryTool {
     private static final int MAX_EVENTS = 10;
     private static final int PROMPT_SNIPPET = 200;
 
+    /** I soli parametri che il modello vede (nessun LoRA, token o sorgente: il JSON grezzo porta gli id dei token). */
+    private static final List<String> VISIBLE_PARAMETERS = List.of("aspect_ratio", "width", "height", "num_outputs", "megapixels",
+            "prompt_strength", "guidance", "guidance_scale", "num_inference_steps", "steps");
+
     private final IModelCatalog modelCatalog;
     private final ILoraPresets loraPresets;
     private final IGenerations generations;
     private final ISystemEvents systemEvents;
+    private final ObjectMapper objectMapper;
 
-    public LibraryTool(IModelCatalog modelCatalog, ILoraPresets loraPresets, IGenerations generations, ISystemEvents systemEvents) {
+    public LibraryTool(IModelCatalog modelCatalog, ILoraPresets loraPresets, IGenerations generations, ISystemEvents systemEvents,
+                       ObjectMapper objectMapper) {
         this.modelCatalog = modelCatalog;
         this.loraPresets = loraPresets;
         this.generations = generations;
         this.systemEvents = systemEvents;
+        this.objectMapper = objectMapper;
     }
 
     @Tool(description = "List the image models the user can select in the UI, with a short description. Use it when the user "
@@ -57,10 +71,17 @@ public class LibraryTool {
             if (models.isEmpty()) {
                 return "No image model is configured.";
             }
-            return models.stream().map(model -> "- %s%s%s".formatted(model.getIdentifier(),
+            String list = models.stream().map(model -> "- %s%s%s".formatted(model.getIdentifier(),
                             model.getIdentifier().equals(selected) ? " (currently selected)" : "",
                             blank(model.getDescription()) ? "" : ": " + oneLine(model.getDescription(), PROMPT_SNIPPET)))
                     .collect(Collectors.joining("\n"));
+            // Modelli che partono da un'immagine (edit, inpainting): non si generano da qui, ma esistono e l'utente deve saperlo.
+            Set<String> generatable = models.stream().map(ReplicateModel::getIdentifier).collect(Collectors.toSet());
+            String needSource = modelCatalog.formModels(GenerationKind.IMAGE).stream().map(ReplicateModel::getIdentifier)
+                    .filter(id -> !generatable.contains(id)).collect(Collectors.joining(", "));
+            return needSource.isEmpty() ? list
+                    : list + "\nModels that need a source image (not generatable from this chat; the user starts them from /generations/new "
+                    + "or a thumbnail's \"use as source\" button): " + needSource;
         } catch (RuntimeException e) {
             return failure("listModels", e);
         }
@@ -83,36 +104,55 @@ public class LibraryTool {
         }
     }
 
-    @Tool(description = "Get the details of one generation by id: kind, status, model, prompt, estimated cost, the exact file "
-            + "names (with favourite flag and reproducible seed of each) and, if it failed, the error. Generations can be opened at /generations/{id}.")
+    @Tool(description = "List every user tag in use on generations and files (labels set by hand), alphabetically. Use it to suggest "
+            + "an existing tag or to check one before searching by tag.")
+    public String listTags() {
+        try {
+            List<String> tags = generations.allTags();
+            return tags.isEmpty() ? "No tag is in use." : String.join(", ", tags);
+        } catch (RuntimeException e) {
+            return failure("listTags", e);
+        }
+    }
+
+    @Tool(description = "Get the details of one generation or imported image by id: kind, status, model, prompt (for an imported "
+            + "image, its description), tags, source, main settings, estimated cost, the exact file names (with favourite flag, "
+            + "tags and reproducible seed of each) and, if it failed, the error. Opens at /generations/{id} (imported: /import/{id}).")
     public String getGeneration(@ToolParam(description = "The generation id, without the hash") Long id) {
         if (id == null) {
             return "Missing generation id.";
         }
         try {
-            return generations.find(id).map(LibraryTool::describe).orElse("No generation with id " + id + ".");
+            return generations.find(id).map(this::describe).orElse("No generation with id " + id + ".");
         } catch (RuntimeException e) {
             return failure("getGeneration", e);
         }
     }
 
     @Tool(description = "List what was generated in THIS conversation (most recent last, at most " + MAX_ITEMS + "): generation id, "
-            + "file name and prompt. Use it for questions like \"what have we made so far?\".")
+            + "file name, tags and prompt, plus the generations still running. Use it for questions like \"what have we made so far?\" "
+            + "or to get the id of a generation just started.")
     public String conversationGallery(ToolContext toolContext) {
         try {
             if (!(toolContext.getContext().get(CONVERSATION_ID_CONTEXT_KEY) instanceof Long conversationId)) {
                 return "The current conversation is unknown.";
             }
             List<GalleryItem> items = generations.succeededItemsForConversation(conversationId);
-            if (items.isEmpty()) {
+            List<Generation> running = generations.inProgressForConversation(conversationId);
+            if (items.isEmpty() && running.isEmpty()) {
                 return "Nothing has been generated in this conversation yet.";
             }
             List<GalleryItem> shown = items.size() > MAX_ITEMS ? items.subList(items.size() - MAX_ITEMS, items.size()) : items;
-            String lines = shown.stream().map(item -> "- #%d %s%s: %s".formatted(item.generation().getId(), item.filename(),
+            String lines = shown.stream().map(item -> "- #%d %s%s%s: %s".formatted(item.generation().getId(), item.filename(),
                             item.generation().getFavouriteFilenames().contains(item.filename()) ? " (favourite)" : "",
+                            tagsOf(item.generation(), item.filename()),
                             oneLine(item.generation().getPrompt(), PROMPT_SNIPPET)))
                     .collect(Collectors.joining("\n"));
-            return items.size() > shown.size() ? "(showing the last %d of %d files)\n%s".formatted(shown.size(), items.size(), lines) : lines;
+            String inProgress = running.stream().map(g -> "- #%d (in progress, %s): %s".formatted(g.getId(), g.getStatus(),
+                    oneLine(g.getPrompt(), PROMPT_SNIPPET))).collect(Collectors.joining("\n"));
+            String result = Stream.of(items.size() > shown.size() ? "(showing the last %d of %d files)".formatted(shown.size(), items.size()) : "",
+                    lines, inProgress).filter(part -> !part.isEmpty()).collect(Collectors.joining("\n"));
+            return result;
         } catch (RuntimeException e) {
             return failure("conversationGallery", e);
         }
@@ -144,12 +184,55 @@ public class LibraryTool {
         }
     }
 
-    private static String describe(Generation g) {
+    /** " [tags: a, b]" con i tag della generazione e quelli del file (senza doppioni), o stringa vuota. */
+    private static String tagsOf(Generation g, String filename) {
+        Set<String> tags = new TreeSet<>(g.getTags());
+        tags.addAll(g.tagsOf(filename));
+        return tags.isEmpty() ? "" : " [tags: " + String.join(", ", tags) + "]";
+    }
+
+    /** Impostazioni non segrete della generazione, dal JSON salvato (solo le chiavi di {@link #VISIBLE_PARAMETERS}). */
+    private String settingsOf(Generation g) {
+        if (blank(g.getParametersJson())) {
+            return "";
+        }
+        try {
+            JsonNode node = objectMapper.readTree(g.getParametersJson());
+            return VISIBLE_PARAMETERS.stream().filter(key -> node.hasNonNull(key) && node.get(key).isValueNode())
+                    .map(key -> key + "=" + node.get(key).asString()).collect(Collectors.joining(", "));
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private String describe(Generation g) {
         // Un'immagine importata non ha un modello ne' un prompt: ha una descrizione prodotta dall'analisi (vuota finche' non c'e').
         StringBuilder out = new StringBuilder(g.isImported()
                 ? "Generation #%d: imported image (not generated, no model), status %s".formatted(g.getId(), g.getStatus())
                 : "Generation #%d: %s, status %s, model %s".formatted(g.getId(), g.getKind(), g.getStatus(), g.getModel()));
         out.append(g.isImported() ? "\nDescription: " : "\nPrompt: ").append(oneLine(g.getPrompt(), 600));
+        if (!g.getTags().isEmpty()) {
+            out.append("\nTags: ").append(String.join(", ", new TreeSet<>(g.getTags())));
+        }
+        if (g.isImported() && g.getAnalysisStatus() != null) {
+            // I tag AI sono vocabolario dell'analisi, non i tag dell'utente: etichetta distinta.
+            out.append("\nContent analysis: ").append(g.getAnalysisStatus());
+            if (!g.getAnalysisTagList().isEmpty()) {
+                out.append(" (AI keywords: ").append(String.join(", ", g.getAnalysisTagList())).append(")");
+            }
+        }
+        if (g.getSourceGenerationId() != null) {
+            out.append("\nStarted from an image of generation #").append(g.getSourceGenerationId());
+        } else if (g.getSourceUploadFilename() != null) {
+            out.append("\nStarted from an image uploaded by the user");
+        }
+        if (g.getMaskUploadFilename() != null) {
+            out.append(" (with a painted mask)");
+        }
+        String settings = settingsOf(g);
+        if (!settings.isEmpty()) {
+            out.append("\nSettings: ").append(settings);
+        }
         out.append("\nFiles: %d of %d requested".formatted(g.getImageFilenames().size(), g.getRequestedOutputs()));
         for (String filename : g.getImageFilenames()) {
             Long seed = g.reusableSeedOf(filename);
@@ -157,7 +240,10 @@ public class LibraryTool {
             if (g.getFavouriteFilenames().contains(filename)) {
                 out.append(" (favourite)");
             }
-            out.append(seed != null ? ", seed " + seed : ", no reproducible seed");
+            if (!g.tagsOf(filename).isEmpty()) {
+                out.append(" [tags: ").append(String.join(", ", g.tagsOf(filename))).append("]");
+            }
+            out.append(g.isImported() ? "" : seed != null ? ", seed " + seed : ", no reproducible seed");
         }
         if (g.getSeed() != null) {
             out.append("\nBatch seed: ").append(g.getSeed());
@@ -184,5 +270,10 @@ public class LibraryTool {
     private static String oneLine(String text, int max) {
         String flat = text == null ? "" : text.replaceAll("\\s+", " ").strip();
         return flat.length() > max ? flat.substring(0, max) + "…" : flat;
+    }
+
+    @Override
+    public String promptSection() {
+        return "deep-chat.section.library";
     }
 }

@@ -57,6 +57,43 @@ class ActionProposalToolTest {
     }
 
     @Test
+    void proposeAnimateAndUseAsSourceNeedASucceededImageFileOfThatGeneration() {
+        generation(true);
+        when(generations.findAnimatableSource(12L, "a.png")).thenReturn(Optional.of(mock(Generation.class)));
+        when(generations.findAnimatableSource(12L, "clip.mp4")).thenReturn(Optional.empty());
+
+        assertThat(tool.proposeAnimate(12L, "a.png", context)).contains("Proposal prepared", "Nothing has been done yet");
+        assertThat(tool.proposeUseAsSource(12L, "a.png", context)).contains("Proposal prepared");
+        assertThat(holder.getActions()).containsExactly(ChatAction.animate(12L, "a.png"), ChatAction.useAsSource(12L, "a.png"));
+
+        assertThat(tool.proposeAnimate(12L, "clip.mp4", context)).contains("no succeeded image file named clip.mp4");
+        assertThat(tool.proposeUseAsSource(12L, null, context)).contains("no succeeded image file");
+        assertThat(holder.getActions()).hasSize(2);
+    }
+
+    @Test
+    void proposeDeleteFileOnlyForAFileOfThatGeneration() {
+        generation(true);
+
+        assertThat(tool.proposeDeleteFile(12L, "a.png", context)).contains("Proposal prepared", "Nothing has been done yet");
+        assertThat(holder.getActions()).containsExactly(ChatAction.deleteFile(12L, "a.png"));
+        assertThat(tool.proposeDeleteFile(12L, "zzz.png", context)).contains("no file named zzz.png");
+        assertThat(tool.proposeDeleteFile(12L, null, context)).contains("no file named");
+        assertThat(holder.getActions()).hasSize(1);
+        // Proporre due volte lo stesso file nel turno non ripete il bottone.
+        assertThat(tool.proposeDeleteFile(12L, "a.png", context)).contains("already made");
+    }
+
+    @Test
+    void proposeRegenerateRefusesAnImportedImageWithAClearReason() {
+        Generation imported = generation(true);
+        when(imported.isImported()).thenReturn(true);
+
+        assertThat(tool.proposeRegenerateWithSeed(12L, "a.png", context)).contains("imported image", "no model, prompt or seed");
+        assertThat(holder.getActions()).isEmpty();
+    }
+
+    @Test
     void proposeCancelRefusesAGenerationThatIsAlreadyFinished() {
         generation(true);
 

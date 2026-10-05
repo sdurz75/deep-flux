@@ -61,7 +61,8 @@ class ChatServiceTest {
     private ISystemEvents systemEvents;
 
     private ChatService service() {
-        return new ChatService(assistant, conversations, messages, generations, generationWatcher, i18n, systemEvents);
+        return new ChatService(assistant, conversations, messages, generations, generationWatcher,
+                new ChatHistoryBuilder(messages, generations, 40, 60000), i18n, systemEvents);
     }
 
     @Test
@@ -90,6 +91,26 @@ class ChatServiceTest {
         assertThat(conversation.getUpdatedAt()).isAfterOrEqualTo(createdAt);
         verify(conversations).save(conversation);
         verify(messages, times(2)).save(any());
+    }
+
+    /** Al modello va la cronologia del SERVER (il client manda solo l'ultimo messaggio), con l'ultima richiesta in coda. */
+    @Test
+    void replyGivesTheModelTheHistoryBuiltFromTheStoreNotTheOneTheClientSent() {
+        ChatConversation conversation = new ChatConversation();
+        when(conversations.findById(7L)).thenReturn(Optional.of(conversation));
+        when(conversations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(messages.findByConversation(any())).thenReturn(List.of(
+                new ChatMessage(conversation, ChatMessageRole.USER, "ciao", null),
+                new ChatMessage(conversation, ChatMessageRole.AI, "Ciao!", null),
+                new ChatMessage(conversation, ChatMessageRole.USER, "un gatto", null)));
+        when(assistant.respond(any(), any(), any(), anyMap())).thenReturn(new ChatReply("ok", List.of()));
+
+        service().reply(7L, List.of(new ChatTurn("user", "un gatto")), "owner/model", Map.of());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ChatTurn>> sent = ArgumentCaptor.forClass(List.class);
+        verify(assistant).respond(any(), sent.capture(), eq("owner/model"), anyMap());
+        assertThat(sent.getValue()).containsExactly(new ChatTurn("user", "ciao"), new ChatTurn("ai", "Ciao!"), new ChatTurn("user", "un gatto"));
     }
 
     /** Le generazioni avviate dai tool nel turno restano legate alla conversazione e ricevono il loro watcher. */

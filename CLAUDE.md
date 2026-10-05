@@ -18,9 +18,9 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   (`ImageGenerationTool`) SEMPRE col modello scelto nel combobox UI (`ImageGenerationTool.MODEL_CONTEXT_KEY` via
   `ToolContext`, non un parametro scelto dall'LLM; solo `SpringAiAssistant` costruisce il `ToolContext`). `/generations/new` e'
   la via diretta (form, senza chatbot).
-- `ImageGenerationTool` avvia e torna subito; il polling continua in background (`ChatGenerationWatcher`, `@Async`)
+- `ImageGenerationTool` avvia e torna subito, con l'id della generazione (`Generation #12 started ...`: il bot puo' citarla, annullarla, taggarla); il polling continua in background (`ChatGenerationWatcher`, `@Async`)
   e il risultato arriva come nuovo turno di chat via SSE (`GET /events`, `EventStreamController`, `IClientPush`; il lato chat e'
-  `ChatPushNotifier`): nessun polling client-side per la chat.
+  `ChatPushNotifier`): nessun polling client-side per la chat. E' l'UNICO tool a pagamento, con un tetto per turno (`app.chat.max-generations-per-turn`, 3).
 - **Placeholder** mentre una generazione e' in corso (chat e `/generations/{id}`): `fragments/app/generation-placeholder.html`
   (immagine dummy + "Interrompi", stili INLINE perche' finisce anche nello shadow DOM di `<deep-chat>`). In `/generations/{id}` i riquadri sono tanti quanti i file richiesti (`Generation#getRequestedOutputs`, da `num_outputs` in
   `parametersJson`; 1 se assente) con UN solo "Interrompi" in una riga sotto, centrato (anche con un file). In chat resta un riquadro (il template non conosce il numero). Il bottone chiede
@@ -181,11 +181,20 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   selezione per generazione. `/gallery` resta indipendente.
 - La chat conosce una generazione solo per id (`ChatMessage.generationId`, FK `ON DELETE SET NULL`): per gli allegati della
   cronologia legge `IGenerations#findAllById` in blocco.
+- **Cronologia del modello lato SERVER**: il client manda solo l'ultimo messaggio (`requestBodyLimits` `maxMessages: 1` in `deep-chat.html`) e la cronologia che
+  alimenta l'LLM la costruisce `ChatHistoryBuilder` (`chat.application`) da `IChatMessageStore#findByConversation`: niente turni d'errore, ultimi
+  `app.chat.history-max-turns` (40) turni entro `app.chat.history-max-chars` (60000; l'ultimo c'e' sempre), finestra che parte da un turno utente, turni
+  consecutivi dello stesso ruolo fusi (alcuni provider vogliono ruoli alternati). Un turno di esito (quello col `generationId` che scrive
+  `ChatGenerationWatcher#persistOutcome`) arriva al modello come nota `ChatTurn` di ruolo `system` ("Generation #12 finished: files a.png." / "failed: ..." /
+  "is still in progress"), MAI col testo localizzato mostrato all'utente; `SpringAiAssistant#buildMessages` la mappa su `SystemMessage`. Cosi' il modello vede gli
+  esiti, la vista e' la stessa dal vivo e dopo un reload e il contesto non cresce senza limiti. (Un provider che rifiutasse messaggi di sistema a meta'
+  conversazione richiederebbe di trasformare la nota in un turno `ai` "[app note] ..."; non verificato con un modello reale.)
 
 **Perimetro**: (i crediti nella barra in basso servono a sapere quanto resta da spendere per generare e conversare.) Non aggiungere feature (pagine demo, integrazioni, pattern) che non servano a generare, archiviare o
 conversare sulle immagini (l'output puo' essere anche un video). Per dimostrare un pattern htmx/Alpine nuovo, aggiungerlo a
 una feature vera. Le pagine demo starter e la chat di rifinitura prompt sono state rimosse; l'icona "AI enhance"
-(`IPromptEnhancer`) non ne e' una riedizione: e' un'azione puntuale sulla form reale che riscrive il prompt.
+(`IPromptEnhancer`) non ne e' una riedizione: e' un'azione puntuale sulla form reale che riscrive il prompt. La chat resta uno strumento sull'archivio, non solo sulla
+generazione: puo' cercare (anche per tag e filtri), etichettare, leggere i crediti, guardare un'immagine, e PROPORRE azioni con un bottone; non avvia mai altro che `generateImage`.
 
 ## Filosofia
 
@@ -259,8 +268,8 @@ le uniche classi fuori da `core`/`app`.
   ed e' condivisa fra feature. Il kernel non dipende da nessun sottosistema. Nessun ciclo fra sottosistemi.
 - **Punti di estensione**: un'implementazione dell'app puo' implementare SOLO queste `port.out` del core (elenco chiuso, `ArchitectureTest.CORE_EXTENSION_POINTS`): `IEventLinkResolver` (`AppEventLinks`),
   `ITokenProviderCatalog` (`AppTokenProviders`); ogni altra `port.out` del core (store, `IBlobBackend`...) per l'app non esiste; `EventSource` (kernel) e' implementata da `CoreEventSource` e `AppEventSource`.
-- **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`; `credits` → `generation`
-  (nessuno dipende da `credits`);
+- **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`, `credits`, `prompt`; `credits` → `generation`
+  (solo `chat` dipende da `credits`: `CreditsTool`; `prompt`: `VisionTool` via `IImageDescriber`);
   `generation` NON conosce `chat` (solo `Generation.conversationId`, un `Long`). `search` NON conosce `generation` ne' `chat`: legge i
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
   `adapter.out.search`: ascolta anche `GenerationCompletedEvent` e chiama `IArchiveIndex#reindexAsync`) e da `ChatSearchSource` (chat).
@@ -338,24 +347,30 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `GenerationRecoveryService` (adapter in scheduling). Domain: `Generation`, `GenerationKind`/`Status`/`FormType`, `ReplicateModel`,
   `LoraPreset`, `ReplicatePricing`, `ReplicateException`, `TooManyPredictionsException` (troppe prediction in corso PER LO STESSO MODELLO, vedi `GenerationService#create`),
   `ApiTokenProvider` (CIVITAI, HUGGINGFACE).
-- `app.chat`: `ChatService` (un turno: persiste, chiede la risposta a `IAssistant`, avvia i watcher), `ChatConversationService`,
+- `app.chat`: `ChatService` (un turno: persiste l'ultimo messaggio utente, costruisce la cronologia del modello con `ChatHistoryBuilder` (vedi "Cronologia del modello lato SERVER"), chiede la risposta a `IAssistant`, avvia i watcher), `ChatConversationService`,
   `ChatGenerationWatcher` (`watch` `@Async`, `persistOutcome` idempotente; il legame generazione↔conversazione lo scrive `ChatService` con `IGenerations#attachToConversation`, sincrono, prima che la risposta del turno raggiunga il client), `ChatRecoveryService` (+
   `ChatRecoveryScheduler`), `DeepChatController` (route HTML `/deep-chat/*`), `DeepChatApiController` (JSON per `<deep-chat>`),
-  `adapter.ai`: `SpringAiAssistant` (`ChatClient`; system prompt a SEZIONI in `prompts.properties`, `deep-chat.section.core|guidance|web|library|archive|edit|actions|notes|generation`,
-  assemblate solo per i tool registrati, poi `prompts.creative-context` e la guida immagini), `WebSearchTool`, `ImageGenerationTool`, `ArchiveSearchTool`,
-  `LibraryTool` (SOLA LETTURA sull'app via `port.in`: `listModels`, `listLoraPresets`, `getGeneration`, `conversationGallery`, `recentEvents`; niente
-  sorgenti dei LoRA, parametri grezzi o segreti nell'output; `getGeneration` elenca i NOMI dei file con star e seed riproducibile di ciascuno, perche' `setFavourite`/`proposeRegenerateWithSeed` li vogliono esatti; un id nullo dal modello e' un messaggio di ritorno, non un errore registrato; `IAssistant#respond` riceve la `conversationId`, che arriva ai tool via `ToolContext`),
-  `FavouriteTool` (`setFavourite`: IDEMPOTENTE, riceve lo stato voluto, mai un toggle) e `NoteTool` (`saveNote`, solo con `app.search.enabled`): uniche mutazioni
-  leggere ammesse alla chat, solo su richiesta esplicita; la sezione `guidance` rende il bot moderatamente PROATIVO nel far scoprire cio' che sa fare
-  (cenno iniziale, al massimo UN suggerimento pertinente a fine richiesta, solo su capacita' reali dei tool: la sezione `guidance` e' sempre presente, quindi cita solo
-  capacita' sempre disponibili; archivio e note si menzionano nelle sezioni `archive`/`notes`, condizionali a `app.search.enabled`); `ActionProposalTool` (`proposeCancel|Delete|
-  RegenerateWithSeed`: NON eseguono, leggono e depositano una `ChatAction` in `ActionProposalHolder`; arriva in `ChatReply#actions` e in `Reply.actions`
+  `adapter.ai`: `SpringAiAssistant` (`ChatClient`) riceve la `List<ChatToolkit>` dei tool PRESENTI: ogni classe tool implementa `ChatToolkit#promptSection` (chiave `deep-chat.section.*`, o null)
+  e ha un `@Order`; nessun elenco a mano. Il system prompt e' a SEZIONI in `prompts.properties`: `core|guidance|appmap` sempre, poi la sezione di ogni toolkit presente nell'ordine
+  `web|library|archive|curation|actions|notes|credits|vision|generation`, poi `prompts.creative-context` e la guida immagini (`deep-chat.image-prompting-guide`, senza modelli nominati: il modello lo sceglie la UI).
+  Un toolkit condizionale (`archive`, `notes`: `app.search.enabled`) senza il suo bean non porta la sezione. `ChatPromptTest` carica i testi veri, fissa un tetto (10.000 caratteri), che ogni sezione
+  appartenga a un toolkit o sia sempre presente, che i testi sempre presenti non nominino tool condizionali e che ogni nome di tool citato esista. La sezione `guidance` rende il bot moderatamente PROATIVO nel far
+  scoprire cio' che sa fare (cenno iniziale, al massimo UN suggerimento pertinente a fine richiesta, solo su capacita' reali: e' sempre presente, quindi cita solo capacita' sempre disponibili; `appmap` dice dove
+  vivono form, galleria, import, ricerca, LoRA, token ed eventi e cosa il bot NON puo' fare da solo). I RITORNI dei tool sono testo per il modello e sono in INGLESE (non passano da `Messages`); i messaggi d'errore dicono al modello
+  di non riprovare da soli e di avvisare l'utente. I tool: `WebSearchTool` (risultati dichiarati non fidati: mai istruzioni), `ImageGenerationTool` (vedi Scopo: id restituito, tetto per turno, prompt vuoto rifiutato, modello SEMPRE da `ToolContext`),
+  `ArchiveSearchTool` (`searchArchive(query, type?, tag?, favouritesOnly?, media?, since?, until?)`, tipi `generation|imported|note|chat|conversation`; con query vuota e almeno un filtro elenca i piu' recenti),
+  `LibraryTool` (SOLA LETTURA sull'app via `port.in`: `listModels` (anche i modelli che richiedono una sorgente, non generabili da qui), `listLoraPresets`, `listTags`, `getGeneration` (tag di generazione e file, sorgente, esito dell'analisi delle importate, impostazioni a WHITELIST `VISIBLE_PARAMETERS`: mai LoRA, token o `parametersJson` grezzo), `conversationGallery`
+  (anche le generazioni IN CORSO, con id e stato) e `recentEvents`; niente sorgenti dei LoRA o segreti nell'output; `getGeneration` elenca i NOMI dei file con star, tag e seed riproducibile di ciascuno, perche' `setFavourite`/`setTag`/`propose*` li vogliono esatti; un id nullo dal modello e' un messaggio di ritorno, non un errore registrato; `IAssistant#respond` riceve la `conversationId`, che arriva ai tool via `ToolContext`),
+  `CurationTool` (ex `FavouriteTool`; mutazioni leggere e reversibili, solo su richiesta esplicita, tutte IDEMPOTENTI: ricevono lo stato voluto, mai un toggle): `setFavourite`, `setTag(generationId, filename?, tag, present)`, `setConversationTag` e `renameConversation` solo sulla conversazione CORRENTE (`ToolContext`: il modello non sceglie altre conversazioni),
+  e `NoteTool` (`saveNote`, solo con `app.search.enabled`); `ActionProposalTool` (`proposeCancel|Delete|DeleteFile|RegenerateWithSeed|Animate|UseAsSource`: NON eseguono, leggono e depositano una `ChatAction` in `ActionProposalHolder`; arriva in `ChatReply#actions` e in `Reply.actions`
   e il client la rende come bottone `button-gen :: chatAction` (classe `chat-action`, handler in `htmlClassUtilities` di `deep-chat.html`, un
-  `<template>` per tipo): annulla/cancella = POST a `/generations/{id}/cancel|delete` dopo `window.confirm`, rigenera = apre
-  `/generations/new?config=<id>&file=<file>` ("Usa configurazione", vedi "Convenzione: stato delle form": il server ricostruisce modello, LoRA, parametri, prompt e seed; la prediction parte solo col "Genera" li'). `ChatAction.regenerate` porta solo id, file e modello. Le azioni NON sono persistite: al reload il bot le ripropone),
+  `<template>` per tipo): annulla/cancella = POST a `/generations/{id}/cancel|delete` dopo `window.confirm`, elimina un file = POST `files=<id>:<file>` a `/gallery/delete-selected-files` dopo conferma (l'ultimo file elimina la generazione), rigenera = apre
+  `/generations/new?config=<id>&file=<file>` ("Usa configurazione", vedi "Convenzione: stato delle form": il server ricostruisce modello, LoRA, parametri, prompt e seed), anima / usa come sorgente = apre `/generations/new?source=<id>&sourceImage=<file>` (`kind=image` per la seconda; solo un'immagine RIUSCITA, `IGenerations#findAnimatableSource`): in ogni caso la prediction parte solo col "Genera" li'. `ChatAction` porta solo id, file e (rigenera) modello. Le azioni NON sono persistite: al reload il bot le ripropone),
+  `CreditsTool` (`getCredits`, SOLA LETTURA: righe di `ICredits#lines` e costo stimato della conversazione corrente; mai `setReplicateBalance`, nessuna stima prima di generare), `VisionTool` (`describeImage(generationId, filename)`: un'importata con analisi `DONE` risponde dall'analisi salvata, SENZA chiamate; per le altre il file va a `IImageDescriber` (modello di visione,
+  costa token OpenRouter), tetto per turno `app.chat.max-vision-calls-per-turn` (2) con `VisionCallCounter` nel `ToolContext`; i video si rifiutano, un rifiuto del modello e' un esito atteso e non si registra; il risultato NON si salva),
   `GenerationResultHolder` (canale tool→assistente via `ToolContext`: gli id delle generazioni avviate nel turno); `adapter.out.searxng`: `SearxngClient` (Basic Auth,
   impl di `IWebSearchGateway`), `ChatPushNotifier`, `ChatSearchSource`, store JPA. Domain: `ChatConversation` (con `generationSettingsJson`, vedi "Form per conversazione"), `ChatMessage`, `FileRef`,
-  `ChatTurn`, `ChatReply`, `DeepChatFailedException`, `AssistantException`.
+  `ChatTurn` (ruoli `user|ai|system`), `ChatReply`, `ChatAction`, `DeepChatFailedException`, `AssistantException`. Config `app.chat.*` in `application.yml`.
 - `app.prompt`: `PromptEnhancementService` (one-shot; la riduzione delle immagini grandi per il modello di visione sta dietro `ISourceImageScaler`, adapter
   `AwtSourceImageScaler` con `ImageIO`: un png/jpeg illeggibile e' un errore `ImageScalingException`, non si invia l'originale; webp passa invariato; senza tool ne' cronologia, `ChatClient` dedicato in `ChatClientPromptModel` senza
   `defaultTools`; `enhanceVideo`/`enhanceEdit`/`enhanceInpaint`/`enhanceImg2Img` guardano l'immagine sorgente con un modello di visione OpenRouter non moderato
@@ -661,7 +676,8 @@ La query di serie (`SystemEventRepository#findOpenSeries`, adapter `persistence`
 - **Chat**: se l'LLM fallisce, `SpringAiAssistant` lancia `AssistantException` (con gli id delle generazioni gia' avviate dai tool: avranno
   comunque il watcher) e `ChatService#reply` scrive un turno ASSISTANT d'errore (`ChatMessage.error`: in
   rosso, mai rimandato all'LLM) e lancia `DeepChatFailedException` (gia' registrata: `DeepChatApiController` mostra solo il
-  messaggio). I tool (`WebSearchTool`, `ImageGenerationTool`, `ArchiveSearchTool`) catturano da soli e rimandano il testo d'errore al modello.
+  messaggio). TUTTI i tool catturano da soli e rimandano il testo d'errore al modello (in inglese): un rifiuto atteso (`REJECTED`, es. troppi tag, un file non della generazione) torna com'e'
+  e non e' un evento; un guasto vero e' registrato (`systemEvents.record(operazione, e)`) e il testo dice al modello di avvisare l'utente.
 - **WebDAV** (`WebDavBlobBackend`, via `RemoteCaller` come gli altri): PUT/MOVE/DELETE/MKCOL e gli HEAD della
   migrazione ritentano (`RetryPolicy.DEFAULT`) i soli transitori; le letture per `/images/**` NO (`RetryPolicy.NONE`: il
   browser riprova, un retry allungherebbe la richiesta). `NoSuchFileException` (404) e' `passThrough`, non un errore. Un `.part`
@@ -844,11 +860,12 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   `GenerationFavouriteToggledEvent` (li ascolta `GenerationSearchSource` con `@TransactionalEventListener(fallbackExecution = true)`, cioe' DOPO il commit:
   la riconciliazione gira su un altro thread; chiama `IArchiveIndex#reindexAsync` solo se la ricerca e' attiva). Un documento che fallisce e'
   registrato (`ISystemEvents`) e non ferma gli altri. Una nuova fonte ricercabile = un nuovo `ISearchableSource` nel suo sottosistema.
-- **`ArchiveSearchTool`** (`searchArchive(query, type?, tag?)`, in `chat.adapter.ai`, sopra `IArchiveSearch`) e' tra i tool di `SpringAiAssistant` solo se `app.search.enabled`; con query vuota e un tag elenca i piu' recenti con quel tag (`IArchiveSearch#list`).
-- **Link alle generazioni in chat**: `searchArchive` restituisce al modello path assoluti (`/generations/12`). Dietro un reverse
-  proxy su subpath non funzionerebbero, quindi `templates/app/deep-chat.html` li riscrive SOLO in visualizzazione (`linkGenerations`, su
+- **`ArchiveSearchTool`** (`searchArchive(query, type?, tag?, favouritesOnly?, media?, since?, until?)`, in `chat.adapter.ai`, sopra `IArchiveSearch`) e' tra i tool di `SpringAiAssistant` solo se `app.search.enabled`; i parametri riempiono `DocumentFilter` (`since`/`until` ISO, `until` inclusivo); con query vuota e almeno un filtro elenca i piu' recenti (`IArchiveSearch#list`), senza filtri rifiuta.
+- **Link alle pagine dell'app in chat**: i tool e il system prompt (sezione `appmap`) parlano di path assoluti (`/generations/12`, `/import/3`, `/gallery`, `/generations/new?kind=video`...). Dietro un reverse
+  proxy su subpath non funzionerebbero, quindi `templates/app/deep-chat.html` li riscrive SOLO in visualizzazione (`linkAppPaths`, su
   `responseInterceptor` e sulla cronologia) in link markdown RELATIVI alla pagina corrente (`/deep-chat` -> `generations/12`,
-  `/deep-chat/5` -> `../generations/12`), senza dipendere da `X-Forwarded-Prefix`. Il testo salvato resta l'originale.
+  `/deep-chat/5` -> `../generations/12`), senza dipendere da `X-Forwarded-Prefix`. Elenco CHIUSO di path (`/generations[/new|/N]`, `/import[/N]`, `/gallery`, `/search`, `/loras`, `/tokens`, `/system/events`, con query opzionale):
+  un nuovo path che il bot deve poter citare va aggiunto li' e in `appmap`. Gli id diventano `#N`. Il testo salvato resta l'originale.
 - `app.search.enabled=false` (i test, `application-test.yml`) spegne indice, scheduler, tool, servizi `IArchive*` ed `EmbeddingModel`
   (`spring.ai.model.embedding=none`): `mvn test` non scarica ne' carica mai il modello. I test usano un embedding finto (`FakeEmbeddingModel`).
   Prove reali, opt-in: `mvn test -Dtest='E5ModelSmokeTest,SemanticSearchWiringTest' -Dsemantic.model.test=true`.
@@ -884,7 +901,7 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   La ricerca ha una **soglia di somiglianza minima** in % (`threshold`, 0..100, default `app.search.similarity-threshold-percent`=80; solo con testo, la navigazione senza testo non filtra per punteggio):
   i punteggi e5 sono compressi (tipicamente 70-90%), quindi la soglia utile e' alta.
   Test del controller con embedding finto: `SemanticSearchControllerTest`.
-- Fuori scope per ora: ricerca semantica nelle liste/galleria esistenti, descrizione delle immagini GENERATE con un modello di visione (le importate la hanno: vedi "Immagini esterne (import)"), allegati in `/deep-chat`.
+- Fuori scope per ora: ricerca semantica nelle liste/galleria esistenti, descrizione PERSISTENTE delle immagini GENERATE con un modello di visione (le importate la hanno: vedi "Immagini esterne (import)"; la chat puo' guardarne una su richiesta con `VisionTool`, senza salvare nulla), allegati in `/deep-chat`.
 
 ## Comandi utili
 

@@ -188,7 +188,7 @@
         <deep-chat
                 id="deep-chat-el"
                 th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
-                requestBodyLimits='{"maxMessages": 0}'
+                requestBodyLimits='{"maxMessages": 1}'
                 class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
                        min-[861px]:flex-1 min-[861px]:w-auto">
         </deep-chat>
@@ -377,23 +377,29 @@
                     + ' style="max-width:100%;border-radius:8px;display:block"></video>'
                     : '<img src="' + escapeHtml(f.src) + '" alt="' + escapeHtml(f.name)
                     + '" style="max-width:100%;border-radius:8px;display:block">').join(''));
-            // Cronologia: i turni con immagini tornano come messaggi html (con controllo), non "files".
-            // I turni d'errore (LLM fallito, ChatMessage.error) tornano come html con stile d'errore: cosi' non
-            // vengono rimandati all'LLM come contesto (i messaggi html non sono testo della richiesta).
-            // Link alle generazioni nel testo dell'assistente (es. "/generations/12" dal tool searchArchive): il path
-            // assoluto sparirebbe dietro un reverse proxy su subpath, quindi diventa un link markdown RELATIVO alla pagina
-            // corrente (/deep-chat -> generations/12, /deep-chat/5 -> ../generations/12). Solo in visualizzazione: il
-            // testo salvato resta quello originale.
-            const generationHref = (id) => {
+            // Cronologia (solo per la vista: al modello la costruisce il server dal DB, il client manda solo l'ultimo messaggio,
+            // requestBodyLimits maxMessages 1): i turni con immagini tornano come messaggi html (con controllo), non "files".
+            // I turni d'errore (LLM fallito, ChatMessage.error) tornano come html con stile d'errore.
+            // Link alle pagine dell'app nel testo dell'assistente (es. "/generations/12" da searchArchive, "/gallery", "/generations/new?kind=video"):
+            // il path assoluto sparirebbe dietro un reverse proxy su subpath, quindi diventa un link markdown RELATIVO alla pagina
+            // corrente (/deep-chat -> generations/12, /deep-chat/5 -> ../generations/12). Solo in visualizzazione: il testo salvato
+            // resta quello originale. Elenco CHIUSO di path (quelli che il system prompt, sezione appmap, insegna al modello).
+            const appHref = (path) => {
                 const at = location.pathname.lastIndexOf('/deep-chat');
                 const depth = (location.pathname.slice(at + 1).match(/\//g) || []).length;
-                return '../'.repeat(depth) + 'generations/' + id;
+                return '../'.repeat(depth) + path.slice(1);
             };
-            const linkGenerations = (text) => typeof text !== 'string' ? text
-                : text.replace(/(\]\()?(?<![\w\/.])\/generations\/(\d+)/g,
-                    (match, inLink, id) => inLink ? inLink + generationHref(id) : '[#' + id + '](' + generationHref(id) + ')');
+            const linkAppPaths = (text) => typeof text !== 'string' ? text
+                : text.replace(/(\]\()?(?<![\w\/.])(\/(?:generations\/new|generations\/\d+|generations|import\/\d+|import|gallery|search|loras|tokens|system\/events)(?:\?[\w%=&\-]*)?)(?![\w\/])/g,
+                    (match, inLink, path) => {
+                        if (inLink) {
+                            return inLink + appHref(path);
+                        }
+                        const entity = path.match(/^\/(?:generations|import)\/(\d+)$/);
+                        return '[' + (entity ? '#' + entity[1] : path) + '](' + appHref(path) + ')';
+                    });
             deepChat.history = (window.deepChatHistory || []).map((m) =>
-                m.role === 'ai' && m.text && !m.error && !(m.files && m.files.length) ? {...m, text: linkGenerations(m.text)} :
+                m.role === 'ai' && m.text && !m.error && !(m.files && m.files.length) ? {...m, text: linkAppPaths(m.text)} :
                 m.error ? {role: 'ai', html: '<span style="color:#cf222e">' + escapeHtml(m.text) + '</span>'}
                 : m.files && m.files.length ? {role: m.role, html: resultHtml(m.generationId, m.text, m.files)} : m);
             deepChat.requestInterceptor = (details) => {
@@ -462,8 +468,13 @@
             const actionTemplates = {
                 CANCEL: document.getElementById('chat-action-cancel-tpl').innerHTML,
                 DELETE: document.getElementById('chat-action-delete-tpl').innerHTML,
-                REGENERATE: document.getElementById('chat-action-regenerate-tpl').innerHTML
+                REGENERATE: document.getElementById('chat-action-regenerate-tpl').innerHTML,
+                ANIMATE: document.getElementById('chat-action-animate-tpl').innerHTML,
+                USE_AS_SOURCE: document.getElementById('chat-action-use-as-source-tpl').innerHTML,
+                DELETE_FILE: document.getElementById('chat-action-delete-file-tpl').innerHTML
             };
+            // Il nome di un file e' un hash lungo: sul bottone ne basta l'inizio e l'estensione.
+            const shortFile = (name) => !name || name.length <= 14 ? (name || '') : name.slice(0, 8) + '…' + name.slice(name.lastIndexOf('.'));
             const actionButtonHtml = (action) => {
                 const source = actionTemplates[action.type];
                 if (!source) {
@@ -471,15 +482,14 @@
                 }
                 const holder = document.createElement('template');
                 holder.innerHTML = source.replace(/GENID/g, String(action.generationId))
-                    .replace(/ACTMODEL/g, () => escapeHtml(action.model));
+                    .replace(/ACTMODEL/g, () => escapeHtml(action.model || ''))
+                    .replace(/ACTFILE/g, () => escapeHtml(shortFile(action.filename)));
                 const button = holder.content.querySelector('.chat-action');
                 if (!button) {
                     return '';
                 }
-                if (action.type === 'REGENERATE') {
-                    button.dataset.generationId = String(action.generationId);
-                    button.dataset.configFile = action.filename || '';
-                }
+                button.dataset.generationId = String(action.generationId);
+                button.dataset.file = action.filename || '';
                 return holder.innerHTML;
             };
             const actionsHtml = (actions) => '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'
@@ -505,8 +515,9 @@
                     }
                 },
                 // Azioni PROPOSTE dall'assistente (ActionProposalTool, button-gen :: chatAction): il click dell'utente e' l'unico
-                // consenso. Annulla/cancella = POST all'endpoint esistente dopo conferma; rigenera = apre /generations/new?config=<id>&file=<file>:
-                // il server ricostruisce dalla generazione modello, LoRA, parametri, prompt e seed di quel file (nessuno slot localStorage), e la
+                // consenso. Annulla/cancella (generazione o file) = POST all'endpoint esistente dopo conferma; rigenera = apre
+                // /generations/new?config=<id>&file=<file>: il server ricostruisce dalla generazione modello, LoRA, parametri, prompt e seed di
+                // quel file (nessuno slot localStorage); anima / usa come sorgente = apre la form con ?source=<id>&sourceImage=<file>. La
                 // prediction parte solo con "Genera" nella form. Un errore (azione gia' compiuta, id sparito) resta scritto sul bottone.
                 'chat-action': {
                     events: {
@@ -515,17 +526,25 @@
                             if (!button || button.disabled) {
                                 return;
                             }
-                            if (button.dataset.actionType === 'REGENERATE') {
-                                const file = button.dataset.configFile;
-                                window.location.href = button.dataset.url + '?config=' + encodeURIComponent(button.dataset.generationId)
-                                    + (file ? '&file=' + encodeURIComponent(file) : '');
+                            const formParameters = {
+                                REGENERATE: {config: button.dataset.generationId, file: button.dataset.file},
+                                ANIMATE: {source: button.dataset.generationId, sourceImage: button.dataset.file},
+                                USE_AS_SOURCE: {source: button.dataset.generationId, sourceImage: button.dataset.file}
+                            }[button.dataset.actionType];
+                            if (formParameters) {
+                                const target = new URL(button.dataset.url, window.location.href);
+                                Object.entries(formParameters).forEach(([name, value]) => value && target.searchParams.set(name, value));
+                                window.location.href = target.toString();
                                 return;
                             }
                             if (!window.confirm(button.dataset.confirm)) {
                                 return;
                             }
                             button.disabled = true;
-                            fetch(button.dataset.url, {method: 'POST'})
+                            // Un file solo: l'endpoint della galleria contestuale (files = <idGenerazione>:<file>, l'ultimo file elimina la generazione).
+                            const body = button.dataset.actionType === 'DELETE_FILE'
+                                ? new URLSearchParams({files: button.dataset.generationId + ':' + button.dataset.file}) : undefined;
+                            fetch(button.dataset.url, {method: 'POST', body})
                                 .then((response) => {
                                     if (!response.ok) {
                                         throw new Error('action failed');
@@ -562,7 +581,7 @@
             // Risposta del turno: se ha avviato generazioni, i placeholder finiscono nella stessa bolla.
             deepChat.responseInterceptor = (response) => {
                 if (response && response.text) {
-                    response.text = linkGenerations(response.text);
+                    response.text = linkAppPaths(response.text);
                 }
                 // I placeholder delle generazioni avviate e i bottoni delle azioni proposte vanno nella stessa bolla.
                 let extra = '';
@@ -608,6 +627,20 @@
     <template id="chat-action-regenerate-tpl">
         <button th:replace="~{fragments/app/button-gen :: chatAction(type='REGENERATE', text=#{chatAction.regenerate.text('GENID', 'ACTMODEL')},
                     doneText=null, failedText=#{chatAction.regenerate.failed}, confirmText=null, url=@{/generations/new}, danger=false)}">x</button>
+    </template>
+
+    <template id="chat-action-animate-tpl">
+        <button th:replace="~{fragments/app/button-gen :: chatAction(type='ANIMATE', text=#{chatAction.animate.text('GENID', 'ACTFILE')},
+                    doneText=null, failedText=null, confirmText=null, url=@{/generations/new}, danger=false)}">x</button>
+    </template>
+    <template id="chat-action-use-as-source-tpl">
+        <button th:replace="~{fragments/app/button-gen :: chatAction(type='USE_AS_SOURCE', text=#{chatAction.useAsSource.text('GENID', 'ACTFILE')},
+                    doneText=null, failedText=null, confirmText=null, url=@{/generations/new(kind='image')}, danger=false)}">x</button>
+    </template>
+    <template id="chat-action-delete-file-tpl">
+        <button th:replace="~{fragments/app/button-gen :: chatAction(type='DELETE_FILE', text=#{chatAction.deleteFile.text('GENID', 'ACTFILE')},
+                    doneText=#{chatAction.deleteFile.done}, failedText=#{chatAction.deleteFile.failed},
+                    confirmText=#{chatAction.deleteFile.confirm('GENID', 'ACTFILE')}, url=@{/gallery/delete-selected-files}, danger=true)}">x</button>
     </template>
 
     <template id="generation-result-tpl">

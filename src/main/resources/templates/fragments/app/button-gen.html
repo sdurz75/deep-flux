@@ -126,11 +126,12 @@
         th:text="${disabled} ? ${disabledText} : ${text}">Interrompi</button>
 
 <!--
-  Bottone di un'azione PROPOSTA dall'assistente in chat (ActionProposalTool): annulla, cancella, rigenera. Come "Interrompi", vive nello
-  shadow DOM di <deep-chat>: stili INLINE e click via htmlClassUtilities 'chat-action' in deep-chat.html (qui nessun hx-*). Renderizzato
-  una volta per tipo in un <template> con generationId='GENID' (e, per la rigenerazione, id e file riempiti dal client per aprire /generations/new?config=).
-  url: endpoint da chiamare con POST (annulla/cancella) o pagina da aprire (rigenera); confirmText null = nessuna conferma (rigenera
-  apre solo una form: la prediction parte dal "Genera" li'). danger: bordo rosso per le azioni distruttive.
+  Bottone di un'azione PROPOSTA dall'assistente in chat (ActionProposalTool): annulla, cancella (generazione o file), rigenera, anima, usa come
+  sorgente. Come "Interrompi", vive nello shadow DOM di <deep-chat>: stili INLINE e click via htmlClassUtilities 'chat-action' in deep-chat.html
+  (qui nessun hx-*). Renderizzato una volta per tipo in un <template> con GENID (id), ACTFILE (nome del file abbreviato) e ACTMODEL riempiti dal
+  client, che aggiunge anche data-generation-id e data-file.
+  url: endpoint da chiamare con POST (annulla/cancella) o pagina da aprire (rigenera, anima, usa come sorgente: la form precompilata); confirmText
+  null = nessuna conferma (aprono solo una form: la prediction parte dal "Genera" li'). danger: bordo rosso per le azioni distruttive.
 -->
 <button th:fragment="chatAction(type, text, doneText, failedText, confirmText, url, danger)"
         type="button" class="chat-action"

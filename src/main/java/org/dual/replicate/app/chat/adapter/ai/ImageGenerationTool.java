@@ -14,21 +14,26 @@ import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Tool Spring AI registrato sul ChatClient di SpringAiAssistant: avvia una
- * generazione immagine su Replicate (riusando IGenerations, la
- * stessa orchestrazione di GenerationController) e torna subito, senza
- * attenderne l'esito. Il file viene sempre salvato tramite
+ * Tool Spring AI registrato sul ChatClient di SpringAiAssistant: avvia UNA
+ * predizione di generazione su Replicate (riusando IGenerations, la
+ * stessa orchestrazione di GenerationController; i file attesi li decide
+ * il pannello della UI, fino a 4) e torna subito, con l'id della
+ * generazione, senza attenderne l'esito. E' l'unico tool a pagamento:
+ * il numero per turno e' limitato da {@code app.chat.max-generations-per-turn}. Il file viene sempre salvato tramite
  * IGenerations/IImageStorageService come per il resto dell'app;
  * l'esito arriva in un secondo momento in modo asincrono (poll in
  * background + push SSE, vedi ChatGenerationWatcher, avviato da
- * SpringAiAssistant (e ChatService.reply) usando gli id raccolti qui in
+ * ChatService#reply usando gli id raccolti qui in
  * GenerationResultHolder), non da questo metodo.
  */
 @Component
-public class ImageGenerationTool {
+@Order(100)
+public class ImageGenerationTool implements ChatToolkit {
 
     /**
      * Chiave ToolContext sotto cui SpringAiAssistant mette i parametri di
@@ -51,27 +56,40 @@ public class ImageGenerationTool {
     private final IGenerations generationService;
     private final IModelCatalog modelCatalog;
     private final ISystemEvents systemEvents;
+    private final int maxGenerationsPerTurn;
 
     public ImageGenerationTool(IGenerations generationService,
                                 IModelCatalog modelCatalog,
-                                ISystemEvents systemEvents) {
+                                ISystemEvents systemEvents,
+                                @Value("${app.chat.max-generations-per-turn:3}") int maxGenerationsPerTurn) {
         this.systemEvents = systemEvents;
         this.generationService = generationService;
         this.modelCatalog = modelCatalog;
+        this.maxGenerationsPerTurn = maxGenerationsPerTurn;
     }
 
-    @Tool(description = "Generate an image from a text prompt using Replicate. This starts the generation and "
-            + "returns immediately, before the image is ready: it will be stored and shown to the user "
-            + "automatically once done (usually within a couple of minutes), in this conversation and in the "
-            + "gallery. Tell the user it's being generated, don't claim it's already available. You don't need "
-            + "to include its URL in your reply. Always uses the model currently selected in the UI - there is "
-            + "no way to pick a different one here.")
+    @Tool(description = "Generate an image from a text prompt using Replicate. This starts ONE paid generation (the UI "
+            + "settings decide how many files it yields, up to 4) and returns its id immediately, before the image is ready: "
+            + "the result is stored and shown to the user automatically once done (usually within a couple of minutes), in "
+            + "this conversation and in the gallery. Tell the user it is being generated and refer to it as #id; never claim "
+            + "it is already available. Call it only after the user confirmed the exact prompt. Always uses the model "
+            + "currently selected in the UI - there is no way to pick a different one here.")
     public String generateImage(
             @ToolParam(description = "Detailed, self-contained prompt describing the desired image, in English") String prompt,
             ToolContext toolContext) {
+        if (prompt == null || prompt.isBlank()) {
+            return "Not started: the prompt is empty. Ask the user what to generate.";
+        }
+        Object holder = toolContext.getContext().get(GenerationResultHolder.CONTEXT_KEY);
+        GenerationResultHolder resultHolder = holder instanceof GenerationResultHolder found ? found : null;
+        // Ogni chiamata e' una predizione a pagamento: un tetto per turno ferma un modello che si mette a ripetere il tool.
+        if (resultHolder != null && resultHolder.getStartedGenerationIds().size() >= maxGenerationsPerTurn) {
+            return "Not started: " + maxGenerationsPerTurn + " generations were already started in this turn, which is the limit. "
+                    + "Tell the user and wait for their next request.";
+        }
         String model = resolveModel(toolContext);
         if (model == null) {
-            return "Nessun modello Replicate censito nel catalogo, impossibile avviare la generazione.";
+            return "No Replicate model is configured in the catalog: the generation cannot be started.";
         }
 
         // Passare esplicitamente la versione (se nota) invece di lasciare
@@ -89,21 +107,22 @@ public class ImageGenerationTool {
             // modello, persistita come ogni altro turno della
             // conversazione (a differenza del catch-all di
             // DeepChatApiController, che non persiste nulla).
-            return "Impossibile avviare la generazione: " + e.getMessage() + " Non ritentare automaticamente.";
+            return "Could not start the generation: " + e.getMessage() + " Do not retry automatically.";
         } catch (RuntimeException e) {
             // Errore inatteso (parametri non serializzabili, DB...): stesso trattamento, mai un'eccezione
             // che attraversi Spring AI con esito non verificato.
             systemEvents.record(CoreEventSource.INTERNAL, "generateImage", e);
-            return "Impossibile avviare la generazione: errore interno (" + ISystemEvents.sanitize(e)
-                    + "). Non ritentare automaticamente.";
+            return "Could not start the generation: internal error (" + ISystemEvents.sanitize(e)
+                    + "). Do not retry automatically.";
         }
 
-        Object holder = toolContext.getContext().get(GenerationResultHolder.CONTEXT_KEY);
-        if (holder instanceof GenerationResultHolder resultHolder) {
+        if (resultHolder != null) {
             resultHolder.addStartedGeneration(generation.getId());
         }
-        return "Generazione avviata con il modello " + model + ": l'immagine comparira' "
-                + "automaticamente in questa conversazione e in Galleria non appena pronta.";
+        return "Generation #%d started with model %s (%d file(s) requested). It runs in the background: the result will appear in "
+                .formatted(generation.getId(), model, generation.getRequestedOutputs())
+                + "this conversation and in the gallery as soon as it is ready. Tell the user it is being generated and refer to it as #"
+                + generation.getId() + ".";
     }
 
     /**
@@ -134,5 +153,10 @@ public class ImageGenerationTool {
             map.forEach((key, value) -> params.put(String.valueOf(key), value));
         }
         return params;
+    }
+
+    @Override
+    public String promptSection() {
+        return "deep-chat.section.generation";
     }
 }

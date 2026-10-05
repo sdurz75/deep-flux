@@ -8,17 +8,19 @@ import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
  * Azioni distruttive o a pagamento PROPOSTE dalla chat: i tool qui NON mutano nulla (leggono soltanto, per rifiutare subito le
  * proposte senza senso) e depositano nel {@link ActionProposalHolder} del turno una {@link ChatAction}. La UI la rende come bottone
  * (htmlClassUtilities {@code chat-action} in deep-chat.html) e solo il click dell'utente, dopo conferma, chiama l'endpoint esistente
- * di {@code generation}: il consenso non e' mai dedotto dall'LLM. Rigenerare non avvia nulla: apre la form con prompt e seed
- * nello slot globale, e la prediction parte solo se l'utente preme "Genera" li'.
+ * di {@code generation}: il consenso non e' mai dedotto dall'LLM. Rigenerare, animare e usare come sorgente non avviano nulla: aprono
+ * la form precompilata, e la prediction parte solo se l'utente preme "Genera" li'.
  */
 @Component
-public class ActionProposalTool {
+@Order(50)
+public class ActionProposalTool implements ChatToolkit {
 
     private static final String PROPOSED = " Nothing has been done yet: the user will see a confirmation button under your reply "
             + "and decides there. Tell them so; never say the action was carried out.";
@@ -55,6 +57,9 @@ public class ActionProposalTool {
             @ToolParam(description = "The exact file name whose seed to reuse, from getGeneration or conversationGallery") String filename,
             ToolContext toolContext) {
         return propose("proposeRegenerateWithSeed", generationId, toolContext, generation -> {
+            if (generation.isImported()) {
+                return "Generation #" + generationId + " is an imported image, not a generation: it has no model, prompt or seed to reuse.";
+            }
             if (generation.getKind() != GenerationKind.IMAGE) {
                 return "Only image generations can be regenerated this way (not videos).";
             }
@@ -76,6 +81,50 @@ public class ActionProposalTool {
             }
             return null;
         }, generation -> ChatAction.regenerate(generationId, filename, generation.getModel()));
+    }
+
+    @Tool(description = "Propose to animate one image into a video. This does NOT generate anything: it shows the user a button "
+            + "that opens the video form with this image as the source; the user presses Generate there (the video is paid). Only for "
+            + "succeeded image files. Use it when the user wants to animate or bring an image to life.")
+    public String proposeAnimate(
+            @ToolParam(description = "The generation id, without the hash") Long generationId,
+            @ToolParam(description = "The exact image file name, from getGeneration or conversationGallery") String filename,
+            ToolContext toolContext) {
+        return propose("proposeAnimate", generationId, toolContext, generation -> usableSourceRefusal(generationId, filename),
+                generation -> ChatAction.animate(generationId, filename));
+    }
+
+    @Tool(description = "Propose to use one image as the starting point of a new image (image-to-image, edit with Kontext, "
+            + "inpainting with a mask). This does NOT generate anything: it shows the user a button that opens the image form with "
+            + "this image as the source, where they choose the model and press Generate. Only for succeeded image files, "
+            + "generated or imported.")
+    public String proposeUseAsSource(
+            @ToolParam(description = "The generation id, without the hash") Long generationId,
+            @ToolParam(description = "The exact image file name, from getGeneration or conversationGallery") String filename,
+            ToolContext toolContext) {
+        return propose("proposeUseAsSource", generationId, toolContext, generation -> usableSourceRefusal(generationId, filename),
+                generation -> ChatAction.useAsSource(generationId, filename));
+    }
+
+    @Tool(description = "Propose to delete ONE file of a generation permanently (deleting the last file deletes the whole "
+            + "generation). This does NOT delete anything: it shows the user a button to confirm. Use it only when the user asks to "
+            + "delete a specific image or video and not the whole generation.")
+    public String proposeDeleteFile(
+            @ToolParam(description = "The generation id, without the hash") Long generationId,
+            @ToolParam(description = "The exact file name, from getGeneration or conversationGallery") String filename,
+            ToolContext toolContext) {
+        return propose("proposeDeleteFile", generationId, toolContext, generation ->
+                        filename == null || !generation.getImageFilenames().contains(filename)
+                                ? "Generation #" + generationId + " has no file named " + filename + "." : null,
+                generation -> ChatAction.deleteFile(generationId, filename));
+    }
+
+    /** Sorgente valida = un'immagine di una generazione RIUSCITA (la stessa regola della form: mai un text-to-video silenzioso). */
+    private String usableSourceRefusal(Long generationId, String filename) {
+        if (filename == null || generations.findAnimatableSource(generationId, filename).isEmpty()) {
+            return "Generation #" + generationId + " has no succeeded image file named " + filename + " (videos and failed or unfinished generations cannot be a source).";
+        }
+        return null;
     }
 
     private String propose(String operation, Long generationId, ToolContext toolContext,
@@ -104,5 +153,10 @@ public class ActionProposalTool {
             systemEvents.record(operation, e);
             return "Could not prepare the proposal (" + ISystemEvents.sanitize(e) + "). Tell the user it did not work.";
         }
+    }
+
+    @Override
+    public String promptSection() {
+        return "deep-chat.section.actions";
     }
 }

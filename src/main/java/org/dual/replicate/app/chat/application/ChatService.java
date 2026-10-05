@@ -33,10 +33,9 @@ import org.springframework.stereotype.Service;
  * e persiste quella dell'assistente.
  *
  * /deep-chat supporta piu' conversazioni (ChatConversation), ognuna con la propria cronologia (ChatMessage, vedi CLAUDE.md punto 3
- * dello Scopo): {@link #reply} opera sempre su una conversazione precisa, passata per id dal client. La cronologia resta anche
- * interamente lato client: deep-chat la rimanda per intero ad ogni turno (vedi requestBodyLimits in templates/app/deep-chat.html)
- * ed e' quella che alimenta il modello: la persistenza qui e' solo una copia durevole per ripristinare la UI al prossimo
- * caricamento di quella conversazione e non rientra nel giro di richieste verso l'LLM. La gestione CRUD delle conversazioni
+ * dello Scopo): {@link #reply} opera sempre su una conversazione precisa, passata per id dal client. Il client manda solo l'ultimo
+ * messaggio (requestBodyLimits in templates/app/deep-chat.html): la cronologia che alimenta il modello la costruisce il server dal DB
+ * ({@link ChatHistoryBuilder}: finestra limitata, esiti delle generazioni inclusi, errori esclusi), uguale dal vivo e dopo un reload. La gestione CRUD delle conversazioni
  * (creazione/rinomina/cancellazione) vive in ChatConversationService, non qui: reply() non e' @Transactional apposta, per non
  * tenere aperta una connessione DB per tutta la durata di una chiamata esterna lenta.
  */
@@ -53,6 +52,7 @@ public class ChatService implements IChat {
     private final IChatMessageStore messages;
     private final IGenerations generations;
     private final ChatGenerationWatcher generationWatcher;
+    private final ChatHistoryBuilder historyBuilder;
     private final Messages i18n;
     private final ISystemEvents systemEvents;
 
@@ -61,6 +61,7 @@ public class ChatService implements IChat {
                        IChatMessageStore messages,
                        IGenerations generations,
                        ChatGenerationWatcher generationWatcher,
+                       ChatHistoryBuilder historyBuilder,
                        Messages i18n,
                        ISystemEvents systemEvents) {
         this.assistant = assistant;
@@ -68,6 +69,7 @@ public class ChatService implements IChat {
         this.messages = messages;
         this.generations = generations;
         this.generationWatcher = generationWatcher;
+        this.historyBuilder = historyBuilder;
         this.i18n = i18n;
         this.systemEvents = systemEvents;
     }
@@ -76,6 +78,9 @@ public class ChatService implements IChat {
      * {@code conversationId} identifica la conversazione a cui questo turno appartiene (scelta/gia' aperta lato UI): risolta subito,
      * prima della chiamata all'LLM, cosi' un id sconosciuto o non piu' valido non spreca una chiamata remota: l'eccezione risale al
      * chiamante (DeepChatApiController), che la traduce gia' genericamente in un messaggio d'errore in chat.
+     *
+     * {@code history} e' quella del client, di cui si usa solo l'ultimo turno utente (da persistere e a cui rispondere): quella che vede
+     * l'assistente la costruisce {@link ChatHistoryBuilder} dal DB.
      *
      * {@code selectedModel} e' il modello Replicate scelto nel combobox lato UI, inviato dal client su ogni turno: per l'assistente e'
      * sia una nota di contesto sia il modello usato da generateImage (sempre e solo questo, non un parametro che l'LLM sceglie).
@@ -97,7 +102,7 @@ public class ChatService implements IChat {
         try {
             String text;
             try {
-                ChatReply answer = assistant.respond(conversation.getId(), history, selectedModel, generationParameters);
+                ChatReply answer = assistant.respond(conversation.getId(), modelHistory(conversation, history), selectedModel, generationParameters);
                 started = answer.startedGenerationIds();
                 actions = answer.actions();
                 text = answer.text();
@@ -152,9 +157,8 @@ public class ChatService implements IChat {
 
     /**
      * Persiste solo l'ultimo turno della history mandata dal client (il
-     * messaggio utente che ha innescato questa chiamata): i turni
-     * precedenti sono gia' su DB dalle chiamate passate, deep-chat li
-     * rimanda tutti ad ogni richiesta ma andrebbero salvati di nuovo.
+     * messaggio utente che ha innescato questa chiamata, l'unico che il
+     * client manda): i turni precedenti sono gia' su DB dalle chiamate passate.
      *
      * Se la conversazione non ha ancora un titolo, lo deriva (troncato)
      * da questo stesso turno — mai un letterale di default persistito,
@@ -177,6 +181,12 @@ public class ChatService implements IChat {
         conversation.touch();
         conversations.save(conversation);
         messages.save(new ChatMessage(conversation, ChatMessageRole.USER, latest.text(), null));
+    }
+
+    /** La cronologia per il modello: quella del server, non quella del client (che manda solo l'ultimo messaggio). */
+    private List<ChatTurn> modelHistory(ChatConversation conversation, List<ChatTurn> clientHistory) {
+        ChatTurn latest = clientHistory.isEmpty() ? null : clientHistory.get(clientHistory.size() - 1);
+        return historyBuilder.build(conversation.getId(), latest != null && ChatTurn.USER.equals(latest.role()) ? latest : null);
     }
 
     private static String truncateTitle(String text) {

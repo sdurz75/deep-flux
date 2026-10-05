@@ -6,6 +6,7 @@ import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,7 +15,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(name = "app.search.enabled", havingValue = "true", matchIfMissing = true)
-public class NoteTool {
+@Order(60)
+public class NoteTool implements ChatToolkit {
 
     private final IArchiveNotes notes;
     private final ISystemEvents systemEvents;
@@ -43,5 +45,10 @@ public class NoteTool {
             systemEvents.record("saveNote", e);
             return "Not saved: internal error (" + ISystemEvents.sanitize(e) + "). Tell the user it did not work.";
         }
+    }
+
+    @Override
+    public String promptSection() {
+        return "deep-chat.section.notes";
     }
 }
