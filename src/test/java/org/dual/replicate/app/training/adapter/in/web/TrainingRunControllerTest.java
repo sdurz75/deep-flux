@@ -251,6 +251,18 @@ class TrainingRunControllerTest {
     }
 
     @Test
+    void anIncompleteResultStopsPollingOnceTheRetryWindowIsOver() throws Exception {
+        Training done = training(TrainingStatus.SUCCEEDED);
+        // oltre la finestra di ripresa (6 h) nulla completera' piu' il risultato: la pagina lasciata aperta non deve interrogare per sempre
+        org.springframework.test.util.ReflectionTestUtils.setField(done, "completedAt", Instant.now().minusSeconds(7 * 3600));
+        trainingStore.save(done);
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Preset in /loras: in creazione").doesNotContain("every 5s");
+    }
+
+    @Test
     void aRejectedModelPointsToTheSystemEventsAndStopsPolling() throws Exception {
         Training done = training(TrainingStatus.SUCCEEDED);
         done.setPresetId(1L);
@@ -361,7 +373,9 @@ class TrainingRunControllerTest {
         String page = body(mockMvc.perform(get("/trainings/datasets/" + id)).andExpect(status().isOk()).andReturn());
 
         assertThat(page).contains("hx-post=\"/trainings/datasets/" + id + "/start\"").contains("hx-confirm=").contains("pagamento")
-                .contains("data-busy-text=").contains("Avvia il training").doesNotContain("Prima di avviare");
+                .contains("data-busy-text=").contains("Avvia il training").doesNotContain("Prima di avviare")
+                .as("l'upload dello zip su Replicate puo' superare i 180 s globali di htmx: il form di avvio ha un timeout proprio, piu' lungo")
+                .contains("hx-request='{\"timeout\": 900000}'");
     }
 
     @Test

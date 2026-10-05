@@ -85,7 +85,9 @@
     </th:block>
     <p th:if="${check.launchable and #lists.isEmpty(check.warnings)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.ready}">Tutto pronto.</p>
 
-    <form th:if="${check.launchable}" th:hx-post="@{/trainings/datasets/{id}/start(id=${datasetId})}" hx-swap="none"
+    <!--/* hx-request: il caricamento di un dataset grande su Replicate puo' superare i 180 s del watchdog di htmx, e il training parte comunque: senza un timeout piu' lungo
+         l'utente vedrebbe "timeout" per un training gia' avviato (il secondo lancio lo blocca il server, ma il messaggio sarebbe fuorviante). */-->
+    <form th:if="${check.launchable}" th:hx-post="@{/trainings/datasets/{id}/start(id=${datasetId})}" hx-swap="none" hx-request='{"timeout": 900000}'
           th:hx-confirm="#{training.launch.confirm}" th:data-busy-text="#{training.launch.busy}" data-busy-delay="0" autocomplete="off">
         <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{training.launch.start}, extraClass='mt-1')}">Avvia il training</button>
     </form>

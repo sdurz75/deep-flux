@@ -5,11 +5,13 @@
 <!--
   Un training: il badge di stato (usato anche dallo storico) e il blocco stato di templates/app/training-run.html.
 
-  status(training, snapshot, preset): #training-status e' il target del polling ogni 5 s finche' il training non e' terminale E il suo risultato (preset, modello,
+  status(training, snapshot, preset, polling): #training-status e' il target del polling ogni 5 s finche' il training non e' terminale E il suo risultato (preset, modello,
   copia su HuggingFace) e' completo: il polling lo fa un `hx-get` + `hx-trigger="every 5s"` SULL'ELEMENTO, che a quel punto non ci sono piu' nel fragment appena reso,
   quindi si ferma da solo (stesso schema di
   fragments/app/generation.html :: status). Il GET chiama ITrainings#refresh (una chiamata a Replicate). `snapshot` e' il dataset congelato (o null);
-  `preset` e' il preset creato dal training (LoraView) o null (non ancora creato, o eliminato dall'utente).
+  `preset` e' il preset creato dal training (LoraView) o null (non ancora creato, o eliminato dall'utente). `polling` lo decide il controller: true se il training e' in
+  corso o il suo risultato e' incompleto entro la finestra di ripresa (app.training.result-retry-window: oltre, nulla lo completera' piu', e una pagina lasciata aperta
+  non deve interrogare per sempre).
 -->
 <span th:fragment="badge(status)" class="inline-block rounded-full border px-2.5 py-0.5 text-[0.75rem] whitespace-nowrap"
       th:classappend="${status.name() == 'SUCCEEDED'} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark'
@@ -18,9 +20,9 @@
                       : 'border-warning dark:border-warning-dark text-warning dark:text-warning-dark'))"
       th:text="#{${'training.status.' + status.name()}}">Stato</span>
 
-<div th:fragment="status(training, snapshot, preset)" id="training-status" aria-live="polite"
-     th:hx-get="${training.terminal and not training.resultIncomplete} ? null : @{/trainings/{id}/status(id=${training.id})}"
-     th:hx-trigger="${training.terminal and not training.resultIncomplete} ? null : 'every 5s'" hx-target="this" hx-swap="outerHTML">
+<div th:fragment="status(training, snapshot, preset, polling)" id="training-status" aria-live="polite"
+     th:hx-get="${polling} ? @{/trainings/{id}/status(id=${training.id})} : null"
+     th:hx-trigger="${polling} ? 'every 5s' : null" hx-target="this" hx-swap="outerHTML">
     <div class="flex flex-wrap items-center gap-3 mb-3">
         <span th:replace="~{fragments/app/training-run :: badge(status=${training.status})}"></span>
         <span th:unless="${training.terminal}" class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark"

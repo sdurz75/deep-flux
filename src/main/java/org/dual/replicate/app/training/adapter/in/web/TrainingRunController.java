@@ -1,5 +1,7 @@
 package org.dual.replicate.app.training.adapter.in.web;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +13,7 @@ import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
 import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,11 +38,15 @@ public class TrainingRunController {
     private final ITrainings trainings;
     private final ITrainingDatasets datasets;
     private final ILoraPresets presets;
+    /** Per quanto tempo dopo il successo il blocco stato controlla che il risultato si completi: oltre, lo sweep ha smesso di riprenderlo e nulla lo completera'. */
+    private final Duration resultWindow;
 
-    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets) {
+    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets,
+                                 @Value("${app.training.result-retry-window:6h}") Duration resultWindow) {
         this.trainings = trainings;
         this.datasets = datasets;
         this.presets = presets;
+        this.resultWindow = resultWindow;
     }
 
     // --- pannello "Avvia" di una bozza --------------------------------------------------------------------------
@@ -133,13 +140,23 @@ public class TrainingRunController {
 
     private String statusView(Training training, Model model) {
         populateRun(model, training);
-        return "fragments/app/training-run :: status(training=${training}, snapshot=${snapshot}, preset=${preset})";
+        return "fragments/app/training-run :: status(training=${training}, snapshot=${snapshot}, preset=${preset}, polling=${polling})";
     }
 
     private void populateRun(Model model, Training training) {
         model.addAttribute("training", training);
         model.addAttribute("snapshot", datasets.find(training.getSnapshotDatasetId()).orElse(null));
         model.addAttribute("preset", presetOf(training));
+        model.addAttribute("polling", isPolling(training));
+    }
+
+    /** Il blocco stato continua a interrogare finche' il training e' in corso, e dopo il successo finche' il risultato e' incompleto ENTRO la finestra di ripresa. */
+    private boolean isPolling(Training training) {
+        if (!training.isTerminal()) {
+            return true;
+        }
+        Instant completed = training.getCompletedAt() != null ? training.getCompletedAt() : training.getCreatedAt();
+        return training.isResultIncomplete() && Duration.between(completed, Instant.now()).compareTo(resultWindow) < 0;
     }
 
     /** Il preset creato dal training, o null se non c'e' ancora (il risultato nasce in background) o l'utente lo ha eliminato. */
