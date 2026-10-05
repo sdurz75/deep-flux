@@ -56,7 +56,7 @@ Gli **avvisi** non sono errori: oggi servono per i token in scadenza o scaduti. 
 - **Il training è fallito**: il dettaglio mostra l'**Errore** e i **Log del trainer**. Con **Riprendi da questo** ne fai una nuova bozza.
 - **Il training è stato interrotto dopo due ore**: Replicate non aveva ancora finito. Riprova con meno passi o meno immagini.
 - **Il modello non è utilizzabile nell'app** o **i pesi non si trovano su HuggingFace**: il training è comunque completato. Controlla [Eventi](/system/events) e i log del trainer; il preset in [LoRA](/loras) resta.
-- **Il Risultato resta «in creazione» per ore**: l'app riprova per sei ore dalla fine del training, poi smette. Il modello Replicate è indicato nel dettaglio; salvando in [LoRA](/loras) un LoRA con quella sorgente (nella forma owner/nome) il preset e il modello si creano a mano.
+- **Il Risultato resta «in creazione» per ore**: l'app riprova per sei ore dalla fine del training, poi smette. Il modello Replicate è indicato nel dettaglio; in [LoRA](/loras) risalva il preset del training (o creane uno con quella sorgente, nella forma owner/nome): salvarlo aggiunge anche il modello.
 
 ## Servizi non raggiungibili
 

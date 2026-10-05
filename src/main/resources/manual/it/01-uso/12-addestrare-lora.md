@@ -30,7 +30,7 @@ Servono **almeno 4 immagini** per lanciare; sotto le 10 compare un avviso, perch
 
 ### Il ritaglio
 
-Il pulsante **Ritaglia** di ogni immagine apre un editor nel browser: trascina il riquadro per spostarlo, gli angoli per ridimensionarlo, oppure disegnane uno nuovo. Le **Proporzioni** sono libere o fisse (1:1, 3:4, 4:3, 2:3, 3:2, 9:16, 16:9). **Applica il ritaglio** salva una versione ritagliata; l'originale resta sempre, e **Ripristina l'originale** lo rimette al posto del ritaglio. Il ritaglio parte dall'originale, non dal ritaglio precedente.
+Il pulsante **Ritaglia** di ogni immagine apre un editor nel browser: trascina il riquadro per spostarlo, gli angoli per ridimensionarlo, oppure disegnane uno nuovo. Le **Proporzioni** sono **Libero** o fisse (1:1, 4:3, 3:4, 3:2, 2:3, 16:9, 9:16). **Applica il ritaglio** salva una versione ritagliata; l'originale resta sempre, e **Ripristina l'originale** lo rimette al posto del ritaglio. Il ritaglio parte dall'originale, non dal ritaglio precedente.
 
 ## Le didascalie
 
@@ -60,7 +60,7 @@ Un solo training alla volta per ogni bozza: se ne è già in corso uno, l'avvio 
 
 Di partenza, oltre al modello su Replicate (quello che userai nell'app), il trainer carica una copia dei pesi in un tuo repo HuggingFace, **privato**. Serve un [token HuggingFace](05-lora-e-token.md) con permesso di scrittura, scelto per nome (si salvano in [Token](/tokens)); un token di sola lettura è rifiutato. L'app crea il repo prima del lancio. Il nome del repo, se non lo scegli, è quello del modello Replicate; se ne scegli uno che esiste già, i pesi lo sovrascrivono.
 
-**Il token HuggingFace viene inviato a Replicate**, come segreto del trainer, perché possa caricare i pesi: non resta salvato dall'app oltre il lancio. Se non vuoi che Replicate lo riceva, spegni **Copia i pesi su HuggingFace**: il modello su Replicate si crea comunque.
+**Il token HuggingFace viene inviato a Replicate**, come segreto del trainer, perché possa caricare i pesi. L'app non lo salva con il training (la riga del training e il dataset congelato ricordano solo quale token hai scelto): resta soltanto, cifrato, in [Token](/tokens), e l'app lo rilegge da lì per controllare la copia a fine training. Se non vuoi che Replicate lo riceva, spegni **Copia i pesi su HuggingFace**: il modello su Replicate si crea comunque.
 
 ## Lo storico e il dettaglio di un training
 
