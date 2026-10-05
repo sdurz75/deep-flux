@@ -63,14 +63,12 @@ public class ChatSearchSource implements ISearchableSource {
     }
 
     /**
-     * Titolo + tag utente come vocabolario d'indice (dopo {@code TAGS_SEPARATOR}, non e' testo per l'utente). Una conversazione senza
-     * titolo ma taggata ha per testo i soli tag: senza, il testo vuoto la farebbe scartare dall'indice.
+     * Il titolo; i tag utente NON entrano nel testo embeddato (il filtro per tag e' esatto, sul metadata {@code tags}). Unica eccezione:
+     * una conversazione senza titolo ma taggata ha per testo i soli tag, perche' un testo vuoto la farebbe scartare dall'indice e il
+     * filtro per tag non la troverebbe.
      */
     private static String text(String title, List<String> tags) {
         String base = title == null ? "" : title.strip();
-        if (tags.isEmpty()) {
-            return base;
-        }
-        return base.isEmpty() ? String.join(", ", tags) : base + DocumentTypes.TAGS_SEPARATOR + String.join(", ", tags);
+        return base.isEmpty() && !tags.isEmpty() ? String.join(", ", tags) : base;
     }
 }

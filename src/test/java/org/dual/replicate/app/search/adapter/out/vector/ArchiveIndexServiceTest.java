@@ -153,7 +153,7 @@ class ArchiveIndexServiceTest {
     }
 
     @Test
-    void userTagsOfGenerationsFilesAndConversationsAreIndexedAsMetadataAndAsIndexVocabulary() {
+    void userTagsOfGenerationsFilesAndConversationsAreIndexedAsMetadataOnlyNeverInTheEmbeddedText() {
         Generation g = generation("una volpe", GenerationStatus.SUCCEEDED);
         g.setImageFilenames(new java.util.ArrayList<>(List.of("a.png", "b.png")));
         g.getTags().add("animali");
@@ -168,8 +168,7 @@ class ArchiveIndexServiceTest {
 
         var generationDoc = documents.find("generation:" + g.getId()).orElseThrow();
         assertThat(generationDoc.metadata()).containsEntry("tags", List.of("animali", "bosco"));
-        assertThat(generationDoc.content()).contains("animali").contains("bosco");
-        assertThat(generationDoc.visibleContent()).isEqualTo("una volpe");
+        assertThat(generationDoc.content()).doesNotContain("animali").doesNotContain("bosco");
         var conversationDoc = documents.find("conversation:" + conversation.getId()).orElseThrow();
         assertThat(conversationDoc.metadata()).containsEntry("tags", List.of("progetti"));
         assertThat(conversationDoc.content()).isEqualTo("progetti");
@@ -178,7 +177,9 @@ class ArchiveIndexServiceTest {
         conversation.setTitle("Il progetto");
         conversations.save(conversation);
         service.reconcile();
-        assertThat(documents.find("conversation:" + conversation.getId()).orElseThrow().visibleContent()).isEqualTo("Il progetto");
+        var titled = documents.find("conversation:" + conversation.getId()).orElseThrow();
+        assertThat(titled.content()).isEqualTo("Il progetto");
+        assertThat(titled.metadata()).containsEntry("tags", List.of("progetti"));
     }
 
     @Test

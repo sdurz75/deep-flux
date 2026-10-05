@@ -867,8 +867,8 @@ impl `PgVectorIndex` sopra `PgVectorStore`): un domani si puo' sostituire con El
   la riconciliazione timbra con `refId` quelle vecchie). Nei test, i documenti finti di tipo derivato (`chat`/`generation`) possono essere
   cancellati dalla riconciliazione di fondo del contesto: per liste lunghe usare `type=note`.
   **Tag utente nell'indice**: metadata `tags` (lista, esatta, scritta da `GenerationSearchSource` = tag della generazione + dei suoi file, e da `ChatSearchSource` per le
-  conversazioni; i messaggi di chat NON li ereditano) e, come vocabolario d'indice, nel testo dopo `TAGS_SEPARATOR`. Una conversazione senza titolo ma taggata ha per testo i soli tag
-  (un testo vuoto verrebbe scartato dalla riconciliazione). `DocumentFilter#tag` → `Filter.Expression` EQ su `tags` (jsonpath lax: combacia con un ELEMENTO dell'array, verificato
+  conversazioni; i messaggi di chat NON li ereditano) e NON nel testo embeddato (il filtro e' per tag esatto: un cambio di tag riscrive i soli metadata, nessun re-embedding). Unica eccezione: una conversazione senza titolo
+  ma taggata ha per testo i soli tag (un testo vuoto verrebbe scartato dalla riconciliazione e il filtro non la troverebbe). `DocumentFilter#tag` → `Filter.Expression` EQ su `tags` (jsonpath lax: combacia con un ELEMENTO dell'array, verificato
   in `VectorIndexerTest`); suggerimenti `IArchiveSearch#tags()` ← `VectorDocumentRepository#tagCounts`. Il campo `tag` di `/search` sta in `baseQuery` (la paginazione lo conserva).
   **Solo le note manuali (`type=note`) sono creabili/modificabili/eliminabili** (`IArchiveNotes`, `ArchiveNoteService`): la riconciliazione non le crea ne' rimuove. I documenti
   derivati (generation/chat/conversation) sono in sola lettura (la fonte di verita' e' il DB, una modifica o cancellazione a mano

@@ -48,7 +48,6 @@ final class GenerationSearchText {
     static List<String> tags(Generation generation, List<LoraView> loraPresets, ObjectMapper objectMapper) {
         Set<String> tags = new LinkedHashSet<>();
         tags.add(generation.isVideo() ? "video, clip, filmato" : "foto, immagine, image, picture");
-        tags.addAll(generation.allTags()); // i tag scritti dall'utente (generazione e file): anche per significato
         if (generation.isImported()) {
             // Importata: il "prompt" e' la descrizione dell'analisi; qui la provenienza e i tag che la stessa analisi ha prodotto (it/en).
             tags.add("immagine importata, imported image");
