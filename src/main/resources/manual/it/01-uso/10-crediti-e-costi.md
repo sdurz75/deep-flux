@@ -25,6 +25,10 @@ Il dettaglio di ogni generazione mostra il **Costo stimato**, calcolato dalle me
 
 L'assistente conosce lo stesso dato: sa dirti quanto ha speso una conversazione fin qui, ma **non può prevedere** il costo di una generazione prima che parta (Replicate non lo permette).
 
+## Il costo di un training
+
+Un training LoRA ([Addestrare un LoRA](12-addestrare-lora.md)) costa su Replicate in base ai passi e al tempo di calcolo, e **l'app non lo stima**: il dettaglio del training non mostra un costo e la stima del saldo Replicate della barra in basso non lo sottrae. Dopo un training conviene riallineare il saldo con il valore vero della dashboard di Replicate. Un training annullato viene fatturato per quello che ha già calcolato.
+
 ## Come tenere bassa la spesa
 
 - Prova i prompt con una sola immagine per volta.

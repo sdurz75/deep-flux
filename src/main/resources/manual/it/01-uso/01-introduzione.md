@@ -7,7 +7,7 @@ deep-flux serve a tre cose: **generare immagini e video** (anche con l'aiuto di 
 - Conversare con l'assistente in [Deep Chat](02-deep-chat.md): descrivi l'immagine che vuoi, l'assistente può cercare sul web per informarsi e generarla. Il risultato compare nella conversazione.
 - Generare direttamente, senza chatbot, dal form di [Genera immagine](03-genera-immagini.md) o di [Genera video](06-video.md).
 - Ritoccare un'immagine esistente, cambiandola con un'istruzione o ridipingendone solo una zona: vedi [Modifica e inpainting](04-modifica-e-inpainting.md).
-- Usare LoRA (stili e soggetti addestrati) con le [LoRA e i token](05-lora-e-token.md).
+- Usare LoRA (stili e soggetti addestrati) con le [LoRA e i token](05-lora-e-token.md), o [addestrarne uno tuo](12-addestrare-lora.md) a partire dalle tue immagini.
 - Sfogliare, taggare e cancellare nella [Galleria e archivio](07-galleria-e-archivio.md).
 - Portare nell'archivio immagini tue con l'[importazione](08-importare-immagini.md).
 - Ritrovare tutto per significato con la [Ricerca e note](09-ricerca-e-note.md).
@@ -19,7 +19,7 @@ La barra in alto ha queste voci:
 | Voce | Dove porta |
 |---|---|
 | Deep Flux | la chat con l'assistente, [/deep-chat](/deep-chat) |
-| Crea | **Genera immagine**, **Genera video**, **Importa immagini** |
+| Crea | **Genera immagine**, **Genera video**, **Importa immagini**, **Addestra un LoRA** |
 | Galleria | le immagini riuscite, [/gallery](/gallery) |
 | Ricerca | la ricerca per significato, [/search](/search) |
 | Gestione | **Generazioni**, **LoRA**, **Eventi**, **Token** |
@@ -41,11 +41,12 @@ In alto a destra la campanella si accende quando c'è qualcosa da sapere: un err
 
 ## Costi
 
-Generare costa denaro vero su Replicate, ogni volta. L'app lo sa e ti protegge:
+Generare costa denaro vero su Replicate, ogni volta; addestrare un LoRA, di più. L'app lo sa e ti protegge:
 
 - dalla chat, l'assistente genera solo dopo che hai confermato il prompt esatto, al massimo tre generazioni per turno;
 - il dettaglio di ogni generazione mostra il **costo stimato**;
-- un pulsante **Interrompi** ferma una generazione in corso.
+- un pulsante **Interrompi** ferma una generazione in corso;
+- un training parte solo dopo una conferma esplicita, e non ne può partire un secondo dalla stessa bozza mentre il primo è in corso.
 
 Tutto il resto (sfogliare, cercare, taggare, chiacchierare) non spende su Replicate; la chat e le analisi usano i token di OpenRouter, che costano molto meno.
 

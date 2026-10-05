@@ -50,6 +50,14 @@ Gli **avvisi** non sono errori: oggi servono per i token in scadenza o scaduti. 
 - **Impossibile decifrare il token**: la chiave attuale è diversa da quella con cui fu salvato. Reinseriscilo.
 - **Non è un LoRA di Flux**: la sorgente indicata non ha il campo di intensità tipico di un LoRA; il LoRA salvato resta, ma non diventa un modello.
 
+## Il training non parte o non finisce
+
+- **L'avvio è bloccato** sotto **Prima di avviare**: il pannello dice che cosa manca (immagini, didascalie ancora in corso o mancanti, un token HuggingFace scaduto o di sola lettura). Correggilo e il pannello si aggiorna.
+- **Il training è fallito**: il dettaglio mostra l'**Errore** e i **Log del trainer**. Con **Riprendi da questo** ne fai una nuova bozza.
+- **Il training è stato interrotto dopo due ore**: Replicate non aveva ancora finito. Riprova con meno passi o meno immagini.
+- **Il modello non è utilizzabile nell'app** o **i pesi non si trovano su HuggingFace**: il training è comunque completato. Controlla [Eventi](/system/events) e i log del trainer; il preset in [LoRA](/loras) resta.
+- **Il Risultato resta «in creazione» per ore**: l'app riprova per sei ore dalla fine del training, poi smette. Il modello Replicate è indicato nel dettaglio; salvando in [LoRA](/loras) un LoRA con quella sorgente (nella forma owner/nome) il preset e il modello si creano a mano.
+
 ## Servizi non raggiungibili
 
 - **Impossibile contattare Replicate / OpenRouter / SearXNG**: il servizio non risponde, o la rete è giù. Riprova.

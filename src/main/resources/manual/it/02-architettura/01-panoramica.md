@@ -44,6 +44,6 @@ Cosa **non** si introduce senza un motivo concreto: Spring WebFlux come modello 
 Il codice si divide in due blocchi:
 
 - **core**: la parte generica e riusabile (layout, eventi di sistema, push SSE, token cifrati, storage dei binari, backup, questo manuale);
-- **app**: la parte specifica di questa applicazione (generazione, galleria, chat, ricerca, crediti).
+- **app**: la parte specifica di questa applicazione (generazione, galleria, chat, ricerca, crediti, addestramento di LoRA).
 
 Ognuno è fatto di sottosistemi, ognuno un **esagono** (ports and adapters). L'app dipende dal core, mai il contrario. Il repository è pensato anche come **template** per una nuova webapp: si tiene il core e si sostituisce l'app. Continua con [Esagoni, core e app](02-esagoni-core-app.md).

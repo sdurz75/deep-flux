@@ -4,13 +4,13 @@ Guida di riferimento per questo repository. Leggerla prima di aggiungere pagine,
 sono vincoli deliberati per mantenere il progetto snello. Package radice: `org.dual.replicate`. Java 21, Maven, UN solo modulo.
 
 Il codice e' diviso in un **`core`** generico e riusabile (layout/fragments, remote+retry, eventi di sistema, push SSE, secrets/token,
-storage dei binari, manuale online) e un'**`app`** specifica (generazione immagini, galleria, chat, ricerca semantica), entrambi organizzati in esagoni
+storage dei binari, manuale online) e un'**`app`** specifica (generazione immagini, galleria, chat, ricerca semantica, addestramento di LoRA), entrambi organizzati in esagoni
 (ports & adapters) uno per sottosistema: vedi "Architettura". Il repo e' pensato anche come template per una nuova webapp (si tiene il
 `core`, si sostituisce `app`): vedi `docs/TEMPLATE.md`.
 
 ## Scopo
 
-L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conversazione):
+L'app serve a quattro cose (single-user: `Generation` non ha owner, solo multi-conversazione):
 
 ### 1. Generare immagini con l'ausilio di un chatbot
 
@@ -190,6 +190,45 @@ L'app serve a tre cose (single-user: `Generation` non ha owner, solo multi-conve
   esiti, la vista e' la stessa dal vivo e dopo un reload e il contesto non cresce senza limiti. (Un provider che rifiutasse messaggi di sistema a meta'
   conversazione richiederebbe di trasformare la nota in un turno `ai` "[app note] ..."; non verificato con un modello reale.)
 
+### 4. Addestrare LoRA propri (`app.training`)
+
+`/trainings` (voce `Crea ▾ → Addestra un LoRA`, `header.nav.training`, `index.link.training.suffix`), pagina a due schede (`?tab=datasets|history`, 12 per pagina) per addestrare un LoRA con `replicate/fast-flux-trainer`
+(schema letto da Replicate: `input_images` zip, `trigger_word`, `lora_type` subject|style, `training_steps`, `seed`, `hf_repo_id`, `hf_token`; `destination` e' un parametro della richiesta, fuori da `input`). NON e' un tool della chat
+(resta: la chat avvia solo `generateImage`) e `/trainings` NON sta in `appmap` ne' in `linkAppPaths`: il system prompt e' al tetto di `ChatPromptTest` (10.000 caratteri) e il bot non porta a un'azione a pagamento di questo peso. `LibraryTool#listLoraPresets` vede da solo il preset che nasce da un training.
+Feature `training` → `generation` (`ILoraPresets`, `IModelCatalog`, `ApiTokenProvider`, `ReplicateException`) e `prompt` (`IImageCaptioner`); nessuno dipende da `training`.
+
+- **Dataset = bozza persistente lato SERVER** (`TrainingDataset`, `TrainingImage`; salvataggio automatico con htmx `data-busy="off"`, niente localStorage: i `File` non ci stanno). Riprendi, modifica, clona (`ITrainingDatasets#clone`: copia anche i blob con
+  `IImageStorageService#copy`, nuovo nome casuale, senza i controlli da upload; `TrainingDatasetService#copyOf` e' condiviso con lo snapshot), cancella. Impostazioni di lancio con la bozza (`LaunchSettings`: nome del modello, passi 1000, seed, `hfPublish` **true**, `hfTokenId`,
+  `hfRepoName`, `hfPrivate` true). Tetti: `app.training.max-images` 25 (x 10 MB deve stare in `spring.servlet.multipart.max-request-size`), upload png/jpeg/webp da `IImageStorageService#storeUpload`, esito PER FILE (`UploadReport`). Concorrenza sulla bozza: `DatasetEditor#mutate`
+  (un `OptimisticLockingFailureException` e' `training.error.conflict`: "ricarica la pagina e riprova").
+- **Ritaglio solo client** (`fragments/app/crop-editor.html`, componente Alpine `cropEditor` sul modello di `mask-editor.html`; nessuna libreria immagini sul server). Parte dall'ORIGINALE, esporta JPEG con lato lungo <= `app.training.max-image-side` (1536) e fa `POST .../images/{id}/crop`; il server
+  salva il nuovo blob ed elimina il ritaglio precedente (`TrainingImage#applyCrop`, `clearCrop` = "Ripristina l'originale"); la didascalia NON manuale si rifa' (`requestAutoCaption(false)`), quella a mano resta. Zoom/pan: fuori scope.
+- **Didascalie** (`app.prompt`: `IImageCaptioner`, `ImageCaptionService` su `VisionRunner`, guide `trainingCaption.*` in `prompts.properties`, come `imageAnalysis.guide` SENZA `prompts.creative-context`: lo farebbe rifiutare le foto di persone). `CaptionSource` NONE|AUTO|MANUAL e `CaptionStatus`
+  PENDING|DONE|FAILED: una modifica a mano e' `MANUAL`, mai sovrascritta se non da "Rigenera" esplicito. Esecuzione in background: `CaptionRequestedEvent` → `CaptionListener` (`@Async("trainingCaptionExecutor")`, 2 thread) → `ICaptionJobs`/`CaptionJobService`, IDEMPOTENTE
+  (ricorda le immagini in corso). La card si ricarica da sola ogni 3 s finche' PENDING. Un rifiuto o una risposta illeggibile = `FAILED` senza toast, un guasto = `ISystemEvents#record`. Recupero all'avvio e ogni `app.training.caption-sweep-interval` (5m).
+- **Lancio** (`ITrainings#start`, `TrainingService`): A PAGAMENTO, quindi l'ordine delle scritture esterne e' fisso: `trainerVersion` (letta, pinnata) → zip (`IDatasetArchiver`, adapter `out/archive`: `img_NNN.<ext>` + `.txt`) e upload (`POST /files`) → repo HuggingFace → `ensureDestination` (modello privato NUOVO per
+  ogni lancio, nome `slug(nome)-yyyyMMdd-HHmmss`, `hardware` = `app.training.destination-hardware`) → `createTraining` con **`RetryPolicy.NONE`**. Prima di spendere, `check` (`LaunchCheck`: blocchi = `min-images` 4, didascalie PENDING o vuote, passi fra `min-steps` e `max-steps`, token HF scelto, esistente e non scaduto (il permesso di
+  scrittura lo verifica `start` con `IHuggingFaceRepos#whoami`: un token di sola lettura e' `training.error.hfReadOnly`, prima di spendere); avvisi = sotto `warn-images` 10, trigger word assente da alcune didascalie, repo HF scelto a mano). Nessun doppio lancio: lock a strisce per bozza (`START_LOCKS`) + un training in corso della stessa bozza e' un blocco (`runningTrainingsOf`). Lo **snapshot** (dataset congelato con i file COPIATI, `frozen`)
+  vive col training e si elimina con lui; un fallimento qualunque lo ripulisce; se il salvataggio della riga fallisce dopo la creazione remota si annulla la training remota (`cancelQuietly`). Il corpo d'errore di `createTraining` e' redatto e la causa scartata (il token HF puo' stare nell'eco della richiesta).
+  Il **token HF in chiaro** esiste SOLO dentro `start` (`IApiTokens#resolve`), parte come `hf_token` (un SEGRETO del trainer: va a Replicate, e il pannello e il manuale lo dicono), mai salvato, loggato, in un evento o nel Model.
+- **Avanzamento**: `ITrainings#refresh` con lock a strisce per training (`TrainingLocks`, condiviso con cancel, delete e completamento del risultato: la riga non ha un numero di versione). Un errore di poll TRANSITORIO o `CONFIGURATION` NON fallisce il training (registrato); solo `Kind.PERMANENT` lo fallisce e annulla
+  da remoto. `app.training.timeout` (2h) annulla da remoto. `applyTerminal` e' comune a poll e cancel (un cancel che trova il training gia' SUCCEEDED/FAILED lo lascia cosi'). Poller proprio (`TrainingRecoveryService`, adapter in scheduling: ogni `app.training.poll-interval`, 30s, + all'avvio, `@Order(AppStartupOrder.TRAINING_RECOVERY)`,
+  dietro `app.recovery.enabled`): lo sweep delle generazioni non basta per un'attesa lunga a tab chiusa. UI: `/trainings/{id}` fa polling htmx ogni 5 s sull'elemento stesso (assente a stato terminale e a risultato completo, o oltre `app.training.result-retry-window`: `polling` lo decide il controller); la scheda Storico
+  si rinfresca con l'evento SSE `training-update` (`TrainingPushNotifier`; va in `app.push.client-events` E `reconnect-events`, e in `TemplateRenderingTests.liveEventsBridgeTakesTheAppEventNamesFromConfiguration`). Il form di avvio ha un `hx-request` con timeout di 15 minuti: l'upload dello zip supera i 180 s globali di htmx
+  e il training parte comunque (il secondo lancio lo bloccherebbe il server, ma il toast di timeout sarebbe fuorviante).
+- **Risultato** (`TrainingCompletedEvent`, pubblicato UNA volta alla transizione a SUCCEEDED da `saveAndNotify`, qualunque strada porti li') → `TrainingResultListener` (`@Async("trainingResultExecutor")`, 1 thread, coda 50 con `DiscardPolicy`: un lavoro scartato lo riprende lo sweep) → `ITrainingResults#complete`
+  (`TrainingResultService`): TRE passi indipendenti e idempotenti, ognuno salva appena fatto e un guasto in uno non blocca gli altri ne' fa mai fallire il training (i pesi esistono): (1) **preset** in `/loras` col nome del dataset (suffisso data, poi data e ora, poi `#id` se preso; se un tentativo precedente lo aveva creato lo adotta per
+  sorgente), sorgente `owner/nome` del modello Replicate (NON l'URL HF: HF e' la copia); (2) **modello utilizzabile** (`Training.modelStatus` PENDING|REGISTERED|REJECTED): la regola "preset = modello" lo censisce gia' ma un suo rifiuto e' silenzioso, quindi si controlla `IModelCatalog#contains` e si riprova `registerLoraFinetune`;
+  un rifiuto entro `app.training.result-grace` (10m: la versione puo' non essere ancora visibile) si ritenta, dopo e' definitivo (`REJECTED`, avviso); (3) **copia HF** (`HfStatus` NONE|PENDING|VERIFIED|NOT_FOUND|UNVERIFIED): `IHuggingFaceRepos#repoFiles` cerca un `.safetensors` (il repo lo crea l'app PRIMA, quindi la sola esistenza non prova nulla);
+  il token si risolve di nuovo: se non c'e' piu' = `UNVERIFIED`, senza errore. Sweep (`app.training.result-sweep-interval` 5m + avvio) per i risultati incompleti entro `result-retry-window` (6h); oltre, un risultato ancora PENDING resta cosi' (limite noto: il preset si crea a mano da `/loras`, che censisce il modello).
+- **Storico**: ogni lancio ha il PROPRIO snapshot; "Riprendi da questo" = clone dello snapshot in una bozza nuova. Eliminare una bozza non tocca i training; eliminare un training elimina snapshot e file, NON il modello Replicate, il repo HF ne' il preset.
+- **Eventi**: `AppEventSource.TRAINING` (guasti non remoti: zip, captioning, risultato) e `HUGGINGFACE` (`HuggingFaceClient`, chiavi `huggingface.error.*`); gli errori del trainer restano `REPLICATE`. Subject `training:<id>` (`AppEventSubjects#ofTraining`), link "apri" in `AppEventLinks` (`/trainings/{id}`).
+- **Backup**: `TrainingBlobReferences` (SPI `IBlobReferences`) dichiara `training_image.filename`/`original_filename`.
+- **Non verificato con una prediction vera** (forma delle richieste e risposte NON provata contro i servizi reali: nessun training e' mai partito): `POST /files` (limite di dimensione, `.webp`), `POST /models` con `hardware`, `POST /models/{owner}/{name}/versions/{v}/trainings`, `GET /account`, se un destination gia' addestrato accetta un secondo training,
+  `siblings[].rfilename` nella scheda di un repo HF (se manca, ogni training riuscito finisce `NOT_FOUND` con un avviso falso), i nomi veri dei file dei pesi, se i log del trainer riportano `hf_token`, l'orientamento EXIF di foto non ritagliate nello zip. La prima prova reale va chiesta all'utente (costo, repo HF privato usa-e-getta).
+- **Test**: gateway e store finti (`InMemoryTrainingStore`), `MockRestServiceServer` per Replicate e HuggingFace, `@SpringBootTest` con `@MockitoBean` per `IPredictionGateway`, `ITrainerGateway`, `IHuggingFaceRepos`, `IImageCaptioner`, `ICaptionJobs`, `ITrainingResults` (dove un training puo' arrivare a SUCCEEDED: l'evento creerebbe davvero preset e modelli nel DB condiviso) e `IImageDescriber`:
+  mai la rete vera. `TrainingServiceTest`, `TrainingResultServiceTest`, `TrainingLaunchIntegrationTest` (DB vero), `TrainingResultIntegrationTest` (preset e catalogo veri), `TrainingRunControllerTest`, `TrainingControllerTest`.
+
 **Perimetro**: (i crediti nella barra in basso servono a sapere quanto resta da spendere per generare e conversare.) Non aggiungere feature (pagine demo, integrazioni, pattern) che non servano a generare, archiviare o
 conversare sulle immagini (l'output puo' essere anche un video). Per dimostrare un pattern htmx/Alpine nuovo, aggiungerlo a
 una feature vera. Le pagine demo starter e la chat di rifinitura prompt sono state rimosse; l'icona "AI enhance"
@@ -268,7 +307,7 @@ le uniche classi fuori da `core`/`app`.
   ed e' condivisa fra feature. Il kernel non dipende da nessun sottosistema. Nessun ciclo fra sottosistemi.
 - **Punti di estensione**: un'implementazione dell'app puo' implementare SOLO queste `port.out` del core (elenco chiuso, `ArchitectureTest.CORE_EXTENSION_POINTS`): `IEventLinkResolver` (`AppEventLinks`),
   `ITokenProviderCatalog` (`AppTokenProviders`); ogni altra `port.out` del core (store, `IBlobBackend`...) per l'app non esiste; `EventSource` (kernel) e' implementata da `CoreEventSource` e `AppEventSource`.
-- **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`, `credits`, `prompt`; `credits` → `generation`
+- **Grafo delle feature dell'app**: `prompt` e `search` sono foglie; `generation` → `prompt`, `search`; `chat` → `generation`, `search`, `credits`, `prompt`; `training` → `generation`, `prompt` (nessuno dipende da `training`); `credits` → `generation`
   (solo `chat` dipende da `credits`: `CreditsTool`; `prompt`: `VisionTool` via `IImageDescriber`);
   `generation` NON conosce `chat` (solo `Generation.conversationId`, un `Long`). `search` NON conosce `generation` ne' `chat`: legge i
   loro dati tramite la SPI `ISearchableSource` (in `search.port.in`), implementata da `GenerationSearchSource` (generation,
@@ -304,6 +343,7 @@ le uniche classi fuori da `core`/`app`.
 | `app.chat` | `/deep-chat`: conversazioni, turni, assistente (LLM + tool), watcher delle generazioni, recupero | in `IChat`, `IChatConversations`, `IChatRecovery`; out `IAssistant`, `IChatConversationStore`, `IChatMessageStore`, `IChatNotifier`, `IWebSearchGateway` |
 | `app.search` | ricerca semantica, indice (riconciliazione), note, `/search` | in `IArchiveSearch`, `IArchiveNotes`, `IArchiveIndex`, `ISearchableSource` (SPI); out `IVectorIndex` |
 | `app.prompt` | "AI enhance" del prompt (one-shot) e descrizione/tag di un'immagine con il modello di visione | in `IPromptEnhancer`, `IImageDescriber`; out `IPromptModel` |
+| `app.training` | dataset di addestramento (ritaglio, didascalie), training LoRA su Replicate, storico, risultato (preset + modello + copia HuggingFace), `/trainings` | in `ITrainingDatasets`, `ITrainings`, `ITrainingCaptions`, `ICaptionJobs`, `ITrainingResults`; out `ITrainingDatasetStore`, `ITrainingStore`, `ITrainerGateway`, `IHuggingFaceRepos`, `IDatasetArchiver` |
 | `app.credits` | credito residuo Replicate (stima) e OpenRouter per la barra in basso | in `ICredits`; out `IOpenRouterCreditGateway`, `IReplicateBalanceStore` |
 | `app.shared` | `AppEventSource`, `AppEventSubjects`, `OpenRouterException`, `Tags` (normalizzazione dei tag utente), `HomeController`, `AppEventLinks` | (dominio comune dell'app) |
 
@@ -393,7 +433,7 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   in un `@SpringBootTest` mockano `IImageDescriber` (`@MockitoBean`): mai chiamate vere a OpenRouter (ne' a Replicate: `IPredictionGateway`). Con uno stub gia' lancianti
   si ri-stubba con `doReturn(...).when(mock)`, non con `when(mock.metodo())` (che eseguirebbe lo stub vecchio).
 - `app.search`: vedi "Ricerca semantica". `app.shared`: vedi "Dove sta cosa". Root `app`: `OpenRouterCalls` (`RemoteCaller` condiviso per OpenRouter),
-  `AppStartupOrder` (ordine dei listener di `ApplicationReadyEvent`: prima il recupero delle generazioni, poi quello della chat).
+  `AppStartupOrder` (ordine dei listener di `ApplicationReadyEvent`: prima il recupero delle generazioni, poi quello della chat, poi quello dell'addestramento: didascalie, training in corso, risultati).
 - Risorse: `application.yml` (SOLO config dell'app: Spring AI, `replicate.*`, `searxng.*`, `enhancer.*`, `app.recovery.*`, `app.search.*`,
   `app.push.*`, Flyway `locations`) che importa `core.yml` (config del core: web/MVC, i18n, DB, eventi, secrets/token, storage) e
   `prompts.properties`; le chiavi dei due file sono disgiunte (un file importato ha la precedenza su quello che lo importa). Bundle
@@ -405,7 +445,7 @@ Ricavabile dal repo (`git ls-files`); qui solo cio' che non e' ovvio. Sotto `cor
   `header.html` e' sticky; sotto `md` link e theme switch stanno in uno slideover Pines (stato Alpine `navOpen`, `button :: navToggle`);
   le voci di navigazione le mette l'app in `fragments/app/nav.html :: links(inline)` (punto di estensione). `layout.html` legge brand/titolo dalle
   chiavi `app.brand|title` del bundle dell'app.
-  **Menu** (`nav.html`): azioni frequenti come link diretti (Deep Chat, Galleria, Ricerca), poi `Crea ▾` (immagine/video/importa) e `Gestione ▾`
+  **Menu** (`nav.html`): azioni frequenti come link diretti (Deep Chat, Galleria, Ricerca), poi `Crea ▾` (immagine/video/importa/addestra un LoRA) e `Gestione ▾`
   (Generazioni, LoRA, Eventi, Token), infine il link diretto `Manuale` (`header.nav.manual`, bundle dell'app); niente piu' "Archivio" ne' tema (sta nella barra in basso). `header.menu.manage` sta in `messages-core` perche' le pagine core
   (Token, Eventi) lo usano nelle breadcrumbs; `header.menu.create` e' dell'app.
   **Breadcrumbs** (`fragments/core/breadcrumbs.html :: trail(group, parentPath, parentText, current)`): su OGNI pagina tranne la Home, nello slot
@@ -600,7 +640,7 @@ switcher/cookie/sessione). Bundle (`spring.messages.basename: messages,messages-
 - `messages-core.properties` / `messages-core_en.properties`: il core (`html.lang`, `header.menu.*`/`header.theme.*`, `events.*`, `bell.*`,
   `toast.*`, `pagination.*`, `tokens.*`, `imagestorage.*`, `webdav.*`...) e le etichette delle sorgenti del core (`events.source.STORAGE|TOKENS|INTERNAL`);
 - `messages.properties` (italiano, default/fallback anche per locale non mappate) / `messages_en.properties`: l'app (incl. `app.brand|title`,
-  `events.source.REPLICATE|OPENROUTER|SEARXNG|LORAS`, `events.link.generation|conversation`).
+  `events.source.REPLICATE|OPENROUTER|SEARXNG|LORAS|HUGGINGFACE|TRAINING`, `events.link.generation|conversation|training`).
 Il testo del core NON nomina servizi o provider dell'app (`events.intro`, `tokens.intro` sono generici): le pagine del core mostrano in piu' la riga facoltativa
 `events.intro.app`/`tokens.intro.app` se l'app la definisce nel suo bundle (`#messages.msgOrNull`).
 Le chiavi dei due bundle sono **DISGIUNTE** (niente shadowing: lo impone `TemplateRenderingTests.coreAndAppBundlesDefineDisjointKeys`); una chiave

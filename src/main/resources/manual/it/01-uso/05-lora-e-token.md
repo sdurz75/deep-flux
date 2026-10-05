@@ -1,6 +1,6 @@
 # LoRA e token
 
-Un **LoRA** è un piccolo modello aggiuntivo che insegna a FLUX uno stile o un soggetto. In deep-flux si usano in due modi: **caricandoli al volo** nel form di flux-dev-lora, oppure con il LoRA già addestrato su Replicate, flux-lora-ff3 e i suoi simili.
+Un **LoRA** è un piccolo modello aggiuntivo che insegna a FLUX uno stile o un soggetto. In deep-flux si usano in due modi: **caricandoli al volo** nel form di flux-dev-lora, oppure con il LoRA già addestrato su Replicate, flux-lora-ff3 e i suoi simili. Un LoRA tuo si addestra da [Addestrare un LoRA](12-addestrare-lora.md): al termine nasce da solo un LoRA salvato che punta al suo modello.
 
 ## flux-dev-lora: LoRA al volo
 

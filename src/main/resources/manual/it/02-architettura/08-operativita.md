@@ -29,7 +29,7 @@ Due file, con chiavi disgiunte: `application.yml` per l'app (Spring AI, Replicat
 | STORAGE_WEBDAV_ENCRYPTION_KEY | cifratura dei file WebDAV, dei token e dei backup |
 | BACKUP_ENCRYPTION_KEY | chiave dei backup, se diversa da quella dello storage |
 
-Altri parametri utili: `app.chat.max-generations-per-turn`, `app.chat.max-vision-calls-per-turn`, `app.chat.history-max-turns` e `-chars`, `app.import.max-files`, `app.recovery.*` (recupero delle generazioni), `app.search.*` (ricerca) e `storage.type`.
+Altri parametri utili: `app.chat.max-generations-per-turn`, `app.chat.max-vision-calls-per-turn`, `app.chat.history-max-turns` e `-chars`, `app.import.max-files`, `app.recovery.*` (recupero delle generazioni), `app.search.*` (ricerca), `app.training.*` (limiti e tempi dell'addestramento) e `storage.type`.
 
 ## Dati sul disco
 
@@ -67,4 +67,4 @@ java -jar target/spring-htmx-starter-*.jar import backup.dfb --replace
 
 ## Cosa gira da solo
 
-All'avvio e a intervalli: il recupero delle generazioni e delle chat in sospeso, il controllo delle scadenze dei token, la riconciliazione dell'indice di ricerca. Tutto si spegne nei test. Per capire cosa è andato storto, la prima pagina è [Eventi](/system/events), poi i log del processo.
+All'avvio e a intervalli: il recupero delle generazioni e delle chat in sospeso, l'avanzamento dei training in corso (anche a pagina chiusa, ogni 30 secondi), le didascalie e i risultati dei training rimasti a metà, il controllo delle scadenze dei token, la riconciliazione dell'indice di ricerca. Tutto si spegne nei test. Per capire cosa è andato storto, la prima pagina è [Eventi](/system/events), poi i log del processo.

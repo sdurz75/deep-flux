@@ -44,13 +44,14 @@ Queste regole sono verificate da `ArchitectureTest` (ArchUnit) e da `SourceImpor
 | app.generation | generazioni, immagini importate, catalogo modelli, LoRA, galleria, costo |
 | app.chat | Deep Chat: conversazioni, assistente, strumenti, recupero |
 | app.search | ricerca semantica, indice, note |
+| app.training | addestramento LoRA: dataset, ritaglio, didascalie, training su Replicate, risultato |
 | app.prompt | miglioramento del prompt e descrizione delle immagini con un modello di visione |
 | app.credits | credito residuo di Replicate e OpenRouter |
 | app.shared | dominio comune dell'app (tag, sorgenti degli eventi, home) |
 
 ## Chi dipende da chi, nell'app
 
-`prompt` e `search` sono foglie. `generation` dipende da `prompt` e `search`; `chat` da `generation`, `search`, `credits` e `prompt`; `credits` da `generation`. `generation` non conosce `chat` (solo un numero, `Generation.conversationId`), e `search` non conosce né `generation` né `chat`: legge i loro dati tramite una interfaccia di estensione (`ISearchableSource`) che loro implementano.
+`prompt` e `search` sono foglie. `generation` dipende da `prompt` e `search`; `chat` da `generation`, `search`, `credits` e `prompt`; `credits` da `generation`; `training` da `generation` (preset e catalogo dei modelli) e da `prompt` (le didascalie), e nessuno dipende da `training`. `generation` non conosce `chat` (solo un numero, `Generation.conversationId`), e `search` non conosce né `generation` né `chat`: legge i loro dati tramite una interfaccia di estensione (`ISearchableSource`) che loro implementano.
 
 ## I punti di estensione del core
 
