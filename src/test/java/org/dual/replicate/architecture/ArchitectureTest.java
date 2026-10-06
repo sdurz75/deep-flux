@@ -4,6 +4,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -44,6 +45,35 @@ class ArchitectureTest {
     static final Set<String> CORE_EXTENSION_POINTS = Set.of(
             ROOT + ".core.events.port.out.IEventLinkResolver",
             ROOT + ".core.tokens.port.out.ITokenProviderCatalog");
+
+    /**
+     * Le SPI che l'host (l'app) implementa per innestarsi in un sottosistema del core che non e' un adattatore in uscita: stanno in
+     * {@code port.in} (pubbliche), cosi' l'app le implementa nel rispetto della regola "fra sottosistemi solo port.in e domain". Elenco
+     * chiuso: una SPI nuova si aggiunge qui e in "Punti di estensione" di CLAUDE.md.
+     */
+    static final Set<String> HOST_SPIS = Set.of(
+            ROOT + ".core.backup.port.in.IBlobReferences",
+            ROOT + ".core.search.port.in.ISearchableSource",
+            ROOT + ".core.chat.port.in.IChatToolkit",
+            ROOT + ".core.chat.port.in.IChatTurnContributor",
+            ROOT + ".core.chat.port.in.IChatPageContributor",
+            ROOT + ".core.chat.port.in.IChatOutcomeResolver");
+
+    /** Ogni SPI dell'elenco esiste davvero (un rename non deve svuotare in silenzio la regola sotto). */
+    @ArchTest
+    static void everyHostSpiExists(com.tngtech.archunit.core.domain.JavaClasses classes) {
+        HOST_SPIS.forEach(name -> org.junit.jupiter.api.Assertions.assertTrue(classes.contain(name), "SPI inesistente: " + name));
+    }
+
+    @ArchTest
+    static final ArchRule hostSpisAreInterfacesInPortIn = classes()
+            .that(new DescribedPredicate<JavaClass>("are host extension SPIs") {
+                @Override
+                public boolean test(JavaClass input) {
+                    return HOST_SPIS.contains(input.getName());
+                }
+            })
+            .should().beInterfaces().andShould().bePublic().andShould().resideInAPackage("..port.in");
 
     @ArchTest
     static final ArchRule domainStaysPure = classes()

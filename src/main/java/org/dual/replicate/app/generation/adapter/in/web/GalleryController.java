@@ -7,7 +7,7 @@ import org.dual.replicate.core.web.PaginationSupport;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.GenerationFile;
 import org.dual.replicate.app.generation.port.in.IGenerations;
-import org.dual.replicate.app.shared.domain.Tags;
+import org.dual.replicate.core.kernel.Tags;
 import org.dual.replicate.core.kernel.Paged;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;

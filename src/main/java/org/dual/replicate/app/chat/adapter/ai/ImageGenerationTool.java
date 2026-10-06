@@ -1,5 +1,7 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -11,6 +13,7 @@ import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
+import org.dual.replicate.core.chat.domain.ChatTurnResult;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -33,7 +36,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Order(100)
-public class ImageGenerationTool implements ChatToolkit {
+public class ImageGenerationTool implements IChatToolkit {
 
     /**
      * Chiave ToolContext sotto cui SpringAiAssistant mette i parametri di
@@ -158,5 +161,19 @@ public class ImageGenerationTool implements ChatToolkit {
     @Override
     public String promptSection() {
         return "deep-chat.section.generation";
+    }
+
+    @Override
+    public void beginTurn(Map<String, Object> toolContext) {
+        toolContext.put(GenerationResultHolder.CONTEXT_KEY, new GenerationResultHolder());
+    }
+
+    @Override
+    public void endTurn(Map<String, Object> toolContext, ChatTurnResult result) {
+        if (toolContext.get(GenerationResultHolder.CONTEXT_KEY) instanceof GenerationResultHolder holder
+                && !holder.getStartedGenerationIds().isEmpty()) {
+            holder.getStartedGenerationIds().forEach(result::startedOutcome);
+            result.extra("generationIds", List.copyOf(holder.getStartedGenerationIds()));
+        }
     }
 }

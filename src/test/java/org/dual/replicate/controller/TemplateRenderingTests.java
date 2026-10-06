@@ -10,14 +10,14 @@ import org.dual.replicate.app.generation.adapter.in.web.GalleryController;
 import org.dual.replicate.app.generation.adapter.in.web.GenerationController;
 import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.domain.ChatMessage;
-import org.dual.replicate.app.chat.domain.ChatMessageRole;
+import org.dual.replicate.core.chat.domain.ChatConversation;
+import org.dual.replicate.core.chat.domain.ChatMessage;
+import org.dual.replicate.core.chat.domain.ChatMessageRole;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
-import org.dual.replicate.app.chat.port.out.IChatConversationStore;
-import org.dual.replicate.app.chat.port.out.IChatMessageStore;
+import org.dual.replicate.core.chat.port.out.IChatConversationStore;
+import org.dual.replicate.core.chat.port.out.IChatMessageStore;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1365,7 +1365,7 @@ class TemplateRenderingTests {
         assertThat(chatMessageRepository.findByConversation(conversation.getId()))
                 .filteredOn(m -> m.getId().equals(message.getId()))
                 .singleElement()
-                .extracting(ChatMessage::getGenerationId)
+                .extracting(ChatMessage::getOutcomeRef)
                 .isNull();
     }
 

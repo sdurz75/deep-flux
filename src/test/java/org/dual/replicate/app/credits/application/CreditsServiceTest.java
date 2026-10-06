@@ -13,7 +13,7 @@ import org.dual.replicate.app.credits.domain.ReplicateBalanceAnchor;
 import org.dual.replicate.app.credits.port.out.IOpenRouterCreditGateway;
 import org.dual.replicate.app.credits.port.out.IReplicateBalanceStore;
 import org.dual.replicate.app.generation.port.in.IGenerations;
-import org.dual.replicate.app.shared.domain.OpenRouterException;
+import org.dual.replicate.core.ai.domain.OpenRouterException;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;

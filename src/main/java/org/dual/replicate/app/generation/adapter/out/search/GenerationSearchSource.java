@@ -16,11 +16,12 @@ import org.dual.replicate.app.generation.domain.event.GenerationImageDeletedEven
 import org.dual.replicate.app.generation.domain.event.GenerationsDeletedEvent;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
-import org.dual.replicate.app.search.domain.DocumentTypes;
-import org.dual.replicate.app.search.domain.SearchableDocument;
-import org.dual.replicate.app.search.port.in.IArchiveIndex;
-import org.dual.replicate.app.search.port.in.ISearchableSource;
+import org.dual.replicate.app.generation.domain.GenerationDocumentTypes;
+import org.dual.replicate.core.search.domain.SearchableDocument;
+import org.dual.replicate.core.search.port.in.IArchiveIndex;
+import org.dual.replicate.core.search.port.in.ISearchableSource;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -34,6 +35,7 @@ import tools.jackson.databind.ObjectMapper;
  * ricerca e' attiva): generazione completata, file o generazioni cancellati, star cambiata.
  */
 @Component
+@Order(10)
 public class GenerationSearchSource implements ISearchableSource {
 
     /** Quante miniature porta un documento nei metadata. */
@@ -54,7 +56,7 @@ public class GenerationSearchSource implements ISearchableSource {
 
     @Override
     public Set<String> types() {
-        return Set.of(DocumentTypes.GENERATION, DocumentTypes.IMPORTED);
+        return new java.util.LinkedHashSet<>(List.of(GenerationDocumentTypes.GENERATION, GenerationDocumentTypes.IMPORTED));
     }
 
     @Override
@@ -113,9 +115,19 @@ public class GenerationSearchSource implements ISearchableSource {
         extra.put("outputs", files.size());
         extra.put("files", List.copyOf(shown));
         extra.put("favouriteFiles", shown.stream().filter(favourites::contains).toList());
-        String type = generation.isImported() ? DocumentTypes.IMPORTED : DocumentTypes.GENERATION;
+        String type = generation.isImported() ? GenerationDocumentTypes.IMPORTED : GenerationDocumentTypes.GENERATION;
         return SearchableDocument.of(type + ":" + generation.getId(), type, generation.getId(),
                 generation.getConversationId(), generation.getCreatedAt(), GenerationSearchText.of(generation, presets, objectMapper),
                 extra);
+    }
+
+    @Override
+    public java.util.Optional<String> citation(String type, Map<String, Object> metadata) {
+        Object refId = metadata.get("refId");
+        return switch (type) {
+            case GenerationDocumentTypes.IMPORTED -> java.util.Optional.of("[imported image #%s] (/import/%s)".formatted(refId, refId));
+            case GenerationDocumentTypes.GENERATION -> java.util.Optional.of("[generation #%s] (/generations/%s)".formatted(refId, refId));
+            default -> java.util.Optional.empty();
+        };
     }
 }

@@ -1,6 +1,6 @@
 # Chat e assistente
 
-Il sottosistema `app.chat` è Deep Chat: conversazioni, turni, l'assistente basato su un modello linguistico con i suoi strumenti, e il collegamento con le generazioni.
+Deep Chat è diviso in `core.chat` (il motore) e `app.chat` (i collegamenti con le generazioni). Insieme: conversazioni, turni, l'assistente basato su un modello linguistico con i suoi strumenti, e il collegamento con le generazioni.
 
 ## Un turno
 
@@ -15,7 +15,7 @@ L'esito di una generazione, quando arriva, è un turno a sé. Al modello arriva 
 
 ## L'assistente
 
-`SpringAiAssistant` usa il `ChatClient` di Spring AI su OpenRouter (con l'interfaccia compatibile con OpenAI). Non elenca gli strumenti: riceve la lista dei **toolkit** presenti (`ChatToolkit`, un'interfaccia piccola con la chiave della sezione di prompt) e li registra tutti. Un toolkit condizionale, come la ricerca nell'archivio, manca quando la sua proprietà lo spegne, e con lui la sua sezione.
+`SpringAiAssistant` usa il `ChatClient` di Spring AI su OpenRouter (con l'interfaccia compatibile con OpenAI). Non elenca gli strumenti: riceve la lista dei **toolkit** presenti (`IChatToolkit`, un'interfaccia piccola con la chiave della sezione di prompt) e li registra tutti. Un toolkit condizionale, come la ricerca nell'archivio, manca quando la sua proprietà lo spegne, e con lui la sua sezione.
 
 Gli strumenti, ognuno una classe con metodi `@Tool` e un `@Order`:
 

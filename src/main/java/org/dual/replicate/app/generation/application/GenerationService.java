@@ -25,7 +25,7 @@ import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
 import org.dual.replicate.app.generation.port.out.IPredictionGateway;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
-import org.dual.replicate.app.shared.domain.Tags;
+import org.dual.replicate.core.kernel.Tags;
 import org.dual.replicate.app.generation.application.TokenInputResolver;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;

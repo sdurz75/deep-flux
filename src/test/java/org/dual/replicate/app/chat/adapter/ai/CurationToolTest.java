@@ -5,8 +5,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.port.in.IChatConversations;
+import org.dual.replicate.core.chat.domain.ChatConversation;
+import org.dual.replicate.core.chat.port.in.IChatConversations;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.generation.port.in.IGenerations;

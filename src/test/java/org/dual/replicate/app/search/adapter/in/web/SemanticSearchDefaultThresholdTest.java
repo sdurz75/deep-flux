@@ -1,6 +1,6 @@
 package org.dual.replicate.app.search.adapter.in.web;
 
-import org.dual.replicate.app.search.adapter.out.vector.FakeEmbeddingModel;
+import org.dual.replicate.core.search.adapter.out.vector.FakeEmbeddingModel;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;

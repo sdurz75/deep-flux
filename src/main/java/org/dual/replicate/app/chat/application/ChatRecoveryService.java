@@ -12,7 +12,7 @@ import org.dual.replicate.core.events.domain.CoreEventSource;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.chat.port.in.IChatRecovery;
-import org.dual.replicate.app.chat.port.out.IChatMessageStore;
+import org.dual.replicate.core.chat.port.in.IChatOutcomes;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,14 +31,14 @@ public class ChatRecoveryService implements IChatRecovery {
     private static final int SWEEP_WINDOW = 500;
 
     private final IGenerations generationService;
-    private final IChatMessageStore chatMessageRepository;
+    private final IChatOutcomes outcomes;
     private final ChatGenerationWatcher watcher;
     private final ISystemEvents systemEvents;
 
-    public ChatRecoveryService(IGenerations generationService, IChatMessageStore chatMessageRepository,
+    public ChatRecoveryService(IGenerations generationService, IChatOutcomes outcomes,
                                ChatGenerationWatcher watcher, ISystemEvents systemEvents) {
         this.generationService = generationService;
-        this.chatMessageRepository = chatMessageRepository;
+        this.outcomes = outcomes;
         this.watcher = watcher;
         this.systemEvents = systemEvents;
     }
@@ -72,7 +72,7 @@ public class ChatRecoveryService implements IChatRecovery {
         if (ids.isEmpty()) {
             return;
         }
-        Set<Long> withTurn = new HashSet<>(chatMessageRepository.generationIdsWithTurn(ids));
+        Set<Long> withTurn = new HashSet<>(outcomes.refsWithOutcome(ids));
         List<Long> missing = ids.stream().filter(id -> !withTurn.contains(id)).toList();
         for (Generation generation : generationService.findAllById(missing)) {
             watcher.persistOutcome(generation, generation.getConversationId());

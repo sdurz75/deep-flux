@@ -3,10 +3,10 @@ package org.dual.replicate.app.training.application;
 import java.time.Instant;
 
 import org.dual.replicate.app.shared.domain.AppEventSource;
-import org.dual.replicate.app.prompt.domain.CaptionStyle;
-import org.dual.replicate.app.prompt.domain.ImageCaptionException;
-import org.dual.replicate.app.prompt.port.in.IImageCaptioner;
-import org.dual.replicate.app.shared.domain.OpenRouterException;
+import org.dual.replicate.core.ai.domain.CaptionStyle;
+import org.dual.replicate.core.ai.domain.ImageCaptionException;
+import org.dual.replicate.core.ai.port.in.IImageCaptioner;
+import org.dual.replicate.core.ai.domain.OpenRouterException;
 import org.dual.replicate.app.training.domain.CaptionSource;
 import org.dual.replicate.app.training.domain.CaptionStatus;
 import org.dual.replicate.app.training.domain.LoraType;

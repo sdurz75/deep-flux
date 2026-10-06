@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.dual.replicate.app.prompt.domain.CaptionStyle;
+import org.dual.replicate.core.ai.domain.CaptionStyle;
 import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
-import org.dual.replicate.app.prompt.domain.ImageCaptionException;
-import org.dual.replicate.app.prompt.port.in.IImageCaptioner;
+import org.dual.replicate.core.ai.domain.ImageCaptionException;
+import org.dual.replicate.core.ai.port.in.IImageCaptioner;
 import org.dual.replicate.app.training.domain.CaptionSource;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.PendingCaption;

@@ -1,7 +1,7 @@
 package org.dual.replicate.controller;
 
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.port.out.IChatConversationStore;
+import org.dual.replicate.core.chat.domain.ChatConversation;
+import org.dual.replicate.core.chat.port.out.IChatConversationStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

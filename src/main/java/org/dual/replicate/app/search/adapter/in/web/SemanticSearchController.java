@@ -7,15 +7,15 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
-import org.dual.replicate.app.search.domain.DocumentFilter;
-import org.dual.replicate.app.shared.domain.Tags;
-import org.dual.replicate.app.search.domain.DocumentTypes;
-import org.dual.replicate.app.search.domain.IndexStats;
-import org.dual.replicate.app.search.domain.IndexedDocument;
-import org.dual.replicate.app.search.domain.ScoredDocument;
-import org.dual.replicate.app.search.port.in.IArchiveIndex;
-import org.dual.replicate.app.search.port.in.IArchiveNotes;
-import org.dual.replicate.app.search.port.in.IArchiveSearch;
+import org.dual.replicate.core.search.domain.DocumentFilter;
+import org.dual.replicate.core.kernel.Tags;
+import org.dual.replicate.core.search.domain.DocumentTypes;
+import org.dual.replicate.core.search.domain.IndexStats;
+import org.dual.replicate.core.search.domain.IndexedDocument;
+import org.dual.replicate.core.search.domain.ScoredDocument;
+import org.dual.replicate.core.search.port.in.IArchiveIndex;
+import org.dual.replicate.core.search.port.in.IArchiveNotes;
+import org.dual.replicate.core.search.port.in.IArchiveSearch;
 import org.dual.replicate.core.kernel.Paged;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import jakarta.servlet.http.HttpServletResponse;
@@ -49,8 +49,14 @@ public class SemanticSearchController {
     static final int PAGE_SIZE = 20;
     /** Filtro "media" della form (solo generazioni e immagini importate): valori ammessi, il resto e' ignorato come "tutti". */
     static final List<String> MEDIA = List.of("all", "image", "video");
-    static final List<String> TYPES = List.of("all", DocumentTypes.GENERATION, DocumentTypes.IMPORTED, DocumentTypes.CHAT, DocumentTypes.CONVERSATION,
-            DocumentTypes.NOTE);
+
+    /** "Tutti" e i tipi dell'indice, nell'ordine delle sorgenti (note per ultime). */
+    private List<String> types() {
+        List<String> types = new java.util.ArrayList<>();
+        types.add("all");
+        types.addAll(search.types());
+        return types;
+    }
 
     /** Un documento con, se viene da una ricerca, il suo punteggio di similarita' (0..1). */
     public record Hit(IndexedDocument doc, Double score) {
@@ -84,7 +90,7 @@ public class SemanticSearchController {
         model.addAttribute("stats", stats());
         model.addAttribute("tag", Tags.normalize(tag));
         model.addAttribute("knownTags", search.tags());
-        model.addAttribute("types", TYPES);
+        model.addAttribute("types", types());
         model.addAttribute("mediaOptions", MEDIA);
         model.addAttribute("media", media);
         model.addAttribute("favourites", favourites);

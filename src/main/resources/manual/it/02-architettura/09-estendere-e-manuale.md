@@ -17,7 +17,7 @@ Si censisce con un `INSERT` in `replicate_model`. Se ha parametri nuovi serve un
 
 ## Aggiungere uno strumento alla chat
 
-Una classe con metodi `@Tool` che implementa `ChatToolkit`, con un `@Order` e la chiave della sua sezione di prompt (`deep-chat.section.<nome>` in `prompts.properties`). Va aggiunta all'elenco di `ChatPromptTest`, che controlla il tetto di lunghezza, la coerenza delle sezioni e che ogni strumento citato esista. Se il bot deve poter citare un nuovo percorso dell'app, si aggiunge anche all'elenco chiuso di `linkAppPaths` in `deep-chat.html` e alla sezione `appmap`.
+Una classe con metodi `@Tool` che implementa `IChatToolkit`, con un `@Order` e la chiave della sua sezione di prompt (`deep-chat.section.<nome>` in `prompts.properties`). Va aggiunta all'elenco di `ChatPromptTest`, che controlla il tetto di lunghezza, la coerenza delle sezioni e che ogni strumento citato esista. Se il bot deve poter citare un nuovo percorso dell'app, si aggiunge anche all'elenco chiuso di `linkAppPaths` in `deep-chat.html` e alla sezione `appmap`.
 
 ## Aggiungere un servizio remoto
 

@@ -15,9 +15,9 @@ import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.generation.domain.event.GenerationCompletedEvent;
 import org.dual.replicate.app.generation.domain.event.ImageImportedEvent;
 import org.dual.replicate.app.generation.port.out.IGenerationStore;
-import org.dual.replicate.app.prompt.domain.ImageAnalysisException;
-import org.dual.replicate.app.prompt.domain.ImageDescription;
-import org.dual.replicate.app.prompt.port.in.IImageDescriber;
+import org.dual.replicate.core.ai.domain.ImageAnalysisException;
+import org.dual.replicate.core.ai.domain.ImageDescription;
+import org.dual.replicate.core.ai.port.in.IImageDescriber;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;
@@ -173,7 +173,7 @@ class ImportedImageServiceTest {
     void aServiceFailureFailsTheAnalysisAndIsRecorded() {
         Generation generation = pendingImported(7L);
         when(storage.read("f.png")).thenReturn(new SourceImage(new byte[]{1}, "image/png"));
-        RuntimeException failure = new org.dual.replicate.app.shared.domain.OpenRouterException("timeout", null, Kind.TRANSIENT);
+        RuntimeException failure = new org.dual.replicate.core.ai.domain.OpenRouterException("timeout", null, Kind.TRANSIENT);
         when(describer.describe(any(SourceImage.class))).thenThrow(failure);
 
         service.analyze(7L);

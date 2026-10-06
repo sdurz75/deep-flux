@@ -1,5 +1,6 @@
 package org.dual.replicate.app.chat.application;
 
+import org.dual.replicate.core.chat.application.ChatOutcomeService;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -8,17 +9,17 @@ import java.util.Optional;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.domain.ChatMessage;
-import org.dual.replicate.app.chat.domain.ChatMessageRole;
+import org.dual.replicate.core.chat.domain.ChatConversation;
+import org.dual.replicate.core.chat.domain.ChatMessage;
+import org.dual.replicate.core.chat.domain.ChatMessageRole;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
-import org.dual.replicate.app.chat.domain.event.ChatMessagePushEvent;
+import org.dual.replicate.core.chat.domain.event.ChatMessagePushEvent;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.domain.ReplicateException;
-import org.dual.replicate.app.chat.port.out.IChatConversationStore;
-import org.dual.replicate.app.chat.port.out.IChatMessageStore;
-import org.dual.replicate.app.chat.port.out.IChatNotifier;
+import org.dual.replicate.core.chat.port.out.IChatConversationStore;
+import org.dual.replicate.core.chat.port.out.IChatMessageStore;
+import org.dual.replicate.core.chat.port.out.IChatNotifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -61,7 +62,7 @@ class ChatGenerationWatcherTest {
     @Test
     void watchPersistsChatMessageAndBroadcastsOnSuccess() {
         ChatGenerationWatcher watcher = new ChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
+                generationService, new ChatOutcomeService(chatConversationRepository, chatMessageRepository, broadcaster), i18n, systemEvents);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -80,7 +81,7 @@ class ChatGenerationWatcherTest {
         ChatMessage saved = messageCaptor.getValue();
         assertThat(saved.getRole()).isEqualTo(ChatMessageRole.AI);
         assertThat(saved.getContent()).isEqualTo("Immagine generata con successo.");
-        assertThat(saved.getGenerationId()).isEqualTo(generation.getId());
+        assertThat(saved.getOutcomeRef()).isEqualTo(generation.getId());
 
         ArgumentCaptor<ChatMessagePushEvent> pushCaptor =
                 ArgumentCaptor.forClass(ChatMessagePushEvent.class);
@@ -93,7 +94,7 @@ class ChatGenerationWatcherTest {
     @Test
     void watchPersistsErrorMessageOnFailure() {
         ChatGenerationWatcher watcher = new ChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
+                generationService, new ChatOutcomeService(chatConversationRepository, chatMessageRepository, broadcaster), i18n, systemEvents);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.FAILED);
@@ -121,7 +122,7 @@ class ChatGenerationWatcherTest {
     @Test
     void watchDoesNothingWhenConversationWasDeletedMeanwhile() {
         ChatGenerationWatcher watcher = new ChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
+                generationService, new ChatOutcomeService(chatConversationRepository, chatMessageRepository, broadcaster), i18n, systemEvents);
 
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         generation.setStatus(GenerationStatus.SUCCEEDED);
@@ -147,7 +148,7 @@ class ChatGenerationWatcherTest {
     @Test
     void watchStopsSilentlyWhenGenerationWasDeletedMeanwhile() {
         ChatGenerationWatcher watcher = new ChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
+                generationService, new ChatOutcomeService(chatConversationRepository, chatMessageRepository, broadcaster), i18n, systemEvents);
 
         when(generationService.waitUntilTerminal(eq(1L), any(Duration.class)))
                 .thenThrow(new ReplicateException("generazione non trovata"));
@@ -161,7 +162,7 @@ class ChatGenerationWatcherTest {
 
     private ChatGenerationWatcher watcher() {
         return new ChatGenerationWatcher(
-                generationService, chatConversationRepository, chatMessageRepository, broadcaster, i18n, systemEvents);
+                generationService, new ChatOutcomeService(chatConversationRepository, chatMessageRepository, broadcaster), i18n, systemEvents);
     }
 
     /** Errore inatteso con la riga ancora esistente: NON e' una cancellazione, va registrato (prima veniva ingoiato in silenzio). */
@@ -197,7 +198,7 @@ class ChatGenerationWatcherTest {
         Generation generation = new Generation("pred-1", "owner/model", null, "a cat", null);
         org.springframework.test.util.ReflectionTestUtils.setField(generation, "id", 1L);
         generation.setStatus(GenerationStatus.SUCCEEDED);
-        when(chatMessageRepository.existsByGenerationId(1L)).thenReturn(true);
+        when(chatMessageRepository.existsByOutcomeRef(1L)).thenReturn(true);
 
         assertThat(watcher().persistOutcome(generation, 7L)).isFalse();
 

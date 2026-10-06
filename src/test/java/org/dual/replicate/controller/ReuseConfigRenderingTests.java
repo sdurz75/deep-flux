@@ -155,4 +155,16 @@ class ReuseConfigRenderingTests {
                 .contains("target.searchParams.set(name, value)")
                 .doesNotContain("sharedPrompt").doesNotContain("sharedSeed");
     }
+
+    /** I path citabili in chat vengono dalla configurazione dell'app (app.chat.link-paths), non da un elenco scritto nel template. */
+    @Test
+    void theChatLinkablePathsComeFromTheConfiguration() throws Exception {
+        String chat = mockMvc.perform(get("/deep-chat")).andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        chat = mockMvc.perform(get(chat)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        // Il valore e' una stringa JS gia' escapata da Thymeleaf: "\\" nel sorgente e' un backslash nella regex.
+        assertThat(chat).contains("window.deepChatLinkAlternatives = \"generations\\/new|generations\\/\\\\d+|generations|import\\/\\\\d+|import|gallery|search|loras|tokens|system\\/events|manual\\/")
+                .contains("window.deepChatLinkEntities = \"generations|import\"");
+    }
 }

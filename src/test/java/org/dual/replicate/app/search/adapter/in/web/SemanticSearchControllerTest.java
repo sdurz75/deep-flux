@@ -3,10 +3,10 @@ package org.dual.replicate.app.search.adapter.in.web;
 import java.util.List;
 import java.util.Map;
 
-import org.dual.replicate.app.search.adapter.out.vector.FakeEmbeddingModel;
-import org.dual.replicate.app.search.adapter.out.vector.VectorDocumentRepository;
-import org.dual.replicate.app.search.adapter.out.vector.VectorIndexer;
-import org.dual.replicate.app.search.domain.DocumentTypes;
+import org.dual.replicate.core.search.adapter.out.vector.FakeEmbeddingModel;
+import org.dual.replicate.core.search.adapter.out.vector.VectorDocumentRepository;
+import org.dual.replicate.core.search.adapter.out.vector.VectorIndexer;
+import org.dual.replicate.core.search.domain.DocumentTypes;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +57,7 @@ class SemanticSearchControllerTest {
 
     @BeforeEach
     void clean() {
-        indexer.delete(store.list(null, 1, 1000).documents().stream().map(org.dual.replicate.app.search.domain.IndexedDocument::id).toList());
+        indexer.delete(store.list(null, 1, 1000).documents().stream().map(org.dual.replicate.core.search.domain.IndexedDocument::id).toList());
     }
 
     private void derived(String id, String type, long refId, String text) {
@@ -232,7 +232,7 @@ class SemanticSearchControllerTest {
         // la risposta porta solo le statistiche: la lista si ricarica da sola (search-form ascolta note-saved) coi filtri correnti
         assertThat(created).contains("id=\"search-stats\"").doesNotContain("<li");
         assertThat(body(get("/search/results").param("type", "note"))).contains("il mio castello con il drago").contains("Idea");
-        org.dual.replicate.app.search.domain.IndexedDocument note = store.list(noteFilter(), 1, 10).documents().get(0);
+        org.dual.replicate.core.search.domain.IndexedDocument note = store.list(noteFilter(), 1, 10).documents().get(0);
         assertThat(note.id()).startsWith("note:");
         assertThat(note.metadata()).containsKey("createdAt");
         long createdAt = ((Number) note.metadata().get("createdAt")).longValue();

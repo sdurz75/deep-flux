@@ -1,5 +1,6 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +24,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Order(70)
-public class CreditsTool implements ChatToolkit {
+public class CreditsTool implements IChatToolkit {
 
     private final ICredits credits;
     private final IGenerations generations;

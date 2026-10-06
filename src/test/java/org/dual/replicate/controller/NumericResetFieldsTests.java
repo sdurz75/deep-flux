@@ -11,8 +11,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.port.out.IChatConversationStore;
+import org.dual.replicate.core.chat.domain.ChatConversation;
+import org.dual.replicate.core.chat.port.out.IChatConversationStore;
 import org.dual.replicate.app.generation.domain.GenerationFormType;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.app.generation.port.in.IGenerationForms;

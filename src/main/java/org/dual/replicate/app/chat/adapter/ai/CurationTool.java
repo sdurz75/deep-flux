@@ -1,11 +1,12 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.port.in.IChatConversations;
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
+import org.dual.replicate.core.chat.domain.ChatConversation;
+import org.dual.replicate.core.chat.port.in.IChatConversations;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.generation.port.in.IGenerations;
-import org.dual.replicate.app.shared.domain.Tags;
+import org.dual.replicate.core.kernel.Tags;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Order(40)
-public class CurationTool implements ChatToolkit {
+public class CurationTool implements IChatToolkit {
 
     private final IGenerations generations;
     private final IChatConversations conversations;

@@ -1,5 +1,6 @@
 package org.dual.replicate.app.shared.domain;
 
+import org.dual.replicate.core.chat.domain.ChatEventSubjects;
 
 /**
  * Il {@code subject} degli eventi di sistema per le entita' dell'app ({@code generation:12}, {@code conversation:5}, {@code training:7}, {@code trainingDataset:3}), nello
@@ -9,7 +10,7 @@ package org.dual.replicate.app.shared.domain;
 public final class AppEventSubjects {
 
     public static final String GENERATION = "generation";
-    public static final String CONVERSATION = "conversation";
+    public static final String CONVERSATION = ChatEventSubjects.CONVERSATION;
     public static final String TRAINING = "training";
     public static final String TRAINING_DATASET = "trainingDataset";
 
@@ -31,6 +32,6 @@ public final class AppEventSubjects {
         if (generationId != null) {
             return GENERATION + ":" + generationId;
         }
-        return conversationId != null ? CONVERSATION + ":" + conversationId : null;
+        return ChatEventSubjects.ofConversation(conversationId);
     }
 }

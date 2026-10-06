@@ -412,7 +412,7 @@ class BackupRoundTripTest {
         j.update("INSERT INTO generation_file_tag (generation_id, filename, tag) VALUES (?, 'f2.png', 'scartata')", first);
         j.update("INSERT INTO chat_conversation (title, created_at, updated_at, generation_settings_json) VALUES ('Una chat', now(), now(), '{\"a\":1}')");
         long conversation = j.queryForObject("SELECT id FROM chat_conversation", Long.class);
-        j.update("INSERT INTO chat_message (conversation_id, role, content, generation_id, created_at) VALUES (?, 'USER', ?, NULL, now()), (?, 'ASSISTANT', 'ok', ?, now())",
+        j.update("INSERT INTO chat_message (conversation_id, role, content, outcome_ref, created_at) VALUES (?, 'USER', ?, NULL, now()), (?, 'ASSISTANT', 'ok', ?, now())",
                 conversation, awkward, conversation, first);
         j.update("INSERT INTO chat_conversation_tag (conversation_id, tag) VALUES (?, 'importante')", conversation);
         j.update("INSERT INTO lora_preset (name, source, scale, trigger_words, created_at, updated_at) VALUES ('mio', 'sdurz75/flux-lora-ff3', 0.7, 'ff3', now(), now())");

@@ -8,7 +8,7 @@ import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
-import org.dual.replicate.app.chat.port.out.IChatMessageStore;
+import org.dual.replicate.core.chat.port.in.IChatOutcomes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,7 +29,7 @@ class ChatRecoveryServiceTest {
     private IGenerations generationService;
 
     @Mock
-    private IChatMessageStore chatMessageRepository;
+    private IChatOutcomes chatMessageRepository;
 
     @Mock
     private ChatGenerationWatcher watcher;
@@ -54,7 +54,7 @@ class ChatRecoveryServiceTest {
     void startupWritesTheMissingChatTurn() {
         Generation done = generation(1L, GenerationStatus.SUCCEEDED, 7L);
         when(generationService.terminalIdsWithConversation(any(Instant.class), anyInt())).thenReturn(List.of(1L));
-        when(chatMessageRepository.generationIdsWithTurn(anyCollection())).thenReturn(List.of());
+        when(chatMessageRepository.refsWithOutcome(anyCollection())).thenReturn(List.of());
         when(generationService.findAllById(List.of(1L))).thenReturn(List.of(done));
         when(generationService.inProgress()).thenReturn(List.of());
 
@@ -82,7 +82,7 @@ class ChatRecoveryServiceTest {
     void sweepSkipsGenerationsThatAlreadyHaveATurnAndWritesTheOthers() {
         Generation orphan = generation(3L, GenerationStatus.FAILED, 4L);
         when(generationService.terminalIdsWithConversation(any(Instant.class), anyInt())).thenReturn(List.of(3L, 5L));
-        when(chatMessageRepository.generationIdsWithTurn(anyCollection())).thenReturn(List.of(5L));
+        when(chatMessageRepository.refsWithOutcome(anyCollection())).thenReturn(List.of(5L));
         when(generationService.findAllById(List.of(3L))).thenReturn(List.of(orphan));
 
         service().sweep();

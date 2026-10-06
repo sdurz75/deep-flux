@@ -1,10 +1,14 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
+import java.util.Map;
+import java.util.List;
 import org.dual.replicate.app.chat.domain.ChatAction;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.chat.domain.ChatTurnResult;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -20,7 +24,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Order(50)
-public class ActionProposalTool implements ChatToolkit {
+public class ActionProposalTool implements IChatToolkit {
 
     private static final String PROPOSED = " Nothing has been done yet: the user will see a confirmation button under your reply "
             + "and decides there. Tell them so; never say the action was carried out.";
@@ -158,5 +162,17 @@ public class ActionProposalTool implements ChatToolkit {
     @Override
     public String promptSection() {
         return "deep-chat.section.actions";
+    }
+
+    @Override
+    public void beginTurn(Map<String, Object> toolContext) {
+        toolContext.put(ActionProposalHolder.CONTEXT_KEY, new ActionProposalHolder());
+    }
+
+    @Override
+    public void endTurn(Map<String, Object> toolContext, ChatTurnResult result) {
+        if (toolContext.get(ActionProposalHolder.CONTEXT_KEY) instanceof ActionProposalHolder holder && !holder.getActions().isEmpty()) {
+            result.extra("actions", List.copyOf(holder.getActions()));
+        }
     }
 }

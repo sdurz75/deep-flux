@@ -130,6 +130,34 @@ app:
     max-vision-calls-per-turn: 2
     history-max-turns: 40
     history-max-chars: 60000
+    # Sezioni del system prompt (chiavi di prompts.properties) prima e dopo quelle dei tool presenti; senza: solo nucleo e guida.
+    prompt-sections:
+      leading:
+        - deep-chat.section.core
+        - deep-chat.section.guidance
+        - deep-chat.section.appmap
+      trailing:
+        - prompts.creative-context
+        - deep-chat.image-prompting-guide
+    # Path dell'app che la chat trasforma in link (solo in visualizzazione, vedi ChatLinkPaths): elenco CHIUSO di frammenti di regex senza lo
+    # slash iniziale, i piu' lunghi per primi. Un path nuovo citabile va aggiunto qui e nella sezione di prompt deep-chat.section.appmap.
+    # entity-link-paths: i prefissi di /<prefisso>/<id> mostrati come #id.
+    link-paths:
+      - 'generations/new'
+      - 'generations/\d+'
+      - 'generations'
+      - 'import/\d+'
+      - 'import'
+      - 'gallery'
+      - 'search'
+      - 'loras'
+      - 'tokens'
+      - 'system/events'
+      - 'manual/[\w\-]+(?:#[\w\-]+)?'
+      - 'manual'
+    entity-link-paths:
+      - generations
+      - import
   recovery:
     # Recupero delle generazioni rimaste "in corso" (riavvio a meta' polling, watcher perso): all'avvio e
     # ogni pochi minuti (GenerationRecoveryService). Disattivato nei test (application-test.yml).

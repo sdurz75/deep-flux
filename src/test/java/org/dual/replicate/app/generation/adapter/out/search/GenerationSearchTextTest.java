@@ -5,7 +5,7 @@ import java.util.List;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationKind;
 import org.dual.replicate.app.generation.port.in.ILoraPresets.LoraView;
-import org.dual.replicate.app.search.domain.DocumentTypes;
+import org.dual.replicate.core.search.domain.DocumentTypes;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 

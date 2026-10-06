@@ -7,17 +7,11 @@ import org.dual.replicate.app.generation.port.in.IGenerations;
 import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.events.domain.CoreEventSource;
-import org.dual.replicate.app.chat.domain.ChatConversation;
-import org.dual.replicate.app.chat.domain.ChatMessage;
-import org.dual.replicate.app.chat.domain.ChatMessageRole;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.domain.GenerationStatus;
-import org.dual.replicate.app.chat.domain.event.ChatMessagePushEvent;
+import org.dual.replicate.core.chat.domain.ChatOutcome;
+import org.dual.replicate.core.chat.port.in.IChatOutcomes;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.dual.replicate.app.chat.port.out.IChatConversationStore;
-import org.dual.replicate.app.chat.port.out.IChatMessageStore;
-import org.dual.replicate.app.chat.port.out.IChatNotifier;
-import org.dual.replicate.app.chat.domain.FileRef;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -42,22 +36,16 @@ public class ChatGenerationWatcher {
     private static final Duration WATCH_TIMEOUT = Duration.ofMinutes(6);
 
     private final IGenerations generationService;
-    private final IChatConversationStore chatConversationRepository;
-    private final IChatMessageStore chatMessageRepository;
-    private final IChatNotifier broadcaster;
+    private final IChatOutcomes outcomes;
     private final Messages i18n;
     private final ISystemEvents systemEvents;
 
     public ChatGenerationWatcher(IGenerations generationService,
-                                      IChatConversationStore chatConversationRepository,
-                                      IChatMessageStore chatMessageRepository,
-                                      IChatNotifier broadcaster,
+                                      IChatOutcomes outcomes,
                                       Messages i18n,
                                       ISystemEvents systemEvents) {
         this.generationService = generationService;
-        this.chatConversationRepository = chatConversationRepository;
-        this.chatMessageRepository = chatMessageRepository;
-        this.broadcaster = broadcaster;
+        this.outcomes = outcomes;
         this.i18n = i18n;
         this.systemEvents = systemEvents;
     }
@@ -99,33 +87,17 @@ public class ChatGenerationWatcher {
 
     /**
      * Scrive il turno di esito (riuscita/fallita) di una generazione nella sua conversazione e lo notifica via
-     * SSE. Idempotente: se esiste gia' un turno per quella generazione (watcher e recupero possono incrociarsi)
-     * non ne aggiunge un secondo. Non lancia: un errore di persistenza viene registrato e il turno verra'
+     * SSE ({@code IChatOutcomes#append}, che e' idempotente: watcher e recupero possono incrociarsi). Non lancia: un errore di persistenza viene registrato e il turno verra'
      * ritentato dallo sweep di GenerationRecoveryService. Ritorna true se ha scritto un turno.
      */
-    public synchronized boolean persistOutcome(Generation generation, Long conversationId) {
+    public boolean persistOutcome(Generation generation, Long conversationId) {
         try {
-            if (chatMessageRepository.existsByGenerationId(generation.getId())) {
-                return false;
-            }
-            ChatConversation conversation = chatConversationRepository.findById(conversationId).orElse(null);
-            if (conversation == null) {
-                // Conversazione cancellata mentre la generazione era in corso.
-                return false;
-            }
-
             String text = generation.getStatus() == GenerationStatus.SUCCEEDED
                     ? i18n.get("deepchat.push.succeeded")
                     : i18n.get("deepchat.push.failed", generation.getErrorMessage() != null
                             ? generation.getErrorMessage() : i18n.get("generation.error.failedGeneric"));
-
-            conversation.touch();
-            chatConversationRepository.save(conversation);
-            chatMessageRepository.save(new ChatMessage(conversation, ChatMessageRole.AI, text, generation.getId()));
-
-            broadcaster.chatMessage(new ChatMessagePushEvent(
-                    conversationId, generation.getId(), text, FileRef.of(generation)));
-            return true;
+            return outcomes.append(conversationId,
+                    new ChatOutcome(generation.getId(), text, GenerationChatOutcomes.fileRefs(generation)));
         } catch (RuntimeException e) {
             systemEvents.record(CoreEventSource.INTERNAL, "persistChatTurn", e, AppEventSubjects.of(generation.getId(), conversationId));
             return false;

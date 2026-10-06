@@ -6,5 +6,9 @@ import org.dual.replicate.core.kernel.EventSource;
 public enum CoreEventSource implements EventSource {
     STORAGE,
     TOKENS,
-    INTERNAL
+    INTERNAL,
+    /** Il provider LLM della chat e dell'AI (OpenRouter). */
+    OPENROUTER,
+    /** La ricerca web dell'assistente (SearXNG). */
+    SEARXNG
 }

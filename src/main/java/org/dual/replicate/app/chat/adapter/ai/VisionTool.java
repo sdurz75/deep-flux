@@ -1,13 +1,15 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
+import java.util.Map;
 import java.util.List;
 
 import org.dual.replicate.app.generation.domain.AnalysisStatus;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.port.in.IGenerations;
-import org.dual.replicate.app.prompt.domain.ImageAnalysisException;
-import org.dual.replicate.app.prompt.domain.ImageDescription;
-import org.dual.replicate.app.prompt.port.in.IImageDescriber;
+import org.dual.replicate.core.ai.domain.ImageAnalysisException;
+import org.dual.replicate.core.ai.domain.ImageDescription;
+import org.dual.replicate.core.ai.port.in.IImageDescriber;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
@@ -26,7 +28,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Order(80)
-public class VisionTool implements ChatToolkit {
+public class VisionTool implements IChatToolkit {
 
     private final IGenerations generations;
     private final IImageStorageService storage;
@@ -100,5 +102,10 @@ public class VisionTool implements ChatToolkit {
     @Override
     public String promptSection() {
         return "deep-chat.section.vision";
+    }
+
+    @Override
+    public void beginTurn(Map<String, Object> toolContext) {
+        toolContext.put(VisionCallCounter.CONTEXT_KEY, new VisionCallCounter());
     }
 }

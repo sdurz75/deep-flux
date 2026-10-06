@@ -41,17 +41,19 @@ Queste regole sono verificate da `ArchitectureTest` (ArchUnit) e da `SourceImpor
 | core.storage | i binari: nome, validazione, filesystem o WebDAV, `/images/{file}` |
 | core.backup | export e import del sistema completo |
 | core.manual | questo manuale |
+| core.chat | il motore di Deep Chat: conversazioni, turni, assistente, ricerca web, note, storico lato server |
+| core.ai | miglioramento del prompt, descrizione e didascalia delle immagini con un modello di visione, esecutore delle chiamate al provider LLM |
+| core.search | ricerca semantica: indice, riconciliazione, note |
 | app.generation | generazioni, immagini importate, catalogo modelli, LoRA, galleria, costo |
-| app.chat | Deep Chat: conversazioni, assistente, strumenti, recupero |
-| app.search | ricerca semantica, indice, note |
+| app.chat | il lato app di Deep Chat: strumenti legati alle generazioni, esiti, azioni proposte, recupero, pagina |
+| app.search | la pagina `/search` |
 | app.training | addestramento LoRA: dataset, ritaglio, didascalie, training su Replicate, risultato |
-| app.prompt | miglioramento del prompt e descrizione delle immagini con un modello di visione |
 | app.credits | credito residuo di Replicate e OpenRouter |
 | app.shared | dominio comune dell'app (tag, sorgenti degli eventi, home) |
 
 ## Chi dipende da chi, nell'app
 
-`prompt` e `search` sono foglie. `generation` dipende da `prompt` e `search`; `chat` da `generation`, `search`, `credits` e `prompt`; `credits` da `generation`; `training` da `generation` (preset e catalogo dei modelli) e da `prompt` (le didascalie), e nessuno dipende da `training`. `generation` non conosce `chat` (solo un numero, `Generation.conversationId`), e `search` non conosce né `generation` né `chat`: legge i loro dati tramite una interfaccia di estensione (`ISearchableSource`) che loro implementano.
+`core.ai` e `core.search` sono foglie del core; `core.chat` dipende da `core.ai`, `core.search` e `core.manual` e non conosce le generazioni (le SPI `IChatToolkit`, `IChatTurnContributor`, `IChatPageContributor`, `IChatOutcomeResolver` le implementa l'app). Nell'app `generation` dipende da `core.ai` e `core.search`; `app.chat` da `generation`, `credits` e `core.chat`; `credits` da `generation`; `training` da `generation` (preset e catalogo dei modelli) e da `prompt` (le didascalie), e nessuno dipende da `training`. `generation` non conosce `chat` (solo un numero, `Generation.conversationId`), e `core.search` non conosce né `generation` né `chat`: legge i loro dati tramite una interfaccia di estensione (`ISearchableSource`) che loro implementano.
 
 ## I punti di estensione del core
 

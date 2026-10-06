@@ -1,5 +1,6 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -33,10 +34,10 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Component
 @Order(20)
-public class LibraryTool implements ChatToolkit {
+public class LibraryTool implements IChatToolkit {
 
     /** Chiave ToolContext con l'id della conversazione corrente (messo da SpringAiAssistant). */
-    public static final String CONVERSATION_ID_CONTEXT_KEY = "conversationId";
+    public static final String CONVERSATION_ID_CONTEXT_KEY = org.dual.replicate.core.chat.domain.ChatTurnContext.CONVERSATION_ID;
 
     private static final int MAX_ITEMS = 20;
     private static final int MAX_EVENTS = 10;

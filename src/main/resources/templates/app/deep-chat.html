@@ -54,6 +54,8 @@
         window.deepChatPendingGenerationIds = /*[[${pendingGenerationIds}]]*/ [];
         window.deepChatHistory = JSON.parse(/*[[${chatHistoryJson}]]*/ '[]');
         window.deepChatConversationId = /*[[${activeConversationId}]]*/ null;
+        window.deepChatLinkAlternatives = /*[[${chatLinkAlternatives}]]*/ '';
+        window.deepChatLinkEntities = /*[[${chatLinkEntities}]]*/ '';
         window.setDeepChatSettings = function (settings) {
             window.deepChatSettings = settings;
         };
@@ -324,12 +326,12 @@
       aggiorna piu' se le impostazioni cambiano dopo il primo turno.
       requestInterceptor invece legge window.deepChatSettings fresco ad
       ogni invio (impostato dal pannello sopra, non da questo script:
-      vedi il commento su Alpine/timing piu' in alto). "model" e' l'unico
-      campo del pannello che finisce a livello radice del body (vedi
-      DeepChatApiController.Request): tutti gli altri campi del form-type
-      corrente finiscono sotto "parameters", nidificati, cosi'
-      DeepChatApiController puo' delegare la loro interpretazione allo
-      stesso binding (IGenerationForms) del form diretto senza dover
+      vedi il commento su Alpine/timing piu' in alto). Il body porta un solo oggetto "settings", opaco per
+      la chat (DeepChatApiController.Request): "model" e i campi del form-type
+      corrente, nidificati sotto "parameters", cosi' chi compone il
+      contesto del turno (IChatTurnContributor, per l'app GenerationChatTurnContext)
+      puo' delegare la loro interpretazione allo stesso binding (IGenerationForms)
+      del form diretto senza dover
       elencare i nomi dei campi nel Request record — un nuovo form-type
       non richiede modifiche qui. I campi vuoti/non impostati (stringa
       vuota, null, undefined) non vengono inclusi: cosi' un modello che
@@ -428,13 +430,20 @@
                 const depth = (location.pathname.slice(at + 1).match(/\//g) || []).length;
                 return '../'.repeat(depth) + path.slice(1);
             };
-            const linkAppPaths = (text) => typeof text !== 'string' ? text
-                : text.replace(/(\]\()?(?<![\w\/.])(\/(?:generations\/new|generations\/\d+|generations|import\/\d+|import|gallery|search|loras|tokens|system\/events|manual\/[\w\-]+(?:#[\w\-]+)?|manual)(?:\?[\w%=&\-]*)?)(?![\w\/])/g,
+            // Path dell'host citabili in chat (configurazione app.chat.link-paths / entity-link-paths, vedi ChatLinkPaths): elenco CHIUSO, uno
+            // nuovo si aggiunge li' e nella sezione appmap del prompt. Senza elenco niente viene trasformato.
+            const linkAlternatives = window.deepChatLinkAlternatives;
+            const linkEntities = window.deepChatLinkEntities;
+            const linkPathRe = linkAlternatives
+                ? new RegExp('(\\]\\()?(?<![\\w\\/.])(\\/(?:' + linkAlternatives + ')(?:\\?[\\w%=&\\-]*)?)(?![\\w\\/])', 'g') : null;
+            const linkEntityRe = linkEntities ? new RegExp('^\\/(?:' + linkEntities + ')\\/(\\d+)$') : null;
+            const linkAppPaths = (text) => typeof text !== 'string' || !linkPathRe ? text
+                : text.replace(linkPathRe,
                     (match, inLink, path) => {
                         if (inLink) {
                             return inLink + appHref(path);
                         }
-                        const entity = path.match(/^\/(?:generations|import)\/(\d+)$/);
+                        const entity = linkEntityRe ? path.match(linkEntityRe) : null;
                         return '[' + (entity ? '#' + entity[1] : path) + '](' + appHref(path) + ')';
                     });
             deepChat.history = (window.deepChatHistory || []).map((m) =>
@@ -444,17 +453,19 @@
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
                 const parameters = {};
+                const clientSettings = {};
                 for (const [key, value] of Object.entries(settings)) {
                     if (value === null || value === undefined || value === '') {
                         continue;
                     }
                     if (key === 'model') {
-                        details.body.model = value;
+                        clientSettings.model = value;
                     } else {
                         parameters[key] = value;
                     }
                 }
-                details.body.parameters = parameters;
+                clientSettings.parameters = parameters;
+                details.body.settings = clientSettings;
                 details.body.conversationId = window.deepChatConversationId;
                 return details;
             };

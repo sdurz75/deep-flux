@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.port.in.ILoraPresets.LoraView;
-import org.dual.replicate.app.search.domain.DocumentTypes;
+import org.dual.replicate.core.search.domain.DocumentTypes;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;

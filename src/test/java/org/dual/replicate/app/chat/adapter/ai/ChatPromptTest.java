@@ -1,5 +1,10 @@
 package org.dual.replicate.app.chat.adapter.ai;
 
+import org.dual.replicate.core.chat.adapter.ai.ArchiveSearchTool;
+import org.dual.replicate.core.chat.adapter.ai.ManualTool;
+import org.dual.replicate.core.chat.adapter.ai.NoteTool;
+import org.dual.replicate.core.chat.adapter.ai.WebSearchTool;
+import org.dual.replicate.core.chat.port.in.IChatToolkit;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -31,7 +36,7 @@ class ChatPromptTest {
     /** Tetto del prompt completo (tutti i gruppi presenti), in caratteri: ~2.500 token. */
     private static final int MAX_PROMPT_CHARS = 10_000;
 
-    private static final List<Class<? extends ChatToolkit>> TOOLKITS = List.of(WebSearchTool.class, LibraryTool.class,
+    private static final List<Class<? extends IChatToolkit>> TOOLKITS = List.of(WebSearchTool.class, LibraryTool.class,
             ManualTool.class, ArchiveSearchTool.class, CurationTool.class, ActionProposalTool.class, NoteTool.class, CreditsTool.class, VisionTool.class,
             ImageGenerationTool.class);
 
@@ -55,10 +60,10 @@ class ChatPromptTest {
         return String.valueOf(value);
     }
 
-    private static String sectionOf(Class<? extends ChatToolkit> toolkit) {
+    private static String sectionOf(Class<? extends IChatToolkit> toolkit) {
         // promptSection() non dipende dallo stato: i toolkit si istanziano senza collaboratori solo per leggere la chiave.
         try {
-            return ((ChatToolkit) org.springframework.objenesis.ObjenesisHelper.newInstance(toolkit)).promptSection();
+            return ((IChatToolkit) org.springframework.objenesis.ObjenesisHelper.newInstance(toolkit)).promptSection();
         } catch (RuntimeException e) {
             throw new IllegalStateException(toolkit.getSimpleName(), e);
         }
@@ -137,7 +142,7 @@ class ChatPromptTest {
             }
         }
         // E nei testi c'e' un tool di OGNI toolkit (nessun gruppo resta senza spiegazione): la sezione ne nomina almeno uno.
-        for (Class<? extends ChatToolkit> toolkit : TOOLKITS) {
+        for (Class<? extends IChatToolkit> toolkit : TOOLKITS) {
             String section = sectionOf(toolkit);
             if (section == null) {
                 continue;
