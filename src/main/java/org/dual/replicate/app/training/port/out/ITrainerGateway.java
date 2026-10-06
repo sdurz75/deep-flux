@@ -1,9 +1,12 @@
 package org.dual.replicate.app.training.port.out;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import org.dual.replicate.app.training.domain.DatasetArchive;
 import org.dual.replicate.app.training.domain.TrainerJob;
+import org.dual.replicate.app.training.domain.WeightsFile;
 
 /**
  * Il servizio che addestra: oggi {@code replicate/fast-flux-trainer} su Replicate. Ogni chiamata e' remota. {@link #createTraining} e {@link #ensureDestination}
@@ -27,4 +30,14 @@ public interface ITrainerGateway {
 
     /** Chiede di interrompere un training in corso; uno gia' terminale e' un errore HTTP permanente. */
     TrainerJob cancelTraining(String externalId);
+
+    /**
+     * I campi dell'input del trainer in QUESTA versione (lo schema {@code TrainingInput}), o vuoto se lo schema non si legge. Sola lettura. Serve a non promettere
+     * quello che la versione non sa fare: Replicate ignora in silenzio i campi che non conosce, e una versione senza {@code hf_repo_id}/{@code hf_token} addestra
+     * senza caricare nulla su HuggingFace.
+     */
+    Optional<Set<String>> trainerInputFields(String trainerVersion);
+
+    /** I pesi di un training riuscito (il {@code .safetensors} dentro l'archivio dell'output), o vuoto se non ce n'e' (nessun output, nessun file di pesi). Sola lettura. */
+    Optional<WeightsFile> weights(String externalId);
 }

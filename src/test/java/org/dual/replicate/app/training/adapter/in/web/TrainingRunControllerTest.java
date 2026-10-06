@@ -2,10 +2,14 @@ package org.dual.replicate.app.training.adapter.in.web;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.app.generation.port.out.IPredictionGateway;
+import org.dual.replicate.app.training.domain.HfAccount;
 import org.dual.replicate.app.training.domain.HfStatus;
 import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.LoraType;
@@ -15,6 +19,7 @@ import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.domain.TrainingStatus;
+import org.dual.replicate.app.training.domain.WeightsFile;
 import org.dual.replicate.app.training.port.in.ICaptionJobs;
 import org.dual.replicate.app.training.port.in.ITrainingCaptions;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
@@ -26,6 +31,7 @@ import org.dual.replicate.app.training.port.out.ITrainingStore;
 import org.dual.replicate.core.storage.domain.SourceImage;
 import org.dual.replicate.core.storage.domain.UploadedFile;
 import org.dual.replicate.core.storage.port.in.IImageStorageService;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +46,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -93,6 +101,8 @@ class TrainingRunControllerTest {
     private ITrainingDatasetStore datasetStore;
     @Autowired
     private ITrainingStore trainingStore;
+    @Autowired
+    private IApiTokens tokens;
 
     private final AtomicInteger names = new AtomicInteger();
 
@@ -111,6 +121,7 @@ class TrainingRunControllerTest {
     void cleanUp() {
         trainingStore.deleteAll();
         datasetStore.deleteAll();
+        tokens.list().stream().filter(t -> "hf-upload-test".equals(t.name())).forEach(t -> tokens.delete(t.id()));
         presets.list().stream().filter(p -> "acct/il-mio-gatto-20261005-100000".equals(p.source())).forEach(p -> presets.delete(p.id()));
     }
 
@@ -489,5 +500,111 @@ class TrainingRunControllerTest {
 
         assertThat(page).doesNotContain("launch-settings").doesNotContain("training-launch-check")
                 .contains("href=\"/trainings/" + done.getId() + "\"").contains("Apri il training #" + done.getId());
+    }
+
+    // --- caricamento a mano dei pesi su HuggingFace --------------------------------------------------------------
+
+    /** Un training riuscito col risultato completo ma la copia su HuggingFace non trovata: il caso in cui il trainer non ha caricato nulla. */
+    private Training succeededWithMissingCopy() {
+        Training training = succeededWithResult(1L);
+        training.setHfStatus(HfStatus.NOT_FOUND);
+        return trainingStore.save(training);
+    }
+
+    private Long hfToken() {
+        return tokens.create("HUGGINGFACE", "hf-upload-test", "hf_test_value_1234", null).id();
+    }
+
+    @Test
+    void aMissingCopyOffersTheManualUploadWithTheSavedTokensAndDoesNotPoll() throws Exception {
+        hfToken();
+        Training done = succeededWithMissingCopy();
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Carica i pesi su HuggingFace").contains("sandro/il-mio-gatto").contains("name=\"hfTokenId\"").contains("hf-upload-test")
+                .contains("hx-post=\"/trainings/" + done.getId() + "/hf-upload\"").contains("hx-include=\"#hf-upload-token\"").contains("Carica su HuggingFace")
+                .doesNotContain("every 5s");
+    }
+
+    @Test
+    void withoutASavedTokenTheUploadSaysWhereToAddOneInsteadOfShowingAButton() throws Exception {
+        Training done = succeededWithMissingCopy();
+
+        String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
+
+        assertThat(page).contains("Carica i pesi su HuggingFace").contains("Nessun token salvato: aggiungine uno in /tokens").doesNotContain("hf-upload\"");
+    }
+
+    @Test
+    void aVerifiedCopyOrNoCopyAtAllOffersNoUpload() throws Exception {
+        hfToken();
+        Training verified = succeededWithResult(1L);
+        Training noCopy = succeededWithResult(1L);
+        noCopy.setHfStatus(HfStatus.NONE);
+        trainingStore.save(noCopy);
+
+        assertThat(body(mockMvc.perform(get("/trainings/" + verified.getId())).andReturn())).doesNotContain("Carica i pesi su HuggingFace");
+        assertThat(body(mockMvc.perform(get("/trainings/" + noCopy.getId())).andReturn())).doesNotContain("Carica i pesi su HuggingFace");
+    }
+
+    /** Il percorso intero con i collaboratori esterni finti: richiesta, thread in background, esito sulla riga. L'upload e' tenuto fermo per vedere lo stato "in corso". */
+    @Test
+    void theUploadRunsInTheBackgroundShowsItsProgressAndEndsWithTheCopyVerified() throws Exception {
+        Long tokenId = hfToken();
+        Training done = succeededWithMissingCopy();
+        when(huggingFace.whoami("hf_test_value_1234")).thenReturn(new HfAccount("sandro", "write"));
+        when(trainer.weights("train-1")).thenReturn(Optional.of(mock(WeightsFile.class)));
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(i -> {
+            release.await(10, TimeUnit.SECONDS);
+            return null;
+        }).when(huggingFace).uploadWeights(anyString(), anyString(), any(WeightsFile.class), anyString());
+
+        try {
+            String progress = body(mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId))
+                    .header("HX-Request", "true")).andExpect(status().isOk()).andReturn());
+
+            assertThat(progress).contains("id=\"training-status\"").contains("Caricamento su HuggingFace in corso").contains("Caricamento in corso")
+                    .contains("hx-trigger=\"every 5s\"").doesNotContain("Carica i pesi su HuggingFace").doesNotContain("hf-upload\"");
+            verify(huggingFace, timeout(5000)).uploadWeights(org.mockito.ArgumentMatchers.eq("hf_test_value_1234"),
+                    org.mockito.ArgumentMatchers.eq("sandro/il-mio-gatto"), any(WeightsFile.class), anyString());
+            // un secondo clic mentre il primo e' in corso e' un rifiuto, non un secondo upload
+            mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId)).header("HX-Request", "true"))
+                    .andExpect(status().is4xxClientError());
+        } finally {
+            release.countDown();
+        }
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (trainingStore.findById(done.getId()).orElseThrow().getHfStatus() != HfStatus.VERIFIED && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        assertThat(trainingStore.findById(done.getId()).orElseThrow().getHfStatus()).isEqualTo(HfStatus.VERIFIED);
+        verify(huggingFace, times(1)).uploadWeights(anyString(), anyString(), any(WeightsFile.class), anyString());
+    }
+
+    @Test
+    void aReadOnlyTokenIsARejectionWithAToastAndNothingIsDownloaded() throws Exception {
+        Long tokenId = hfToken();
+        Training done = succeededWithMissingCopy();
+        when(huggingFace.whoami("hf_test_value_1234")).thenReturn(new HfAccount("sandro", "read"));
+
+        mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId)).header("HX-Request", "true"))
+                .andExpect(status().is4xxClientError()).andExpect(header().exists("HX-Trigger"));
+
+        verify(trainer, never()).weights(anyString());
+        verify(huggingFace, never()).uploadWeights(anyString(), anyString(), any(WeightsFile.class), anyString());
+    }
+
+    @Test
+    void uploadingATrainingThatIsNotEligibleIsRejected() throws Exception {
+        Long tokenId = hfToken();
+        Training verified = succeededWithResult(1L);
+
+        mockMvc.perform(post("/trainings/" + verified.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId)).header("HX-Request", "true"))
+                .andExpect(status().is4xxClientError());
+
+        verify(huggingFace, never()).uploadWeights(anyString(), anyString(), any(WeightsFile.class), anyString());
     }
 }

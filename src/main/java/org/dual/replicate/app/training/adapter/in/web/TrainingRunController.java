@@ -2,17 +2,21 @@ package org.dual.replicate.app.training.adapter.in.web;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.port.in.ITrainingDatasets;
+import org.dual.replicate.app.training.port.in.ITrainingHfUploads;
 import org.dual.replicate.app.training.port.in.ITrainings;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -38,14 +42,18 @@ public class TrainingRunController {
     private final ITrainings trainings;
     private final ITrainingDatasets datasets;
     private final ILoraPresets presets;
+    private final ITrainingHfUploads hfUploads;
+    private final IApiTokens tokens;
     /** Per quanto tempo dopo il successo il blocco stato controlla che il risultato si completi: oltre, lo sweep ha smesso di riprenderlo e nulla lo completera'. */
     private final Duration resultWindow;
 
-    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets,
+    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets, ITrainingHfUploads hfUploads, IApiTokens tokens,
                                  @Value("${app.training.result-retry-window:6h}") Duration resultWindow) {
         this.trainings = trainings;
         this.datasets = datasets;
         this.presets = presets;
+        this.hfUploads = hfUploads;
+        this.tokens = tokens;
         this.resultWindow = resultWindow;
     }
 
@@ -122,6 +130,16 @@ public class TrainingRunController {
         return statusView(trainings.cancel(id), model);
     }
 
+    /**
+     * Avvia il caricamento a mano dei pesi su HuggingFace (il rimedio quando il trainer non l'ha fatto) e risponde col blocco stato gia' "in corso", che si aggiorna da
+     * solo. Ritorna subito: il lavoro e' in background. Un rifiuto (token scaduto o di sola lettura, training non caricabile, uno gia' in corso) e' un toast.
+     */
+    @PostMapping("/{id:\\d+}/hf-upload")
+    public String hfUpload(@PathVariable Long id, @RequestParam(defaultValue = "") String hfTokenId, Model model) {
+        hfUploads.request(id, parseLong(hfTokenId));
+        return statusView(trainings.get(id), model);
+    }
+
     /** Elimina il training col suo dataset congelato (non il modello Replicate, il repo HuggingFace ne' il preset). */
     @PostMapping("/{id:\\d+}/delete")
     @ResponseBody
@@ -147,10 +165,15 @@ public class TrainingRunController {
         model.addAttribute("training", training);
         model.addAttribute("snapshot", datasets.find(training.getSnapshotDatasetId()).orElse(null));
         model.addAttribute("preset", presetOf(training));
-        model.addAttribute("polling", isPolling(training));
+        boolean uploading = hfUploads.isUploading(training.getId());
+        boolean uploadable = hfUploads.canUpload(training);
+        model.addAttribute("hfUploading", uploading);
+        model.addAttribute("hfUploadable", uploadable);
+        model.addAttribute("hfTokens", uploadable ? tokens.options(ApiTokenProvider.HUGGINGFACE.name()) : List.of());
+        model.addAttribute("polling", uploading || isPolling(training));
     }
 
-    /** Il blocco stato continua a interrogare finche' il training e' in corso, e dopo il successo finche' il risultato e' incompleto ENTRO la finestra di ripresa. */
+    /** Il blocco stato continua a interrogare finche' il training e' in corso (o un caricamento su HuggingFace lo e': l'esito arriva da solo), e dopo il successo finche' il risultato e' incompleto ENTRO la finestra di ripresa. */
     private boolean isPolling(Training training) {
         if (!training.isTerminal()) {
             return true;

@@ -8,6 +8,8 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -16,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.dual.replicate.app.generation.domain.ReplicateException;
+import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.app.training.domain.ArchiveItem;
 import org.dual.replicate.app.training.domain.DatasetArchive;
 import org.dual.replicate.app.training.domain.HfAccount;
@@ -418,6 +421,100 @@ class TrainingServiceTest {
         verify(trainer, never()).createTraining(anyString(), anyString(), anyMap());
         verify(datasets).deleteSnapshot(SNAPSHOT_ID);
         assertThat(store.rows).isEmpty();
+    }
+
+    /** Il caso reale: la versione 56cb4a64 non ha hf_repo_id/hf_token, Replicate li ignora e il training riesce con il repo vuoto. */
+    @Test
+    void aTrainerVersionWithoutTheHuggingFaceFieldsStopsTheLaunchBeforeSpendingAnything() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
+        when(trainer.trainerInputFields("v-trainer")).thenReturn(Optional.of(Set.of("input_images", "lora_type", "seed", "training_steps", "trigger_word")));
+
+        assertRejected(() -> service.start(DRAFT_ID), "training.error.trainerWithoutHf");
+
+        verify(trainer, never()).uploadFile(anyString(), any(DatasetArchive.class));
+        verify(huggingFace, never()).createModelRepo(anyString(), anyString(), anyBoolean());
+        verify(trainer, never()).ensureDestination(anyString());
+        verify(trainer, never()).createTraining(anyString(), anyString(), anyMap());
+        verify(datasets).deleteSnapshot(SNAPSHOT_ID);
+        assertThat(store.rows).isEmpty();
+    }
+
+    @Test
+    void aTrainerVersionWithTheHuggingFaceFieldsLaunches() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
+        when(trainer.trainerInputFields("v-trainer")).thenReturn(Optional.of(Set.of("hf_repo_id", "hf_token", "input_images")));
+
+        assertThat(service.start(DRAFT_ID).getHfStatus()).isEqualTo(HfStatus.PENDING);
+    }
+
+    @Test
+    void anUnreadableTrainerSchemaDoesNotBlockTheLaunch() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
+        when(trainer.trainerInputFields("v-trainer")).thenReturn(Optional.empty()); // il controllo e' contro un guasto noto, non un permesso
+
+        assertThat(service.start(DRAFT_ID)).isNotNull();
+    }
+
+    /**
+     * Il caso reale del primo training: richiesta la versione con i campi HuggingFace (la guardia passa), ma Replicate esegue una versione piu' vecchia che non li
+     * ha. Il training e' gia' partito: si avvisa subito, e il caricamento a mano a fine corsa e' il rimedio.
+     */
+    @Test
+    void aRunningVersionDifferentFromTheRequestedOneAndWithoutTheHuggingFaceFieldsIsWarnedAboutRightAway() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
+        when(trainer.trainerInputFields("v-trainer")).thenReturn(Optional.of(Set.of("hf_repo_id", "hf_token", "input_images")));
+        when(trainer.trainerInputFields("v-old")).thenReturn(Optional.of(Set.of("input_images", "trigger_word")));
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-1", TrainingStatus.PENDING, null, null, null, "v-old"));
+
+        Training training = service.start(DRAFT_ID);
+
+        assertThat(training.getTrainerVersion()).as("la riga ricorda la versione richiesta").isEqualTo("v-trainer");
+        verify(systemEvents).warn(eq(AppEventSource.TRAINING), eq("trainerVersionWithoutHuggingFace"), eq("training:" + training.getId()), eq("training.warn.trainerVersionNoHf"));
+    }
+
+    @Test
+    void noWarningWhenTheRunningVersionIsTheRequestedOneUnknownOrAbleToUpload() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
+
+        // la stessa versione richiesta
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-1", TrainingStatus.PENDING, null, null, null, "v-trainer"));
+        service.start(DRAFT_ID);
+        // la risposta non riporta la versione
+        store.rows.clear();
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-2", TrainingStatus.PENDING, null, null, null, null));
+        service.start(DRAFT_ID);
+        // una versione diversa ma con i campi
+        store.rows.clear();
+        when(trainer.trainerInputFields("v-other")).thenReturn(Optional.of(Set.of("hf_repo_id", "hf_token")));
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-3", TrainingStatus.PENDING, null, null, null, "v-other"));
+        service.start(DRAFT_ID);
+        // una versione diversa il cui schema non si legge: nessun avviso (e nessun errore su un lancio gia' partito)
+        store.rows.clear();
+        when(trainer.trainerInputFields("v-broken")).thenThrow(new ReplicateException("503", null, Kind.TRANSIENT));
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-4", TrainingStatus.PENDING, null, null, null, "v-broken"));
+        assertThat(service.start(DRAFT_ID)).isNotNull();
+
+        verify(systemEvents, never()).warn(any(), anyString(), any(), anyString());
+    }
+
+    @Test
+    void noWarningWithoutAHuggingFaceCopy() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, false, null, null, true), NOW);
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-1", TrainingStatus.PENDING, null, null, null, "v-old"));
+
+        service.start(DRAFT_ID);
+
+        verify(trainer, never()).trainerInputFields(anyString());
+        verify(systemEvents, never()).warn(any(), anyString(), any(), anyString());
+    }
+
+    @Test
+    void theTrainerSchemaIsNotReadWhenThereIsNoHuggingFaceCopy() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, false, null, null, true), NOW);
+
+        service.start(DRAFT_ID);
+
+        verify(trainer, never()).trainerInputFields(anyString());
     }
 
     @Test

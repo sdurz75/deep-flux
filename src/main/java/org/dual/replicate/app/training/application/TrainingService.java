@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.shared.domain.AppEventSource;
@@ -63,6 +64,8 @@ public class TrainingService implements ITrainings {
     private static final Logger log = LoggerFactory.getLogger(TrainingService.class);
 
     /** Lock a strisce per BOZZA (id % N), distinti da quelli per training: serializzano i lanci della stessa bozza (vedi {@link #start}). */
+    /** I campi con cui il trainer carica i pesi su HuggingFace: senza, la copia non avviene (e Replicate non lo segnala). */
+    private static final Set<String> HF_INPUT_FIELDS = Set.of("hf_repo_id", "hf_token");
     private static final Object[] START_LOCKS = java.util.stream.Stream.generate(Object::new).limit(64).toArray();
 
     /** Data e ora (secondi) nel nome del modello di destinazione: ogni training ha il PROPRIO modello Replicate. */
@@ -267,6 +270,9 @@ public class TrainingService implements ITrainings {
      */
     private Training launch(TrainingDataset snapshot, String hfToken, HfAccount hfAccount, Instant now) {
         String trainerVersion = trainer.trainerVersion();
+        if (hfAccount != null) {
+            requireHuggingFaceSupport(trainerVersion);
+        }
         String fileUrl;
         try (DatasetArchive zip = archiver.build(archiveItems(snapshot))) {
             fileUrl = trainer.uploadFile("dataset.zip", zip);
@@ -293,7 +299,43 @@ public class TrainingService implements ITrainings {
             throw e;
         }
         changed(saved);
+        warnIfTheRunningVersionCannotUploadToHuggingFace(saved, job, trainerVersion);
         return saved;
+    }
+
+    /**
+     * Una versione del trainer senza {@code hf_repo_id}/{@code hf_token} nello schema addestra ma non carica nulla su HuggingFace, e Replicate non se ne lamenta
+     * (ignora i campi che non conosce): il training riesce, il repo resta vuoto. Si ferma PRIMA di spendere. Uno schema che non si legge non blocca: il controllo e'
+     * contro un guasto noto, non un permesso.
+     */
+    private void requireHuggingFaceSupport(String trainerVersion) {
+        trainer.trainerInputFields(trainerVersion).ifPresent(fields -> {
+            if (!fields.containsAll(HF_INPUT_FIELDS)) {
+                throw new TrainingException(messages.get("training.error.trainerWithoutHf", trainerVersion));
+            }
+        });
+    }
+
+    /**
+     * Replicate puo' eseguire una versione del trainer diversa da quella richiesta (il primo training vero: richiesta {@code e5a5bc82}, con i campi HuggingFace,
+     * eseguita {@code 56cb4a64}, senza; e cosi' tutti i training dell'account), e la guardia di {@link #requireHuggingFaceSupport} legge lo schema della
+     * versione RICHIESTA. Qui si guarda quella in esecuzione, dalla risposta alla creazione: se non carica su HuggingFace lo si dice subito (un avviso, il training
+     * e' gia' partito) e il caricamento a mano a fine training e' il rimedio. Un guasto nella lettura dello schema non fa mai fallire un lancio gia' avvenuto.
+     */
+    private void warnIfTheRunningVersionCannotUploadToHuggingFace(Training training, TrainerJob job, String requestedVersion) {
+        String running = job.version();
+        if (training.getHfRepoId() == null || running == null || running.isBlank() || running.equals(requestedVersion)) {
+            return;
+        }
+        try {
+            boolean canUpload = trainer.trainerInputFields(running).map(fields -> fields.containsAll(HF_INPUT_FIELDS)).orElse(true);
+            if (!canUpload) {
+                systemEvents.warn(AppEventSource.TRAINING, "trainerVersionWithoutHuggingFace", AppEventSubjects.ofTraining(training.getId()),
+                        messages.get("training.warn.trainerVersionNoHf", training.getId(), requestedVersion, running));
+            }
+        } catch (RemoteServiceException e) {
+            // un avviso in meno: il training e' partito e la copia verra' verificata a fine corsa
+        }
     }
 
     private static Map<String, Object> trainerInput(TrainingDataset snapshot, String fileUrl, String hfRepoId, String hfToken) {

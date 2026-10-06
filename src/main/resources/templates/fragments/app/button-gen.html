@@ -352,6 +352,17 @@
         th:text="${text}">Rigenera</button>
 
 <!--
+  trainingHfUpload(text, url, include, confirmText): "Carica su HuggingFace" nel dettaglio di un training (fragments/app/training-run.html :: status). POST htmx sul `url`
+  (gia' avvolto in @{...} dal chiamante) col token scelto (`include` = selettore della select che lo porta: htmx manda solo il suo valore) che rimpiazza il blocco stato
+  (#training-status): la risposta e' il blocco gia' in "caricamento in corso", che da li' si aggiorna da solo. data-busy="off": il lavoro vero (centinaia di MB) e' in
+  background, l'overlay "operazione in corso" bloccherebbe la pagina per minuti.
+-->
+<button th:fragment="trainingHfUpload(text, url, include, confirmText)" type="button" th:hx-post="${url}" hx-target="#training-status" hx-swap="outerHTML"
+        th:hx-include="${include}" th:hx-confirm="${confirmText}" data-busy="off"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-1 text-[0.8rem]"
+        th:text="${text}">Carica su HuggingFace</button>
+
+<!--
   resetTrainingCrop(text, url): "Ripristina l'originale" sulla card di un'immagine ritagliata (training-dataset.html :: images). POST htmx che rimpiazza
   #training-images; `url` e' gia' avvolto in @{...} dal chiamante. data-busy="off": azione leggera, nessun overlay.
 -->

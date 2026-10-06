@@ -62,6 +62,14 @@ Di partenza, oltre al modello su Replicate (quello che userai nell'app), il trai
 
 **Il token HuggingFace viene inviato a Replicate**, come segreto del trainer, perché possa caricare i pesi. L'app non lo salva con il training (la riga del training e il dataset congelato ricordano solo quale token hai scelto): resta soltanto, cifrato, in [Token](/tokens), e l'app lo rilegge da lì per controllare la copia a fine training. Se non vuoi che Replicate lo riceva, spegni **Copia i pesi su HuggingFace**: il modello su Replicate si crea comunque.
 
+Attenzione: il trainer carica i pesi su HuggingFace **solo se la versione che Replicate esegue sa farlo**, e Replicate non te lo dice. Le versioni più vecchie ignorano in silenzio il repo e il token: il training riesce, il repo resta vuoto e nei log non c'è nessuna traccia. Se la versione richiesta è una di queste, l'avvio si ferma **prima di spendere** con un messaggio che lo dice; se invece Replicate ne esegue una diversa da quella richiesta (è già successo), il training parte e compare subito un avviso in [Eventi](/system/events). In entrambi i casi il rimedio è il caricamento a mano, descritto qui sotto.
+
+### Se i pesi non arrivano su HuggingFace
+
+Se a fine training la copia risulta **non trovata** o **non verificata** (per esempio perché il token non c'è più), il dettaglio del training mostra **Carica i pesi su HuggingFace**: scegli un token con permesso di scrittura e premi **Carica su HuggingFace**. L'app scarica i pesi che Replicate ha già prodotto (qualche centinaio di MB, nessun costo e nessun nuovo training) e li carica nel repo del training. Ci mette qualche minuto: la pagina mostra **Caricamento su HuggingFace in corso** e si aggiorna da sola; a fine caricamento la copia risulta **Presente su HuggingFace**. Se qualcosa va storto compare un avviso in [Eventi](/system/events) e il bottone resta, per riprovare.
+
+Il repo deve esistere già (l'app non lo ricrea) e, se contiene un file con lo stesso nome, viene sostituito. Il token scelto in questo momento resta nell'app: a Replicate non viene inviato. I pesi si possono scaricare finché Replicate conserva l'output del training: se il caricamento dice che non ci sono più, i pesi vanno recuperati da Replicate a mano.
+
 ## Lo storico e il dettaglio di un training
 
 La scheda **Storico dei training** elenca i lanci con stato, dataset, passi e data, e si aggiorna da sola. Il dettaglio di un training mostra impostazioni, **Log del trainer**, il dataset congelato (le immagini e le didascalie com'erano al lancio) e, se c'è, l'errore. Finché è in corso la pagina si aggiorna da sola.
@@ -77,6 +85,6 @@ Quando il training finisce, in pochi istanti l'app prepara il risultato e il det
 
 - un **preset** in [LoRA](/loras), con il nome del dataset (se esiste già un LoRA con quel nome, ci si aggiunge la data), la trigger word e una nota che rimanda al training;
 - il **modello** come LoRA utilizzabile, come flux-lora-ff3: compare nel form [Genera immagine](/generations/new) e in Deep Chat, senza bisogno di token;
-- la verifica della **copia su HuggingFace**: l'app controlla che nel repo ci siano davvero i file dei pesi.
+- la verifica della **copia su HuggingFace**: l'app controlla che nel repo ci siano davvero i file dei pesi (se non ci sono, il dettaglio offre il [caricamento a mano](#se-i-pesi-non-arrivano-su-huggingface)).
 
 Se qualcosa non torna (il modello non è utilizzabile nell'app, nel repo non si trovano i pesi) compare un avviso nella campanella e in [Eventi](/system/events); il training resta comunque completato e i pesi esistono. Subito dopo la fine, Replicate e HuggingFace possono impiegare qualche minuto a mostrare il modello e i file: l'app riprova per un po' prima di dare l'avviso. Il costo del training non entra nella stima del saldo Replicate della barra in basso: vedi [Crediti e costi](10-crediti-e-costi.md).

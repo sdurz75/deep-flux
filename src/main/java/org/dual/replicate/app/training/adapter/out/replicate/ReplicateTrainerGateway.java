@@ -2,8 +2,12 @@ package org.dual.replicate.app.training.adapter.out.replicate;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -12,12 +16,14 @@ import org.dual.replicate.app.generation.domain.ReplicateException;
 import org.dual.replicate.app.training.domain.DatasetArchive;
 import org.dual.replicate.app.training.domain.TrainerJob;
 import org.dual.replicate.app.training.domain.TrainingStatus;
+import org.dual.replicate.app.training.domain.WeightsFile;
 import org.dual.replicate.app.training.port.out.ITrainerGateway;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.kernel.remote.RestRemoteClient;
 import org.dual.replicate.core.kernel.remote.RetryPolicy;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -38,6 +44,10 @@ import org.springframework.web.client.RestClient;
  */
 @Component
 class ReplicateTrainerGateway extends RestRemoteClient implements ITrainerGateway {
+
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() {
+    };
+    private static final String WEIGHTS_SUFFIX = ".safetensors";
 
     private final RestClient restClient;
     private final String apiToken;
@@ -159,6 +169,99 @@ class ReplicateTrainerGateway extends RestRemoteClient implements ITrainerGatewa
                 .retrieve().body(TrainingResponse.class))).toJob();
     }
 
+    @Override
+    public Optional<Set<String>> trainerInputFields(String trainerVersion) {
+        requireToken();
+        String[] ownerAndName = split(trainerModel);
+        Map<String, Object> version = remote.call("getTrainerVersion", () -> restClient.get()
+                .uri("/models/{owner}/{name}/versions/{version}", ownerAndName[0], ownerAndName[1], trainerVersion)
+                .headers(this::authHeaders).retrieve().body(JSON_OBJECT));
+        return inputFieldsOf(version);
+    }
+
+    /** {@code openapi_schema.components.schemas.TrainingInput.properties}: i nomi dei campi; vuoto se la forma e' inattesa (meglio non sapere che sbagliare). */
+    static Optional<Set<String>> inputFieldsOf(Map<String, Object> version) {
+        Object node = version;
+        for (String key : new String[] {"openapi_schema", "components", "schemas", "TrainingInput", "properties"}) {
+            node = node instanceof Map<?, ?> map ? map.get(key) : null;
+        }
+        if (!(node instanceof Map<?, ?> properties) || properties.isEmpty()) {
+            return Optional.empty();
+        }
+        Set<String> fields = new TreeSet<>();
+        properties.keySet().forEach(k -> fields.add(String.valueOf(k)));
+        return Optional.of(fields);
+    }
+
+    @Override
+    public Optional<WeightsFile> weights(String externalId) {
+        requireToken();
+        // Solo l'output: la risposta porta anche l'input, con il token HuggingFace, che non si legge (il record non lo ha).
+        TrainingOutputResponse response = remote.call("getTrainingOutput", () -> restClient.get().uri("/trainings/{id}", externalId).headers(this::authHeaders)
+                .retrieve().body(TrainingOutputResponse.class));
+        String url = response == null || response.output() == null ? null : response.output().weights();
+        if (url == null || url.isBlank()) {
+            return Optional.empty();
+        }
+        URI uri = URI.create(url.strip());
+        if (!"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
+            throw new ReplicateException(messages.get("replicate.error.weightsUrl"));
+        }
+        // Solo le intestazioni dell'archivio, con richieste Range da 512 byte: il contenuto si scarica quando lo si legge.
+        TarScanner.Entry entry;
+        try {
+            entry = TarScanner.find((offset, length) -> download(uri, RetryPolicy.DEFAULT, offset, length, in -> in.readNBytes(length)), WEIGHTS_SUFFIX).orElse(null);
+        } catch (IOException e) {
+            throw new ReplicateException(messages.get("replicate.error.connectionFailed", e.getMessage()), e, RemoteServiceException.Kind.TRANSIENT);
+        }
+        return entry == null ? Optional.empty() : Optional.of(new TarWeights(uri, entry));
+    }
+
+    /**
+     * Scarica {@code length} byte di {@code uri} da {@code offset} (un indirizzo pubblico di replicate.delivery: NIENTE token) e li passa al lettore dentro la
+     * callback, cosi' la risposta si chiude da sola. Sempre con un Range: una risposta che lo ignora (200) comincerebbe dal primo byte dell'archivio e il file
+     * sarebbe corrotto, quindi e' un errore. Con {@code RetryPolicy.NONE} per la lettura vera: uno stream gia' consumato non si riavvolge.
+     */
+    private <T> T download(URI uri, RetryPolicy policy, long offset, long length, WeightsFile.Reader<T> reader) {
+        return remote.call("downloadTrainingWeights", policy, () -> restClient.get().uri(uri)
+                .header(HttpHeaders.RANGE, "bytes=" + offset + "-" + (offset + length - 1)).exchange((request, response) -> {
+                    if (response.getStatusCode().isError()) {
+                        throw errors.httpStatus(response.getStatusCode().value(), uri.getHost());
+                    }
+                    if (response.getStatusCode().value() != 206) {
+                        throw new ReplicateException(messages.get("replicate.error.rangeUnsupported"), null, RemoteServiceException.Kind.PERMANENT);
+                    }
+                    return reader.read(response.getBody());
+                }));
+    }
+
+    /** Il {@code .safetensors} dentro l'archivio dell'output: ogni lettura scarica, con un Range, i soli byte del file. */
+    private final class TarWeights implements WeightsFile {
+
+        private final URI uri;
+        private final TarScanner.Entry entry;
+
+        TarWeights(URI uri, TarScanner.Entry entry) {
+            this.uri = uri;
+            this.entry = entry;
+        }
+
+        @Override
+        public String name() {
+            return entry.name();
+        }
+
+        @Override
+        public long size() {
+            return entry.size();
+        }
+
+        @Override
+        public <T> T read(Reader<T> reader) {
+            return download(uri, RetryPolicy.NONE, entry.dataOffset(), entry.size(), reader);
+        }
+    }
+
     private String accountUsername() {
         AccountResponse account = remote.call("getAccount", () -> restClient.get().uri("/account").headers(this::authHeaders).retrieve()
                 .body(AccountResponse.class));
@@ -234,6 +337,15 @@ class ReplicateTrainerGateway extends RestRemoteClient implements ITrainerGatewa
         }
     }
 
+    /** Sottoinsieme di GET /trainings/{id} per i pesi: SOLO l'output (l'input porta il token HuggingFace). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record TrainingOutputResponse(Output output) {
+
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        record Output(String weights) {
+        }
+    }
+
     /** Sottoinsieme di POST /files: l'URL da cui il trainer legge lo zip. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record FileResponse(Urls urls) {
@@ -261,11 +373,11 @@ class ReplicateTrainerGateway extends RestRemoteClient implements ITrainerGatewa
      * {@code Object} perche' non si deve rompere la lettura per una forma inattesa.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record TrainingResponse(String id, String status, Object error, String logs, Map<String, Object> metrics) {
+    record TrainingResponse(String id, String status, Object error, String logs, Map<String, Object> metrics, String version) {
 
         TrainerJob toJob() {
             Double predictTime = metrics != null && metrics.get("predict_time") instanceof Number n ? n.doubleValue() : null;
-            return new TrainerJob(id, statusOf(status), error == null ? null : String.valueOf(error), logs, predictTime);
+            return new TrainerJob(id, statusOf(status), error == null ? null : String.valueOf(error), logs, predictTime, version);
         }
 
         /** I termini di Replicate; uno sconosciuto non terminale vale "in corso" (non si chiude una riga per una parola mai vista). */
