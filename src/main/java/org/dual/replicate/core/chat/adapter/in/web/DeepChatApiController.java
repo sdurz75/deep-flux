@@ -1,4 +1,4 @@
-package org.dual.replicate.app.chat.adapter.in.web;
+package org.dual.replicate.core.chat.adapter.in.web;
 
 import java.util.List;
 import java.util.Map;

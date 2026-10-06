@@ -5,7 +5,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
 
-import org.dual.replicate.app.chat.adapter.in.web.DeepChatController;
+import org.dual.replicate.core.chat.adapter.in.web.DeepChatController;
 import org.dual.replicate.app.generation.adapter.in.web.GalleryController;
 import org.dual.replicate.app.generation.adapter.in.web.GenerationController;
 import org.dual.replicate.app.shared.domain.AppEventSource;

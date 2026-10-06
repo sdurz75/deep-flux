@@ -1,4 +1,4 @@
-package org.dual.replicate.app.chat.adapter.in.web;
+package org.dual.replicate.core.chat.adapter.in.web;
 
 import java.util.List;
 
@@ -41,14 +41,14 @@ public class DeepChatController {
 
     private final IChatConversations conversations;
     private final List<IChatPageContributor> pageContributors;
-    private final ChatLinkPaths linkPaths;
+    private final ChatPageConfig linkPaths;
     private final java.util.Optional<IChatOutcomeResolver> outcomeResolver;
     private final ObjectMapper objectMapper;
     private final Messages messages;
 
     public DeepChatController(IChatConversations conversations,
                                List<IChatPageContributor> pageContributors,
-                               ChatLinkPaths linkPaths,
+                               ChatPageConfig linkPaths,
                                java.util.Optional<IChatOutcomeResolver> outcomeResolver,
                                ObjectMapper objectMapper,
                                Messages messages) {
@@ -87,7 +87,8 @@ public class DeepChatController {
         model.addAttribute("chatLinkEntities", linkPaths.entities());
         // Il resto del model (pannello di generazione, placeholder, galleria contestuale) lo mette chi ospita la chat.
         pageContributors.forEach(contributor -> model.addAllAttributes(contributor.pageAttributes(id)));
-        return "app/deep-chat";
+        model.addAttribute("chatHost", linkPaths.hostFragment());
+        return "core/deep-chat";
     }
 
     /**
@@ -123,7 +124,8 @@ public class DeepChatController {
         conversations.rename(id, title);
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", activeConversationId);
-        return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
+        model.addAttribute("chatHost", linkPaths.hostFragment());
+        return "fragments/core/chat-conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
     /** Tag utente della conversazione: come {@link #rename}, risponde con la sola sidebar. Oltre il tetto di tag e' un 422 (toast di errore di htmx). */
@@ -150,7 +152,8 @@ public class DeepChatController {
     private String conversationItems(Long activeConversationId, Model model) {
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", activeConversationId);
-        return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
+        model.addAttribute("chatHost", linkPaths.hostFragment());
+        return "fragments/core/chat-conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
     /**
@@ -175,7 +178,8 @@ public class DeepChatController {
         }
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", activeConversationId);
-        return "fragments/app/conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
+        model.addAttribute("chatHost", linkPaths.hostFragment());
+        return "fragments/core/chat-conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
     /**

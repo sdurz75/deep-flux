@@ -4,7 +4,7 @@
 
 <!--
   Contenuto della lista conversazioni di /deep-chat: solo items(...),
-  il <ul> - incluso da deep-chat.html dentro il rail sinistro non
+  il <ul> - incluso da core/deep-chat.html dentro il rail sinistro non
   collassabile (fragments/core/accordion.html :: staticPanels, sezione
   "Conversazioni", insieme al pannello impostazioni), che fornisce gia'
   lui il contenitore (bordo/sfondo/larghezza). Il bottone "Nuova
@@ -12,6 +12,8 @@
   includesse insieme a items(...)): deve restare visibile a prescindere
   dai pannelli sotto, quindi vive in deep-chat.html sopra l'intero
   accordion, non dentro una sua sezione - vedi il commento li'.
+  Tag utente e suggerimenti sono dell'host: li fornisce il fragment indicato da chatHost (app.chat.host-fragment, conversationTags e
+  knownTags); senza host la sidebar non ha tag.
   items(...) e' anche il target htmx di rename/delete
   (#conversation-list-items): uno swap della SOLA lista.
 
@@ -78,13 +80,13 @@
 
         <!--/* Tag utente: sempre per la conversazione aperta e per quelle gia' taggate (le altre si taggano aprendole, per non riempire la sidebar di campi). */-->
         <div th:if="${c.id == activeConversationId or !#sets.isEmpty(c.tags)}" x-show="!editing" class="basis-full px-1">
-            <th:block th:replace="~{fragments/app/tag-editor :: conversationEditor(conversation=${c}, activeConversationId=${activeConversationId})}"></th:block>
+            <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: conversationTags(conversation=${c}, activeConversationId=${activeConversationId})}"></th:block></th:block>
         </div>
     </li>
 
-    <!--/* Unica datalist dei suggerimenti per tutti i campi tag della sidebar (id known-tags). */-->
-    <li class="hidden" aria-hidden="true">
-        <datalist id="known-tags"><option th:each="s : ${@generationService.allTags()}" th:value="${s}"></option></datalist>
+    <!--/* Dell'host: la datalist dei suggerimenti per tutti i campi tag della sidebar (id known-tags). */-->
+    <li th:if="${chatHost != null and !#strings.isEmpty(chatHost)}" class="hidden" aria-hidden="true">
+        <th:block th:replace="~{${chatHost} :: knownTags}"></th:block>
     </li>
 </ul>
 

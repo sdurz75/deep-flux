@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{header.nav.deepChat}">Deep Chat</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{header.nav.deepChat})}"></nav>
+</div>
+<div layout:fragment="content">
+    <h1>Deep Chat</h1>
+    <!--/* Introduzione, dell'host: il fragment indicato da chatHost (app.chat.host-fragment) e' il suo punto di innesto (intro, leftRail,
+         below, scripts, conversationTags, knownTags); senza host la pagina e' la sola chat con la lista delle conversazioni. */-->
+    <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: intro}"></th:block></th:block>
+
+    <!--
+      Setup sincrono PRIMA del pannello Alpine sotto (stesso principio
+      del boot del tema in fragments/core/layout.html: uno script classico,
+      non deferred/module, eseguito durante il parsing, garantito prima
+      che Alpine (script deferred in head) scansioni il DOM e valuti
+      x-init). Alpine puo' partire non appena il SUO script deferred
+      viene eseguito, il che avviene PRIMA degli script "type=module"
+      piu' sotto (il bundle di deep-chat e' un modulo esterno da
+      scaricare, quindi anche uno script module inline in coda a lui
+      parte piu' tardi) — verificato dal vivo: una funzione definita in
+      uno script module veniva chiamata da x-init prima di esistere. Qui
+      sotto niente di tutto questo: solo dati e una funzione che scrive
+      su window, zero dipendenze dall'elemento <deep-chat> (quello lo
+      aspetta lo script module in fondo alla pagina, via
+      customElements.whenDefined).
+      th:inline="javascript" su una stringa (non su un oggetto) sfrutta
+      l'escaping JS-safe di Thymeleaf per il caso "inlinea questa
+      String" invece di doversi affidare a come Thymeleaf serializzerebbe
+      un elenco di ChatMessage — chatHistoryJson arriva gia' come JSON
+      dal controller (DeepChatController), qui solo JSON.parse. I
+      modelli censiti (vedi ModelCatalogService) non passano piu' da
+      qui: sono letti direttamente dal Model in
+      fragments dell'host (per l'app, il pannello delle impostazioni di generazione).
+      deepChatConversationId identifica la conversazione corrente
+      (attiva lato server, vedi DeepChatController): il
+      requestInterceptor piu' in basso lo inietta in ogni richiesta a
+      DeepChatApiController, cosi' un turno arriva sempre gia' associato
+      alla conversazione giusta.
+    -->
+    <script th:inline="javascript">
+        window.deepChatHistory = JSON.parse(/*[[${chatHistoryJson}]]*/ '[]');
+        window.deepChatConversationId = /*[[${activeConversationId}]]*/ null;
+        window.deepChatLinkAlternatives = /*[[${chatLinkAlternatives}]]*/ '';
+        window.deepChatLinkEntities = /*[[${chatLinkEntities}]]*/ '';
+    </script>
+
+    <!--
+      Layout a due colonne: colonna sinistra a larghezza FISSA (280px
+      da 861px in su, mai variabile in base al contenuto/pannello) con
+      bottone "Nuova conversazione" + rail NON collassabile sotto
+      (fragments/core/accordion.html :: staticPanels - lista conversazioni
+      e impostazioni di generazione, sempre entrambe visibili) +
+      <deep-chat> a destra (occupa lo spazio restante). Sotto gli
+      861px torna a impilarsi (flex-col di base, min-[861px]:flex-row
+      per le due colonne - vedi anche il commento su <deep-chat> sotto
+      per il calcolo della larghezza).
+
+      Il bottone vive FUORI da staticPanels, non dentro alla sezione
+      "Conversazioni": deve restare visibile a prescindere da quale
+      pannello sta mostrando contenuto piu' lungo sotto, quindi e' un
+      fratello che precede l'accordion nella stessa colonna, non un
+      figlio del suo primo pannello. La larghezza fissa vive su QUESTA
+      colonna (non piu' dentro staticPanels, vedi fragments/core/accordion.html):
+      un solo posto tiene bottone e accordion alla stessa identica
+      larghezza sempre, invece di doverli sincronizzare in due punti.
+    -->
+    <div class="flex flex-col gap-4 items-start min-[861px]:flex-row">
+        <div class="w-full min-[861px]:w-[280px] min-[861px]:flex-none">
+            <form th:hx-post="@{/deep-chat/new}" hx-swap="none" class="mb-3">
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{deepChat.button.newConversation}, extraClass='w-full text-[0.85rem] py-1.5')}">Nuova conversazione</button>
+            </form>
+
+            <!--/* Colonna sinistra: quella dell'host (per l'app, accordion con conversazioni e impostazioni) o la sola lista. */-->
+            <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: leftRail}"></th:block></th:block>
+            <div th:unless="${chatHost != null and !#strings.isEmpty(chatHost)}" id="conversation-list-section">
+                <div th:replace="~{fragments/core/chat-conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
+            </div>
+        </div>
+
+        <!--
+          Componente complesso montato isolato su un singolo elemento
+          (vedi CLAUDE.md, "Componenti davvero complessi"): nessun
+          impatto sul resto delle pagine, solo questa carica lo script.
+          requestBodyLimits e' statico: HTML puro, niente th:*. connect
+          invece deve passare da @{...}: e' un URL assoluto dal root del
+          dominio che il browser di deep-chat usa cosi' com'e', quindi
+          se scritto come stringa letterale ignora del tutto sotto quale
+          path l'app e' montata da un reverse proxy (es. /deep) — vedi
+          server.forward-headers-strategy in application.yml. height
+          generosa in vh: deve occupare tutto lo spazio verticale
+          disponibile, non un riquadro piccolo. display:block e'
+          necessario perche' il componente di default e'
+          display:table-cell (stile interno di deep-chat), che rende
+          width:100% inefficace.
+
+          LARGHEZZA: min-[861px]:flex-1 (flex-grow/shrink/basis via
+          flexbox) + min-[861px]:w-auto, MAI un valore calc() sulla
+          proprieta' width qui — anche se sembra il modo piu' diretto
+          per "100% meno i 280px della colonna sinistra". Root cause
+          verificata dal vivo (ispezionando lo shadow DOM con Chrome
+          devtools): lo shadow root di deep-chat ha una regola interna
+          `#container { width: inherit; ... }`. Il valore ereditato da
+          `width: inherit` e' il COMPUTED value della proprieta' `width`
+          sull'host, non il suo used value (il box renderizzato): per un
+          `calc()`/percentuale il computed value resta simbolico (non si
+          risolve in px), quindi #container lo RIVALUTA da capo contro
+          il proprio containing block — che e' lo stesso box dell'host.
+          Con `width: calc(100% - 280px - 1rem)` sull'host, il risultato
+          e' che i 280px+1rem vengono sottratti DUE VOLTE (una volta per
+          il box esterno, una seconda implicita nell'inherit), lasciando
+          uno spazio vuoto a destra esattamente di quella larghezza — il
+          box esterno risultava effettivamente piu' grande del suo
+          stesso #container. `flex-1` + `w-auto` evita il problema alla
+          radice: 'auto' come valore specificato di `width` ha un
+          computed value gia' risolto in px (non simbolico), quindi
+          l'inherit lo copia cosi' com'e', una sola volta. Sotto 861px
+          la regola min-[861px]: non si applica, resta il fallback
+          w-full mobile-first (una percentuale pura, senza sottrazioni —
+          non soffre dello stesso problema perche' non c'e' nulla da
+          raddoppiare).
+        -->
+        <deep-chat
+                id="deep-chat-el"
+                th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
+                requestBodyLimits='{"maxMessages": 1}'
+                class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
+                       bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
+                       min-[861px]:flex-1 min-[861px]:w-auto">
+        </deep-chat>
+        <!--
+          TEMA della chat: <deep-chat> sta in uno shadow DOM che Tailwind non raggiunge (sfondo e testo
+          dell'host li dicono le classi qui sopra, ereditate dentro). Bolle, input e icone sono invece
+          stili interni di deep-chat, applicati UNA volta (chatStyle/auxiliaryStyle non si riapplicano):
+          lo script sotto legge i colori dei token da queste sonde (classi letterali, mai colori
+          hardcoded) e riscrive un <style> nello shadow root a ogni cambio di data-theme su <html>.
+        -->
+        <div aria-hidden="true" class="fixed -z-10 pointer-events-none opacity-0">
+            <span id="chat-probe-canvas" class="bg-canvas dark:bg-canvas-dark"></span>
+            <span id="chat-probe-surface" class="bg-surface dark:bg-surface-dark"></span>
+            <span id="chat-probe-ink" class="text-ink dark:text-ink-dark"></span>
+            <span id="chat-probe-muted" class="text-ink-muted dark:text-ink-muted-dark"></span>
+            <span id="chat-probe-line" class="border border-line dark:border-line-dark"></span>
+            <span id="chat-probe-accent" class="bg-accent dark:bg-accent-dark"></span>
+            <span id="chat-probe-accent-contrast" class="text-accent-contrast dark:text-accent-contrast-dark"></span>
+            <span id="chat-probe-danger" class="text-danger dark:text-danger-dark"></span>
+        </div>
+
+    <!--/* Sotto la chat, dell'host (per l'app, la galleria contestuale alla conversazione). */-->
+    <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: below}"></th:block></th:block>
+
+    <!--/* Script e template dell'host: PRIMA del bundle e del modulo qui sotto (definisce window.deepChatHost). */-->
+    <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: scripts}"></th:block></th:block>
+
+    <!-- deepChat.bundle.js e' un modulo ES (termina con "export{...}"): un
+         <script> classico lo scarta con "Unexpected token 'export'" senza
+         mai registrare l'elemento -> serve type="module". -->
+    <script type="module" src="https://unpkg.com/deep-chat@2.5.1/dist/deepChat.bundle.js"></script>
+
+    <!--
+      Ripristina la cronologia persistita (window.deepChatHistory, vedi
+      sopra) e inoltra le impostazioni del pannello (modello + parametri)
+      e la conversazione corrente al backend, vedi DeepChatApiController.
+
+      history e' una PROPRIETA' JS (un array), non un attributo
+      HTML: verificato dal vivo che deep-chat non fa JSON.parse di un
+      attributo history scritto come stringa (a differenza di
+      connect, che invece e' un oggetto semplice e funziona anche come
+      attributo) — assegnarla come attributo non genera errori ma i
+      messaggi non compaiono. L'assegnazione va fatta PRIMA che l'utente
+      possa scrivere (siamo dentro whenDefined, che risolve non appena
+      l'elemento e' definito/upgradato: sempre prima di qualunque
+      interazione umana con la pagina appena caricata). (initialMessages,
+      usata qui in precedenza, e' deprecata da deep-chat 2.0.0 in favore
+      di history — stessa semantica, stesso timing.)
+
+      requestInterceptor (chiamato da deep-chat ad ogni invio, letto dal
+      bundle stesso, verificato leggendo il bundle) e non
+      additionalBodyProps: quest'ultimo viene unito al body "grezzo" una
+      volta sola quando l'handler interno viene costruito, e non si
+      aggiorna piu' se le impostazioni cambiano dopo il primo turno.
+      requestInterceptor invece legge window.deepChatSettings fresco ad
+      ogni invio (impostato dal pannello sopra, non da questo script:
+      vedi il commento su Alpine/timing piu' in alto). Il body porta un solo oggetto "settings", opaco per
+      la chat (DeepChatApiController.Request): "model" e i campi del form-type
+      corrente, nidificati sotto "parameters", cosi' chi compone il
+      contesto del turno (IChatTurnContributor, per l'app GenerationChatTurnContext)
+      puo' delegare la loro interpretazione allo stesso binding (IGenerationForms)
+      del form diretto senza dover
+      elencare i nomi dei campi nel Request record — un nuovo form-type
+      non richiede modifiche qui. I campi vuoti/non impostati (stringa
+      vuota, null, undefined) non vengono inclusi: cosi' un modello che
+      non supporta un parametro non lo riceve, invece di fallire su un
+      valore imposto ma inutile per lui. conversationId e' assegnato
+      SEMPRE (non e' un parametro di generazione opzionale come gli
+      altri: senza, DeepChatApiController non saprebbe a quale
+      conversazione persistere il turno).
+    -->
+    <script type="module">
+        customElements.whenDefined('deep-chat').then(() => {
+            const deepChat = document.getElementById('deep-chat-el');
+            const probe = (id, prop) => getComputedStyle(document.getElementById('chat-probe-' + id))[prop];
+            const themeStyle = document.createElement('style');
+            deepChat.shadowRoot.appendChild(themeStyle);
+            const applyChatTheme = () => {
+                const surface = probe('surface', 'backgroundColor');
+                const ink = probe('ink', 'color');
+                const line = probe('line', 'borderTopColor');
+                const accent = probe('accent', 'backgroundColor');
+                themeStyle.textContent =
+                    '.ai-message-text{background-color:' + surface + ';color:' + ink + '}'
+                    + '.user-message-text{background-color:' + accent + ';color:' + probe('accent-contrast', 'color') + '}'
+                    + '#text-input-container{background-color:' + probe('canvas', 'backgroundColor')
+                    + ';border-color:' + line + '}'
+                    + '#text-input{color:' + ink + '}'
+                    + '#text-input[contenteditable]:empty::before,.text-input-placeholder{color:' + probe('muted', 'color') + '}'
+                    + '.input-button-svg *{fill:' + accent + '}'
+                    + '.dropup-menu-item:hover,.dropup-menu-item:focus-visible{background-color:' + surface + '}';
+            };
+            applyChatTheme();
+            new MutationObserver(applyChatTheme)
+                .observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+            const escapeHtml = (value) => String(value == null ? '' : value)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            // Hook dell'host (window.deepChatHost, definito da una sua script classica PRIMA di questo modulo): una funzione che riceve
+            // {deepChat, escapeHtml}, registra i propri listener e ritorna gli hook opzionali history(m), settings(flat), response(r), ready().
+            const host = (typeof window.deepChatHost === 'function' ? window.deepChatHost({deepChat, escapeHtml}) : null) || {};
+            // Cronologia (solo per la vista: al modello la costruisce il server dal DB, il client manda solo l'ultimo messaggio,
+            // requestBodyLimits maxMessages 1): i turni con immagini tornano come messaggi html (con controllo), non "files".
+            // I turni d'errore (LLM fallito, ChatMessage.error) tornano come html con stile d'errore.
+            // Link alle pagine dell'host nel testo dell'assistente (per l'app es. "/generations/12" da searchArchive, "/gallery", "/generations/new?kind=video"):
+            // il path assoluto sparirebbe dietro un reverse proxy su subpath, quindi diventa un link markdown RELATIVO alla pagina
+            // corrente (/deep-chat -> generations/12, /deep-chat/5 -> ../generations/12). Solo in visualizzazione: il testo salvato
+            // resta quello originale. Elenco CHIUSO di path (quelli che il system prompt, sezione appmap, insegna al modello).
+            const appHref = (path) => {
+                const at = location.pathname.lastIndexOf('/deep-chat');
+                const depth = (location.pathname.slice(at + 1).match(/\//g) || []).length;
+                return '../'.repeat(depth) + path.slice(1);
+            };
+            // Path dell'host citabili in chat (configurazione app.chat.link-paths / entity-link-paths, vedi ChatLinkPaths): elenco CHIUSO, uno
+            // nuovo si aggiunge li' e nella sezione appmap del prompt. Senza elenco niente viene trasformato.
+            const linkAlternatives = window.deepChatLinkAlternatives;
+            const linkEntities = window.deepChatLinkEntities;
+            const linkPathRe = linkAlternatives
+                ? new RegExp('(\\]\\()?(?<![\\w\\/.])(\\/(?:' + linkAlternatives + ')(?:\\?[\\w%=&\\-]*)?)(?![\\w\\/])', 'g') : null;
+            const linkEntityRe = linkEntities ? new RegExp('^\\/(?:' + linkEntities + ')\\/(\\d+)$') : null;
+            const linkAppPaths = (text) => typeof text !== 'string' || !linkPathRe ? text
+                : text.replace(linkPathRe,
+                    (match, inLink, path) => {
+                        if (inLink) {
+                            return inLink + appHref(path);
+                        }
+                        const entity = linkEntityRe ? path.match(linkEntityRe) : null;
+                        return '[' + (entity ? '#' + entity[1] : path) + '](' + appHref(path) + ')';
+                    });
+            deepChat.history = (window.deepChatHistory || []).map((m) =>
+                m.role === 'ai' && m.text && !m.error && !(m.files && m.files.length) ? {...m, text: linkAppPaths(m.text)} :
+                m.error ? {role: 'ai', html: '<span style="color:' + probe('danger', 'color') + '">' + escapeHtml(m.text) + '</span>'}
+                // Un turno con allegati (esito di una generazione) lo presenta l'host; senza host resta cosi' com'e'.
+                : (host.history && host.history(m)) || m);
+            deepChat.requestInterceptor = (details) => {
+                // Le impostazioni del client (window.deepChatSettings, le mette l'host) sono opache per la chat: l'host le puo' riformare
+                // (per l'app: modello e parametri di generazione nidificati) prima che partano nel body.
+                const settings = window.deepChatSettings || {};
+                details.body.settings = host.settings ? host.settings(settings) : settings;
+                details.body.conversationId = window.deepChatConversationId;
+                return details;
+            };
+
+            // Risposta del turno: il testo con i link, poi le parti che l'host aggiunge nella stessa bolla (per l'app i placeholder
+            // delle generazioni avviate e i bottoni delle azioni proposte, chiavi "generationIds"/"actions" della risposta).
+            deepChat.responseInterceptor = (response) => {
+                if (response && response.text) {
+                    response.text = linkAppPaths(response.text);
+                }
+                if (host.response) {
+                    host.response(response);
+                }
+                return response;
+            };
+
+            if (host.ready) {
+                host.ready();
+            }
+        });
+    </script>
+
+    <div th:replace="~{fragments/core/live-events :: connect}"></div>
+</div>
+</body>
+</html>
