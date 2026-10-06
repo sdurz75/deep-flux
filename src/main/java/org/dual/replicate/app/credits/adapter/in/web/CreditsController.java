@@ -4,7 +4,8 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.replicate.app.credits.port.in.ICredits;
+import org.dual.replicate.app.credits.port.in.IReplicateBalance;
+import org.dual.replicate.core.credits.port.in.ICredits;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.web.HtmxEvents;
@@ -24,11 +25,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class CreditsController {
 
     private final ICredits credits;
+    private final IReplicateBalance replicateBalance;
     private final ISystemEvents systemEvents;
     private final HtmxEvents htmx;
 
-    public CreditsController(ICredits credits, ISystemEvents systemEvents, HtmxEvents htmx) {
+    public CreditsController(ICredits credits, IReplicateBalance balance, ISystemEvents systemEvents, HtmxEvents htmx) {
         this.credits = credits;
+        this.replicateBalance = balance;
         this.systemEvents = systemEvents;
         this.htmx = htmx;
     }
@@ -42,7 +45,7 @@ public class CreditsController {
     @PostMapping("/replicate")
     public String setReplicateBalance(@RequestParam(defaultValue = "") String balance, HttpServletResponse response, Model model) {
         try {
-            credits.setReplicateBalance(parse(balance));
+            replicateBalance.setReplicateBalance(parse(balance));
             htmx.addHxTrigger(response, "credits-saved", "");
         } catch (RemoteServiceException e) {
             if (e.isReportable()) {

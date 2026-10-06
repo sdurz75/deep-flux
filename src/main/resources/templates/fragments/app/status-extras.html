@@ -32,7 +32,7 @@
 -->
 <th:block th:fragment="items(creditLines)">
     <th:block th:each="line : ${creditLines}"
-              th:with="name=${line.provider.name()}, ok=${line.status.name() == 'OK'},
+              th:with="name=${line.provider}, ok=${line.status.name() == 'OK'},
                        amount=${ok} ? ${#numbers.formatDecimal(line.amountUsd, 1, 2)} : '',
                        warn=${line.low() or line.status.name() == 'NOT_SET'}">
         <th:block th:if="${name == 'REPLICATE'}"

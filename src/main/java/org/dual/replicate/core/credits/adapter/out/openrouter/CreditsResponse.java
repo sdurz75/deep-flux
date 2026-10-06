@@ -1,4 +1,4 @@
-package org.dual.replicate.app.credits.adapter.out.openrouter;
+package org.dual.replicate.core.credits.adapter.out.openrouter;
 
 import java.math.BigDecimal;
 

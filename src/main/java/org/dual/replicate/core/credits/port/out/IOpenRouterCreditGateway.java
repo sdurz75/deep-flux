@@ -1,4 +1,4 @@
-package org.dual.replicate.app.credits.port.out;
+package org.dual.replicate.core.credits.port.out;
 
 import java.math.BigDecimal;
 

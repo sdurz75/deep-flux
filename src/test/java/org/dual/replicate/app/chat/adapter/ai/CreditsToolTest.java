@@ -5,9 +5,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import org.dual.replicate.app.credits.domain.CreditLine;
-import org.dual.replicate.app.credits.domain.CreditProvider;
-import org.dual.replicate.app.credits.port.in.ICredits;
+import org.dual.replicate.core.credits.domain.CreditLine;
+import org.dual.replicate.core.credits.port.in.ICredits;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.port.in.IGenerations;
@@ -43,8 +42,8 @@ class CreditsToolTest {
     @Test
     void showsEachServiceMarkingTheReplicateOneAsAnEstimateAndLowBalances() {
         when(credits.lines()).thenReturn(List.of(
-                CreditLine.ok(CreditProvider.REPLICATE, new BigDecimal("1.5"), Instant.now()),
-                CreditLine.ok(CreditProvider.OPENROUTER, new BigDecimal("12.3456"), Instant.now())));
+                CreditLine.ok("REPLICATE", new BigDecimal("1.5"), Instant.now(), true),
+                CreditLine.ok(CreditLine.OPENROUTER, new BigDecimal("12.3456"), Instant.now(), false)));
 
         String out = tool.getCredits(new ToolContext(Map.of()));
 
@@ -53,7 +52,7 @@ class CreditsToolTest {
 
     @Test
     void unsetAndUnavailableServicesAreSaidPlainly() {
-        when(credits.lines()).thenReturn(List.of(CreditLine.notSet(CreditProvider.REPLICATE), CreditLine.unavailable(CreditProvider.OPENROUTER)));
+        when(credits.lines()).thenReturn(List.of(CreditLine.notSet("REPLICATE", true), CreditLine.unavailable(CreditLine.OPENROUTER, false)));
 
         assertThat(tool.getCredits(new ToolContext(Map.of()))).contains("Replicate: no balance entered yet", "OpenRouter: temporarily unavailable");
     }

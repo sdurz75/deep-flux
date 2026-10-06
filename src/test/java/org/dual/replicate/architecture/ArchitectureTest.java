@@ -57,7 +57,8 @@ class ArchitectureTest {
             ROOT + ".core.chat.port.in.IChatToolkit",
             ROOT + ".core.chat.port.in.IChatTurnContributor",
             ROOT + ".core.chat.port.in.IChatPageContributor",
-            ROOT + ".core.chat.port.in.IChatOutcomeResolver");
+            ROOT + ".core.chat.port.in.IChatOutcomeResolver",
+            ROOT + ".core.credits.port.in.ICreditSource");
 
     /** Ogni SPI dell'elenco esiste davvero (un rename non deve svuotare in silenzio la regola sotto). */
     @ArchTest

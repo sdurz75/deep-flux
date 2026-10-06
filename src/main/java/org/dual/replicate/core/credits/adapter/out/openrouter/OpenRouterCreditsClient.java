@@ -1,8 +1,8 @@
-package org.dual.replicate.app.credits.adapter.out.openrouter;
+package org.dual.replicate.core.credits.adapter.out.openrouter;
 
 import java.math.BigDecimal;
 
-import org.dual.replicate.app.credits.port.out.IOpenRouterCreditGateway;
+import org.dual.replicate.core.credits.port.out.IOpenRouterCreditGateway;
 import org.dual.replicate.core.ai.domain.OpenRouterException;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException.Kind;

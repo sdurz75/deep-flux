@@ -48,7 +48,8 @@ Queste regole sono verificate da `ArchitectureTest` (ArchUnit) e da `SourceImpor
 | app.chat | il lato app di Deep Chat: strumenti legati alle generazioni, esiti, azioni proposte, recupero, pagina |
 | app.search | la pagina `/search` |
 | app.training | addestramento LoRA: dataset, ritaglio, didascalie, training su Replicate, risultato |
-| app.credits | credito residuo di Replicate e OpenRouter |
+| core.credits | credito residuo: riga OpenRouter e aggregazione delle `ICreditSource` dell'host |
+| app.credits | stima del saldo Replicate (`ICreditSource` dell'app) e inserimento del saldo |
 | app.shared | dominio comune dell'app (tag, sorgenti degli eventi, home) |
 
 ## Chi dipende da chi, nell'app

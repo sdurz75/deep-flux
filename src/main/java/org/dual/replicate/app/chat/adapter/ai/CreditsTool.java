@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.dual.replicate.app.credits.domain.CreditLine;
-import org.dual.replicate.app.credits.port.in.ICredits;
+import org.dual.replicate.core.credits.domain.CreditLine;
+import org.dual.replicate.core.credits.port.in.ICredits;
 import org.dual.replicate.app.generation.domain.GalleryItem;
 import org.dual.replicate.app.generation.domain.Generation;
 import org.dual.replicate.app.generation.port.in.IGenerations;
@@ -64,8 +64,9 @@ public class CreditsTool implements IChatToolkit {
 
     private static String describe(CreditLine line) {
         String name = switch (line.provider()) {
-            case REPLICATE -> "Replicate";
-            case OPENROUTER -> "OpenRouter";
+            case "REPLICATE" -> "Replicate";
+            case CreditLine.OPENROUTER -> "OpenRouter";
+            default -> line.provider();
         };
         return switch (line.status()) {
             case OK -> name + ": " + (line.estimated() ? "~" : "") + "$" + line.amountUsd().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
