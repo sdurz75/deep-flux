@@ -22,7 +22,7 @@ Solo Tailwind, con la configurazione in un file unico, `src/main/tailwind/tailwi
 
 - Il tema scuro si attiva dall'attributo `data-theme`, non dalla preferenza del sistema. Un piccolo script all'inizio di `head` lo risolve prima che la pagina si veda, per evitare il lampeggio.
 - Nello strato base ci sono solo gli elementi nudi (link, `code`, controlli dei form). Tutto il resto è classi inline: niente nuove regole `@layer`.
-- I **bottoni** non si scrivono a mano: si usano i fragment di `fragments/core/button.html` e `fragments/app/button-gen.html`.
+- I **bottoni** non si scrivono a mano: si usano i fragment di `fragments/core/button.html` e `fragments/core/field-buttons.html` (generici) e `fragments/app/button-gen.html` (azioni del dominio). I fragment sono divisi in due sottoalberi: `core` (generico) e `app` (dominio); `core` non dipende da `app`, verificato da `TemplateLayeringTest`.
 - Le **select** non sono mai nude: usano il componente Pines (`pinesSelect`) che nasconde la select nativa ma la mantiene come fonte di verità.
 - Un valore dinamico per un binding Alpine non passa da Thymeleaf: si porta in un attributo `data-*` e si legge a runtime.
 

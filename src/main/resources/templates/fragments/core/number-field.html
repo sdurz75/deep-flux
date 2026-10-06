@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Campo NUMERICO generico con reset al default e spinner opzionale (kit UI). Nell'app ogni <input type="number"> dei
+  generation-params-<form-type>.html passa dal wrapper fragments/app/generation-params-number.html (test strutturale
+  `everyNumericParameterFieldUsesTheSharedResetFragment`). La <label> resta fuori dal fragment.
+
+  Il default arriva dal server (`fieldDefaults` nel Model = IGenerationParameterHandler#defaultFields) in `data-default`
+  (regola "binding Alpine via data-*": l'espressione Alpine resta HTML statico). Il bottone (button-gen :: resetNumber) compare solo se
+  il valore e' diverso dal default: un campo svuotato conta come variato (l'handler lo omette e Replicate userebbe un SUO default, non
+  quello dell'app); un campo readonly (i fine-tune LoRA con "schnell": passi fissi) non si resetta mai. A differenza del seed (default "vuoto", CSS
+  `peer-placeholder-shown`) serve JS, e lo script di persistenza scrive i valori con `.value` senza eventi `input`: per questo oltre a
+  `@input` si ascolta `generation-settings:restored` (bubbling, emesso a fine restore). Niente `x-ref`: un ref dentro questo x-data non
+  sarebbe visibile al componente esterno (il fragment dei fine-tune LoRA legge il campo dei passi dal suo select per id).
+
+  Parametri aggiuntivi rispetto al wrapper: refreshEvent (nome di un evento window che ricalcola `changed`, es. quello emesso a fine restore di uno stato persistito; null = nessuno), resetTitle/stepDownTitle/stepUpTitle (testi GIA' risolti). Parametri (tutti passati, gli inutilizzati a null): id, name, value (valore corrente), defaultValue, min, max, step (null = attributo
+  omesso), extraClass (classi Tailwind LETTERALI in piu' sull'input), spinner (true = bottoni "-"/"+" ai lati dell'input, button-gen ::
+  stepNumber: i campi "intensita'" (lora_scale, extra_lora_scale, prompt_strength) e la guidance (guidance, guidance_scale); gli spinner nativi del browser restano nascosti, il
+  bottone di reset ne occuperebbe il posto).
+-->
+<div th:fragment="field(id, name, value, defaultValue, min, max, step, extraClass, spinner, refreshEvent, resetTitle, stepDownTitle, stepUpTitle)" class="flex items-center gap-1"
+     x-data="{ changed: false,
+               refresh() {
+                   const input = this.$root.querySelector('input');
+                   this.changed = !input.readOnly &amp;&amp; (input.value === '' || Number(input.value) !== Number(input.dataset.default));
+               } }"
+     th:data-refresh-event="${refreshEvent}"
+     x-init="refresh(); const ev = $el.dataset.refreshEvent; if (ev) { const h = () => { if ($el.isConnected) { refresh() } else { window.removeEventListener(ev, h) } }; window.addEventListener(ev, h) }" @input="refresh()">
+    <th:block th:if="${spinner}"><button th:replace="~{fragments/core/field-buttons :: stepNumber(direction='down', title=${stepDownTitle})}"></button></th:block>
+    <div class="relative flex-1 min-w-0">
+        <input type="number" th:id="${id}" th:name="${name}" th:min="${min}" th:max="${max}" th:step="${step}" th:value="${value}"
+               th:data-default="${defaultValue}"
+               class="peer pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+               th:classappend="${extraClass}">
+        <button th:replace="~{fragments/core/field-buttons :: resetNumber(title=${resetTitle})}"></button>
+    </div>
+    <th:block th:if="${spinner}"><button th:replace="~{fragments/core/field-buttons :: stepNumber(direction='up', title=${stepUpTitle})}"></button></th:block>
+</div>
+
+</body>
+</html>

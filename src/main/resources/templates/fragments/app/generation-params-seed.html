@@ -12,7 +12,7 @@
     <label for="param-seed" th:text="#{generationParams.label.seed}">Seed</label>
     <div class="relative">
         <input type="number" id="param-seed" name="seed" class="peer pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" th:placeholder="#{generationParams.placeholder.seed}" placeholder="casuale" th:value="${seed}">
-        <button th:replace="~{fragments/app/button-gen :: resetSeed(title=#{generationParams.button.resetSeed})}"></button>
+        <button th:replace="~{fragments/core/field-buttons :: resetSeed(title=#{generationParams.button.resetSeed})}"></button>
     </div>
 </div>
 

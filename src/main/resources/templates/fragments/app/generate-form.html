@@ -68,7 +68,7 @@
   stante (invece di restare inline nel form sopra) perche' POST
   /generations/enhance-prompt (GenerationController) deve poter
   risostituire ESATTAMENTE questo blocco via hx-swap="outerHTML"
-  (fragments/core/button.html :: aiEnhance ha hx-target="#prompt-field",
+  (fragments/app/button-gen.html :: aiEnhance ha hx-target="#prompt-field",
   l'id fisso di questo div) senza toccare il resto del form - stesso
   principio "nessuna duplicazione di markup" gia' visto altrove
   (CLAUDE.md, "Pattern controller"): un solo posto dove il markup della

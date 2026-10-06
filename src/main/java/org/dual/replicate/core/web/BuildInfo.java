@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Ora e commit della build in esecuzione, mostrati da fragments/core/build-badge.html.
+ * Ora e commit della build in esecuzione, mostrati da fragments/core/status-bar.html.
  * <p>
  * Da jar (mvn package) li porta {@link BuildProperties} (goal build-info del pom; il commit solo se si passa {@code -Dbuild.commit=...}). Da una directory di
  * classi (IntelliJ, spring-boot:run) NON ci si fida di quei file: IntelliJ non esegue i plugin Maven e in {@code target/classes}

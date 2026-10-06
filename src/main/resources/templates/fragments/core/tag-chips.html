@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Editor di chip-tag generico (kit UI, nessuna conoscenza di dominio): chip con "x" + un campo che aggiunge con Invio. Ogni chip e' un <form>
+  (hx-post su removeUrl con `tag` hidden), il campo e' un form a campo singolo (hx-post su addUrl): nessun <button> a mano, nessuna JS. Il server
+  risponde con lo stesso fragment (o con un elenco che lo contiene), quindi target/swap sono parametri. data-busy="off": azioni leggere, niente
+  overlay "operazione in corso". L'input ha un id stabile (htmx ripristina il fuoco dopo lo swap: si possono aggiungere piu' tag di fila).
+
+  Parametri (tutti passati, gli inutilizzati a null): editorId, tags, addUrl/removeUrl (GIA' risolti con @{...}), idName/idValue (nome e valore di UN hidden che identifica l'oggetto taggato, emesso in ENTRAMBI i form solo se idValue non e' null), target, swap,
+  suggestions (collezione di stringhe: emette l'unica <datalist id="known-tags"> della pagina, null = niente), testi gia' risolti dal chiamante:
+  removeTitlePattern (con segnaposto `{0}` = il tag), addPlaceholder, addLabel.
+-->
+<div th:fragment="editor(editorId, tags, addUrl, removeUrl, idName, idValue, target, swap, suggestions, removeTitlePattern, addPlaceholder, addLabel)"
+     th:id="${editorId}" class="flex flex-wrap items-center gap-1">
+    <form th:each="t : ${tags}" th:hx-post="${removeUrl}" th:hx-target="${target}" th:hx-swap="${swap}" data-busy="off" class="m-0 inline-flex">
+        <input type="hidden" name="tag" th:value="${t}">
+        <input th:if="${idValue != null}" type="hidden" th:name="${idName}" th:value="${idValue}">
+        <span class="inline-flex items-center gap-1 text-[0.75rem] rounded-full pl-2 pr-1 py-0.5 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark">
+            <span th:text="${t}">tag</span>
+            <button th:replace="~{fragments/core/field-buttons :: tagRemove(title=${#strings.replace(removeTitlePattern, '{0}', t)})}">x</button>
+        </span>
+    </form>
+    <form th:hx-post="${addUrl}" th:hx-target="${target}" th:hx-swap="${swap}" data-busy="off" class="m-0 inline-flex">
+        <input th:if="${idValue != null}" type="hidden" th:name="${idName}" th:value="${idValue}">
+        <input type="text" th:id="${editorId} + '-input'" name="tag" maxlength="40" list="known-tags" autocomplete="off"
+               th:placeholder="${addPlaceholder}" th:aria-label="${addLabel}"
+               class="w-28 text-[0.75rem] py-0.5 px-2 rounded-full">
+    </form>
+    <datalist th:if="${suggestions != null}" id="known-tags">
+        <option th:each="s : ${suggestions}" th:value="${s}"></option>
+    </datalist>
+</div>
+
+</body>
+</html>

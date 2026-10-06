@@ -48,9 +48,9 @@
 
     <!-- Nessun bundler: htmx e Alpine arrivano da CDN, zero build step -->
     <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
-    <!-- Plugin Alpine richiesto da x-trap (usato dalla lightbox di Pines UI in fragments/app/gallery.html): va caricato PRIMA del core Alpine sotto, entrambi defer. -->
+    <!-- Plugin Alpine richiesto da x-trap (usato dalla lightbox di Pines UI, fragments/core/lightbox.html): va caricato PRIMA del core Alpine sotto, entrambi defer. -->
     <script src="https://unpkg.com/@alpinejs/focus@3.14.3/dist/cdn.min.js" defer></script>
-    <!-- Plugin Alpine richiesto da x-collapse (usato dall'accordion di Pines UI in fragments/app/accordion.html): stessa regola di ordine/defer del plugin focus sopra. -->
+    <!-- Plugin Alpine richiesto da x-collapse (usato dall'accordion di Pines UI in fragments/core/accordion.html): stessa regola di ordine/defer del plugin focus sopra. -->
     <script src="https://unpkg.com/@alpinejs/collapse@3.14.3/dist/cdn.min.js" defer></script>
     <!-- Plugin Alpine richiesto da x-intersect (miniature video di /search caricate solo quando entrano nel viewport, fragments/app/search.html): stessa regola di ordine/defer. -->
     <script src="https://unpkg.com/@alpinejs/intersect@3.14.3/dist/cdn.min.js" defer></script>
@@ -102,7 +102,7 @@
     <style type="text/tailwindcss">
         @layer base {
             /* Alpine.js: nasconde un elemento finche' Alpine non e'
-               partito (usato dalla lightbox in fragments/app/gallery.html).
+               partito (usato da fragments/core/lightbox.html).
                Nessuna relazione col tema: preflight non lo fornisce. */
             [x-cloak] { display: none !important; }
 

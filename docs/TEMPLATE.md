@@ -24,7 +24,7 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.backup` | comandi `export` e `import` del jar (`java -jar app.jar export <file>`): backup completo (tabelle scoperte da `information_schema` + binari) in un archivio cifrato; profilo `backup` (`application-backup.yml`) | la SPI `IBlobReferences` (`port.in`): le coppie (tabella, colonna) con i nomi dei binari; senza, si esporta solo il DB |
 | `core.manual` | manuale online: pagine Markdown di `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md` convertite al volo, `/manual`, ricerca per sezioni (`IManual`) | i TESTI (`manual/`) e le etichette dei gruppi `manual.group.<gruppo>` nel bundle; per il bot di chat un toolkit come `ManualTool` che usa `IManual` (opzionale); la voce di menu `/manual` |
 | `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo` | - |
-| template e bundle | `templates/fragments/core/*` (layout, header, bottoni, select Pines, toast, paginazione...), `templates/core/*` (`/system/events`, `/tokens`, `/manual`), `messages-core(.en).properties` | vedi "Punti di estensione" |
+| template e bundle | `templates/fragments/core/*` (kit generico: bottoni, select Pines, accordion, lightbox, dropzone, campo numerico, tag-chips, paginazione, chip, alert), `templates/fragments/core/*` (layout, header, status-bar, toast, tokens, bottoni del chrome...), `templates/core/*` (`/system/events`, `/tokens`, `/manual`), `messages-core(.en).properties` | vedi "Punti di estensione" |
 | config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
 | Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token` | - |
 
@@ -48,10 +48,10 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/replic
 
 - `src/main/resources/templates/app/` (8 pagine: `index`, `generate`, `generation-status`, `generations-list`, `gallery`, `deep-chat`,
   `loras`, `search`).
-- `src/main/resources/templates/fragments/app/` (23 file). Da **riscrivere**, non solo cancellare: `fragments/app/nav.html`
+- `src/main/resources/templates/fragments/app/` (file di dominio: i generici stanno in `fragments/core`). Da **riscrivere**, non solo cancellare: `fragments/app/nav.html`
   (vedi sotto). Le pagine app decorano `fragments/core/layout` con `layout:decorate`: la nuova pagina iniziale va fatta allo stesso modo.
-- `src/main/resources/templates/core/` e `fragments/core/` restano.
-- `fragments/core/layout.html` carica da CDN i plugin Alpine `focus`, `collapse` e `intersect` (commenti: lightbox della galleria, accordion della
+- `src/main/resources/templates/core/`, e `fragments/core/` restano (`TemplateLayeringTest` garantisce che non dipendano dall'app, salvo `fragments/app/nav` e `fragments/app/status-extras`, da riscrivere).
+- `fragments/core/layout.html` carica da CDN i plugin Alpine `focus`, `collapse` e `intersect` (usati da `fragments/core/lightbox.html` e `fragments/core/accordion.html`: lightbox della galleria, accordion della
   chat, miniature video lazy di `/search`). Sono utili al core solo se la nuova app usa quei componenti; altrimenti si possono togliere (lasciare `x-collapse`/`x-trap`/`x-intersect` ai
   fragment che li usano).
 

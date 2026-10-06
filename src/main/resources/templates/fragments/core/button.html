@@ -96,6 +96,29 @@
         th:text="${text}">Elimina selezionate</button>
 
 <!--
+  Dialog modale (Pines UI): dialogOpen/dialogClose assumono la variabile Alpine `dialogOpen` su un antenato x-data (stesso
+  accoppiamento esplicito di dangerSelectable con selectedIds o toastClose con dismiss): la pagina che ospita il dialog la
+  dichiara (vedi search.html). dialogClose e' la variante neutra ("Annulla"); dialogCloseIcon la "x" nell'intestazione.
+-->
+<!--
+  dialogOpen(text, hxGet, hxTarget, hxSwap, neutral, extraClass): apre il dialog e, se hxGet e' valorizzato, carica PRIMA il suo
+  contenuto (un form fresco per "Nuova nota", quello precompilato per "Modifica"): niente stato residuo di un uso precedente.
+  neutral=true per la variante neutra (azioni per riga), false per il primario.
+-->
+<button th:fragment="dialogOpen(text, hxGet, hxTarget, hxSwap, neutral, extraClass)" type="button" @click="dialogOpen = true"
+        th:hx-get="${hxGet}" th:hx-target="${hxTarget}" th:hx-swap="${hxSwap}"
+        th:classappend="${(neutral ? 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark' : '') + ' ' + (extraClass ?: '')}"
+        th:text="${text}">Apri</button>
+
+<button th:fragment="dialogClose(text, extraClass)" type="button" @click="dialogOpen = false"
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark"
+        th:classappend="${extraClass}" th:text="${text}">Annulla</button>
+
+<button th:fragment="dialogCloseIcon(title)" type="button" @click="dialogOpen = false"
+        th:title="${title}" th:aria-label="${title}"
+        class="shrink-0 w-8 h-8 p-0 rounded-full bg-transparent border-0 text-ink-muted dark:text-ink-muted-dark hover:bg-canvas dark:hover:bg-canvas-dark text-xl leading-none">&times;</button>
+
+<!--
   Bottone del theme-switch nell'header (☀️/🌙/Auto): value e' il
   valore assegnato alla variabile Alpine "theme" dichiarata su <body>
   in layout.html (light/dark/auto), content il testo/icona visibile,
@@ -146,29 +169,6 @@
         :class="theme === $el.dataset.themeValue ? 'opacity-40 cursor-default' : 'cursor-pointer hover:bg-surface dark:hover:bg-surface-dark'"
         th:title="${title}"
         th:text="${content}">Bottone</button>
-
-<!--
-  Dialog modale (Pines UI): dialogOpen/dialogClose assumono la variabile Alpine `dialogOpen` su un antenato x-data (stesso
-  accoppiamento esplicito di dangerSelectable con selectedIds o toastClose con dismiss): la pagina che ospita il dialog la
-  dichiara (vedi search.html). dialogClose e' la variante neutra ("Annulla"); dialogCloseIcon la "x" nell'intestazione.
--->
-<!--
-  dialogOpen(text, hxGet, hxTarget, hxSwap, neutral, extraClass): apre il dialog e, se hxGet e' valorizzato, carica PRIMA il suo
-  contenuto (un form fresco per "Nuova nota", quello precompilato per "Modifica"): niente stato residuo di un uso precedente.
-  neutral=true per la variante neutra (azioni per riga), false per il primario.
--->
-<button th:fragment="dialogOpen(text, hxGet, hxTarget, hxSwap, neutral, extraClass)" type="button" @click="dialogOpen = true"
-        th:hx-get="${hxGet}" th:hx-target="${hxTarget}" th:hx-swap="${hxSwap}"
-        th:classappend="${(neutral ? 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark' : '') + ' ' + (extraClass ?: '')}"
-        th:text="${text}">Apri</button>
-
-<button th:fragment="dialogClose(text, extraClass)" type="button" @click="dialogOpen = false"
-        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark"
-        th:classappend="${extraClass}" th:text="${text}">Annulla</button>
-
-<button th:fragment="dialogCloseIcon(title)" type="button" @click="dialogOpen = false"
-        th:title="${title}" th:aria-label="${title}"
-        class="shrink-0 w-8 h-8 p-0 rounded-full bg-transparent border-0 text-ink-muted dark:text-ink-muted-dark hover:bg-canvas dark:hover:bg-canvas-dark text-xl leading-none">&times;</button>
 
 <!--
   toastClose(title): bottone "x" di un toast (fragments/core/toast.html). L'@click assume l'antenato Alpine del

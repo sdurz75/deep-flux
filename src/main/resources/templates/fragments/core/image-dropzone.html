@@ -113,7 +113,7 @@
             <li class="relative">
                 <img :src="item.url" :alt="item.name" class="block w-full aspect-square object-cover rounded-md">
                 <span class="block truncate text-[0.75rem] text-ink-muted dark:text-ink-muted-dark" x-text="item.name"></span>
-                <button th:replace="~{fragments/app/button-gen :: removeFile(title=${removeTitle})}"></button>
+                <button th:replace="~{fragments/core/field-buttons :: removeFile(title=${removeTitle})}"></button>
             </li>
         </template>
     </ul>

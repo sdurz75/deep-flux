@@ -1057,7 +1057,7 @@ class TemplateRenderingTests {
 
         assertThat(body).contains("/images/dc-1.png");
         assertThat(body).doesNotContain("Nessuna immagine ancora in questa conversazione");
-        // Overlay "Scarica" sul thumbnail (fragments/core/button.html :: downloadOverlay).
+        // Overlay "Scarica" sul thumbnail (fragments/app/button-gen.html :: downloadOverlay).
         assertThat(body).contains("download=\"dc-1.png\"");
         // Il link di dettaglio della card contestuale porta il conversationId (vedi fragments/app/gallery-card.html), per il link "indietro" del dettaglio (fragments/app/generation.html :: status, ora su /generations/{id} - vedi CLAUDE.md).
         assertThat(body).contains("/generations/" + generation.getId() + "?conversationId=" + conversation.getId());

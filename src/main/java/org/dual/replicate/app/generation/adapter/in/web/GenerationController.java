@@ -308,7 +308,7 @@ public class GenerationController {
 
     /**
      * Riscrive una bozza di prompt in un prompt Flux ben formato in
-     * inglese (icona "AI enhance", fragments/core/button.html :: aiEnhance,
+     * inglese (icona "AI enhance", fragments/app/button-gen.html :: aiEnhance,
      * fragments/app/generate-form.html :: promptField): solo fragment, mai
      * pagina intera (stesso principio di params() sopra), e SEMPRE 200
      * anche in caso di errore, come DeepChatApiController - htmx non
@@ -681,7 +681,7 @@ public class GenerationController {
     /**
      * Inverte la star di un file (vedi GenerationService#toggleFavourite) e
      * ritorna il solo bottone aggiornato (hx-swap="outerHTML" sul bottone
-     * stesso, fragments/core/button.html :: starOverlay). variant sceglie la
+     * stesso, fragments/app/button-gen.html :: starOverlay). variant sceglie la
      * posizione dell'icona (card di galleria vs griglia del dettaglio).
      * refresh=true (tab "Preferiti"): la card deve sparire togliendo la
      * star, quindi si emette "gallery-update" (HX-Trigger), lo stesso

@@ -63,7 +63,7 @@
       Layout a due colonne: colonna sinistra a larghezza FISSA (280px
       da 861px in su, mai variabile in base al contenuto/pannello) con
       bottone "Nuova conversazione" + rail NON collassabile sotto
-      (fragments/app/accordion.html :: staticPanels - lista conversazioni
+      (fragments/core/accordion.html :: staticPanels - lista conversazioni
       e impostazioni di generazione, sempre entrambe visibili) +
       <deep-chat> a destra (occupa lo spazio restante). Sotto gli
       861px torna a impilarsi (flex-col di base, min-[861px]:flex-row
@@ -75,7 +75,7 @@
       pannello sta mostrando contenuto piu' lungo sotto, quindi e' un
       fratello che precede l'accordion nella stessa colonna, non un
       figlio del suo primo pannello. La larghezza fissa vive su QUESTA
-      colonna (non piu' dentro staticPanels, vedi fragments/app/accordion.html):
+      colonna (non piu' dentro staticPanels, vedi fragments/core/accordion.html):
       un solo posto tiene bottone e accordion alla stessa identica
       larghezza sempre, invece di doverli sincronizzare in due punti.
     -->
@@ -109,7 +109,7 @@
                                 settingsBody=~{::#generation-settings-panel},
                                 leftLabels=${ {conversationsLabel, settingsLabel} },
                                 leftBodies=${ {conversationsBody, settingsBody} }">
-            <div th:replace="~{fragments/app/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies}, storageKey='deepChat.accordion.leftRail')}">
+            <div th:replace="~{fragments/core/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies}, storageKey='deepChat.accordion.leftRail')}">
                 <div id="conversation-list-section">
                     <div th:replace="~{fragments/app/conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
                 </div>
@@ -213,7 +213,7 @@
     </div>
 
     <!--
-      Accordion generico (fragments/app/accordion.html :: panels(labels,
+      Accordion generico (fragments/core/accordion.html :: panels(labels,
       bodies), collassabile - qui con un solo pannello, la galleria
       contestuale a questa conversazione: le impostazioni di
       generazione sono finite nel rail sinistro non collassabile sopra,
@@ -252,7 +252,7 @@
                         galleryBody=~{::#contextual-gallery},
                         accordionLabels=${ {galleryLabel} },
                         accordionBodies=${ {galleryBody} }">
-    <div th:replace="~{fragments/app/accordion :: panels(labels=${accordionLabels}, bodies=${accordionBodies}, storageKey='deepChat.accordion.gallery')}">
+    <div th:replace="~{fragments/core/accordion :: panels(labels=${accordionLabels}, bodies=${accordionBodies}, storageKey='deepChat.accordion.gallery')}">
 
         <!--
           Galleria contestuale: solo le immagini generate in QUESTA

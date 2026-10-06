@@ -13,12 +13,12 @@
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{import.intro}">Importa immagini esterne.</p>
 
     <!--/* Il componente Alpine `imageDropzone` si registra una volta (alpine:init) da questo script; il markup e' in :: field. */-->
-    <div th:replace="~{fragments/app/image-dropzone :: script}"></div>
+    <div th:replace="~{fragments/core/image-dropzone :: script}"></div>
 
     <form id="import-form" th:action="@{/import}" method="post" enctype="multipart/form-data"
           th:hx-post="@{/import}" hx-encoding="multipart/form-data" hx-target="#import-result" hx-swap="innerHTML"
           th:data-busy-text="#{import.busy}">
-        <div th:replace="~{fragments/app/image-dropzone :: field(inputId='import-files', formId='import-form', maxBytes=${maxBytes}, maxFiles=${maxFiles}, compact=false,
+        <div th:replace="~{fragments/core/image-dropzone :: field(inputId='import-files', formId='import-form', maxBytes=${maxBytes}, maxFiles=${maxFiles}, compact=false,
                     prompt=#{import.dropzone.prompt}, hint=#{import.dropzone.hint(${maxFiles}, ${maxBytes / 1048576})}, invalidType=#{import.notice.invalidType},
                     tooLarge=#{import.notice.tooLarge}, tooMany=#{import.notice.tooMany}, removeTitle=#{import.button.remove})}"></div>
         <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{import.button.submit}, extraClass='mt-4')}">Importa</button>

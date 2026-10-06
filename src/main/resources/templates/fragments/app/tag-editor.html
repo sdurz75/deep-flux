@@ -3,53 +3,31 @@
 <body>
 
 <!--
-  Editor dei tag UTENTE (non i tag AI dell'analisi delle importate ne' le tag d'indice di GenerationSearchText): chip con "x" + un campo che
-  aggiunge con Invio. Ogni chip e' un <form> (hx-post su removeUrl con `tag` hidden), il campo e' un form a campo singolo (hx-post su addUrl):
-  nessun <button> a mano, nessuna JS. Il server risponde con questo stesso fragment (generazione/file) o con l'elenco delle conversazioni, quindi
-  target/swap sono parametri. `filename` (file di una generazione) e `activeConversationId` (sidebar) sono hidden solo se valorizzati.
-  data-busy="off": azioni leggere, niente overlay "operazione in corso". L'input ha un id stabile (htmx ripristina il fuoco dopo lo swap, cosi'
-  si possono aggiungere piu' tag di fila). `suggestions`: emette l'unica <datalist id="known-tags"> della pagina (tutti i campi tag la usano).
-  Gli URL arrivano gia' risolti (@{...} dei wrapper sotto).
+  Wrapper app degli editor di tag UTENTE (non i tag AI dell'analisi delle importate ne' le tag d'indice di GenerationSearchText). Il markup
+  generico sta in fragments/core/tag-chips.html; qui si risolvono testi (#{tags.*}), URL (@{...}), l'identita' dell'oggetto taggato
+  (`filename` di una generazione, `activeConversationId` della sidebar: hidden solo se valorizzati) e la datalist dei tag noti
+  (`suggestions`: UNA <datalist id="known-tags"> per pagina).
 -->
-<div th:fragment="editor(editorId, tags, addUrl, removeUrl, filename, activeConversationId, target, swap, suggestions)"
-     th:id="${editorId}" class="flex flex-wrap items-center gap-1">
-    <form th:each="t : ${tags}" th:hx-post="${removeUrl}" th:hx-target="${target}" th:hx-swap="${swap}" data-busy="off" class="m-0 inline-flex">
-        <input type="hidden" name="tag" th:value="${t}">
-        <input th:if="${filename != null}" type="hidden" name="filename" th:value="${filename}">
-        <input th:if="${activeConversationId != null}" type="hidden" name="activeConversationId" th:value="${activeConversationId}">
-        <span class="inline-flex items-center gap-1 text-[0.75rem] rounded-full pl-2 pr-1 py-0.5 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark">
-            <span th:text="${t}">tag</span>
-            <button th:replace="~{fragments/app/button-gen :: tagRemove(title=#{tags.remove(${t})})}">x</button>
-        </span>
-    </form>
-    <form th:hx-post="${addUrl}" th:hx-target="${target}" th:hx-swap="${swap}" data-busy="off" class="m-0 inline-flex">
-        <input th:if="${filename != null}" type="hidden" name="filename" th:value="${filename}">
-        <input th:if="${activeConversationId != null}" type="hidden" name="activeConversationId" th:value="${activeConversationId}">
-        <input type="text" th:id="${editorId} + '-input'" name="tag" maxlength="40" list="known-tags" autocomplete="off"
-               th:placeholder="#{tags.add.placeholder}" th:aria-label="#{tags.add.label}"
-               class="w-28 text-[0.75rem] py-0.5 px-2 rounded-full">
-    </form>
-    <datalist th:if="${suggestions}" id="known-tags">
-        <option th:each="s : ${@generationService.allTags()}" th:value="${s}"></option>
-    </datalist>
-</div>
-
 <!-- Tag di una generazione intera (filename null) o di UN suo file; il server risponde con questo stesso fragment. -->
 <th:block th:fragment="generationEditor(generation, filename, suggestions)">
-    <th:block th:with="domId=${filename == null ? 'gen-tags-' + generation.id : 'file-tags-' + generation.id + '-' + #strings.replace(filename, '.', '-')}">
-    <div th:replace="~{::editor(editorId=${domId},
+    <th:block th:with="domId=${filename == null ? 'gen-tags-' + generation.id : 'file-tags-' + generation.id + '-' + #strings.replace(filename, '.', '-')},
+                       tagSuggestions=${suggestions ? @generationService.allTags() : null}">
+    <div th:replace="~{fragments/core/tag-chips :: editor(editorId=${domId},
                      tags=${filename == null ? generation.tags : generation.tagsOf(filename)},
                      addUrl=@{/generations/{id}/tags/add(id=${generation.id})}, removeUrl=@{/generations/{id}/tags/remove(id=${generation.id})},
-                     filename=${filename}, activeConversationId=null, target=${'#' + domId}, swap='outerHTML', suggestions=${suggestions})}"></div>
+                     idName='filename', idValue=${filename}, target=${'#' + domId}, swap='outerHTML',
+                     suggestions=${tagSuggestions},
+                     removeTitlePattern=#{tags.remove('{0}')}, addPlaceholder=#{tags.add.placeholder}, addLabel=#{tags.add.label})}"></div>
     </th:block>
 </th:block>
 
 <!-- Tag di una conversazione nella sidebar: la risposta e' l'intero elenco (conversation-list :: items). -->
 <th:block th:fragment="conversationEditor(conversation, activeConversationId)">
-    <div th:replace="~{::editor(editorId=${'conv-tags-' + conversation.id}, tags=${conversation.tags},
+    <div th:replace="~{fragments/core/tag-chips :: editor(editorId=${'conv-tags-' + conversation.id}, tags=${conversation.tags},
                      addUrl=@{/deep-chat/{id}/tags/add(id=${conversation.id})}, removeUrl=@{/deep-chat/{id}/tags/remove(id=${conversation.id})},
-                     filename=null, activeConversationId=${activeConversationId},
-                     target='#conversation-list-items', swap='outerHTML', suggestions=false)}"></div>
+                     idName='activeConversationId', idValue=${activeConversationId},
+                     target='#conversation-list-items', swap='outerHTML', suggestions=null,
+                     removeTitlePattern=#{tags.remove('{0}')}, addPlaceholder=#{tags.add.placeholder}, addLabel=#{tags.add.label})}"></div>
 </th:block>
 
 </body>
