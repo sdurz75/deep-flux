@@ -14,14 +14,14 @@ import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
 import org.dual.replicate.core.kernel.Paged;
 import org.springframework.beans.BeanUtils;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.dual.replicate.app.training.domain.DatasetConflictException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.ReflectionUtils;
 
 /**
  * Store in memoria per i test degli use case. Fedele su cio' che conta per le scritture concorrenti: legge e salva COPIE (chi modifica una bozza letta non
  * tocca lo stato salvato finche' non salva) e ogni salvataggio confronta e fa salire la versione, come il blocco ottimistico vero: una copia letta prima
- * che un altro salvasse fallisce con {@link OptimisticLockingFailureException}. Senza questo un nuovo tentativo riapplicherebbe la modifica sopra la
+ * che un altro salvasse fallisce con {@link DatasetConflictException}. Senza questo un nuovo tentativo riapplicherebbe la modifica sopra la
  * modifica gia' fatta sulla stessa istanza, e i test proverebbero un comportamento che in produzione non esiste.
  */
 final class InMemoryDatasetStore implements ITrainingDatasetStore {
@@ -55,11 +55,11 @@ final class InMemoryDatasetStore implements ITrainingDatasetStore {
             if (onConflict != null) {
                 onConflict.run();
             }
-            throw new OptimisticLockingFailureException("versione vecchia");
+            throw new DatasetConflictException("versione vecchia", null);
         }
         TrainingDataset persisted = dataset.getId() == null ? null : rows.get(dataset.getId());
         if (persisted != null && versionOf(persisted) != versionOf(dataset)) {
-            throw new OptimisticLockingFailureException("versione vecchia");
+            throw new DatasetConflictException("versione vecchia", null);
         }
         if (dataset.getId() == null) {
             ReflectionTestUtils.setField(dataset, "id", nextId++);
@@ -100,7 +100,7 @@ final class InMemoryDatasetStore implements ITrainingDatasetStore {
     public void delete(TrainingDataset dataset) {
         TrainingDataset persisted = rows.get(dataset.getId());
         if (persisted != null && versionOf(persisted) != versionOf(dataset)) {
-            throw new OptimisticLockingFailureException("versione vecchia");
+            throw new DatasetConflictException("versione vecchia", null);
         }
         rows.remove(dataset.getId());
     }

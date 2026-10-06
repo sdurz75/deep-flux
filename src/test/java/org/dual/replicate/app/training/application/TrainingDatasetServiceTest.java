@@ -32,7 +32,7 @@ import org.dual.replicate.core.storage.port.in.IImageStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.dual.replicate.app.training.domain.DatasetConflictException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -219,7 +219,7 @@ class TrainingDatasetServiceTest {
     @Test
     void aStaleCopyIsAConflictAndDoesNotLeaveOrphanFiles() {
         TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
-        store.failOnSave = new OptimisticLockingFailureException("versione vecchia");
+        store.failOnSave = new DatasetConflictException("versione vecchia", null);
 
         assertRejected(() -> service.addImages(dataset.getId(), List.of(upload("a.png"))), "training.error.conflict");
         verify(storage).delete("stored-1.png");
@@ -462,7 +462,7 @@ class TrainingDatasetServiceTest {
     void aStaleCopyOfTheDatasetMakesTheCropAConflictWithoutOrphans() {
         TrainingDataset dataset = service.create("n", "TOK", LoraType.SUBJECT, null);
         Long id = service.addImages(dataset.getId(), List.of(upload("a.png"))).results().get(0).imageId();
-        store.failOnSave = new OptimisticLockingFailureException("versione vecchia");
+        store.failOnSave = new DatasetConflictException("versione vecchia", null);
 
         assertRejected(() -> service.cropImage(dataset.getId(), id, upload("c.jpg"), 0, 0, 10, 10), "training.error.conflict");
 

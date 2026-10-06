@@ -61,7 +61,7 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..adapter..",
                     "org.springframework.web..", "org.springframework.http..", "org.springframework.ai..",
-                    "org.springframework.data..", "org.springframework.jdbc..", "java.sql..", "jakarta.servlet..", "java.net.http..")
+                    "org.springframework.data..", "org.springframework.dao..", "org.springframework.jdbc..", "java.sql..", "jakarta.servlet..", "java.net.http..")
             .allowEmptyShould(true);
 
     /** I use case non fanno I/O su file ne' elaborazione di immagini: stanno dietro una porta (es. {@code IBlobImportSource}, {@code ISourceImageScaler}). */

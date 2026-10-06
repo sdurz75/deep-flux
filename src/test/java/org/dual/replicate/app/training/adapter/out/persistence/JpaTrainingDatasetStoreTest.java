@@ -13,7 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.dual.replicate.app.training.domain.DatasetConflictException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,7 +61,7 @@ class JpaTrainingDatasetStoreTest {
 
         // L'utente, con la copia letta prima, salva una modifica anch'essa alle sole immagini: senza il salto di versione riporterebbe la didascalia a PENDING.
         copyForTheUser.findImage(imageId).orElseThrow().writeCaption("scritta a mano");
-        assertThatThrownBy(() -> store.save(copyForTheUser)).isInstanceOf(OptimisticLockingFailureException.class);
+        assertThatThrownBy(() -> store.save(copyForTheUser)).isInstanceOf(DatasetConflictException.class);
 
         TrainingImage image = store.findById(saved.getId()).orElseThrow().findImage(imageId).orElseThrow();
         assertThat(image.getCaption()).isEqualTo("TOK, un gatto");

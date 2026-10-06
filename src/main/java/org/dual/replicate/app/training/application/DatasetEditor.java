@@ -3,12 +3,12 @@ package org.dual.replicate.app.training.application;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import org.dual.replicate.app.training.domain.DatasetConflictException;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
 import org.dual.replicate.app.training.domain.TrainingImage;
 import org.dual.replicate.app.training.port.out.ITrainingDatasetStore;
 import org.dual.replicate.core.kernel.i18n.Messages;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 /**
@@ -61,7 +61,7 @@ class DatasetEditor {
             change.accept(dataset);
             try {
                 return store.save(dataset);
-            } catch (OptimisticLockingFailureException e) {
+            } catch (DatasetConflictException e) {
                 if (attempt >= MAX_ATTEMPTS) {
                     throw new TrainingException(messages.get("training.error.conflict"));
                 }
@@ -73,7 +73,7 @@ class DatasetEditor {
     void delete(TrainingDataset dataset) {
         try {
             store.delete(dataset);
-        } catch (OptimisticLockingFailureException e) {
+        } catch (DatasetConflictException e) {
             throw new TrainingException(messages.get("training.error.conflict"));
         }
     }
