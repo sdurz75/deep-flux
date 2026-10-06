@@ -27,7 +27,8 @@ class LoraPresetServiceModelRegistrationTest {
     private final Messages messages = mock(Messages.class);
     private final IModelCatalog catalog = mock(IModelCatalog.class);
     private final ISystemEvents events = mock(ISystemEvents.class);
-    private final LoraPresetService service = new LoraPresetService(store, messages, catalog, events, java.time.Clock.systemUTC());
+    private final LoraPresetService service = new LoraPresetService(store, messages, catalog, events,
+            mock(org.dual.replicate.core.tokens.port.in.IApiTokens.class), java.time.Clock.systemUTC());
 
     LoraPresetServiceModelRegistrationTest() {
         when(store.save(any(LoraPreset.class))).thenAnswer(i -> i.getArgument(0));

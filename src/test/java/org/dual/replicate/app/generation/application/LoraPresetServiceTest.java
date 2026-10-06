@@ -22,10 +22,49 @@ class LoraPresetServiceTest {
     private ILoraPresetStore repository;
     @Autowired
     private LoraPresetService service;
+    @Autowired
+    private org.dual.replicate.core.tokens.port.in.IApiTokens tokens;
 
     @BeforeEach
     void clean() {
         repository.deleteAll();
+    }
+
+    @Test
+    void aDefaultTokenIsStoredAndShownWithoutTheSecret() {
+        var token = tokens.create("HUGGINGFACE", "hf-lora-test", "hf_secretvalue1234", null);
+        try {
+            var created = service.create("Privato", "https://huggingface.co/sdurz/privato", 1.0, null, null, token.id());
+
+            assertThat(created.defaultTokenId()).isEqualTo(token.id());
+            assertThat(created.defaultTokenProvider()).isEqualTo("HUGGINGFACE");
+            assertThat(created.defaultTokenName()).isEqualTo("hf-lora-test");
+            assertThat(created.defaultTokenHint()).isEqualTo("1234");
+            assertThat(created.toString()).doesNotContain("secretvalue");
+            assertThat(service.list()).extracting(LoraPresetService.LoraView::defaultTokenId).containsExactly(token.id());
+
+            tokens.delete(token.id());
+            assertThat(service.get(created.id()).defaultTokenId()).isNull();
+        } finally {
+            repository.deleteAll();
+            try {
+                tokens.delete(token.id());
+            } catch (RemoteServiceException ignored) {
+                // gia' cancellato dal test
+            }
+        }
+    }
+
+    @Test
+    void aMissingOrForeignDefaultTokenIsRejected() {
+        var foreign = tokens.create("ALTRO", "altro-lora-test", "secret0000", null);
+        try {
+            assertThatThrownBy(() -> service.create("A", "a/a", 1.0, null, null, 999_999L)).isInstanceOf(LoraException.class);
+            assertThatThrownBy(() -> service.create("B", "b/b", 1.0, null, null, foreign.id())).isInstanceOf(LoraException.class);
+            assertThat(repository.count()).isZero();
+        } finally {
+            tokens.delete(foreign.id());
+        }
     }
 
     @Test

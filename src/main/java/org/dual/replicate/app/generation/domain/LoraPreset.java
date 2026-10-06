@@ -37,6 +37,10 @@ public class LoraPreset {
     @Column(length = 500)
     private String note;
 
+    /** Token API di default (riferimento a {@code api_token}, FK {@code ON DELETE SET NULL}); {@code null} = nessuno. */
+    @Column
+    private Long defaultTokenId;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -48,7 +52,12 @@ public class LoraPreset {
     }
 
     public LoraPreset(String name, String source, double scale, String triggerWords, String note, Instant now) {
+        this(name, source, scale, triggerWords, note, null, now);
+    }
+
+    public LoraPreset(String name, String source, double scale, String triggerWords, String note, Long defaultTokenId, Instant now) {
         this.name = name;
+        this.defaultTokenId = defaultTokenId;
         this.source = source;
         this.scale = scale;
         this.triggerWords = triggerWords;
@@ -57,8 +66,9 @@ public class LoraPreset {
         this.updatedAt = now;
     }
 
-    public void update(String name, String source, double scale, String triggerWords, String note, Instant now) {
+    public void update(String name, String source, double scale, String triggerWords, String note, Long defaultTokenId, Instant now) {
         this.name = name;
+        this.defaultTokenId = defaultTokenId;
         this.source = source;
         this.scale = scale;
         this.triggerWords = triggerWords;
@@ -88,6 +98,10 @@ public class LoraPreset {
 
     public String getNote() {
         return note;
+    }
+
+    public Long getDefaultTokenId() {
+        return defaultTokenId;
     }
 
     public Instant getCreatedAt() {

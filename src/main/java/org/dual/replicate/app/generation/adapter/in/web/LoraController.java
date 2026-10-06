@@ -4,9 +4,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
 import org.dual.replicate.core.web.HtmxEvents;
+import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.generation.domain.LoraException;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,8 +31,10 @@ public class LoraController {
     private final ISystemEvents systemEvents;
     private final HtmxEvents htmx;
     private final Messages messages;
+    private final IApiTokens tokens;
 
-    public LoraController(ILoraPresets loras, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages) {
+    public LoraController(ILoraPresets loras, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages, IApiTokens tokens) {
+        this.tokens = tokens;
         this.loras = loras;
         this.systemEvents = systemEvents;
         this.htmx = htmx;
@@ -40,31 +44,32 @@ public class LoraController {
     @GetMapping
     public String page(Model model) {
         populateList(model);
-        formAttributes(model, null, "", "", String.valueOf(ILoraPresets.DEFAULT_SCALE), "", "", null);
+        formAttributes(model, null, "", "", String.valueOf(ILoraPresets.DEFAULT_SCALE), "", "", null, null);
         return "app/loras";
     }
 
     /** Form vuoto per il dialog (caricato a ogni apertura). */
     @GetMapping("/new")
     public String newForm(Model model) {
-        return formView(model, null, "", "", String.valueOf(ILoraPresets.DEFAULT_SCALE), "", "", null);
+        return formView(model, null, "", "", String.valueOf(ILoraPresets.DEFAULT_SCALE), "", "", null, null);
     }
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
         ILoraPresets.LoraView lora = loras.get(id);
         return formView(model, id, lora.name(), lora.source(), String.valueOf(lora.scale()),
-                lora.triggerWords() == null ? "" : lora.triggerWords(), lora.note() == null ? "" : lora.note(), null);
+                lora.triggerWords() == null ? "" : lora.triggerWords(), lora.note() == null ? "" : lora.note(), null, lora.defaultTokenId());
     }
 
     @PostMapping
     public String create(@RequestParam(defaultValue = "") String name, @RequestParam(defaultValue = "") String source,
                          @RequestParam(defaultValue = "") String scale, @RequestParam(defaultValue = "") String triggerWords,
-                         @RequestParam(defaultValue = "") String note, HttpServletResponse response, Model model) {
+                         @RequestParam(defaultValue = "") String note,
+                         @RequestParam(defaultValue = "") String tokenId, HttpServletResponse response, Model model) {
         try {
-            loras.create(name, source, parseScale(scale), triggerWords, note);
+            loras.create(name, source, parseScale(scale), triggerWords, note, parseTokenId(tokenId));
         } catch (RemoteServiceException e) {
-            return failed(e, response, model, null, name, source, scale, triggerWords, note);
+            return failed(e, response, model, null, name, source, scale, triggerWords, note, tokenId);
         }
         return saved(response, model);
     }
@@ -72,11 +77,12 @@ public class LoraController {
     @PostMapping("/{id}")
     public String update(@PathVariable Long id, @RequestParam(defaultValue = "") String name, @RequestParam(defaultValue = "") String source,
                          @RequestParam(defaultValue = "") String scale, @RequestParam(defaultValue = "") String triggerWords,
-                         @RequestParam(defaultValue = "") String note, HttpServletResponse response, Model model) {
+                         @RequestParam(defaultValue = "") String note,
+                         @RequestParam(defaultValue = "") String tokenId, HttpServletResponse response, Model model) {
         try {
-            loras.update(id, name, source, parseScale(scale), triggerWords, note);
+            loras.update(id, name, source, parseScale(scale), triggerWords, note, parseTokenId(tokenId));
         } catch (RemoteServiceException e) {
-            return failed(e, response, model, id, name, source, scale, triggerWords, note);
+            return failed(e, response, model, id, name, source, scale, triggerWords, note, tokenId);
         }
         return saved(response, model);
     }
@@ -98,21 +104,24 @@ public class LoraController {
     }
 
     private String failed(RemoteServiceException e, HttpServletResponse response, Model model, Long id, String name, String source,
-                          String scale, String triggerWords, String note) {
+                          String scale, String triggerWords, String note, String tokenId) {
         if (e.isReportable()) {
             htmx.addToastHeader(response, systemEvents.record(id == null ? "createLora" : "updateLora", e));
         }
         response.setHeader("HX-Retarget", "#lora-form");
         response.setHeader("HX-Reswap", "outerHTML");
-        return formView(model, id, name, source, scale, triggerWords, note, e.getMessage());
+        return formView(model, id, name, source, scale, triggerWords, note, e.getMessage(), tokenIdOrNull(tokenId));
     }
 
     private void populateList(Model model) {
         model.addAttribute("loras", loras.list());
     }
 
-    private static void formAttributes(Model model, Long id, String name, String source, String scale, String triggerWords,
-                                       String note, String error) {
+    private void formAttributes(Model model, Long id, String name, String source, String scale, String triggerWords,
+                                String note, String error, Long tokenId) {
+        model.addAttribute("loraTokenId", tokenId);
+        model.addAttribute("loraTokens", java.util.Arrays.stream(ApiTokenProvider.values())
+                .flatMap(provider -> tokens.options(provider.name()).stream()).toList());
         model.addAttribute("loraId", id);
         model.addAttribute("loraName", name);
         model.addAttribute("loraSource", source);
@@ -123,14 +132,34 @@ public class LoraController {
     }
 
     private String formView(Model model, Long id, String name, String source, String scale, String triggerWords, String note,
-                            String error) {
-        formAttributes(model, id, name, source, scale, triggerWords, note, error);
+                            String error, Long tokenId) {
+        formAttributes(model, id, name, source, scale, triggerWords, note, error, tokenId);
         return "fragments/app/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, "
-                + "loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError})";
+                + "loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError}, loraTokenId=${loraTokenId}, loraTokens=${loraTokens})";
     }
 
     private static String listView() {
         return "fragments/app/loras :: list(loras=${loras})";
+    }
+
+    /** Vuoto = nessun token; un valore non numerico e' un rifiuto con messaggio, non un 400. */
+    private Long parseTokenId(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        Long id = tokenIdOrNull(value);
+        if (id == null) {
+            throw new LoraException(messages.get("loras.error.tokenInvalid"));
+        }
+        return id;
+    }
+
+    private static Long tokenIdOrNull(String value) {
+        try {
+            return value == null || value.isBlank() ? null : Long.valueOf(value.strip());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** Vuoto = intensita' predefinita; un numero non valido e' un rifiuto con messaggio, non un 400. */

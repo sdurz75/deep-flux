@@ -14,7 +14,7 @@
              const sel = $el.querySelector('select');
              const match = src && Array.from(sel.options).find(o => o.value && o.dataset.source === src.value.trim());
              if (match) { sel.value = match.value; sel.dispatchEvent(new Event('pines-select:sync')); words = match.dataset.triggerWords || '' }"
-     @change="const o = $event.target.selectedOptions[0]; if (o && o.value) { const f = document.getElementById($el.dataset.sourceField); f.value = o.dataset.source; f.dispatchEvent(new Event('input', { bubbles: true })); const s = document.getElementById($el.dataset.scaleField); s.value = o.dataset.scale; s.dispatchEvent(new Event('input', { bubbles: true })) }; words = o ? (o.dataset.triggerWords || '') : ''">
+     @change="const o = $event.target.selectedOptions[0]; if (o && o.value) { const f = document.getElementById($el.dataset.sourceField); f.value = o.dataset.source; f.dispatchEvent(new Event('input', { bubbles: true })); const s = document.getElementById($el.dataset.scaleField); s.value = o.dataset.scale; s.dispatchEvent(new Event('input', { bubbles: true })) }; if (o && o.dataset.tokenId) { const t = document.getElementById(o.dataset.tokenProvider === 'CIVITAI' ? 'param-civitai-token' : 'param-hf-token'); const opt = t && Array.from(t.options).find(x => x.value === o.dataset.tokenId && !x.disabled); if (opt) { t.value = opt.value; t.dispatchEvent(new Event('pines-select:sync')); t.dispatchEvent(new Event('change', { bubbles: true })) } }; words = o ? (o.dataset.triggerWords || '') : ''">
     <!--/* Il restore dello stato salvato (generation-settings-persist.html) e "Usa configurazione" scrivono i campi PRIMA che Alpine inizializzi questo
          fragment: l'x-init deriva la selezione dal campo sorgente (primo preset con la stessa sorgente, altrimenti "testo libero"), come fluxModel in
          generation-params-flux-lora-finetune.html. Niente "change" sintetico: ricopierebbe la scala sopra il valore ripristinato. */-->
@@ -23,7 +23,8 @@
         <select th:id="${selectId}" class="sr-only" tabindex="-1" aria-hidden="true">
             <option value="" th:text="#{generationParams.option.freeText}">— testo libero —</option>
             <option th:each="p : ${loraPresets}" th:value="${p.id}" th:text="${p.name}"
-                    th:data-source="${p.source}" th:data-scale="${p.scale}" th:data-trigger-words="${p.triggerWords}">nome</option>
+                    th:data-source="${p.source}" th:data-scale="${p.scale}" th:data-trigger-words="${p.triggerWords}"
+                    th:data-token-id="${p.defaultTokenId}" th:data-token-provider="${p.defaultTokenProvider}">nome</option>
         </select>
         <div th:replace="~{fragments/core/select :: ui}"></div>
     </div>

@@ -56,7 +56,7 @@
                 <option th:each="t : ${hfTokens}" th:value="${t.id}"
                         th:disabled="${t.status.name() == 'EXPIRED'}"
                         th:selected="${#strings.toString(hf_token_id) == #strings.toString(t.id)}"
-                        th:text="${t.expiresAt == null} ? ${t.name} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name})} : #{generationParams.option.tokenExpires(${t.name}, ${t.expiresAt})})">nome</option>
+                        th:text="${t.expiresAt == null} ? ${t.name + ' ••••' + t.hint} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name + ' ••••' + t.hint})} : #{generationParams.option.tokenExpires(${t.name + ' ••••' + t.hint}, ${t.expiresAt})})">nome</option>
             </select>
             <div th:replace="~{fragments/core/select :: ui}"></div>
         </div>
@@ -70,7 +70,7 @@
                 <option th:each="t : ${civitaiTokens}" th:value="${t.id}"
                         th:disabled="${t.status.name() == 'EXPIRED'}"
                         th:selected="${#strings.toString(civitai_token_id) == #strings.toString(t.id)}"
-                        th:text="${t.expiresAt == null} ? ${t.name} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name})} : #{generationParams.option.tokenExpires(${t.name}, ${t.expiresAt})})">nome</option>
+                        th:text="${t.expiresAt == null} ? ${t.name + ' ••••' + t.hint} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name + ' ••••' + t.hint})} : #{generationParams.option.tokenExpires(${t.name + ' ••••' + t.hint}, ${t.expiresAt})})">nome</option>
             </select>
             <div th:replace="~{fragments/core/select :: ui}"></div>
         </div>

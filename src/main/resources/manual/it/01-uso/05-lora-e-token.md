@@ -52,7 +52,8 @@ Per scaricare LoRA privati servono i token di HuggingFace o CivitAI. Si gestisco
 
 Cose da sapere:
 
-- Il token **non si digita nel form di generazione**: lo scegli per nome dalla select (**— nessuno —** se non serve). Le voci mostrano **(scade il …)** o **(scaduto)**, e il link **Gestisci i token** porta qui.
+- Il token **non si digita nel form di generazione**: lo scegli per nome dalla select (**— nessuno —** se non serve). Le voci mostrano il nome e le ultime quattro cifre (**nome ••••1234**), poi **(scade il …)** o **(scaduto)**, e il link **Gestisci i token** porta qui.
+- Per un LoRA salvato in [LoRA](/loras) puoi indicare un **Token predefinito**: scegliendo quel LoRA nel form di flux-dev-lora la select del token giusto (HuggingFace o CivitAI) si compila da sola, e resta modificabile. Se il token viene cancellato, il LoRA resta ma senza token predefinito.
 - Dopo il salvataggio il token non si vede più: resta visibile solo l'ultima parte, per riconoscerlo.
 - I token sono salvati **cifrati**. Serve la chiave di cifratura nella configurazione del server (vedi [Dati, storage e sicurezza](../02-architettura/07-dati-storage-sicurezza.md)); senza, la pagina lo segnala e non si possono salvare token.
 - Un token scaduto o cancellato blocca la generazione **prima** di chiamare Replicate: niente costi per un errore evitabile.

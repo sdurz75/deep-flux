@@ -4,13 +4,17 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.generation.domain.LoraException;
 import org.dual.replicate.app.generation.domain.LoraPreset;
 import org.dual.replicate.app.generation.domain.ReplicateModel;
 import org.dual.replicate.app.generation.port.in.IModelCatalog;
 import org.dual.replicate.core.events.port.in.ISystemEvents;
 import org.dual.replicate.core.kernel.remote.RemoteServiceException;
+import org.dual.replicate.core.tokens.port.in.IApiTokens;
 import org.dual.replicate.core.kernel.i18n.Messages;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
 import org.dual.replicate.app.generation.port.out.ILoraPresetStore;
@@ -31,24 +35,28 @@ public class LoraPresetService implements ILoraPresets {
     private final Messages messages;
     private final IModelCatalog modelCatalog;
     private final ISystemEvents systemEvents;
+    private final IApiTokens tokens;
     private final Clock clock;
 
     @Autowired
-    public LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents) {
-        this(repository, messages, modelCatalog, systemEvents, Clock.systemDefaultZone());
+    public LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents,
+                             IApiTokens tokens) {
+        this(repository, messages, modelCatalog, systemEvents, tokens, Clock.systemDefaultZone());
     }
 
-    LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents, Clock clock) {
+    LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents, IApiTokens tokens, Clock clock) {
         this.repository = repository;
         this.messages = messages;
         this.modelCatalog = modelCatalog;
         this.systemEvents = systemEvents;
+        this.tokens = tokens;
         this.clock = clock;
     }
 
     @Override
     public List<LoraView> list() {
-        return repository.findAllOrderedByName().stream().map(LoraPresetService::view).toList();
+        Map<Long, IApiTokens.TokenView> byId = tokens.list().stream().collect(Collectors.toMap(IApiTokens.TokenView::id, Function.identity()));
+        return repository.findAllOrderedByName().stream().map(p -> view(p, byId.get(p.getDefaultTokenId()))).toList();
     }
 
     /** Attributi di Model per le select di preset delle form di generazione ({@code loraPresets}): solo dove serve. */
@@ -59,23 +67,24 @@ public class LoraPresetService implements ILoraPresets {
 
     @Override
     public LoraView get(Long id) {
-        return view(find(id));
+        LoraPreset preset = find(id);
+        return view(preset, tokenOf(preset));
     }
 
     @Override
-    public LoraView create(String name, String source, Double scale, String triggerWords, String note) {
+    public LoraView create(String name, String source, Double scale, String triggerWords, String note, Long defaultTokenId) {
         String cleanName = validName(name);
         if (repository.existsByNameIgnoreCase(cleanName)) {
             throw new LoraException(messages.get("loras.error.nameDuplicate", cleanName));
         }
         LoraPreset saved = repository.save(new LoraPreset(cleanName, validSource(source), validScale(scale),
-                optional(triggerWords, "loras.error.triggerWordsTooLong"), optional(note, "loras.error.noteTooLong"), clock.instant()));
+                optional(triggerWords, "loras.error.triggerWordsTooLong"), optional(note, "loras.error.noteTooLong"), validToken(defaultTokenId), clock.instant()));
         registerAsModel(saved);
-        return view(saved);
+        return view(saved, tokenOf(saved));
     }
 
     @Override
-    public LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note) {
+    public LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note, Long defaultTokenId) {
         LoraPreset existing = find(id);
         String cleanName = validName(name);
         if (repository.existsByNameIgnoreCaseAndIdNot(cleanName, id)) {
@@ -83,10 +92,10 @@ public class LoraPresetService implements ILoraPresets {
         }
         Instant now = clock.instant();
         existing.update(cleanName, validSource(source), validScale(scale), optional(triggerWords, "loras.error.triggerWordsTooLong"),
-                optional(note, "loras.error.noteTooLong"), now);
+                optional(note, "loras.error.noteTooLong"), validToken(defaultTokenId), now);
         LoraPreset saved = repository.save(existing);
         registerAsModel(saved);
-        return view(saved);
+        return view(saved, tokenOf(saved));
     }
 
     /**
@@ -111,8 +120,40 @@ public class LoraPresetService implements ILoraPresets {
         repository.delete(find(id));
     }
 
-    private static LoraView view(LoraPreset p) {
-        return new LoraView(p.getId(), p.getName(), p.getSource(), p.getScale(), p.getTriggerWords(), p.getNote());
+    /** Mai il segreto: della vista fanno parte solo id, provider, nome e suffisso del token ({@code hint}). */
+    private static LoraView view(LoraPreset p, IApiTokens.TokenView token) {
+        return new LoraView(p.getId(), p.getName(), p.getSource(), p.getScale(), p.getTriggerWords(), p.getNote(), p.getDefaultTokenId(),
+                token == null ? null : token.provider(), token == null ? null : token.name(), token == null ? null : token.hint());
+    }
+
+    /** Il token di default, se c'e' ancora (la FK lo scollega alla cancellazione, ma una lettura concorrente puo' non trovarlo). */
+    private IApiTokens.TokenView tokenOf(LoraPreset p) {
+        if (p.getDefaultTokenId() == null) {
+            return null;
+        }
+        try {
+            return tokens.get(p.getDefaultTokenId());
+        } catch (RemoteServiceException e) {
+            return null;
+        }
+    }
+
+    /** {@code null} = nessun token; altrimenti deve esistere ed essere un token HuggingFace o CivitAI. */
+    private Long validToken(Long id) {
+        if (id == null) {
+            return null;
+        }
+        IApiTokens.TokenView token;
+        try {
+            token = tokens.get(id);
+        } catch (RemoteServiceException e) {
+            throw new LoraException(messages.get("loras.error.tokenInvalid"));
+        }
+        boolean supported = java.util.Arrays.stream(ApiTokenProvider.values()).anyMatch(p -> p.name().equals(token.provider()));
+        if (!supported) {
+            throw new LoraException(messages.get("loras.error.tokenInvalid"));
+        }
+        return id;
     }
 
     private LoraPreset find(Long id) {

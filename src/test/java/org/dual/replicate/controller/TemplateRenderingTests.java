@@ -914,8 +914,8 @@ class TemplateRenderingTests {
         assertThat(body).contains("name=\"hf_token_id\"", "name=\"civitai_token_id\"", "Personale", "Civitai lavoro");
         assertThat(body).containsPattern("<option value=\"" + hf.id() + "\"[^>]*selected");
         assertThat(body).containsPattern("<option value=\"\"[^>]*>");
-        assertThat(body).containsPattern("(?s)<option[^>]*value=\"" + civitai.id() + "\"[^>]*>[^<]*Civitai lavoro \\(scade il");
-        assertThat(body).containsPattern("(?s)<option[^>]*disabled[^>]*>\\s*Vecchio \\(scaduto\\)");
+        assertThat(body).containsPattern("(?s)<option[^>]*value=\"" + civitai.id() + "\"[^>]*>[^<]*Civitai lavoro ••••5678 \\(scade il");
+        assertThat(body).containsPattern("(?s)<option[^>]*disabled[^>]*>\\s*Vecchio ••••0000 \\(scaduto\\)");
         assertThat(body).doesNotContain("type=\"password\"").doesNotContain("hf_super_secret_1234")
                 .doesNotContain("cv_other_secret_5678").doesNotContain("cv_old_secret_0000").doesNotContain("_secret_");
         assertThat(body).containsPattern("name=\"lora_scale\"[^>]*value=\"1(\\.0)?\"");
