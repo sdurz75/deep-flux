@@ -303,8 +303,8 @@
 </button>
 
 <!--
-  removeFile(title): icona "x" sull'anteprima di un file nella dropzone di /import (fragments/app/import-dropzone.html, unico chiamante). Assume lo
-  scope del componente Alpine `importDropzone` (metodo `remove`) e la variabile `index` del suo x-for. type="button" CRITICO: sta in un form che
+  removeFile(title): icona "x" sull'anteprima di un file nella dropzone di immagini (fragments/app/image-dropzone.html: /import e dataset di addestramento). Assume lo
+  scope del componente Alpine `imageDropzone` (metodo `remove`) e la variabile `index` del suo x-for. type="button" CRITICO: sta in un form che
   invia file. `p-0 border-0` e colori espliciti: senza, il layer base darebbe al bottone sfondo e padding propri.
 -->
 <button th:fragment="removeFile(title)" type="button" th:title="${title}" th:aria-label="${title}" @click="remove(index)"

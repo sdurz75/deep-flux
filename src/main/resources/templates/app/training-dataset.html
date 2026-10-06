@@ -9,8 +9,8 @@
     <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.create}, parentPath='/trainings', parentText=#{training.title}, current=${dataset.name})}"></nav>
 </div>
 <div layout:fragment="content">
-    <!--/* Il componente Alpine `trainingDropzone` si registra una volta (alpine:init) da questo script; il markup e' in :: field. */-->
-    <div th:replace="~{fragments/app/training-dropzone :: script}"></div>
+    <!--/* Il componente Alpine `imageDropzone` si registra una volta (alpine:init) da questo script; il markup e' in :: field. */-->
+    <div th:replace="~{fragments/app/image-dropzone :: script}"></div>
     <!--/* Come maskEditor: il componente `cropEditor` si registra una volta da :: script, il dialog sta FUORI da #training-images (che si rimpiazza a ogni modifica). */-->
     <th:block th:unless="${dataset.frozen}">
         <div th:replace="~{fragments/app/crop-editor :: script}"></div>

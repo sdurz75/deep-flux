@@ -29,7 +29,10 @@
           th:action="@{/trainings/datasets/{id}/images(id=${dataset.id})}" method="post" enctype="multipart/form-data"
           th:hx-post="@{/trainings/datasets/{id}/images(id=${dataset.id})}" hx-encoding="multipart/form-data"
           hx-target="#training-images" hx-swap="innerHTML" th:data-busy-text="#{training.upload.busy}" class="mb-4">
-        <div th:replace="~{fragments/app/training-dropzone :: field(maxBytes=${maxBytes}, maxFiles=${maxImages - #lists.size(dataset.images)})}"></div>
+        <div th:replace="~{fragments/app/image-dropzone :: field(inputId='training-files', formId='training-upload-form', maxBytes=${maxBytes},
+                    maxFiles=${maxImages - #lists.size(dataset.images)}, compact=true, prompt=#{training.dropzone.prompt},
+                    hint=#{training.dropzone.hint(${maxImages - #lists.size(dataset.images)}, ${maxBytes / 1048576})}, invalidType=#{training.dropzone.invalidType},
+                    tooLarge=#{training.dropzone.tooLarge}, tooMany=#{training.dropzone.tooMany}, removeTitle=#{training.dropzone.remove})}"></div>
         <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{training.upload.submit}, extraClass='mt-3')}">Aggiungi</button>
     </form>
 

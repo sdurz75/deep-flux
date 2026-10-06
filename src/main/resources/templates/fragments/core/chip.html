@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Chip neutri (pillola con bordo e testo attenuato): etichette di sola lettura (provider, intensita', tag...). textClass = dimensione/padding
+  verticale del chiamante come classe LETTERALE nel suo template (es. 'text-[0.8rem]', 'text-[0.75rem] py-0.5'): la CLI Tailwind scansiona
+  staticamente e non vede stringhe composte qui. Parametri nominati, tutti passati (inutilizzati null). Con th:each usare un th:block esterno:
+  th:replace ha la precedenza su th:each sullo stesso elemento.
+
+  neutral(text, textClass): <span>.   link(href, text, textClass): <a> senza sottolineatura; href gia' risolto con @{...} dal chiamante.
+-->
+<span th:fragment="neutral(text, textClass)"
+      class="rounded-full border border-line dark:border-line-dark px-2 text-ink-muted dark:text-ink-muted-dark"
+      th:classappend="${textClass}" th:text="${text}">etichetta</span>
+
+<a th:fragment="link(href, text, textClass)" th:href="${href}"
+   class="rounded-full border border-line dark:border-line-dark px-2 no-underline text-ink-muted dark:text-ink-muted-dark"
+   th:classappend="${textClass}" th:text="${text}">etichetta</a>
+
+</body>
+</html>

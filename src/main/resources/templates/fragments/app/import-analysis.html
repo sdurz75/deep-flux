@@ -17,8 +17,9 @@
     <th:block th:if="${generation.analysisStatus != null and generation.analysisStatus.name() == 'DONE'}">
         <p class="m-0 text-[0.9rem]" th:text="${generation.prompt}">Descrizione</p>
         <p th:if="${!#lists.isEmpty(generation.analysisTagList)}" class="mt-1 mb-0 flex flex-wrap gap-1">
-            <span th:each="tag : ${generation.analysisTagList}" th:text="${tag}"
-                  class="text-[0.75rem] rounded-full px-2 py-0.5 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark">tag</span>
+            <th:block th:each="tag : ${generation.analysisTagList}">
+                <span th:replace="~{fragments/core/chip :: neutral(text=${tag}, textClass='text-[0.75rem] py-0.5')}">tag</span>
+            </th:block>
         </p>
     </th:block>
     <!--/* th:if insieme a th:replace sullo stesso elemento verrebbe ignorato: il bottone sta in un th:block condizionale. */-->

@@ -13,11 +13,11 @@
             class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3">
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.9rem]">
                 <strong th:text="${l.name}">nome</strong>
-                <span class="rounded-full border border-line dark:border-line-dark px-2 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark"
-                      th:text="#{loras.scale(${l.scale})}">intensita' 1</span>
+                <span th:replace="~{fragments/core/chip :: neutral(text=#{loras.scale(${l.scale})}, textClass='text-[0.8rem]')}">intensita' 1</span>
                 <code class="break-all" th:text="${l.source}">owner/nome</code>
-                <span th:if="${l.defaultTokenId}" class="rounded-full border border-line dark:border-line-dark px-2 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark"
-                      th:text="#{loras.token(${l.defaultTokenName + ' ••••' + l.defaultTokenHint})}">token HuggingFace</span>
+                <th:block th:if="${l.defaultTokenId}">
+                    <span th:replace="~{fragments/core/chip :: neutral(text=#{loras.token(${l.defaultTokenName + ' ••••' + l.defaultTokenHint})}, textClass='text-[0.8rem]')}">token HuggingFace</span>
+                </th:block>
             </div>
             <p th:if="${l.triggerWords}" class="mt-2 mb-0 text-[0.85rem]">
                 <span class="text-ink-muted dark:text-ink-muted-dark" th:text="#{loras.triggerWords}">Trigger words</span>:

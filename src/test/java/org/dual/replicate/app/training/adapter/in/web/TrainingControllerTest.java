@@ -154,7 +154,7 @@ class TrainingControllerTest {
 
         String page = body(mockMvc.perform(get("/trainings/datasets/" + dataset.getId())).andExpect(status().isOk()).andReturn());
 
-        assertThat(page).contains("value=\"Il mio gatto\"").contains("value=\"TOKCAT\"").contains("trainingDropzone")
+        assertThat(page).contains("value=\"Il mio gatto\"").contains("value=\"TOKCAT\"").contains("imageDropzone")
                 .contains("enctype=\"multipart/form-data\"").contains("data-max-files=\"25\"").contains("0 di 25 immagini")
                 .contains("Nessuna immagine ancora")
                 .containsPattern("aria-current=\"page\"[^>]*>Il mio gatto<").contains("href=\"/trainings\"");

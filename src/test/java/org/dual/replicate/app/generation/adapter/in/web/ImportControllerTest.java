@@ -82,7 +82,7 @@ class ImportControllerTest {
         String page = mockMvc.perform(get("/import")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("Importa immagini").contains("name=\"images\"").contains("multiple")
-                .contains("enctype=\"multipart/form-data\"").contains("importDropzone").contains("data-max-files=\"20\"")
+                .contains("enctype=\"multipart/form-data\"").contains("imageDropzone").contains("data-max-files=\"20\"")
                 .contains("Ultime importate").containsPattern("aria-current=\"page\"[^>]*>Importa immagini<");
     }
 

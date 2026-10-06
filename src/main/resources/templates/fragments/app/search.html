@@ -61,8 +61,9 @@
               th:classappend="${d.type == 'note'} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark' : 'border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark'">tipo</span>
         <span th:if="${hit.score != null}" class="font-semibold"
               th:text="#{search.row.score} + ' ' + ${#numbers.formatDecimal(hit.score * 100, 1, 1)} + '%'">Somiglianza 85.0%</span>
-        <span th:if="${(d.type == 'generation' || d.type == 'imported') && d.metadata['kind'] != null}" class="rounded-full px-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark"
-              th:text="#{'search.kind.' + ${#strings.toLowerCase(d.metadata['kind'])}}">Foto</span>
+        <th:block th:if="${(d.type == 'generation' || d.type == 'imported') && d.metadata['kind'] != null}">
+            <span th:replace="~{fragments/core/chip :: neutral(text=#{'search.kind.' + ${#strings.toLowerCase(d.metadata['kind'])}}, textClass=null)}">Foto</span>
+        </th:block>
         <span th:if="${d.type == 'generation' && d.metadata['model'] != null}" class="text-ink-muted dark:text-ink-muted-dark" th:text="${d.metadata['model']}">modello</span>
         <strong th:if="${d.metadata['title'] != null}" th:text="${d.metadata['title']}">titolo</strong>
         <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${#temporals.format(d.createdAt, 'dd/MM/yyyy HH:mm')}">data</span>
@@ -73,8 +74,9 @@
     </div>
     <!--/* Tag utente (metadata `tags`, gia' normalizzati): link alla stessa ricerca filtrata per quel tag. Non sono le tag d'indice (#tags:) del testo. */-->
     <div th:if="${d.metadata['tags'] != null && !#lists.isEmpty(d.metadata['tags'])}" class="mt-2 flex flex-wrap gap-1">
-        <a th:each="t : ${d.metadata['tags']}" th:href="@{/search(tag=${t})}" th:text="${t}"
-           class="text-[0.75rem] rounded-full px-2 py-0.5 border border-line dark:border-line-dark no-underline text-ink-muted dark:text-ink-muted-dark">tag</a>
+        <th:block th:each="t : ${d.metadata['tags']}">
+            <a th:replace="~{fragments/core/chip :: link(href=@{/search(tag=${t})}, text=${t}, textClass='text-[0.75rem] py-0.5')}">tag</a>
+        </th:block>
     </div>
     <!--/* Artefatti della generazione: miniature dai metadata (search non conosce generation). Un file appena cancellato si nasconde (onerror) fino alla riconciliazione. */-->
     <div th:if="${(d.type == 'generation' || d.type == 'imported') && d.metadata['files'] != null && !#lists.isEmpty(d.metadata['files'])}" class="mt-2 flex flex-wrap gap-2">

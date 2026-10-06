@@ -18,8 +18,7 @@
             class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3">
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.9rem]">
                 <strong th:text="${t.name}">nome</strong>
-                <span class="rounded-full border border-line dark:border-line-dark px-2 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark"
-                      th:text="${#messages.msgOrNull('tokens.provider.' + t.provider) ?: t.provider}">HuggingFace</span>
+                <span th:replace="~{fragments/core/chip :: neutral(text=${#messages.msgOrNull('tokens.provider.' + t.provider) ?: t.provider}, textClass='text-[0.8rem]')}">HuggingFace</span>
                 <code th:text="'…' + ${t.hint}">…ab12</code>
                 <span th:if="${t.expiresAt == null}" class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{tokens.noExpiry}">Nessuna scadenza</span>
                 <span th:if="${t.expiresAt != null}" class="text-[0.85rem]"
