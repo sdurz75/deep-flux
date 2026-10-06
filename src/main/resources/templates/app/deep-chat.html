@@ -190,8 +190,26 @@
                 th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
                 requestBodyLimits='{"maxMessages": 1}'
                 class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
+                       bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
                        min-[861px]:flex-1 min-[861px]:w-auto">
         </deep-chat>
+        <!--
+          TEMA della chat: <deep-chat> sta in uno shadow DOM che Tailwind non raggiunge (sfondo e testo
+          dell'host li dicono le classi qui sopra, ereditate dentro). Bolle, input e icone sono invece
+          stili interni di deep-chat, applicati UNA volta (chatStyle/auxiliaryStyle non si riapplicano):
+          lo script sotto legge i colori dei token da queste sonde (classi letterali, mai colori
+          hardcoded) e riscrive un <style> nello shadow root a ogni cambio di data-theme su <html>.
+        -->
+        <div aria-hidden="true" class="fixed -z-10 pointer-events-none opacity-0">
+            <span id="chat-probe-canvas" class="bg-canvas dark:bg-canvas-dark"></span>
+            <span id="chat-probe-surface" class="bg-surface dark:bg-surface-dark"></span>
+            <span id="chat-probe-ink" class="text-ink dark:text-ink-dark"></span>
+            <span id="chat-probe-muted" class="text-ink-muted dark:text-ink-muted-dark"></span>
+            <span id="chat-probe-line" class="border border-line dark:border-line-dark"></span>
+            <span id="chat-probe-accent" class="bg-accent dark:bg-accent-dark"></span>
+            <span id="chat-probe-accent-contrast" class="text-accent-contrast dark:text-accent-contrast-dark"></span>
+            <span id="chat-probe-danger" class="text-danger dark:text-danger-dark"></span>
+        </div>
     </div>
 
     <!--
@@ -324,6 +342,27 @@
     <script type="module">
         customElements.whenDefined('deep-chat').then(() => {
             const deepChat = document.getElementById('deep-chat-el');
+            const probe = (id, prop) => getComputedStyle(document.getElementById('chat-probe-' + id))[prop];
+            const themeStyle = document.createElement('style');
+            deepChat.shadowRoot.appendChild(themeStyle);
+            const applyChatTheme = () => {
+                const surface = probe('surface', 'backgroundColor');
+                const ink = probe('ink', 'color');
+                const line = probe('line', 'borderTopColor');
+                const accent = probe('accent', 'backgroundColor');
+                themeStyle.textContent =
+                    '.ai-message-text{background-color:' + surface + ';color:' + ink + '}'
+                    + '.user-message-text{background-color:' + accent + ';color:' + probe('accent-contrast', 'color') + '}'
+                    + '#text-input-container{background-color:' + probe('canvas', 'backgroundColor')
+                    + ';border-color:' + line + '}'
+                    + '#text-input{color:' + ink + '}'
+                    + '#text-input[contenteditable]:empty::before,.text-input-placeholder{color:' + probe('muted', 'color') + '}'
+                    + '.input-button-svg *{fill:' + accent + '}'
+                    + '.dropup-menu-item:hover,.dropup-menu-item:focus-visible{background-color:' + surface + '}';
+            };
+            applyChatTheme();
+            new MutationObserver(applyChatTheme)
+                .observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
             const escapeHtml = (value) => String(value == null ? '' : value)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             // Risultato di una generazione (fragments/app/generation-result.html): messaggio "html"
@@ -400,7 +439,7 @@
                     });
             deepChat.history = (window.deepChatHistory || []).map((m) =>
                 m.role === 'ai' && m.text && !m.error && !(m.files && m.files.length) ? {...m, text: linkAppPaths(m.text)} :
-                m.error ? {role: 'ai', html: '<span style="color:#cf222e">' + escapeHtml(m.text) + '</span>'}
+                m.error ? {role: 'ai', html: '<span style="color:' + probe('danger', 'color') + '">' + escapeHtml(m.text) + '</span>'}
                 : m.files && m.files.length ? {role: m.role, html: resultHtml(m.generationId, m.text, m.files)} : m);
             deepChat.requestInterceptor = (details) => {
                 const settings = window.deepChatSettings || {};
