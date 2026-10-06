@@ -6,7 +6,7 @@ Il codice e' diviso in due:
 - **`app`** (`org.dual.replicate.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
   ricerca semantica). Si **sostituisce** con la propria.
 
-Riuso = copiare il repo (stesso modulo Maven, niente artefatto separato), cancellare `app` e cio' che le appartiene, scrivere la propria
+**Moduli Maven**: `core` e' il modulo `dual-core` (jar riusabile, `org.dual:dual-core`), `app` il modulo `app`, `dual-test-support` il container di test. Una nuova app puo' dipendere da `dual-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `app` (`app/src/...`) o `dual-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
 app implementando i punti di estensione sotto. La regola `coreDoesNotKnowApp` di `ArchitectureTest` impedisce che il codice di `core`
 dipenda da `app`; ogni sottosistema (di `core` e di `app`) e' un esagono (domain / application / port.in / port.out / adapter.in /
 adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).

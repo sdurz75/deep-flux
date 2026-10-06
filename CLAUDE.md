@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-Guida per questo repository: le scelte sono vincoli deliberati per mantenere il progetto snello. Package radice `org.dual.replicate`, Java 21, Maven, UN solo modulo, nessun Maven Wrapper.
+Guida per questo repository: le scelte sono vincoli deliberati per mantenere il progetto snello. Package radice `org.dual.replicate`, Java 21, Maven multi-modulo (`dual-core` libreria, `app` applicazione, `dual-test-support` container di test; `pom.xml` radice = parent/reactor), nessun Maven Wrapper.
+Layout: `dual-core/src/{main,test}` = `org.dual.replicate.core.*` + risorse core (`core.yml`, `application-backup.yml`, `messages-core*`, `db/migration/core`, `templates/core`, `templates/fragments/core`); `app/src/{main,test}` = `Application`, `org.dual.replicate.app.*`, `application.yml`, `messages*`, `prompts.properties`, `db/migration/app`, `templates/app`, `templates/fragments/app`, `manual/`, `tailwind/`. I test `@SpringBootTest` (anche di package `core.*`) stanno in `app` (serve il contesto completo); in `dual-core` solo i test senza contesto Spring, e i suoi helper (`FakeEmbeddingModel`, `FakeWebDavServer`) arrivano all'app come test-jar. `.env` e `data/` restano nella radice del repo (`spring-boot:run` parte da li').
 Il codice e' diviso in `core` (generico, riusabile: layout, remote+retry, eventi di sistema, push SSE, secrets/token, storage binari, backup, manuale) e `app` (generazione immagini/video, galleria, chat, ricerca semantica, training LoRA). Il repo e' anche un template (si tiene `core`, si sostituisce `app`): `docs/TEMPLATE.md`.
 Struttura, classi e package si ricavano dal repo (`git ls-files`) e dai test di architettura; qui solo cio' che non e' ovvio.
 
@@ -65,7 +66,7 @@ Hypermedia-first, non SPA: il server restituisce HTML. Navigazione = Spring MVC 
 
 - **WebFlux come modello del server**: no, restare su `spring-boot-starter-webmvc` (Tomcat). Due eccezioni, solo tipi Reactor: il client HTTP di Spring AI, e `EventStreamController` (`GET /events`, `Flux<ServerSentEvent<?>>` da `Sinks.Many` in `PushService`, porta `IClientPushStream`: unica whitelist Reactor delle porte). Un controller reattivo senza bisogno di streaming e' fuori scope.
 - **React/Vue/Angular**: no (duplicherebbe routing/stato).
-- **Build step Tailwind obbligatorio**: no. Default = Play CDN. Opt-in: `mvn -Ptailwind clean package` (binario *standalone* 3.4 via `curl`, solo macOS/Linux) compila `target/classes/static/css/tailwind.css`; `TailwindAssets` lo rileva e il layout serve `<link>`. Config in UN file `src/main/tailwind/tailwind.config.js` (il CDN lo carica come `/js/tailwind.config.js` con uno shim `module`). Il blocco `@layer base` e' duplicato fra `src/main/tailwind/input.css` e `layout.html`: tenerli allineati. Le classi restano stringhe letterali (la CLI scansiona staticamente).
+- **Build step Tailwind obbligatorio**: no. Default = Play CDN. Opt-in: `mvn -Ptailwind clean package` (binario *standalone* 3.4 via `curl`, solo macOS/Linux) compila `target/classes/static/css/tailwind.css`; `TailwindAssets` lo rileva e il layout serve `<link>`. Config in UN file `app/src/main/tailwind/tailwind.config.js` (il CDN lo carica come `/js/tailwind.config.js` con uno shim `module`). Il blocco `@layer base` e' duplicato fra `app/src/main/tailwind/input.css` e `layout.html`: tenerli allineati. Le classi restano stringhe letterali (la CLI scansiona staticamente).
 - Nessun CSS in `static/`. Immagini in `./data/images`, DB di sviluppo in `./data/postgres` (fuori da git).
 
 ## Stack
@@ -193,7 +194,7 @@ Stesso Postgres, nessun servizio in piu'. Espone solo tipi di dominio; Spring AI
 
 Manuale in Markdown (parte **Uso** per l'utente, **Architettura** per chi sviluppa), servito da `/manual` e convertito in HTML a ogni richiesta; il bot lo consulta con `ManualTool`. Il motore e' generico, i testi e le etichette dei gruppi sono dell'app.
 
-- **File**: `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md`; ordine = prefisso numerico; **slug = nome file senza prefisso, unico fra tutti i gruppi** (URL piatta `/manual/{slug}`); gruppo = cartella senza prefisso, etichetta `manual.group.<gruppo>` nel bundle dell'APP. Titolo = primo `# `, riassunto = primo paragrafo. Una lingua senza cartella ricade su `it`. Contenuto in italiano con gli accenti veri (a differenza dei bundle).
+- **File**: `app/src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md`; ordine = prefisso numerico; **slug = nome file senza prefisso, unico fra tutti i gruppi** (URL piatta `/manual/{slug}`); gruppo = cartella senza prefisso, etichetta `manual.group.<gruppo>` nel bundle dell'APP. Titolo = primo `# `, riassunto = primo paragrafo. Una lingua senza cartella ricade su `it`. Contenuto in italiano con gli accenti veri (a differenza dei bundle).
 - Lo slug da richiesta si cerca SOLO nella mappa dell'indice (nessun path traversal); ignoto = 404 senza evento. Una **sezione** va da un titolo `#`/`##` al successivo ed e' l'unita' cercata (`IManual#search`) e citata dal bot. **Ancore**: UNA sola funzione `HeadingSlugs` (sia per gli `id` HTML sia per le sezioni, altrimenti il bot cita ancore morte): i titoli non possono avere formattazione inline.
 - **Link nei `.md`** (`ManualLinks`): fra pagine il nome VERO del file (`../01-uso/03-genera-immagini.md#parametri`); verso l'app un path radice (`/gallery`); `#ancora`; `http(s)://` esterno (nuova scheda). Il renderer li riscrive col prefisso `request.getContextPath()`.
 - **Sicurezza/stile**: `CommonmarkRenderer` ha `escapeHtml(true)` e `sanitizeUrls(true)`; `manual.html` usa `th:utext` solo sui due `<div>` dell'articolo. Preflight azzera lo stile e il theming vieta `@layer` e Typography: varianti arbitrarie Tailwind definite UNA volta (`th:with="prose=..."`), classi letterali. In un'espressione `${...}` un parametro di fragment non puo' usare `${a} ? x : y`: una sola `${a ? x : y}`.
@@ -203,14 +204,14 @@ Manuale in Markdown (parte **Uso** per l'utente, **Architettura** per chi svilup
 
 ```bash
 docker compose up -d                # PostgreSQL+pgvector di sviluppo (DB_* nel .env, vedi .env.example)
-mvn spring-boot:run                 # sviluppo
+mvn -q install -DskipTests && mvn -pl app spring-boot:run   # sviluppo (la prima volta installa dual-core in ~/.m2)
 mvn test                            # test (richiede Docker)
-mvn test -Dtest=ArchitectureTest    # solo architettura (senza Docker)
-mvn clean package                   # jar; -Ptailwind per il CSS compilato
-java -jar target/spring-htmx-starter-*.jar export backup.dfb
+mvn test -pl app -am -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false   # solo architettura (senza Docker)
+mvn clean package                   # jar in app/target; -Ptailwind per il CSS compilato
+java -jar app/target/spring-htmx-starter-*.jar export backup.dfb
 ```
 
-`mvn test` non tocca mai il DB di sviluppo: `PostgresTestContainerInitializer` (`support`, `META-INF/spring.factories`) avvia UN container `pgvector/pgvector:pg17` per la suite e Flyway applica lo schema reale. Il profilo Surefire (`pom.xml`) fissa `storage.type=local`, `storage.migration.from-local.enabled=false` e la chiave di test (battono il `.env`); un test che vuole WebDAV li sovrascrive con `@SpringBootTest(properties=...)`, mai contro il server vero. I test condividono il DB: i `@SpringBootTest` che scrivono ripuliscono a mano o sono `@Transactional`. Struttura sotto `src/test/java` uguale ai package; `TemplateRenderingTests` (tutte le pagine/fragment, bundle) sta in `controller`. Mai chiamate vere a Replicate/OpenRouter/HF nei test (`@MockitoBean IPredictionGateway`, `IImageDescriber`...); con uno stub gia' lancianti ri-stubbare con `doReturn(...).when(mock)`.
+`mvn test` non tocca mai il DB di sviluppo: `PostgresTestContainerInitializer` (modulo `dual-test-support`, `META-INF/spring.factories`) avvia UN container `pgvector/pgvector:pg17` per la suite e Flyway applica lo schema reale. Il profilo Surefire (`pom.xml`) fissa `storage.type=local`, `storage.migration.from-local.enabled=false` e la chiave di test (battono il `.env`); un test che vuole WebDAV li sovrascrive con `@SpringBootTest(properties=...)`, mai contro il server vero. I test condividono il DB: i `@SpringBootTest` che scrivono ripuliscono a mano o sono `@Transactional`. Struttura sotto `src/test/java` uguale ai package; `TemplateRenderingTests` (tutte le pagine/fragment, bundle) sta in `controller`. Mai chiamate vere a Replicate/OpenRouter/HF nei test (`@MockitoBean IPredictionGateway`, `IImageDescriber`...); con uno stub gia' lancianti ri-stubbare con `doReturn(...).when(mock)`.
 
 ## Checklist per una nuova pagina/feature
 

@@ -31,7 +31,7 @@ generabile su
 
 ```bash
 export REPLICATE_API_TOKEN=r8_...
-mvn spring-boot:run
+mvn -q install -DskipTests && mvn -pl app spring-boot:run
 ```
 
 In alternativa, copia `.env.example` in `.env` (escluso da git), valorizza
@@ -42,7 +42,7 @@ direttamente:
 ```bash
 cp .env.example .env   # poi modifica .env col tuo token
 set -a; source .env; set +a
-mvn spring-boot:run
+mvn -q install -DskipTests && mvn -pl app spring-boot:run
 ```
 
 Poi apri http://localhost:7070. Senza il token la navigazione normale
@@ -79,9 +79,9 @@ Lo stesso jar eseguibile fa il backup completo del sistema (database + immagini/
 
 ```bash
 mvn -DskipTests package
-java -jar target/spring-htmx-starter-*.jar export backup.dfb            # crea backup.dfb (cifrato)
-java -jar target/spring-htmx-starter-*.jar import backup.dfb            # su un database vergine
-java -jar target/spring-htmx-starter-*.jar import backup.dfb --replace  # azzera lo schema esistente (CANCELLA i dati attuali)
+java -jar app/target/spring-htmx-starter-*.jar export backup.dfb            # crea backup.dfb (cifrato)
+java -jar app/target/spring-htmx-starter-*.jar import backup.dfb            # su un database vergine
+java -jar app/target/spring-htmx-starter-*.jar import backup.dfb --replace  # azzera lo schema esistente (CANCELLA i dati attuali)
 ```
 
 - **Credenziali**: servono solo quelle di cio' che il comando tocca, lette dal `.env` della **directory da cui lanci il jar** (o da variabili d'ambiente), come per il server:

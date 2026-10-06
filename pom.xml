@@ -12,25 +12,25 @@
     </parent>
 
     <groupId>org.dual</groupId>
-    <artifactId>spring-htmx-starter</artifactId>
+    <artifactId>dual-parent</artifactId>
     <version>0.3.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
 
-    <name>spring-htmx-starter</name>
+    <name>dual-parent</name>
     <description>
-        Webapp snella: Spring MVC + Thymeleaf per il rendering server-side,
-        htmx per la navigazione parziale, Alpine.js per la micro-interattivita'
-        locale, CSS custom properties per il theming. Nessuno step di build
-        frontend (niente npm/webpack/vite): htmx e Alpine sono caricati da CDN.
+        Reactor: dual-core (libreria riusabile: kernel, UI kit, chat/AI, ricerca, storage, backup, manuale),
+        dual-test-support (container PostgreSQL per i test) e l'app spring-htmx-starter (dominio: generazione, training).
     </description>
+
+    <modules>
+        <module>dual-test-support</module>
+        <module>dual-core</module>
+        <module>app</module>
+    </modules>
 
     <properties>
         <java.version>21</java.version>
-        <!-- Commit mostrato nel badge di un jar (build-info, vedi sotto); unknown = non mostrato. -->
-        <build.commit>unknown</build.commit>
         <spring-ai.version>2.0.1</spring-ai.version>
-        <!-- Tailwind standalone CLI (profilo "tailwind"). v3 come il Play CDN. -->
-        <tailwind.version>3.4.17</tailwind.version>
         <!-- Markdown del manuale (core.manual, adapter markdown). Non e' gestita dalle BOM: versione esplicita. -->
         <commonmark.version>0.24.0</commonmark.version>
     </properties>
@@ -44,274 +44,45 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.dual</groupId>
+                <artifactId>dual-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.dual</groupId>
+                <artifactId>dual-test-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webmvc</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-restclient</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
-
-        <!-- Ricerca semantica (vedi CLAUDE.md, "Ricerca semantica"): interfaccia VectorStore implementata da PgVectorStore su
-             PostgreSQL + pgvector + embedding LOCALI via ONNX (multilingual-e5-small, scaricato al primo avvio in ./data/models).
-             Volutamente l'artefatto dello store e NON lo starter: lo starter porta l'autoconfig, qui il bean lo scriviamo noi
-             (SemanticSearchConfig: serve il decorator dei prefissi e5 e deve poter essere spento nei test). -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-vector-store</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-pgvector-store</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-transformers</artifactId>
-        </dependency>
-
-        <!-- Gia' in classpath transitivamente (spring-ai-starter-model-openai la
-             porta per il client HTTP verso OpenRouter, vedi CLAUDE.md, eccezione
-             WebFlux): dichiarata qui esplicitamente perche' il nostro stesso
-             codice ora importa direttamente Flux/Sinks (GenerationEventBroadcaster,
-             EventStreamController) per il push SSE di /events, non solo un
-             dettaglio interno di una libreria. Versione gestita dalla BOM
-             Spring AI/Boot, nessun numero di versione da tracciare qui. -->
-        <dependency>
-            <groupId>io.projectreactor</groupId>
-            <artifactId>reactor-core</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-
-        <dependency>
-            <!-- Layout manager per i template Thymeleaf (layout:decorate /
-                 layout:fragment), al posto del pattern "vanilla" con
-                 th:replace parametrizzato. Versione gestita dalla BOM
-                 spring-boot-dependencies, non serve fissarla qui. -->
-            <groupId>nz.net.ultraq.thymeleaf</groupId>
-            <artifactId>thymeleaf-layout-dialect</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-
-        <!-- Manuale online (core.manual): Markdown -> HTML al volo. Piccola, senza dipendenze; i suoi tipi restano nell'adapter out.markdown. -->
-        <dependency>
-            <groupId>org.commonmark</groupId>
-            <artifactId>commonmark</artifactId>
-            <version>${commonmark.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.commonmark</groupId>
-            <artifactId>commonmark-ext-gfm-tables</artifactId>
-            <version>${commonmark.version}</version>
-        </dependency>
-
-        <!-- Compile scope (non runtime): il backup (core.backup, adapter jdbc) usa org.postgresql.copy.CopyManager per COPY ... STDOUT/STDIN. -->
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-        </dependency>
-
-
-        <dependency>
-            <!-- In Boot 4 l'autoconfigurazione di Flyway e' nel modulo
-                 spring-boot-flyway, non piu' bundled: serve lo starter
-                 esplicito, non basta flyway-core sul classpath (come
-                 invece bastava in Boot 3). Per PostgreSQL serve in piu' il
-                 modulo flyway-database-postgresql (sotto). -->
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-flyway</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-devtools</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webmvc-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- Test su un PostgreSQL+pgvector vero (container singleton, vedi PostgresTestContainerInitializer). -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-testcontainers</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-postgresql</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- Fa rispettare l'architettura esagonale (ArchitectureTest): unica dipendenza di test aggiunta per questo scopo. -->
-        <dependency>
-            <groupId>com.tngtech.archunit</groupId>
-            <artifactId>archunit-junit5</artifactId>
-            <version>1.4.2</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-            <!-- Config Tailwind condivisa: il Play CDN (default, fragments/core/layout.html)
-                 la carica come /js/tailwind.config.js, la CLI la legge da src/main/tailwind. -->
-            <resource>
-                <directory>src/main/tailwind</directory>
-                <includes>
-                    <include>tailwind.config.js</include>
-                </includes>
-                <targetPath>static/js</targetPath>
-            </resource>
-        </resources>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <executions>
-                    <!-- META-INF/build-info.properties (BuildProperties): ora e commit della build nel badge, vedi core.web.BuildInfo.
-                         Il commit non e' calcolato (il plugin git-commit-id non e' raggiungibile dal mirror): per un jar con
-                         commit passare -Dbuild.commit=<hash abbreviato> (l'hash abbreviato di HEAD, ricavabile con git rev-parse). -->
-                    <execution>
-                        <goals>
-                            <goal>build-info</goal>
-                        </goals>
-                        <configuration>
-                            <additionalProperties>
-                                <commit>${build.commit}</commit>
-                            </additionalProperties>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!--
-                Attiva il profilo Spring "test" (src/test/resources/application-test.yml,
-                override di config del test) per OGNI esecuzione di
-                Surefire, non solo per le classi di test che se lo ricordano con
-                un'annotazione: cosi' una futura classe @SpringBootTest eredita
-                l'isolamento gratis, invece di poter tornare a scrivere nel database
-                di sviluppo su file per una semplice dimenticanza.
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <systemPropertyVariables>
-                        <spring.profiles.active>test</spring.profiles.active>
-                        <!-- I test non leggono mai lo storage/la migrazione del .env reale (spring.config.import lo
-                             carica anche sotto Surefire): le proprieta' di sistema battono qualunque file di
-                             configurazione. I test che ne hanno bisogno le sovrascrivono con @SpringBootTest(properties). -->
-                        <storage.type>local</storage.type>
-                        <storage.migration.from-local.enabled>false</storage.migration.from-local.enabled>
-                        <!-- Chiave di test (32 byte a zero in base64) per i token API cifrati: senza, userebbe quella del
-                             .env reale (STORAGE_WEBDAV_ENCRYPTION_KEY) e un test potrebbe cifrare con la chiave vera. -->
-                        <app.secrets.encryption-key>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</app.secrets.encryption-key>
-                    </systemPropertyVariables>
-                </configuration>
-            </plugin>
-        </plugins>
+        <pluginManagement>
+            <plugins>
+                <!--
+                    Attiva il profilo Spring "test" (src/test/resources/application-test.yml dell'app, override di config del test)
+                    per OGNI esecuzione di Surefire, non solo per le classi di test che se lo ricordano con un'annotazione: cosi' una
+                    futura classe @SpringBootTest eredita l'isolamento gratis.
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <spring.profiles.active>test</spring.profiles.active>
+                            <!-- I test non leggono mai lo storage/la migrazione del .env reale (spring.config.import lo
+                                 carica anche sotto Surefire): le proprieta' di sistema battono qualunque file di
+                                 configurazione. I test che ne hanno bisogno le sovrascrivono con @SpringBootTest(properties). -->
+                            <storage.type>local</storage.type>
+                            <storage.migration.from-local.enabled>false</storage.migration.from-local.enabled>
+                            <!-- Chiave di test (32 byte a zero in base64) per i token API cifrati: senza, userebbe quella del
+                                 .env reale (STORAGE_WEBDAV_ENCRYPTION_KEY) e un test potrebbe cifrare con la chiave vera. -->
+                            <app.secrets.encryption-key>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</app.secrets.encryption-key>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
-
-    <profiles>
-        <!--
-            Build Tailwind (opt-in): mvn -Ptailwind clean package
-            Scarica via curl il binario standalone (niente Node/npm, cache in target/tailwind) e compila
-            target/classes/static/css/tailwind.css; TailwindAssets lo rileva e
-            layout.html smette di usare il Play CDN. Senza profilo: invariato.
-            Supportati macOS e Linux (x64/arm64).
-        -->
-        <profile>
-            <id>tailwind</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>3.2.0</version>
-                        <executions>
-                            <execution>
-                                <id>compile-tailwind</id>
-                                <phase>process-resources</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <exec executable="sh" failonerror="true">
-                                            <arg value="-c"/>
-                                            <arg value='B="${project.build.directory}/tailwind/${tailwind.binary}"; mkdir -p "${project.build.directory}/tailwind" &amp;&amp; { [ -x "$B" ] || { curl -fsSL -o "$B" "https://github.com/tailwindlabs/tailwindcss/releases/download/v${tailwind.version}/${tailwind.binary}" &amp;&amp; chmod +x "$B"; }; } &amp;&amp; "$B" -c src/main/tailwind/tailwind.config.js -i src/main/tailwind/input.css -o "${project.build.outputDirectory}/static/css/tailwind.css" --minify'/>
-                                        </exec>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!-- Scelta del binario per OS/arch: solo proprieta', innocui fuori dal profilo "tailwind". -->
-        <profile>
-            <id>tailwind-macos-arm64</id>
-            <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
-            <properties><tailwind.binary>tailwindcss-macos-arm64</tailwind.binary></properties>
-        </profile>
-        <profile>
-            <id>tailwind-macos-x64</id>
-            <activation><os><family>mac</family><arch>x86_64</arch></os></activation>
-            <properties><tailwind.binary>tailwindcss-macos-x64</tailwind.binary></properties>
-        </profile>
-        <profile>
-            <id>tailwind-linux-x64</id>
-            <activation><os><family>unix</family><name>Linux</name><arch>amd64</arch></os></activation>
-            <properties><tailwind.binary>tailwindcss-linux-x64</tailwind.binary></properties>
-        </profile>
-        <profile>
-            <id>tailwind-linux-arm64</id>
-            <activation><os><family>unix</family><name>Linux</name><arch>aarch64</arch></os></activation>
-            <properties><tailwind.binary>tailwindcss-linux-arm64</tailwind.binary></properties>
-        </profile>
-    </profiles>
-
 </project>
