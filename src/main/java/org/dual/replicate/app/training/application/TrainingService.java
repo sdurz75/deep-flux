@@ -334,7 +334,10 @@ public class TrainingService implements ITrainings {
                         messages.get("training.warn.trainerVersionNoHf", training.getId(), requestedVersion, running));
             }
         } catch (RemoteServiceException e) {
-            // un avviso in meno: il training e' partito e la copia verra' verificata a fine corsa
+            // Il training e' partito e la copia verra' verificata a fine corsa: un avviso in meno non lo ferma, ma un guasto vero non si perde.
+            if (e.isReportable()) {
+                systemEvents.record("trainerVersionCheck", e, AppEventSubjects.ofTraining(training.getId()));
+            }
         }
     }
 

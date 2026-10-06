@@ -32,6 +32,15 @@ class AppEventLinksTrainingTest {
     }
 
     @Test
+    void aTrainingDatasetSubjectLinksToTheDatasetEditor() {
+        List<EventLink> resolved = links.resolve("trainingDataset:3");
+
+        assertThat(resolved).hasSize(1);
+        assertThat(resolved.get(0).path()).isEqualTo("/trainings/datasets/3");
+        assertThat(resolved.get(0).label()).isEqualTo("events.link.trainingDataset:3");
+    }
+
+    @Test
     void aMalformedTrainingSubjectHasNoLink() {
         assertThat(links.resolve("training:abc")).isEmpty();
         assertThat(links.resolve("training")).isEmpty();

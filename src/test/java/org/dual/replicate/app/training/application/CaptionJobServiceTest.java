@@ -2,6 +2,7 @@ package org.dual.replicate.app.training.application;
 
 import java.time.Instant;
 
+import org.dual.replicate.app.shared.domain.AppEventSource;
 import org.dual.replicate.app.prompt.domain.CaptionStyle;
 import org.dual.replicate.app.prompt.domain.ImageCaptionException;
 import org.dual.replicate.app.prompt.port.in.IImageCaptioner;
@@ -206,7 +207,7 @@ class CaptionJobServiceTest {
         service.caption(dataset.getId(), imageId);
 
         assertThat(image().getCaptionStatus()).isEqualTo(CaptionStatus.FAILED);
-        verify(systemEvents).record("captionTrainingImage", failure);
+        verify(systemEvents).record("captionTrainingImage", failure, "trainingDataset:" + dataset.getId());
     }
 
     @Test
@@ -227,7 +228,8 @@ class CaptionJobServiceTest {
 
         service.caption(dataset.getId(), imageId); // non deve lanciare
 
-        verify(systemEvents).record(eq("captionTrainingImage"), any(IllegalStateException.class));
+        verify(systemEvents).record(eq(AppEventSource.TRAINING), eq("captionTrainingImage"), any(IllegalStateException.class),
+                eq("trainingDataset:" + dataset.getId()));
     }
 
     @Test

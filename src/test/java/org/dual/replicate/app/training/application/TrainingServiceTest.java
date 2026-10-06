@@ -473,6 +473,19 @@ class TrainingServiceTest {
     }
 
     @Test
+    void aRealFailureReadingTheRunningVersionSchemaIsRecordedWithoutFailingTheLaunch() {
+        draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
+        ReplicateException unavailable = new ReplicateException("503", null, Kind.TRANSIENT);
+        when(trainer.trainerInputFields("v-broken")).thenThrow(unavailable);
+        when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-1", TrainingStatus.PENDING, null, null, null, "v-broken"));
+
+        Training training = service.start(DRAFT_ID);
+
+        assertThat(training).isNotNull();
+        verify(systemEvents).record("trainerVersionCheck", unavailable, "training:" + training.getId());
+    }
+
+    @Test
     void noWarningWhenTheRunningVersionIsTheRequestedOneUnknownOrAbleToUpload() {
         draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
 

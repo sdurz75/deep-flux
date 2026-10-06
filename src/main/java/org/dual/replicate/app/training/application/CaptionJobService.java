@@ -5,6 +5,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.dual.replicate.app.prompt.domain.CaptionStyle;
+import org.dual.replicate.app.shared.domain.AppEventSource;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.prompt.domain.ImageCaptionException;
 import org.dual.replicate.app.prompt.port.in.IImageCaptioner;
 import org.dual.replicate.app.training.domain.CaptionSource;
@@ -66,14 +68,14 @@ public class CaptionJobService implements ICaptionJobs {
         } catch (TrainingException e) {
             // Bozza sparita o congelata, immagine tolta, conflitto che non si e' risolto: niente da scrivere. Se l'immagine e' ancora in sospeso lo sweep la riprende.
             if (e.isReportable()) {
-                systemEvents.record("captionTrainingImage", e);
+                systemEvents.record("captionTrainingImage", e, AppEventSubjects.ofTrainingDataset(datasetId));
             } else {
                 log.debug("Didascalia dell'immagine {} non scritta: {}", imageId, e.getMessage());
             }
         } catch (RuntimeException e) {
             // Mai propagare: gira in un thread in background. Una bozza sparita nel frattempo (test, eliminazione) non e' un errore da registrare.
             if (store.findById(datasetId).isPresent()) {
-                systemEvents.record("captionTrainingImage", e);
+                recordFailure(e, datasetId);
             }
         } finally {
             inFlight.remove(imageId);
@@ -111,9 +113,19 @@ public class CaptionJobService implements ICaptionJobs {
             return null;
         } catch (RuntimeException e) {
             if (!(e instanceof RemoteServiceException remote) || remote.isReportable()) {
-                systemEvents.record("captionTrainingImage", e);
+                recordFailure(e, dataset.getId());
             }
             return null;
+        }
+    }
+
+    /** Registrato sul dataset (subject): i guasti di dataset diversi non si fondono in una serie e hanno il link "apri". Un guasto non remoto e' del training, non "interno". */
+    private void recordFailure(RuntimeException e, Long datasetId) {
+        String subject = AppEventSubjects.ofTrainingDataset(datasetId);
+        if (e instanceof RemoteServiceException) {
+            systemEvents.record("captionTrainingImage", e, subject);
+        } else {
+            systemEvents.record(AppEventSource.TRAINING, "captionTrainingImage", e, subject);
         }
     }
 

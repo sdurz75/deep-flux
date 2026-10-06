@@ -181,7 +181,7 @@ class TrainingDatasetServiceTest {
         UploadReport report = service.addImages(dataset.getId(), List.of(upload("a.png")));
 
         assertThat(report.results().get(0).rejection()).isEqualTo("training.error.saveFailed");
-        verify(systemEvents).record("storeTrainingImage", failure);
+        verify(systemEvents).record("storeTrainingImage", failure, "trainingDataset:" + dataset.getId());
     }
 
     @Test
@@ -591,7 +591,7 @@ class TrainingDatasetServiceTest {
         service.delete(dataset.getId());
 
         assertThat(store.rows).isEmpty();
-        verify(systemEvents).record("deleteTrainingFile", failure);
+        verify(systemEvents).record("deleteTrainingFile", failure, "trainingDataset:" + dataset.getId());
     }
 
     // --- snapshot (congelato) -----------------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.dual.replicate.app.training.domain.LaunchSettings;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.training.domain.LoraType;
 import org.dual.replicate.app.training.domain.TrainingDataset;
 import org.dual.replicate.app.training.domain.TrainingException;
@@ -148,7 +149,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
             }
             return store.save(copy);
         } catch (RuntimeException e) {
-            copied.forEach(this::deleteQuietly);
+            copied.forEach(file -> deleteQuietly(file, source.getId()));
             throw e;
         }
     }
@@ -160,7 +161,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
             throw new TrainingException(messages.get("training.error.notASnapshot"));
         }
         editor.delete(snapshot);
-        snapshot.ownedFilenames().forEach(this::deleteQuietly);
+        snapshot.ownedFilenames().forEach(file -> deleteQuietly(file, snapshotId));
     }
 
     @Override
@@ -196,7 +197,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
     public void delete(Long id) {
         TrainingDataset dataset = editor.editable(id);
         editor.delete(dataset);
-        dataset.ownedFilenames().forEach(this::deleteQuietly);
+        dataset.ownedFilenames().forEach(file -> deleteQuietly(file, id));
     }
 
     @Override
@@ -220,7 +221,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
             } catch (StorageException e) {
                 // Un rifiuto atteso (tipo, dimensione) ha gia' il suo messaggio; un guasto vero va nel registro e all'utente resta un messaggio generico.
                 if (e.isReportable()) {
-                    systemEvents.record("storeTrainingImage", e);
+                    systemEvents.record("storeTrainingImage", e, AppEventSubjects.ofTrainingDataset(datasetId));
                 }
                 entries.add(Entry.rejected(name, e.isReportable() ? messages.get("training.error.saveFailed", name) : e.getMessage()));
             }
@@ -239,7 +240,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
                     storedEntries.forEach(e -> dataset.addImage(e.filename(), e.name(), now).requestAutoCaption(false));
                 }).getImages().forEach(image -> idByFilename.put(image.getFilename(), image.getId()));
             } catch (RuntimeException e) {
-                storedEntries.forEach(entry -> deleteQuietly(entry.filename()));
+                storedEntries.forEach(entry -> deleteQuietly(entry.filename(), datasetId));
                 throw e;
             }
             storedEntries.forEach(e -> requestCaption(datasetId, idByFilename.get(e.filename())));
@@ -255,7 +256,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
         AtomicReference<TrainingImage> removed = new AtomicReference<>();
         editor.mutate(datasetId, dataset -> removed.set(dataset.removeImage(imageId, clock.instant())
                 .orElseThrow(() -> new TrainingException(messages.get("training.error.imageNotFound")))));
-        removed.get().ownedFilenames().forEach(this::deleteQuietly);
+        removed.get().ownedFilenames().forEach(file -> deleteQuietly(file, datasetId));
     }
 
     @Override
@@ -280,10 +281,10 @@ public class TrainingDatasetService implements ITrainingDatasets {
                 dataset.touch(clock.instant());
             });
         } catch (RuntimeException e) {
-            deleteQuietly(croppedFilename);
+            deleteQuietly(croppedFilename, datasetId);
             throw e;
         }
-        replaced.get().ifPresent(this::deleteQuietly);
+        replaced.get().ifPresent(file -> deleteQuietly(file, datasetId));
         if (recaption.get()) {
             requestCaption(datasetId, imageId);
         }
@@ -303,7 +304,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
             recaption.set(image.requestAutoCaption(false));
             dataset.touch(clock.instant());
         });
-        replaced.get().ifPresent(this::deleteQuietly);
+        replaced.get().ifPresent(file -> deleteQuietly(file, datasetId));
         if (recaption.get()) {
             requestCaption(datasetId, imageId);
         }
@@ -324,11 +325,11 @@ public class TrainingDatasetService implements ITrainingDatasets {
     }
 
     /** Un file che non si riesce a eliminare resta orfano: registrato, ma non fa fallire l'operazione gia' riuscita sulla riga. */
-    private void deleteQuietly(String filename) {
+    private void deleteQuietly(String filename, Long datasetId) {
         try {
             storage.delete(filename);
         } catch (RuntimeException e) {
-            systemEvents.record("deleteTrainingFile", e);
+            systemEvents.record("deleteTrainingFile", e, AppEventSubjects.ofTrainingDataset(datasetId));
         }
     }
 

@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dual.replicate.app.generation.domain.ApiTokenProvider;
 import org.dual.replicate.app.generation.port.in.ILoraPresets;
+import org.dual.replicate.core.events.port.in.ISystemEvents;
+import org.dual.replicate.app.shared.domain.AppEventSubjects;
 import org.dual.replicate.app.training.domain.LaunchSettings;
 import org.dual.replicate.app.training.domain.Training;
 import org.dual.replicate.app.training.domain.TrainingDataset;
@@ -44,16 +46,18 @@ public class TrainingRunController {
     private final ILoraPresets presets;
     private final ITrainingHfUploads hfUploads;
     private final IApiTokens tokens;
+    private final ISystemEvents systemEvents;
     /** Per quanto tempo dopo il successo il blocco stato controlla che il risultato si completi: oltre, lo sweep ha smesso di riprenderlo e nulla lo completera'. */
     private final Duration resultWindow;
 
     public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets, ITrainingHfUploads hfUploads, IApiTokens tokens,
-                                 @Value("${app.training.result-retry-window:6h}") Duration resultWindow) {
+                                 ISystemEvents systemEvents, @Value("${app.training.result-retry-window:6h}") Duration resultWindow) {
         this.trainings = trainings;
         this.datasets = datasets;
         this.presets = presets;
         this.hfUploads = hfUploads;
         this.tokens = tokens;
+        this.systemEvents = systemEvents;
         this.resultWindow = resultWindow;
     }
 
@@ -182,7 +186,7 @@ public class TrainingRunController {
         return training.isResultIncomplete() && Duration.between(completed, Instant.now()).compareTo(resultWindow) < 0;
     }
 
-    /** Il preset creato dal training, o null se non c'e' ancora (il risultato nasce in background) o l'utente lo ha eliminato. */
+    /** Il preset creato dal training, o null se non c'e' ancora (il risultato nasce in background) o l'utente lo ha eliminato; un guasto vero e' registrato. */
     private ILoraPresets.LoraView presetOf(Training training) {
         if (training.getPresetId() == null) {
             return null;
@@ -190,6 +194,9 @@ public class TrainingRunController {
         try {
             return presets.get(training.getPresetId());
         } catch (RemoteServiceException e) {
+            if (e.isReportable()) {
+                systemEvents.record("getLoraPreset", e, AppEventSubjects.ofTraining(training.getId()));
+            } // altrimenti il preset non c'e' (piu'): atteso
             return null;
         }
     }
