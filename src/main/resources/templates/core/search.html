@@ -12,7 +12,7 @@
     <h1 th:text="#{search.title}">Ricerca semantica</h1>
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.intro}">Interroga e gestisci il vector store.</p>
 
-    <div th:replace="~{fragments/app/search :: stats(stats=${stats}, oob=false)}"></div>
+    <div th:replace="~{fragments/core/search :: stats(stats=${stats}, oob=false)}"></div>
 
     <!--
       Un solo form e una sola lista (#search-results): con testo e' la classifica per significato, senza testo la lista sfoglia i documenti
@@ -67,15 +67,8 @@
                             <div th:replace="~{fragments/core/select :: ui}"></div>
                         </div>
                     </div>
-                    <div>
-                        <label for="search-media" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.media}" th:title="#{search.query.mediaHelp}">Media</label>
-                        <div class="relative" x-data="pinesSelect" x-bind="root">
-                            <select id="search-media" name="media" class="sr-only" tabindex="-1" aria-hidden="true" th:title="#{search.query.mediaHelp}">
-                                <option th:each="m : ${mediaOptions}" th:value="${m}" th:selected="${m == media}" th:text="#{'search.media.' + ${m}}">Tutti</option>
-                            </select>
-                            <div th:replace="~{fragments/core/select :: ui}"></div>
-                        </div>
-                    </div>
+                    <!--/* Dell'host: filtro per media (per l'app foto/video delle generazioni). */-->
+                    <th:block th:if="${searchHost != null and !#strings.isEmpty(searchHost)}"><th:block th:replace="~{${searchHost} :: filterMedia}"></th:block></th:block>
                     <div>
                         <label for="search-tag" class="mt-0 mb-1.5 font-medium" th:text="#{tags.filter.label}" th:title="#{tags.filter.help}">Tag</label>
                         <input type="search" id="search-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
@@ -102,15 +95,8 @@
                     <input type="range" id="search-threshold" name="threshold" min="0" max="100" step="1" x-model.number="value" th:value="${threshold}"
                            class="block h-2 w-full cursor-pointer appearance-none rounded-full bg-line dark:bg-line-dark accent-accent dark:accent-accent-dark p-0 border-0">
                 </div>
-                <label for="search-favourites" class="m-0 flex cursor-pointer items-center gap-3 text-ink dark:text-ink-dark" th:title="#{search.query.mediaHelp}">
-                    <input type="checkbox" id="search-favourites" name="favourites" value="true" class="peer sr-only" th:checked="${favourites}">
-                    <span class="relative h-6 w-11 shrink-0 rounded-full bg-line dark:bg-line-dark transition-colors duration-150
-                                 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-canvas dark:after:bg-canvas-dark
-                                 after:shadow after:transition-transform after:duration-150 after:content-['']
-                                 peer-checked:bg-accent dark:peer-checked:bg-accent-dark peer-checked:after:translate-x-5
-                                 peer-focus-visible:ring-2 peer-focus-visible:ring-accent dark:peer-focus-visible:ring-accent-dark"></span>
-                    <span class="text-sm" th:text="#{search.query.favourites}">Solo preferiti</span>
-                </label>
+                <!--/* Dell'host: filtro "solo preferiti". */-->
+                <th:block th:if="${searchHost != null and !#strings.isEmpty(searchHost)}"><th:block th:replace="~{${searchHost} :: filterFavourites}"></th:block></th:block>
             </div>
         </form>
 
@@ -124,12 +110,12 @@
                  x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95"
                  x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150"
                  x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
-                <div th:replace="~{fragments/app/search :: noteForm(noteId=null, noteTitle=${noteTitle}, noteText=${noteText}, noteError=${noteError})}"></div>
+                <div th:replace="~{fragments/core/search :: noteForm(noteId=null, noteTitle=${noteTitle}, noteText=${noteText}, noteError=${noteError})}"></div>
             </div>
         </div>
 
         <div id="search-results" class="mt-4">
-            <div th:replace="~{fragments/app/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
+            <div th:replace="~{fragments/core/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
         </div>
     </div>
 </div>

@@ -1,4 +1,4 @@
-package org.dual.replicate.app.search.adapter.in.web;
+package org.dual.replicate.core.search.adapter.in.web;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -69,8 +69,12 @@ public class SemanticSearchController {
     private final HtmxEvents htmx;
     private final int defaultThresholdPercent;
 
+    private final String hostFragment;
+
     public SemanticSearchController(IArchiveSearch search, IArchiveNotes notes, IArchiveIndex index, Messages messages,
-                                    HtmxEvents htmx, @Value("${app.search.similarity-threshold-percent:80}") int defaultThresholdPercent) {
+                                    HtmxEvents htmx, @Value("${app.search.similarity-threshold-percent:80}") int defaultThresholdPercent,
+                                    @Value("${app.search.host-fragment:}") String hostFragment) {
+        this.hostFragment = hostFragment;
         this.search = search;
         this.notes = notes;
         this.index = index;
@@ -103,7 +107,7 @@ public class SemanticSearchController {
         model.addAttribute("noteError", null);
         model.addAttribute("noteText", "");
         model.addAttribute("noteTitle", "");
-        return "app/search";
+        return "core/search";
     }
 
     /**
@@ -118,7 +122,7 @@ public class SemanticSearchController {
                           @RequestParam(defaultValue = "false") boolean favourites, @RequestParam(defaultValue = "") String tag,
                           @RequestParam(defaultValue = "1") int page, Model model) {
         populateResults(q, type, from, to, threshold, media, favourites, tag, page, model);
-        return "fragments/app/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
+        return "fragments/core/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
                 + "currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, "
                 + "pageNumbers=${pageNumbers})";
     }
@@ -138,7 +142,7 @@ public class SemanticSearchController {
         // errore di validazione, sopra, l'evento NON parte e il dialog resta aperto.
         htmx.addHxTrigger(response, "note-saved", "");
         model.addAttribute("stats", stats());
-        return "fragments/app/search :: deleted(stats=${stats})";
+        return "fragments/core/search :: deleted(stats=${stats})";
     }
 
     /** Contenuto del dialog per una nota nuova (form vuoto, caricato a ogni apertura). */
@@ -167,7 +171,7 @@ public class SemanticSearchController {
         notes.update(id, title, text);
         htmx.addHxTrigger(response, "note-saved", "");
         model.addAttribute("hit", new Hit(search.find(id).orElseThrow(), null));
-        return "fragments/app/search :: row(hit=${hit})";
+        return "fragments/core/search :: row(hit=${hit})";
     }
 
     @DeleteMapping("/notes/{id}")
@@ -175,7 +179,7 @@ public class SemanticSearchController {
         requireNote(id);
         notes.delete(id);
         model.addAttribute("stats", stats());
-        return "fragments/app/search :: deleted(stats=${stats})";
+        return "fragments/core/search :: deleted(stats=${stats})";
     }
 
     // --- amministrazione --------------------------------------------------------------------------------------------
@@ -187,7 +191,7 @@ public class SemanticSearchController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         model.addAttribute("hit", new Hit(search.find(id).orElseThrow(), null));
-        return "fragments/app/search :: row(hit=${hit})";
+        return "fragments/core/search :: row(hit=${hit})";
     }
 
     /** Avvia la riconciliazione con i dati (in background) e ritorna le statistiche con "in corso". */
@@ -196,7 +200,7 @@ public class SemanticSearchController {
         index.reindexAsync();
         model.addAttribute("stats", stats());
         model.addAttribute("oob", false);
-        return "fragments/app/search :: stats(stats=${stats}, oob=${oob})";
+        return "fragments/core/search :: stats(stats=${stats}, oob=${oob})";
     }
 
     // --- interno ----------------------------------------------------------------------------------------------------
@@ -296,7 +300,7 @@ public class SemanticSearchController {
         model.addAttribute("noteTitle", title);
         model.addAttribute("noteText", text);
         model.addAttribute("noteError", error);
-        return "fragments/app/search :: noteForm(noteId=${noteId}, noteTitle=${noteTitle}, noteText=${noteText}, noteError=${noteError})";
+        return "fragments/core/search :: noteForm(noteId=${noteId}, noteTitle=${noteTitle}, noteText=${noteText}, noteError=${noteError})";
     }
 
     private String validate(String text) {
@@ -315,5 +319,11 @@ public class SemanticSearchController {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY);
         }
         return search.find(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    /** Il template dell'host con gli slot della pagina (filterMedia, filterFavourites, rowBadges, rowLinks, rowMedia); vuoto = nessun host. */
+    @org.springframework.web.bind.annotation.ModelAttribute("searchHost")
+    String searchHost() {
+        return hostFragment;
     }
 }

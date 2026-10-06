@@ -1,4 +1,4 @@
-package org.dual.replicate.app.search.adapter.in.web;
+package org.dual.replicate.core.search.adapter.in.web;
 
 import java.util.List;
 import java.util.Map;
@@ -92,6 +92,8 @@ class SemanticSearchControllerTest {
                 // "Nuova nota" e' un dialog modale (Pines): aperto da dialogOpen, focus confinato, form dentro il dialog
                 .contains("x-data=\"{ dialogOpen: false }\"").contains("role=\"dialog\"").contains("aria-modal=\"true\"")
                 .contains("x-trap.inert.noscroll=\"dialogOpen\"").contains("@note-saved.window");
+        // Gli slot dell'host (app.search.host-fragment): filtro media e preferiti arrivano da fragments/app/search-host.
+        assertThat(page).contains("id=\"search-media\"").contains("id=\"search-favourites\"");
         assertThat(page.indexOf("id=\"note-form\"")).isGreaterThan(page.indexOf("role=\"dialog\""));
     }
 

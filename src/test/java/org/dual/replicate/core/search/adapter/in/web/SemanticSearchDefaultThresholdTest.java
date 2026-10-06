@@ -1,4 +1,4 @@
-package org.dual.replicate.app.search.adapter.in.web;
+package org.dual.replicate.core.search.adapter.in.web;
 
 import org.dual.replicate.core.search.adapter.out.vector.FakeEmbeddingModel;
 import org.junit.jupiter.api.Test;
