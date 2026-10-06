@@ -139,9 +139,11 @@
         type="button"
         th:data-theme-value="${value}"
         class="border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
-               rounded-md px-2 py-1 cursor-pointer text-[0.85rem] leading-none"
+               rounded-md px-2 py-1 text-[0.85rem] leading-none"
         @click="theme = $el.dataset.themeValue"
-        :class="{ 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark': theme === $el.dataset.themeValue }"
+        :disabled="theme === $el.dataset.themeValue"
+        :aria-pressed="theme === $el.dataset.themeValue"
+        :class="theme === $el.dataset.themeValue ? 'opacity-40 cursor-default' : 'cursor-pointer hover:bg-surface dark:hover:bg-surface-dark'"
         th:title="${title}"
         th:text="${content}">Bottone</button>
 
