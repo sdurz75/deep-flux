@@ -567,9 +567,10 @@ public class TrainingService implements ITrainings {
         try {
             trainer.cancelTraining(externalId);
         } catch (RuntimeException e) {
-            if (e instanceof RemoteServiceException remote && !remote.isTransient()) {
-                log.info("Annullamento del training {} non necessario/riuscito: {}", externalId, e.getMessage());
+            if (e instanceof RemoteServiceException remote && !remote.isReportable()) {
+                log.info("Annullamento del training {} non necessario: {}", externalId, e.getMessage());
             } else {
+                // Un guasto vero (rete, token rifiutato o mancante...) lascia il training in corso e a pagamento: va notificato.
                 systemEvents.record("cancelTraining", e, AppEventSubjects.ofTraining(trainingId));
             }
         }

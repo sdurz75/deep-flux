@@ -165,8 +165,26 @@ class ReplicateTrainerGateway extends RestRemoteClient implements ITrainerGatewa
     @Override
     public TrainerJob cancelTraining(String externalId) {
         requireToken();
-        return remote.call("cancelTraining", () -> requireBody(restClient.post().uri("/trainings/{id}/cancel", externalId).headers(this::authHeaders)
-                .retrieve().body(TrainingResponse.class))).toJob();
+        try {
+            return remote.call("cancelTraining", () -> requireBody(restClient.post().uri("/trainings/{id}/cancel", externalId).headers(this::authHeaders)
+                    .retrieve().body(TrainingResponse.class))).toJob();
+        } catch (RemoteServiceException e) {
+            if (e.kind() == RemoteServiceException.Kind.PERMANENT && isGoneOrAlreadyFinished(e)) {
+                // Nulla da fermare (training sparito o gia' terminale): un esito ATTESO, non un guasto da registrare e notificare.
+                throw new ReplicateException(e.getMessage(), e, RemoteServiceException.Kind.REJECTED);
+            }
+            throw e;
+        }
+    }
+
+    /** 404 (non esiste piu') o 409 (non e' piu' annullabile): gli unici rifiuti di un annullamento che non sono un problema di chi lo chiede. */
+    private static boolean isGoneOrAlreadyFinished(RemoteServiceException e) {
+        for (Throwable cause = e.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof HttpClientErrorException http) {
+                return http.getStatusCode().value() == 404 || http.getStatusCode().value() == 409;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -724,6 +724,31 @@ class TrainingServiceTest {
     }
 
     @Test
+    void aFailedRemoteCancelAfterTheTimeoutIsRecordedBecauseTheTrainingKeepsBilling() {
+        Training training = running(TrainingStatus.PROCESSING);
+        clock.set(NOW.plus(TIMEOUT).plusSeconds(1));
+        when(trainer.getTraining("train-1")).thenReturn(new TrainerJob("train-1", TrainingStatus.PROCESSING, null, "step 900", null));
+        ReplicateException forbidden = new ReplicateException("403", null, Kind.PERMANENT);
+        when(trainer.cancelTraining("train-1")).thenThrow(forbidden);
+
+        service.refresh(training.getId());
+
+        verify(systemEvents).record("cancelTraining", forbidden, "training:" + training.getId());
+    }
+
+    @Test
+    void anExpectedRejectionWhileCancellingIsNotRecorded() {
+        Training training = running(TrainingStatus.PROCESSING);
+        clock.set(NOW.plus(TIMEOUT).plusSeconds(1));
+        when(trainer.getTraining("train-1")).thenReturn(new TrainerJob("train-1", TrainingStatus.PROCESSING, null, "step 900", null));
+        when(trainer.cancelTraining("train-1")).thenThrow(new ReplicateException("gia' terminato"));
+
+        service.refresh(training.getId());
+
+        verify(systemEvents, never()).record(eq("cancelTraining"), any(), any());
+    }
+
+    @Test
     void theBusinessTimeoutAppliesEvenWhenTheServiceKeepsFailingTransiently() {
         Training training = running(TrainingStatus.PROCESSING);
         clock.set(NOW.plus(TIMEOUT).plusSeconds(1));

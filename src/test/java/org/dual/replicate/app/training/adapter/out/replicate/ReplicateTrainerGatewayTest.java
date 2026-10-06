@@ -172,6 +172,30 @@ class ReplicateTrainerGatewayTest {
         server.verify();
     }
 
+    @Test
+    void cancellingAGoneOrAlreadyFinishedTrainingIsAnExpectedRejectionNotAFailure() {
+        server.expect(ExpectedCount.once(), requestTo(BASE + "/trainings/gone/cancel")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        server.expect(ExpectedCount.once(), requestTo(BASE + "/trainings/done/cancel")).andRespond(withStatus(HttpStatus.CONFLICT));
+
+        for (String id : new String[] {"gone", "done"}) {
+            assertThatThrownBy(() -> gateway.cancelTraining(id))
+                    .isInstanceOfSatisfying(ReplicateException.class, e -> assertThat(e.isReportable()).isFalse());
+        }
+        server.verify();
+    }
+
+    @Test
+    void aRejectedTokenWhileCancellingStaysAReportableFailure() {
+        server.expect(ExpectedCount.once(), requestTo(BASE + "/trainings/train-1/cancel")).andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> gateway.cancelTraining("train-1"))
+                .isInstanceOfSatisfying(ReplicateException.class, e -> {
+                    assertThat(e.kind()).isEqualTo(Kind.PERMANENT);
+                    assertThat(e.isReportable()).isTrue();
+                });
+        server.verify();
+    }
+
     // --- file ---------------------------------------------------------------------------------------------------
 
     @Test

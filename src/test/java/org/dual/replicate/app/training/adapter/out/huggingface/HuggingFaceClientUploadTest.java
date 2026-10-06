@@ -235,6 +235,61 @@ class HuggingFaceClientUploadTest {
     }
 
     @Test
+    void aVerifyAddressOnAnotherHostIsRefusedAndNeverReceivesTheToken() throws Exception {
+        byte[] data = randomBytes(100);
+        String oid = sha256(data);
+        server.expect(requestTo(PREUPLOAD)).andRespond(withSuccess(PREUPLOAD_LFS, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BATCH)).andRespond(withSuccess("{\"objects\":[{\"oid\":\"" + oid + "\",\"size\":100,\"actions\":{"
+                + "\"upload\":{\"href\":\"http://s3.test/put\"},\"verify\":{\"href\":\"http://evil.test/verify\"}}}]}", LFS));
+        server.expect(ExpectedCount.once(), requestTo("http://s3.test/put")).andRespond(withSuccess());
+        // nessuna aspettativa su evil.test (ne' sul commit): una richiesta li' farebbe fallire il server finto
+
+        assertThatThrownBy(() -> client.uploadWeights("hf_tok", REPO, new FakeWeights(data, data.length), "m"))
+                .isInstanceOfSatisfying(HuggingFaceException.class, e -> {
+                    assertThat(e.kind()).isEqualTo(Kind.PERMANENT);
+                    assertThat(e.getMessage()).isEqualTo("huggingface.error.lfsMalformed");
+                });
+        server.verify();
+    }
+
+    @Test
+    void aHuggingFaceErrorDuringTheTransferStaysHuggingFaceEvenInsideAnotherServicesCall() throws Exception {
+        byte[] data = randomBytes(100);
+        String oid = sha256(data);
+        server.expect(requestTo(PREUPLOAD)).andRespond(withSuccess(PREUPLOAD_LFS, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BATCH)).andRespond(withSuccess("{\"objects\":[{\"oid\":\"" + oid + "\",\"size\":100,\"actions\":{\"upload\":{\"href\":\"http://s3.test/put\"}}}]}", LFS));
+        server.expect(ExpectedCount.once(), requestTo("http://s3.test/put")).andRespond(withStatus(HttpStatus.FORBIDDEN));
+        // I pesi si leggono dentro una chiamata remota di Replicate: questa riclassifica come suo ogni errore non ancora classificato.
+        FakeWeights inner = new FakeWeights(data, data.length);
+        WeightsFile insideReplicate = new WeightsFile() {
+            @Override
+            public String name() {
+                return inner.name();
+            }
+
+            @Override
+            public long size() {
+                return inner.size();
+            }
+
+            @Override
+            public <T> T read(Reader<T> reader) {
+                try {
+                    return inner.read(reader);
+                } catch (org.dual.replicate.core.kernel.remote.RemoteServiceException classified) {
+                    throw classified;
+                } catch (RuntimeException unclassified) {
+                    throw new org.dual.replicate.app.generation.domain.ReplicateException("replicate.error.httpError", unclassified);
+                }
+            }
+        };
+
+        assertThatThrownBy(() -> client.uploadWeights("hf_tok", REPO, insideReplicate, "m"))
+                .isInstanceOfSatisfying(HuggingFaceException.class, e -> assertThat(e.source()).isEqualTo(org.dual.replicate.app.shared.domain.AppEventSource.HUGGINGFACE));
+        server.verify();
+    }
+
+    @Test
     void aMissingRepoIsAnErrorTheClientDoesNotWorkAroundByCreatingIt() throws Exception {
         byte[] data = randomBytes(100);
         server.expect(ExpectedCount.once(), requestTo(PREUPLOAD)).andRespond(withStatus(HttpStatus.NOT_FOUND));

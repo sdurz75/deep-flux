@@ -31,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * {@link IHuggingFaceRepos} su HuggingFace (REST, {@code RestClient}). Il token non e' una configurazione dell'app: arriva a ogni chiamata, scelto dall'utente fra
@@ -168,12 +169,18 @@ class HuggingFaceClient extends RestRemoteClient implements IHuggingFaceRepos {
             Map<String, Object> upload = asMap(actions.get("upload"));
             // 4. Il trasferimento: un solo PUT o, se il server lo chiede (chunk_size), un PUT per parte e la chiusura. Il file si riscarica: e' la seconda lettura.
             remote.call("uploadWeights", RetryPolicy.NONE, () -> weights.read(in -> {
-                transfer(in, upload, fingerprint);
+                try {
+                    transfer(in, upload, fingerprint);
+                } catch (RestClientResponseException e) {
+                    // Questo codice gira DENTRO la chiamata remota che scarica i pesi (Replicate): una risposta HTTP d'errore viene da HuggingFace o dal suo storage firmato,
+                    // e senza classificarla qui il traduttore di Replicate la scambierebbe per un guasto suo (evento, toast e sorgente sbagliati).
+                    throw errors.apply(e);
+                }
                 return null;
             }));
             // 5. La verifica, se il server la vuole.
             if (actions.get("verify") instanceof Map<?, ?>) {
-                String verifyUrl = hrefOf(asMap(actions.get("verify")));
+                String verifyUrl = hubUrlOf(asMap(actions.get("verify")));
                 remote.call("verifyWeights", () -> restClient.post().uri(URI.create(verifyUrl)).headers(h -> h.setBearerAuth(token)).accept(LFS_JSON)
                         .contentType(LFS_JSON).body(Map.of("oid", fingerprint.oid(), "size", fingerprint.size())).retrieve().toBodilessEntity());
             }
@@ -272,6 +279,22 @@ class HuggingFaceClient extends RestRemoteClient implements IHuggingFaceRepos {
             return asMap(objects.get(0));
         }
         throw new HuggingFaceException(messages.get("huggingface.error.lfsMalformed"), null, Kind.PERMANENT);
+    }
+
+    /**
+     * L'indirizzo di un'azione che richiede il token (la verifica): deve stare sullo stesso host dell'hub, altrimenti una risposta anomala (o riscritta da un proxy)
+     * manderebbe altrove il token di scrittura. Gli URL dei PUT non lo richiedono: sono firmati e NON portano il token.
+     */
+    private String hubUrlOf(Map<String, Object> action) {
+        String href = hrefOf(action);
+        URI hub = URI.create(hubBaseUrl);
+        URI target = URI.create(href);
+        boolean sameOrigin = hub.getScheme() != null && hub.getScheme().equalsIgnoreCase(target.getScheme())
+                && hub.getHost() != null && hub.getHost().equalsIgnoreCase(target.getHost()) && hub.getPort() == target.getPort();
+        if (!sameOrigin) {
+            throw new HuggingFaceException(messages.get("huggingface.error.lfsMalformed"), null, Kind.PERMANENT);
+        }
+        return href;
     }
 
     private String hrefOf(Map<String, Object> action) {
