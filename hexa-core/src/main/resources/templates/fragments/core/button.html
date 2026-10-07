@@ -132,8 +132,7 @@
 -->
 <!--
   navToggle(open, content, title): md:hidden (i due usi stanno solo sotto md). apre (open=true) o chiude (open=false) lo
-  slideover di navigazione di fragments/core/header.html (stato Alpine navOpen sul
-  <header>). Valore per-istanza via data-* letto con $el.dataset, stesso ponte
+  slideover di navigazione (fragments/core/slideover :: drawer, usato da header.html e sidebar.html; stato Alpine navOpen su un antenato). Valore per-istanza via data-* letto con $el.dataset, stesso ponte
   di themeToggle qui sotto.
 -->
 <button th:fragment="navToggle(open, content, title)"

@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:replace="~{fragments/core/slideover :: drawer(persistent=${persistent}, body=~{::#d})}">
+    <div id="d">contenuto</div>
+</th:block>
+</body>
+</html>

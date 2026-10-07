@@ -31,24 +31,17 @@
             <div th:replace="~{fragments/core/notification-bell :: container}"></div>
         </nav>
 
-        <!-- Slideover Pines UI (solo sotto md) -->
-        <div x-show="navOpen" x-cloak class="md:hidden" x-trap.inert.noscroll="navOpen">
-            <div class="fixed inset-0 z-[99] bg-scrim/50" @click="navOpen = false"
-                 x-show="navOpen" x-transition.opacity></div>
-            <aside class="fixed inset-y-0 left-0 z-[100] w-64 max-w-[80vw] overflow-y-auto p-4
-                          bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark shadow-xl"
-                   x-show="navOpen"
-                   x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full"
-                   x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-150"
-                   x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full">
+        <!-- Slideover Pines UI (solo sotto md): vedi fragments/core/slideover.html -->
+        <th:block th:replace="~{fragments/core/slideover :: drawer(persistent=false, body=~{::#header-drawer})}">
+            <div id="header-drawer">
                 <div class="flex justify-start">
                     <button th:replace="~{fragments/core/button :: navToggle(open='false', content='✕', title=#{header.nav.close})}">✕</button>
                 </div>
                 <!-- Chiude lo slideover solo cliccando un link, non i toggle dei menu. -->
                 <div class="flex flex-col gap-4 mt-4" @click="if ($event.target.closest('a')) navOpen = false"
                      th:insert="~{fragments/app/nav :: links(inline=true)}"></div>
-            </aside>
-        </div>
+            </div>
+        </th:block>
     </header>
 </th:block>
 

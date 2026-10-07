@@ -9,7 +9,7 @@
   stato Alpine `theme` del <body>) e in questa modalita' sta qui, non nella barra di stato.
 
   UN solo <aside> (la campanella ha un id: non si puo' includere due volte): da md in su e' una colonna fissa (`md:translate-x-0`), sotto md
-  scorre da sinistra (slideover) con lo stato `navOpen` di questo contenitore, aperto dal toggle della barra mobile (`navToggle`, stesso fragment
+  scorre da sinistra (slideover, fragments/core/slideover :: drawer) con lo stato `navOpen` di questo contenitore, aperto dal toggle della barra mobile (`navToggle`, stesso fragment
   dell'header) e chiuso da scrim, Esc, bottone o clic su un link. Il layout riserva la colonna con `md:pl-64` sul <main> e `md:left-64` sulla barra di stato.
 -->
 <th:block th:fragment="sidebar">
@@ -21,28 +21,25 @@
             <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap" th:text="#{app.brand}">App</a>
         </header>
 
-        <div class="md:hidden fixed inset-0 z-[99] bg-scrim/50" x-show="navOpen" x-cloak x-transition.opacity @click="navOpen = false"></div>
-
-        <aside class="fixed inset-y-0 left-0 z-[100] md:z-40 w-64 max-w-[80vw] flex flex-col gap-4 overflow-y-auto p-4
-                      bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark
-                      transition-transform duration-200 md:translate-x-0"
-               :class="navOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'">
-            <div class="flex items-center justify-between gap-2">
-                <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap" th:text="#{app.brand}">App</a>
-                <button th:replace="~{fragments/core/button :: navToggle(open='false', content='✕', title=#{header.nav.close})}">✕</button>
-            </div>
-
-            <!-- Chiude lo slideover solo cliccando un link, non i toggle dei menu. -->
-            <nav class="flex flex-col gap-4 flex-1" @click="if ($event.target.closest('a')) navOpen = false"
-                 th:insert="~{fragments/app/nav :: links(inline=true)}"></nav>
-
-            <div class="flex items-center justify-between gap-2 pt-3 border-t border-line dark:border-line-dark">
-                <div class="flex items-center gap-1">
-                    <th:block th:insert="~{fragments/core/header :: themeSwitch}"></th:block>
+        <th:block th:replace="~{fragments/core/slideover :: drawer(persistent=true, body=~{::#sidebar-drawer})}">
+            <div id="sidebar-drawer" class="flex flex-1 flex-col gap-4">
+                <div class="flex items-center justify-between gap-2">
+                    <a th:href="@{/}" class="font-semibold no-underline text-ink dark:text-ink-dark whitespace-nowrap" th:text="#{app.brand}">App</a>
+                    <button th:replace="~{fragments/core/button :: navToggle(open='false', content='✕', title=#{header.nav.close})}">✕</button>
                 </div>
-                <div th:replace="~{fragments/core/notification-bell :: container}"></div>
+
+                <!-- Chiude lo slideover solo cliccando un link, non i toggle dei menu. -->
+                <nav class="flex flex-col gap-4 flex-1" @click="if ($event.target.closest('a')) navOpen = false"
+                     th:insert="~{fragments/app/nav :: links(inline=true)}"></nav>
+
+                <div class="flex items-center justify-between gap-2 pt-3 border-t border-line dark:border-line-dark">
+                    <div class="flex items-center gap-1">
+                        <th:block th:insert="~{fragments/core/header :: themeSwitch}"></th:block>
+                    </div>
+                    <div th:replace="~{fragments/core/notification-bell :: container}"></div>
+                </div>
             </div>
-        </aside>
+        </th:block>
     </div>
 </th:block>
 

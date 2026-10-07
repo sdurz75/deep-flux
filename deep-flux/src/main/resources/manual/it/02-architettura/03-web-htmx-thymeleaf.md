@@ -43,7 +43,7 @@ Pines UI (devdojo.com/pines) è una raccolta di componenti Alpine e Tailwind, us
 | Modal (dialog) | `fragments/core/modal.html` (`dialog(titleId, maxWidth, body)`) + `dialogOpen`/`dialogClose` in `fragments/core/button.html` | scrim, focus trap e transizioni stanno solo nel fragment; il chiamante dichiara `dialogOpen` e passa il corpo come `~{::#id}`. Usato da `/tokens`, `/loras`, note di `/search`, selettore d'archivio, maschera e ritaglio |
 | Tabs | `fragments/core/tabs.html` (`list`, `tab`) | schede come link: la scheda attiva la decide il server (pagina intera o swap htmx con `hxTarget`), niente stato Alpine. Usato da `/gallery`, dal selettore d'archivio e da `/trainings` |
 | Toggle (switch) | `fragments/core/switch.html` (`toggle`) | resta una `<input type=checkbox>` nativa (sr-only): invio del form e script di persistenza invariati; `model` = variabile Alpine per `x-model`. Per i booleani dei form, mai una checkbox nuda |
-| Slideover | `fragments/core/header.html` | menu mobile |
+| Slideover | `fragments/core/slideover.html` (`drawer(persistent, body)`) | pannello laterale di navigazione, usato da `header.html` (solo sotto md, `persistent=false`) e `sidebar.html` (colonna fissa da md in su, `persistent=true`); assume `navOpen` su un antenato, da chiuso è `invisible` (fuori da tab order e screen reader), da aperto rende inerte la pagina sotto md |
 | Dropdown menu | `fragments/core/header.html` (`navMenu`) | menu a tendina del header |
 
 I bottoni di un componente Pines non si scrivono a mano: stanno in `fragments/core/button.html`.

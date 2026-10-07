@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Slideover Pines UI (https://devdojo.com/pines/docs/slideover): il pannello laterale della navigazione, UN punto per header e sidebar (mai scrim e
+  aside scritti a mano). drawer(persistent, body):
+  - assume la variabile Alpine `navOpen` su un antenato x-data (aperta da button :: navToggle, chiusa da scrim, Esc del chiamante e navToggle open=false);
+  - sotto md scorre da sinistra con lo scrim (clic = chiude) e da aperto rende inerte il resto della pagina (x-trap.inert.noscroll, solo sotto md:
+    una finestra allargata da aperto non resta bloccata); da chiuso e' `invisible`, quindi fuori dal tab order e dagli screen reader, ma la
+    transizione di uscita resta visibile (transition su transform e visibility);
+  - persistent=false: esiste SOLO sotto md (header: la barra in alto resta la navigazione da md in su);
+    persistent=true: da md in su e' una colonna fissa sempre visibile (sidebar: il layout riserva `md:pl-64` al <main>), colonna flex con gap.
+  `body` = contenuto dell'aside, selezionato dal chiamante con `~{::#id}` (come modal :: dialog): il chiudi-su-link e i bottoni li tiene il chiamante.
+-->
+<div th:fragment="drawer(persistent, body)" x-trap.inert.noscroll="navOpen &amp;&amp; window.matchMedia('(max-width: 767px)').matches">
+    <div class="md:hidden fixed inset-0 z-[99] bg-scrim/50" @click="navOpen = false" x-show="navOpen" x-cloak x-transition.opacity></div>
+    <aside class="fixed inset-y-0 left-0 z-[100] w-64 max-w-[80vw] overflow-y-auto p-4
+                  bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark
+                  transition-[transform,visibility] duration-200"
+           th:classappend="${persistent} ? 'flex flex-col gap-4 md:z-40 md:translate-x-0' : 'md:hidden'"
+           :class="navOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full max-md:invisible'">
+        <th:block th:replace="${body}"></th:block>
+    </aside>
+</div>
+
+</body>
+</html>
