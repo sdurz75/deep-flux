@@ -37,11 +37,8 @@
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
 
-    <div>
-        <label for="param-prompt-upsampling" th:text="#{generationParams.label.promptUpsampling}">Prompt upsampling</label>
-        <input type="checkbox" id="param-prompt-upsampling" name="prompt_upsampling" value="true"
-               th:checked="${prompt_upsampling == true or prompt_upsampling == 'true'}">
-    </div>
+    <div th:replace="~{fragments/core/switch :: toggle(id='param-prompt-upsampling', name='prompt_upsampling', text=#{generationParams.label.promptUpsampling},
+                    checked=${prompt_upsampling == true or prompt_upsampling == 'true'}, model=null, title=null)}">Prompt upsampling</div>
 
 </th:block>
 

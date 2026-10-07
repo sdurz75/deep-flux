@@ -10,14 +10,12 @@
   ripristina il browser (generation-settings-persist.html). Le tab e la paginazione ricaricano questo stesso fragment (#archive-picker).
 -->
 <div th:fragment="picker(items, tab, kind, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
-    <nav class="flex gap-1 mb-3 border-b border-line dark:border-line-dark" role="tablist">
-        <a th:each="t : ${#strings.arraySplit('all,imported', ',')}"
-           th:href="@{/gallery/picker(tab=${t}, kind=${kind})}" th:hx-get="@{/gallery/picker(tab=${t}, kind=${kind})}"
-           hx-target="#archive-picker" hx-swap="innerHTML" role="tab" th:aria-selected="${t == tab}"
-           th:text="${t == 'all'} ? #{gallery.tab.all} : #{gallery.tab.imported}"
-           class="px-3 py-1.5 -mb-px border-b-2 no-underline text-[0.85rem]"
-           th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Tutte</a>
-    </nav>
+    <th:block th:replace="~{fragments/core/tabs :: list(extraClass='mb-3', body=~{::#picker-tabs})}">
+        <th:block id="picker-tabs" th:each="t : ${#strings.arraySplit('all,imported', ',')}">
+            <a th:replace="~{fragments/core/tabs :: tab(text=${t == 'all'} ? #{gallery.tab.all} : #{gallery.tab.imported},
+                        href=@{/gallery/picker(tab=${t}, kind=${kind})}, hxTarget='#archive-picker', selected=${t == tab}, compact=true)}">Tutte</a>
+        </th:block>
+    </th:block>
     <p th:if="${#lists.isEmpty(items)}" class="text-ink-muted dark:text-ink-muted-dark" th:text="#{picker.empty}">Nessuna immagine nell'archivio.</p>
     <div th:unless="${#lists.isEmpty(items)}" class="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
         <a th:each="item : ${items}" th:href="@{/generations/new(kind=${kind}, source=${item.generation.id}, sourceImage=${item.filename})}"

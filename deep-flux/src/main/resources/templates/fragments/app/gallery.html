@@ -44,16 +44,13 @@
           Tab Tutte/Preferiti: link htmx dentro content(...) (non in gallery.html) cosi' lo
           stato attivo e' deciso dal server a ogni swap, SSE incluso. Sempre da pagina 1.
         -->
-        <nav class="flex gap-1 mb-4 border-b border-line dark:border-line-dark" role="tablist">
-            <a th:each="t : ${#strings.arraySplit('all,favourites,imported', ',')}"
-               th:href="${tag == ''} ? @{/gallery(tab=${t})} : @{/gallery(tab=${t}, tag=${tag})}"
-               th:hx-get="${tag == ''} ? @{/gallery(tab=${t})} : @{/gallery(tab=${t}, tag=${tag})}"
-               hx-target="#gallery-content" hx-swap="innerHTML" role="tab"
-               th:aria-selected="${t == tab}"
-               th:text="${t == 'all'} ? #{gallery.tab.all} : (${t == 'favourites'} ? #{gallery.tab.favourites} : #{gallery.tab.imported})"
-               class="px-4 py-2 -mb-px border-b-2 no-underline text-[0.9rem]"
-               th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Tutte</a>
-        </nav>
+        <th:block th:replace="~{fragments/core/tabs :: list(extraClass='mb-4', body=~{::#gallery-tabs})}">
+            <th:block id="gallery-tabs" th:each="t : ${#strings.arraySplit('all,favourites,imported', ',')}"
+                      th:with="href=${tag == ''} ? @{/gallery(tab=${t})} : @{/gallery(tab=${t}, tag=${tag})}">
+                <a th:replace="~{fragments/core/tabs :: tab(text=${t == 'all'} ? #{gallery.tab.all} : (${t == 'favourites'} ? #{gallery.tab.favourites} : #{gallery.tab.imported}),
+                            href=${href}, hxTarget='#gallery-content', selected=${t == tab}, compact=false)}">Tutte</a>
+            </th:block>
+        </th:block>
         <!--/* Filtro per tag utente (generazione o file): invio o scelta dal suggerimento; la datalist known-tags sta nella pagina intera. */-->
         <form th:hx-get="@{/gallery}" hx-trigger="submit, change, input changed delay:500ms" hx-target="#gallery-content" hx-swap="innerHTML" data-busy="off"
               class="mb-4 flex flex-wrap items-center gap-2">

@@ -13,23 +13,15 @@
     <button th:replace="~{fragments/core/button :: dialogOpen(text=#{picker.button.open}, hxGet=@{/gallery/picker(kind=${kind})},
                 hxTarget='#archive-picker', hxSwap='innerHTML', neutral=true, extraClass='px-3 py-1.5 text-[0.85rem]')}">Scegli dall'archivio</button>
 
-    <div x-show="dialogOpen" x-cloak x-trap.inert.noscroll="dialogOpen"
-         class="fixed inset-0 z-[100] flex items-center justify-center p-4"
-         role="dialog" aria-modal="true" aria-labelledby="archive-picker-title">
-        <div class="absolute inset-0 bg-scrim/50" @click="dialogOpen = false" x-show="dialogOpen" x-transition.opacity></div>
-        <div class="relative w-full max-w-3xl max-h-full overflow-y-auto rounded-lg p-5 shadow-xl
-                    bg-surface dark:bg-surface-dark border border-line dark:border-line-dark"
-             x-show="dialogOpen"
-             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95"
-             x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150"
-             x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+    <th:block th:replace="~{fragments/core/modal :: dialog(titleId='archive-picker-title', maxWidth='max-w-3xl', body=~{::#archive-picker-body})}">
+        <div id="archive-picker-body">
             <div class="flex items-center justify-between gap-3 mb-3">
                 <h2 id="archive-picker-title" class="m-0 text-[1.1rem]" th:text="#{picker.title}">Scegli un'immagine dall'archivio</h2>
                 <button th:replace="~{fragments/core/button :: dialogCloseIcon(title=#{picker.button.close})}">x</button>
             </div>
             <div id="archive-picker"></div>
         </div>
-    </div>
+    </th:block>
 </div>
 
 </body>

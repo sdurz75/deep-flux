@@ -14,17 +14,16 @@
 
   bell(count, hasError, items): contenuto, reso da SystemEventController (GET /system/events/bell, POST /system/events/seen).
 -->
-<div th:fragment="container" id="notification-bell" class="relative shrink-0" x-data="{ open: false }"
-     @click.outside="open = false" @keydown.escape.window="open = false"
+<div th:fragment="container" id="notification-bell" class="relative shrink-0" x-data="pinesPopover"
+     @keydown.escape.window="close()"
      th:hx-get="@{/system/events/bell}" hx-trigger="load, every 30s, system-toast from:window, system-event from:body"
      hx-swap="innerHTML"></div>
 
 <th:block th:fragment="bell(count, hasError, items)">
     <button th:replace="~{fragments/core/button :: bell(count=${count}, hasError=${hasError}, title=#{bell.title(${count})})}">&#128276;</button>
 
-    <div x-show="open" x-cloak x-transition.opacity
-         class="absolute right-0 top-full mt-2 z-50 w-80 max-w-[90vw] rounded-md border border-line dark:border-line-dark
-                bg-surface dark:bg-surface-dark shadow-lg">
+    <th:block th:replace="~{fragments/core/popover :: floating(align='right', extraClass='w-80 max-w-[90vw]', bodyClass='p-0', trap=false, body=~{::#bell-panel})}">
+    <div id="bell-panel">
         <div class="flex items-center justify-between gap-2 border-b border-line dark:border-line-dark px-3 py-2">
             <span class="text-[0.9rem] font-semibold" th:text="#{bell.heading}">Eventi di sistema</span>
             <th:block th:if="${count > 0}">
@@ -56,6 +55,7 @@
             <a th:href="@{/system/events}" th:text="#{bell.viewAll}">Vedi tutti</a>
         </div>
     </div>
+    </th:block>
 </th:block>
 
 </body>

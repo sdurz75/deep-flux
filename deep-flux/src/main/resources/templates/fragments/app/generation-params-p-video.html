@@ -61,17 +61,11 @@
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
 
-    <div>
-        <label for="param-draft" th:text="#{generationParams.label.draft}">Bozza (piu' veloce, qualita' minore)</label>
-        <input type="checkbox" id="param-draft" name="draft" value="true"
-               th:checked="${draft == true or draft == 'true'}">
-    </div>
+    <div th:replace="~{fragments/core/switch :: toggle(id='param-draft', name='draft', text=#{generationParams.label.draft},
+                    checked=${draft == true or draft == 'true'}, model=null, title=null)}">Bozza (piu' veloce, qualita' minore)</div>
 
-    <div>
-        <label for="param-prompt-upsampling" th:text="#{generationParams.label.promptUpsampling}">Migliora il prompt</label>
-        <input type="checkbox" id="param-prompt-upsampling" name="prompt_upsampling" value="true"
-               th:checked="${prompt_upsampling == true or prompt_upsampling == 'true'}">
-    </div>
+    <div th:replace="~{fragments/core/switch :: toggle(id='param-prompt-upsampling', name='prompt_upsampling', text=#{generationParams.label.promptUpsampling},
+                    checked=${prompt_upsampling == true or prompt_upsampling == 'true'}, model=null, title=null)}">Migliora il prompt</div>
 
 </th:block>
 

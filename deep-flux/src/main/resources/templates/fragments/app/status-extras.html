@@ -6,17 +6,16 @@
   Parte APP della barra di stato in basso (fragments/core/status-bar.html): il credito residuo su Replicate e OpenRouter.
   `container` e' nel layout di ogni pagina e NON fa chiamate remote nel render: carica `items` da GET /credits/bar (htmx: al load, ogni 5
   minuti e a fine generazione, evento `gallery-update` sul body; un GET non attiva l'overlay "operazione in corso"). Lo stato Alpine
-  `balanceOpen` e il popover stanno nel container, FUORI dalla zona sostituita da htmx: un ricaricamento non chiude il popover ne' cancella
+  `open` (`pinesPopover`) e il popover (fragments/core/popover :: floating) stanno nel container, FUORI dalla zona sostituita da htmx: un ricaricamento non chiude il popover ne' cancella
   quanto si sta digitando. Il credito Replicate e' una STIMA (Replicate non espone il saldo): il chip apre un popover dove si inserisce il
   saldo attuale, da li' l'app sottrae i costi stimati delle nuove generazioni. Il chip OpenRouter c'e' solo con la management key.
 -->
-<div th:fragment="container" class="relative" x-data="{ balanceOpen: false }"
-     @credits-saved="balanceOpen = false" @keydown.escape.window="balanceOpen = false" @click.outside="balanceOpen = false">
+<div th:fragment="container" class="relative" x-data="pinesPopover"
+     @credits-saved="close()" @keydown.escape.window="close()">
     <div id="status-credits" class="flex items-center gap-3"
          th:hx-get="@{/credits/bar}" hx-trigger="load, every 300s, gallery-update from:body" hx-swap="innerHTML"></div>
-    <form x-show="balanceOpen" x-cloak x-transition.opacity
-          class="absolute bottom-full right-0 mb-3 w-64 rounded-md p-3 flex flex-col gap-2 shadow-lg text-[0.85rem] leading-normal
-                 bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark"
+    <th:block th:replace="~{fragments/core/popover :: floating(align='right', extraClass='w-64 max-w-[90vw]', bodyClass='p-3', trap=true, body=~{::#credits-balance-form})}">
+    <form id="credits-balance-form" class="flex flex-col gap-2 text-[0.85rem] leading-normal"
           th:hx-post="@{/credits/replicate}" hx-target="#status-credits" hx-swap="innerHTML" data-busy="off">
         <label for="credits-replicate-balance" th:text="#{credits.form.label}">Saldo Replicate (USD)</label>
         <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#credits-replicate-balance}, clearable=true, title=null)}">
@@ -26,6 +25,7 @@
         <p class="m-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{credits.form.hint}">Replicate non espone il saldo.</p>
         <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{credits.form.save}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Salva</button>
     </form>
+    </th:block>
 </div>
 
 <!--

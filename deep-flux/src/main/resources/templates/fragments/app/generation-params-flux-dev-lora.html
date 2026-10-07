@@ -151,11 +151,8 @@
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
 
-    <div>
-        <label for="param-go-fast" th:text="#{generationParams.label.goFast}">Go fast</label>
-        <input type="checkbox" id="param-go-fast" name="go_fast" value="true"
-               th:checked="${go_fast == true or go_fast == 'true'}">
-    </div>
+    <div th:replace="~{fragments/core/switch :: toggle(id='param-go-fast', name='go_fast', text=#{generationParams.label.goFast},
+                    checked=${go_fast == true or go_fast == 'true'}, model=null, title=null)}">Go fast</div>
 
 </th:block>
 

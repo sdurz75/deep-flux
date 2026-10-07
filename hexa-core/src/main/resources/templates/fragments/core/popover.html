@@ -48,20 +48,31 @@
 
 <div th:fragment="panel(label, labelId, title, body, align, extraClass)" x-data="pinesPopover" @keydown.escape.window="close()" class="relative inline-block">
     <button th:replace="~{fragments/core/button :: popoverToggle(content=${label}, contentId=${labelId}, title=${title})}">Impostazioni</button>
-    <div x-ref="panel" x-show="open" x-cloak x-trap.inert="open" @click.outside="close()"
-         :class="position === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'"
-         th:class="'absolute z-50 ' + (${align == 'right'} ? 'right-0 ' : 'left-0 ') + (${extraClass} ?: 'w-80 max-w-[90vw]')">
-        <div x-show="open" x-transition.opacity.duration.150ms
-             class="relative rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-lg">
-            <!--/* Freccia: un quadrato ruotato ancorato al bordo del pannello rivolto verso il bottone. */-->
-            <span aria-hidden="true" x-show="position === 'bottom'"
-                  th:classappend="${align == 'right'} ? 'right-4' : 'left-4'"
-                  class="absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark"></span>
-            <span aria-hidden="true" x-show="position === 'top'" x-cloak
-                  th:classappend="${align == 'right'} ? 'right-4' : 'left-4'"
-                  class="absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-line dark:border-line-dark bg-surface dark:bg-surface-dark"></span>
-            <div class="relative max-h-[70vh] overflow-y-auto p-4" th:insert="${body}"></div>
-        </div>
+    <div th:replace="~{fragments/core/popover :: floating(align=${align}, extraClass=${extraClass}, bodyClass='p-4', trap=true, body=${body})}"></div>
+</div>
+
+<!--
+  floating(align, extraClass, bodyClass, trap, body): SOLO il pannello ancorato (frecce, posizione sopra/sotto, Esc/click fuori), per chi ha un
+  bottone proprio (la campanella, il chip del credito). Assume un antenato `x-data="pinesPopover"` che dichiara anche `@keydown.escape.window="close()"`,
+  e il bottone con `x-ref="button" @click="toggle()"` (da cui il componente calcola la posizione). `bodyClass` = padding del contenuto (LETTERALE:
+  'p-4' di default in panel, 'p-0' se il contenuto ha le proprie sezioni); `trap` = true rende inerte il resto della pagina da aperto (x-trap.inert),
+  false per un pannello che si ricarica da solo con htmx (ogni swap riprenderebbe il focus). Se il bottone sta in una zona sostituita da htmx,
+  tenere lo stato `open` sull'antenato che non viene mai sostituito.
+-->
+<div th:fragment="floating(align, extraClass, bodyClass, trap, body)"
+     x-ref="panel" x-show="open" x-cloak x-trap.inert="open &amp;&amp; $el.dataset.trap === 'true'" th:data-trap="${trap}" @click.outside="close()"
+     :class="position === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'"
+     th:class="'absolute z-50 ' + (${align == 'right'} ? 'right-0 ' : 'left-0 ') + (${extraClass} ?: 'w-80 max-w-[90vw]')">
+    <div x-show="open" x-transition.opacity.duration.150ms
+         class="relative rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-lg">
+        <!--/* Freccia: un quadrato ruotato ancorato al bordo del pannello rivolto verso il bottone. */-->
+        <span aria-hidden="true" x-show="position === 'bottom'"
+              th:classappend="${align == 'right'} ? 'right-4' : 'left-4'"
+              class="absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark"></span>
+        <span aria-hidden="true" x-show="position === 'top'" x-cloak
+              th:classappend="${align == 'right'} ? 'right-4' : 'left-4'"
+              class="absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-line dark:border-line-dark bg-surface dark:bg-surface-dark"></span>
+        <div class="relative max-h-[70vh] overflow-y-auto" th:classappend="${bodyClass}" th:insert="${body}"></div>
     </div>
 </div>
 

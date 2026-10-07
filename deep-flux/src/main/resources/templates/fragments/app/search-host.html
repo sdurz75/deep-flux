@@ -22,15 +22,8 @@
 
 <!--/* Interruttore "solo preferiti". */-->
 <th:block th:fragment="filterFavourites">
-                <label for="search-favourites" class="m-0 flex cursor-pointer items-center gap-3 text-ink dark:text-ink-dark" th:title="#{search.query.mediaHelp}">
-                    <input type="checkbox" id="search-favourites" name="favourites" value="true" class="peer sr-only" th:checked="${favourites}">
-                    <span class="relative h-6 w-11 shrink-0 rounded-full bg-line dark:bg-line-dark transition-colors duration-150
-                                 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-canvas dark:after:bg-canvas-dark
-                                 after:shadow after:transition-transform after:duration-150 after:content-['']
-                                 peer-checked:bg-accent dark:peer-checked:bg-accent-dark peer-checked:after:translate-x-5
-                                 peer-focus-visible:ring-2 peer-focus-visible:ring-accent dark:peer-focus-visible:ring-accent-dark"></span>
-                    <span class="text-sm" th:text="#{search.query.favourites}">Solo preferiti</span>
-                </label>
+                <div th:replace="~{fragments/core/switch :: toggle(id='search-favourites', name='favourites', text=#{search.query.favourites},
+                    checked=${favourites}, model=null, title=#{search.query.mediaHelp})}">Solo preferiti</div>
 </th:block>
 
 <!--/* Badge accanto al tipo: genere (foto/video) e modello. */-->

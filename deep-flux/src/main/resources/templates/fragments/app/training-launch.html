@@ -41,10 +41,8 @@
 
     <!--/* Il valore iniziale di Alpine passa da un data-*: x-data resta HTML statico (convenzione sui binding Alpine). */-->
     <div class="mt-4" x-data="{ hf: $el.dataset.hf === 'true' }" th:data-hf="${dataset.hfPublish}">
-        <label class="flex items-center gap-2">
-            <input type="checkbox" name="hfPublish" value="true" x-model="hf" class="accent-accent dark:accent-accent-dark" th:checked="${dataset.hfPublish}">
-            <span th:text="#{training.launch.hf.publish}">Copia i pesi su HuggingFace</span>
-        </label>
+        <div th:replace="~{fragments/core/switch :: toggle(id='launch-hf-publish', name='hfPublish', text=#{training.launch.hf.publish},
+                    checked=${dataset.hfPublish}, model='hf', title=null)}">Copia i pesi su HuggingFace</div>
         <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.hf.help}">Una copia dei pesi.</p>
 
         <div x-show="hf" x-cloak class="mt-3">
@@ -67,10 +65,10 @@
             </th:block>
             <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.launch.hf.repoHelp}">Vuoto = come il modello.</p>
 
-            <label class="mt-3 flex items-center gap-2">
-                <input type="checkbox" name="hfPrivate" value="true" class="accent-accent dark:accent-accent-dark" th:checked="${dataset.hfPrivate}">
-                <span th:text="#{training.launch.hf.private}">Repo privato</span>
-            </label>
+            <div class="mt-3">
+                <div th:replace="~{fragments/core/switch :: toggle(id='launch-hf-private', name='hfPrivate', text=#{training.launch.hf.private},
+                            checked=${dataset.hfPrivate}, model=null, title=null)}">Repo privato</div>
+            </div>
         </div>
     </div>
 

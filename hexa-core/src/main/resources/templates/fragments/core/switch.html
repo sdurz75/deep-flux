@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  toggle(id, name, text, checked, model, title): interruttore (switch) Pines UI al posto di una checkbox nuda (UN punto per tutto il progetto).
+  Resta un <input type="checkbox"> NATIVO, solo reso sr-only: il form lo invia come prima (assente = spento), lo script di persistenza delle form di
+  generazione lo legge e lo scrive con `.checked`, e senza JS funziona. id OBBLIGATORIO e univoco; name = nome del campo (valore `true`); text gia'
+  risolto; checked = booleano; model = nome di una variabile Alpine dell'antenato per `x-model` (null = nessun binding; e' un identificatore
+  statico, mai un valore dinamico); title = tooltip gia' risolto (null = nessuno).
+-->
+<label th:fragment="toggle(id, name, text, checked, model, title)" th:for="${id}" th:title="${title}"
+       class="m-0 flex cursor-pointer items-center gap-3 text-ink dark:text-ink-dark">
+    <input type="checkbox" th:id="${id}" th:name="${name}" value="true" th:x-model="${model}" th:checked="${checked}" class="peer sr-only">
+    <span class="relative h-6 w-11 shrink-0 rounded-full bg-line dark:bg-line-dark transition-colors duration-150
+                 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-canvas dark:after:bg-canvas-dark
+                 after:shadow after:transition-transform after:duration-150 after:content-['']
+                 peer-checked:bg-accent dark:peer-checked:bg-accent-dark peer-checked:after:translate-x-5
+                 peer-focus-visible:ring-2 peer-focus-visible:ring-accent dark:peer-focus-visible:ring-accent-dark"></span>
+    <span class="text-sm" th:text="${text}">Interruttore</span>
+</label>
+
+</body>
+</html>

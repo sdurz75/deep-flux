@@ -312,7 +312,7 @@
 
 <!--
   creditToggle(text, title, low): chip del credito Replicate nella barra in basso (fragments/app/status-extras.html): apre/chiude il popover
-  del saldo. Assume la variabile Alpine `balanceOpen` sul container (stesso accoppiamento esplicito di dialogOpen). Aspetto da testo
+  del saldo. Assume il componente Alpine `pinesPopover` (open, toggle) sul container. Aspetto da testo
   (nessun bordo/sfondo del layer base: e' una riga di stato, non un bottone d'azione); `low` = colore `warning`.
 -->
 <button th:fragment="creditToggle(text, title, low)" type="button"
@@ -320,7 +320,7 @@
                hover:text-ink dark:hover:text-ink-dark hover:opacity-100"
         th:classappend="${low} ? 'text-warning dark:text-warning-dark' : 'text-ink-muted dark:text-ink-muted-dark'"
         th:title="${title}" th:aria-label="${title}"
-        @click="balanceOpen = !balanceOpen" :aria-expanded="balanceOpen" aria-haspopup="true"
+        x-ref="button" @click="toggle()" :aria-expanded="open" aria-haspopup="true"
         th:text="${text}">Replicate</button>
 
 <!--

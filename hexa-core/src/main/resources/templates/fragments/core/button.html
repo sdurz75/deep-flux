@@ -98,7 +98,7 @@
 <!--
   Dialog modale (Pines UI): dialogOpen/dialogClose assumono la variabile Alpine `dialogOpen` su un antenato x-data (stesso
   accoppiamento esplicito di dangerSelectable con selectedIds o toastClose con dismiss): la pagina che ospita il dialog la
-  dichiara (vedi search.html). dialogClose e' la variante neutra ("Annulla"); dialogCloseIcon la "x" nell'intestazione.
+  dichiara (vedi search.html); lo scheletro del dialog e' in fragments/core/modal :: dialog. dialogClose e' la variante neutra ("Annulla"); dialogCloseIcon la "x" nell'intestazione.
 -->
 <!--
   dialogOpen(text, hxGet, hxTarget, hxSwap, neutral, extraClass): apre il dialog e, se hxGet e' valorizzato, carica PRIMA il suo
@@ -196,13 +196,13 @@
         class="shrink-0 w-6 h-6 p-0 rounded-full bg-transparent text-ink-muted dark:text-ink-muted-dark hover:bg-canvas dark:hover:bg-canvas-dark leading-none">&times;</button>
 
 <!--
-  bell(count, hasError, title): bottone della campanella della toolbar (fragments/core/notification-bell.html). Assume la variabile
-  Alpine `open` sul contenitore. Senza non letti (count 0) l'icona e' neutra e senza badge ("spenta"); con non letti il badge
+  bell(count, hasError, title): bottone della campanella della toolbar (fragments/core/notification-bell.html). Assume il componente
+  Alpine `pinesPopover` (open, toggle) sul contenitore. Senza non letti (count 0) l'icona e' neutra e senza badge ("spenta"); con non letti il badge
   mostra il conteggio (9+ oltre 9): rosso (danger) se fra i non letti c'e' un ERROR, altrimenti warning. Il testo del
   badge usa il colore di contrasto dei token (il badge e' sempre una tinta piena). title/aria-label: conteggio gia' tradotto.
 -->
 <button th:fragment="bell(count, hasError, title)" type="button"
-        @click="open = !open" :aria-expanded="open" aria-haspopup="true"
+        x-ref="button" @click="toggle()" :aria-expanded="open" aria-haspopup="true"
         th:title="${title}" th:aria-label="${title}"
         class="relative inline-flex items-center rounded-md border-0 bg-transparent p-1.5 hover:opacity-100
                text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark">

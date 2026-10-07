@@ -36,11 +36,13 @@ Pines UI (devdojo.com/pines) è una raccolta di componenti Alpine e Tailwind, us
 |---|---|---|
 | Select | `fragments/core/select.html` (`pinesSelect`) | obbligatorio per ogni selezione; la select nativa resta la fonte di verità |
 | Accordion | `fragments/core/accordion.html` | pannelli a indice, apertura ricordata con `storageKey` |
-| Popover | `fragments/core/popover.html` (`pinesPopover`) | `panel(label, title, body, extraClass)`; il contenuto resta nel DOM da chiuso. In Deep Chat ospita l'elenco delle conversazioni e le impostazioni di generazione (slot `settings` dell'host) |
+| Popover | `fragments/core/popover.html` (`pinesPopover`) | `panel(label, labelId, title, body, align, extraClass)` (bottone + pannello) e `floating(align, extraClass, bodyClass, trap, body)` (solo il pannello, per chi ha un bottone proprio con `x-ref="button" @click="toggle()"`: campanella degli eventi e chip del credito); il contenuto resta nel DOM da chiuso. In Deep Chat ospita l'elenco delle conversazioni e le impostazioni di generazione (slot `settings` dell'host) |
 | Video | `fragments/core/video-player.html` (`pinesVideo`) | controlli propri al posto di quelli nativi; senza JavaScript resta il `<video>` nativo |
 | Image gallery | `fragments/core/lightbox.html` | lightbox a schermo intero, usa il plugin Alpine `focus` |
 | Pagination | `fragments/core/pagination.html` | stile Pines, paginazione server |
-| Modal (dialog) | `dialogOpen`/`dialogClose` in `fragments/core/button.html` | usato da `/tokens` e dalle note di `/search` |
+| Modal (dialog) | `fragments/core/modal.html` (`dialog(titleId, maxWidth, body)`) + `dialogOpen`/`dialogClose` in `fragments/core/button.html` | scrim, focus trap e transizioni stanno solo nel fragment; il chiamante dichiara `dialogOpen` e passa il corpo come `~{::#id}`. Usato da `/tokens`, `/loras`, note di `/search`, selettore d'archivio, maschera e ritaglio |
+| Tabs | `fragments/core/tabs.html` (`list`, `tab`) | schede come link: la scheda attiva la decide il server (pagina intera o swap htmx con `hxTarget`), niente stato Alpine. Usato da `/gallery`, dal selettore d'archivio e da `/trainings` |
+| Toggle (switch) | `fragments/core/switch.html` (`toggle`) | resta una `<input type=checkbox>` nativa (sr-only): invio del form e script di persistenza invariati; `model` = variabile Alpine per `x-model`. Per i booleani dei form, mai una checkbox nuda |
 | Slideover | `fragments/core/header.html` | menu mobile |
 | Dropdown menu | `fragments/core/header.html` (`navMenu`) | menu a tendina del header |
 

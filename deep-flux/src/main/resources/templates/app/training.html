@@ -13,12 +13,12 @@
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{training.intro}">Prepara un dataset di immagini e addestra un LoRA.</p>
 
     <!--/* Le schede sono link normali (pagina intera): la scheda attiva la decide il server. */-->
-    <nav class="flex gap-1 mt-4 mb-4 border-b border-line dark:border-line-dark" role="tablist">
-        <a th:each="t : ${#strings.arraySplit('datasets,history', ',')}" th:href="@{/trainings(tab=${t})}" role="tab" th:aria-selected="${t == tab}"
-           th:text="${t == 'datasets'} ? #{training.tab.datasets} : #{training.tab.history}"
-           class="px-4 py-2 -mb-px border-b-2 no-underline text-[0.9rem]"
-           th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Dataset</a>
-    </nav>
+    <th:block th:replace="~{fragments/core/tabs :: list(extraClass='mt-4 mb-4', body=~{::#training-tabs})}">
+        <th:block id="training-tabs" th:each="t : ${#strings.arraySplit('datasets,history', ',')}">
+            <a th:replace="~{fragments/core/tabs :: tab(text=${t == 'datasets'} ? #{training.tab.datasets} : #{training.tab.history},
+                        href=@{/trainings(tab=${t})}, hxTarget=null, selected=${t == tab}, compact=false)}">Dataset</a>
+        </th:block>
+    </th:block>
 
     <th:block th:unless="${tab == 'history'}">
     <!--

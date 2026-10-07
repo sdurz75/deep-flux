@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Schede (UN punto per tutto il progetto: mai una barra di tab scritta a mano). Le schede sono LINK, non stato Alpine: la scheda attiva la decide
+  il server a ogni risposta (pagina intera o swap htmx, SSE incluso), quindi niente x-data.
+  list(extraClass, body): la barra `role=tablist`. extraClass = margini LETTERALI (es. 'mb-4'). Il chiamante tiene le proprie schede in un elemento
+  con id univoco che le seleziona (come clear-field :: wrap e modal :: dialog):
+      <th:block th:replace="~{fragments/core/tabs :: list(extraClass='mb-4', body=~{::#x-tabs})}">
+          <th:block id="x-tabs"><a th:each="t : ${...}" th:replace="~{fragments/core/tabs :: tab(...)}"></a></th:block>
+      </th:block>
+  tab(text, href, hxTarget, selected, compact): una scheda. text gia' risolto; href gia' risolto con @{...} (anche senza JS e' un link normale);
+  hxTarget = selettore CSS per uno swap htmx (innerHTML, hx-get = href), null = navigazione normale; selected = booleano; compact = variante piccola
+  (selettore d'archivio nel dialog).
+-->
+<nav th:fragment="list(extraClass, body)" class="flex gap-1 border-b border-line dark:border-line-dark" th:classappend="${extraClass}" role="tablist">
+    <th:block th:replace="${body}"></th:block>
+</nav>
+
+<a th:fragment="tab(text, href, hxTarget, selected, compact)" th:href="${href}" role="tab" th:aria-selected="${selected}"
+   th:hx-get="${hxTarget != null} ? ${href} : null" th:hx-target="${hxTarget}" th:hx-swap="${hxTarget != null} ? 'innerHTML' : null"
+   class="-mb-px border-b-2 no-underline"
+   th:classappend="${(compact ? 'px-3 py-1.5 text-[0.85rem]' : 'px-4 py-2 text-[0.9rem]') + ' ' + (selected ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark')}"
+   th:text="${text}">Scheda</a>
+
+</body>
+</html>

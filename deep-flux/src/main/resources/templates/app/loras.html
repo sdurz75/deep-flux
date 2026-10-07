@@ -24,19 +24,11 @@
 
         <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{loras.intro}">LoRA anagrafati.</p>
 
-        <div x-show="dialogOpen" x-cloak x-trap.inert.noscroll="dialogOpen"
-             class="fixed inset-0 z-[100] flex items-center justify-center p-4"
-             role="dialog" aria-modal="true" aria-labelledby="lora-dialog-title">
-            <div class="absolute inset-0 bg-scrim/50" @click="dialogOpen = false" x-show="dialogOpen" x-transition.opacity></div>
-            <div class="relative w-full max-w-lg max-h-full overflow-y-auto rounded-lg p-5 shadow-xl
-                        bg-surface dark:bg-surface-dark border border-line dark:border-line-dark"
-                 x-show="dialogOpen"
-                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95"
-                 x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+        <th:block th:replace="~{fragments/core/modal :: dialog(titleId='lora-dialog-title', maxWidth='max-w-lg', body=~{::#lora-dialog-body})}">
+            <div id="lora-dialog-body">
                 <div th:replace="~{fragments/app/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError}, loraTokenId=${loraTokenId}, loraTokens=${loraTokens})}"></div>
             </div>
-        </div>
+        </th:block>
 
         <div id="lora-list">
             <div th:replace="~{fragments/app/loras :: list(loras=${loras})}"></div>
