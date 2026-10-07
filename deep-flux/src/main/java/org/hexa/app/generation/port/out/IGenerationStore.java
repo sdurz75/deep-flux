@@ -84,6 +84,9 @@ public interface IGenerationStore {
     /** Galleria contestuale: le generazioni di uno stato di una conversazione, in ordine cronologico. */
     List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status);
 
+    /** Una pagina delle generazioni di uno stato di una conversazione, piu' recenti prima. */
+    Paged<Generation> pageByConversationAndStatus(Long conversationId, GenerationStatus status, int pageIndex, int pageSize);
+
     /** Azzera {@code conversationId} di tutte le generazioni della conversazione. */
     void clearConversation(Long conversationId);
 }

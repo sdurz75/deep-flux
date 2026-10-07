@@ -91,8 +91,8 @@
           se scritto come stringa letterale ignora del tutto sotto quale
           path l'app e' montata da un reverse proxy (es. /deep) — vedi
           server.forward-headers-strategy in application.yml. height
-          generosa in vh: deve occupare tutto lo spazio verticale
-          disponibile, non un riquadro piccolo. display:block e'
+          calcolata da Alpine (`fit()`): tutto lo spazio verticale visibile fra la sua posizione e il fondo, meno il padding-bottom
+          del <main> (che riserva la barra di stato fissa); ricalcolata al resize e quando il <main> cambia altezza. display:block e'
           necessario perche' il componente di default e'
           display:table-cell (stile interno di deep-chat), che rende
           width:100% inefficace.
@@ -105,7 +105,15 @@
                 id="deep-chat-el"
                 th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
                 requestBodyLimits='{"maxMessages": 1}'
-                class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
+                x-data="{ fit() {
+                              const main = this.$el.closest('main');
+                              const reserved = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+                              const top = this.$el.getBoundingClientRect().top + window.scrollY;
+                              this.$el.style.height = Math.max(420, Math.floor(window.innerHeight - top - reserved)) + 'px';
+                          } }"
+                x-init="fit(); const main = $el.closest('main'); if (main &amp;&amp; window.ResizeObserver) { new ResizeObserver(() => fit()).observe(main) }"
+                @resize.window="fit()"
+                class="block w-full min-w-0 min-h-[420px] rounded-md border border-line dark:border-line-dark
                        bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark">
         </deep-chat>
         <!--

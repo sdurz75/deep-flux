@@ -112,6 +112,9 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
     /** Galleria contestuale di /deep-chat: le generazioni riuscite di una conversazione, in ordine cronologico. */
     List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status);
 
+    /** Come sopra ma paginata, piu' recenti prima (scroll infinito della galleria contestuale). */
+    Page<Generation> findByConversationIdAndStatusOrderByIdDesc(Long conversationId, GenerationStatus status, Pageable pageable);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Generation g set g.conversationId = null where g.conversationId = :conversationId")
     int clearConversation(@Param("conversationId") Long conversationId);

@@ -35,7 +35,7 @@
 <th:block th:fragment="settings">
             <th:block th:with="settingsLabel=#{deepChat.button.settings},
                                 settingsBody=~{::#generation-settings-panel}">
-            <div th:replace="~{fragments/core/popover :: panel(label=null, labelId=null, title=${settingsLabel}, body=${settingsBody}, align='left', extraClass='w-[26rem] max-w-[90vw]')}">
+            <div th:replace="~{fragments/core/popover :: panel(label=null, labelId=null, title=${settingsLabel}, body=${settingsBody}, align='left', extraClass='w-[44rem] max-w-[90vw]')}">
                 <div id="generation-settings-panel">
                     <form id="generation-settings-form" data-persist-key="deepChat.generationSettings" onsubmit="return false;"
                           th:data-persist-server-state="${generationSettingsJson}"
@@ -46,78 +46,30 @@
                 </div>
             </div>
             </th:block>
+
+            <!--/*
+              Galleria contestuale: solo le immagini generate in QUESTA conversazione, in un popover accanto alle impostazioni, a scroll infinito
+              (sentinella `intersect` in fragments/app/gallery.html :: cards, pagine da ChatGalleryController). Il contenuto resta nel DOM anche da
+              chiuso (x-show): si aggiorna da sola dopo ogni turno ("new-message" di <deep-chat id="deep-chat-el">, non-bubbling, `from:` lo intercetta
+              lo stesso) e ad ogni "gallery-update" SSE (anche cancellazioni da altrove, vedi GalleryPushNotifier); il refresh riparte dalla prima pagina.
+              gridOrEmpty(...) e' condivisa con ChatGalleryController: stesso markup al caricamento pagina e al refresh.
+            */-->
+            <th:block th:with="galleryLabel=#{deepChat.accordion.gallery},
+                                galleryBody=~{::#contextual-gallery-section}">
+            <div th:replace="~{fragments/core/popover :: panel(label=${galleryLabel}, labelId=null, title=${galleryLabel}, body=${galleryBody}, align='left', extraClass='w-[40rem] max-w-[90vw]')}">
+                <div id="contextual-gallery-section">
+                    <div id="contextual-gallery"
+                         th:hx-get="@{/deep-chat/{id}/gallery(id=${activeConversationId})}"
+                         hx-trigger="new-message from:#deep-chat-el, gallery-update from:body" hx-swap="innerHTML">
+                        <div th:replace="~{fragments/app/gallery :: gridOrEmpty(${contextualItems}, #{deepChat.accordion.gallery.empty}, ${activeConversationId}, ${contextualNextPage})}"></div>
+                    </div>
+                </div>
+            </div>
+            </th:block>
 </th:block>
 
-<!--/* Sotto la chat: galleria contestuale. */-->
-<th:block th:fragment="below">
-    <!--
-      Accordion generico (fragments/core/accordion.html :: panels(labels,
-      bodies), collassabile - qui con un solo pannello, la galleria
-      contestuale a questa conversazione: le impostazioni di
-      generazione stanno nel popover `settings` sopra la chat). Gli elementi di bodies sono
-      parametri-fragment (~{::selector}): il markup dentro resta
-      scritto una sola volta qui, l'accordion si limita a comporlo nel
-      proprio slot.
-
-      accordionLabels/accordionBodies (liste, qui di un solo elemento)
-      passano da un th:with su un th:block avvolgente, non da literal
-      inline nel th:replace - non e' un capriccio stilistico, le
-      alternative piu' dirette falliscono entrambe (verificato dal
-      vivo, 500 in parsing):
-      1. Un literal-lista {a} scritto DIRETTAMENTE come valore di un
-         parametro-fragment (dentro panels(...)) o di un th:with - il
-         parser di Thymeleaf che spezza la lista di parametri/
-         assegnazioni sulle virgole di primo livello non riconosce le
-         graffe NUDE {..} come regione protetta (lo fa solo per
-         ${..}/#{..}/@{..}/~{..}/(..)); con piu' di un elemento la
-         virgola INTERNA alla lista viene letta come separatore tra
-         parametri diversi - "Could not parse as expression/assignation
-         sequence" (qui con un solo elemento il sintomo non si
-         manifesterebbe, ma la stessa espressione viene riusata in
-         punti con piu' pannelli, vedi sopra: un pattern solo per
-         coerenza).
-      2. Avvolgerla in ${ {a} } risolve il punto 1 (l'intero literal
-         e' ora dentro un ${...} protetto) ma sposta il problema: il
-         contenuto tra le doppie graffe viene passato a SpEL puro (non
-         piu' al parser di Thymeleaf), che non conosce la sintassi
-         #{...}/~{...} - serve quindi che gli ELEMENTI della lista siano
-         gia' variabili semplici (galleryLabel/galleryBody sotto,
-         risolte separatamente con #{...}/~{...} PRIMA), non le
-         espressioni #{...}/~{...} scritte inline dentro le graffe.
-    -->
-    <th:block th:with="galleryLabel=#{deepChat.accordion.gallery},
-                        galleryBody=~{::#contextual-gallery},
-                        accordionLabels=${ {galleryLabel} },
-                        accordionBodies=${ {galleryBody} }">
-    <div th:replace="~{fragments/core/accordion :: panels(labels=${accordionLabels}, bodies=${accordionBodies}, storageKey='deepChat.accordion.gallery')}">
-
-        <!--
-          Galleria contestuale: solo le immagini generate in QUESTA
-          conversazione. gridOrEmpty(...) (fragments/app/gallery.html,
-          vedi CLAUDE.md/il piano di questa feature) e' condivisa con
-          DeepChatController#gallery, l'endpoint htmx sotto: stesso
-          identico markup (griglia o messaggio vuoto) sia al caricamento
-          pagina sia al refresh, un solo posto da cui deriva. Si
-          aggiorna da sola dopo ogni risposta della chat: deep-chat
-          spara un evento "new-message" (non-bubbling) sull'elemento
-          <deep-chat id="deep-chat-el"> sopra ad ogni turno, "from:" lo
-          intercetta lo stesso (htmx ascolta l'evento sull'elemento
-          indicato, non richiede bubbling). Secondo trigger,
-          "gallery-update from:body": stesso evento SSE gia' ascoltato
-          dalla galleria globale (fragments/app/gallery.html :: content),
-          ora pubblicato anche da GenerationService#delete/#deleteAll
-          (vedi GalleryPushNotifier) - cosi' una cancellazione
-          dalla griglia globale (o da un'altra conversazione) si riflette
-          anche qui, e viceversa.
-        -->
-        <div id="contextual-gallery"
-             th:hx-get="@{/deep-chat/{id}/gallery(id=${activeConversationId})}"
-             hx-trigger="new-message from:#deep-chat-el, gallery-update from:body" hx-swap="innerHTML">
-            <div th:replace="~{fragments/app/gallery :: gridOrEmpty(${contextualItems}, #{deepChat.accordion.gallery.empty}, ${activeConversationId})}"></div>
-        </div>
-    </div>
-    </th:block>
-</th:block>
+<!--/* Sotto la chat: niente (la chat riempie lo spazio fino al footer; la galleria contestuale sta nel popover dello slot `settings`). Lo slot va comunque definito. */-->
+<th:block th:fragment="below"></th:block>
 
 <!--/* Script e template, prima del bundle di deep-chat. */-->
 <th:block th:fragment="scripts">

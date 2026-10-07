@@ -1131,6 +1131,33 @@ class TemplateRenderingTests {
         assertThat(global).contains("value=\"" + multi.getId() + "\"").contains("hx-post=\"/gallery/delete-selected\"");
     }
 
+    /**
+     * Scroll infinito della galleria contestuale (popover di /deep-chat): 13 generazioni = 2 pagine da 12, piu' recenti prima; la prima ha la
+     * sentinella `intersect` verso /deep-chat/{id}/gallery?page=2&more=true, la seconda (solo card, nessuna sentinella) porta la piu' vecchia.
+     */
+    @Test
+    @Transactional
+    void deepChatContextualGalleryPagesWithAnInfiniteScrollSentinel() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+        for (int i = 1; i <= 13; i++) {
+            Generation g = new Generation("pred-page-" + i, "owner/model", null, "p" + i, null);
+            g.setStatus(GenerationStatus.SUCCEEDED);
+            g.setImageFilenames(List.of("pg-" + i + ".png"));
+            g.setConversationId(conversation.getId());
+            repository.save(g);
+        }
+        String base = "/deep-chat/" + conversation.getId() + "/gallery";
+
+        String first = mockMvc.perform(get(base).header("HX-Request", "true")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(first).contains("/images/pg-13.png").contains("/images/pg-2.png").doesNotContain("/images/pg-1.png");
+        assertThat(first).contains(base + "?page=2&amp;more=true").contains("hx-trigger=\"intersect once\"");
+
+        String second = mockMvc.perform(get(base).param("page", "2").param("more", "true").header("HX-Request", "true"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(second).contains("/images/pg-1.png").doesNotContain("/images/pg-2.png").doesNotContain("more=true");
+    }
+
     @Test
     void emptyGalleryRenders() throws Exception {
         mockMvc.perform(get("/gallery")).andExpect(status().isOk());

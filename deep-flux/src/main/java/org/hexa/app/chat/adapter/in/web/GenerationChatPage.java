@@ -5,12 +5,14 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.hexa.core.chat.port.in.IChatPageContributor;
+import org.hexa.app.generation.domain.GalleryItem;
 import org.hexa.app.generation.domain.Generation;
 import org.hexa.app.generation.domain.GenerationKind;
 import org.hexa.app.generation.domain.ReplicateModel;
 import org.hexa.app.generation.port.in.IGenerationForms;
 import org.hexa.app.generation.port.in.IGenerations;
 import org.hexa.app.generation.port.in.IModelCatalog;
+import org.hexa.core.kernel.Paged;
 import org.hexa.core.storage.port.in.IImageStorageService;
 import org.springframework.stereotype.Component;
 
@@ -41,7 +43,9 @@ class GenerationChatPage implements IChatPageContributor {
         attributes.put("maxUploadBytes", IImageStorageService.MAX_UPLOAD_BYTES);
         // Placeholder da ripristinare: generazioni di QUESTA conversazione ancora in corso (vedi deep-chat.html).
         attributes.put("pendingGenerationIds", generations.inProgressForConversation(conversationId).stream().map(Generation::getId).toList());
-        attributes.put("contextualItems", generations.succeededItemsForConversation(conversationId));
+        Paged<GalleryItem> contextual = generations.succeededItemsForConversationPage(conversationId, 0, ChatGalleryController.PAGE_SIZE);
+        attributes.put("contextualItems", contextual.content());
+        attributes.put("contextualNextPage", contextual.hasNext() ? 2 : null);
 
         // Solo modelli immagine: il tool di chat genera immagini (i video passano da /generations/new).
         attributes.put("models", modelCatalog.models(GenerationKind.IMAGE));

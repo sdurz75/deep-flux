@@ -103,6 +103,12 @@ public interface IGenerations {
      */
     List<GalleryItem> succeededItemsForConversation(Long conversationId);
 
+    /**
+     * Galleria contestuale a scroll infinito: una pagina di {@code pageSize} generazioni RIUSCITE della conversazione, piu' recenti prima,
+     * appiattite in UN item per file (nell'ordine di produzione). {@code hasNext}/{@code totalElements} contano le generazioni, non i file.
+     */
+    Paged<GalleryItem> succeededItemsForConversationPage(Long conversationId, int pageIndex, int pageSize);
+
     /** Id (le piu' recenti, al massimo {@code limit}) delle generazioni terminali di una conversazione completate prima di {@code before}. */
     List<Long> terminalIdsWithConversation(Instant before, int limit);
 

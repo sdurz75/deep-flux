@@ -615,6 +615,13 @@ public class GenerationService implements IGenerations {
                 .toList();
     }
 
+    @Override
+    public Paged<GalleryItem> succeededItemsForConversationPage(Long conversationId, int pageIndex, int pageSize) {
+        Paged<Generation> page = repository.pageByConversationAndStatus(conversationId, GenerationStatus.SUCCEEDED, pageIndex, pageSize);
+        List<GalleryItem> items = page.content().stream().flatMap(generation -> GalleryItem.allOf(generation).stream()).toList();
+        return new Paged<>(items, page.pageIndex(), page.pageSize(), page.totalElements());
+    }
+
     /** Le generazioni esistenti fra gli id dati (gli id cancellati, o nulli, sono semplicemente assenti). */
     @Override
     public List<Generation> findAllById(Collection<Long> ids) {

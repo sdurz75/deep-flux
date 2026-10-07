@@ -754,6 +754,24 @@ class GenerationServiceTest {
                 .containsExactly(first, first, second);
     }
 
+    @Test
+    void succeededItemsForConversationPageFlattensFilesAndKeepsGenerationPaging() {
+        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, apiTokens, modelCatalog);
+
+        Generation newer = new Generation("pred-2", "owner/model", null, "a dog", null);
+        newer.setImageFilenames(List.of("2-0.png", "2-1.png"));
+        Generation older = new Generation("pred-1", "owner/model", null, "a cat", null);
+        older.setImageFilenames(List.of("1-0.png"));
+        when(repository.pageByConversationAndStatus(9L, GenerationStatus.SUCCEEDED, 0, 2))
+                .thenReturn(new org.hexa.core.kernel.Paged<>(List.of(newer, older), 0, 2, 3));
+
+        org.hexa.core.kernel.Paged<org.hexa.app.generation.domain.GalleryItem> page = service.succeededItemsForConversationPage(9L, 0, 2);
+
+        assertThat(page.content()).extracting(org.hexa.app.generation.domain.GalleryItem::filename)
+                .containsExactly("2-0.png", "2-1.png", "1-0.png");
+        assertThat(page.hasNext()).isTrue();
+    }
+
     /** Parziale: la generazione resta, i file vanno via da storage/elenco/star/seed con un solo save e un solo evento. */
     @Test
     void deleteImagesRemovesOnlySelectedFilesAndKeepsTheGeneration() {

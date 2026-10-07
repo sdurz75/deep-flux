@@ -149,6 +149,11 @@ class JpaGenerationStore implements IGenerationStore {
     }
 
     @Override
+    public Paged<Generation> pageByConversationAndStatus(Long conversationId, GenerationStatus status, int pageIndex, int pageSize) {
+        return paged(repository.findByConversationIdAndStatusOrderByIdDesc(conversationId, status, PageRequest.of(pageIndex, pageSize)));
+    }
+
+    @Override
     public List<Generation> findByConversationIdAndStatusOrderByIdAsc(Long conversationId, GenerationStatus status) {
         return repository.findByConversationIdAndStatusOrderByIdAsc(conversationId, status);
     }
