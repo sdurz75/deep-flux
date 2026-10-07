@@ -2,11 +2,11 @@
 
 Il codice e' diviso in due:
 
-- **`core`** (`org.dual.replicate.core`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.
-- **`app`** (`org.dual.replicate.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
+- **`core`** (`org.hexa.core`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.
+- **`app`** (`org.hexa.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
   ricerca semantica). Si **sostituisce** con la propria.
 
-**Moduli Maven**: `core` e' il modulo `dual-core` (jar riusabile, `org.dual:dual-core`), `app` il modulo `app`, `dual-test-support` il container di test. Una nuova app puo' dipendere da `dual-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `app` (`app/src/...`) o `dual-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
+**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.hexa:hexa-core`), `app` il modulo `app`, `hexa-test-support` il container di test. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `app` (`app/src/...`) o `hexa-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
 app implementando i punti di estensione sotto. La regola `coreDoesNotKnowApp` di `ArchitectureTest` impedisce che il codice di `core`
 dipenda da `app`; ogni sottosistema (di `core` e di `app`) e' un esagono (domain / application / port.in / port.out / adapter.in /
 adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
@@ -32,7 +32,7 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 
 ## Cosa cancellare o sostituire
 
-Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/replicate`.
+Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/hexa`.
 
 **Java**
 
@@ -96,7 +96,7 @@ commentati nell'esempio). Del core: `DB_*`,
 del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential source must be specified`). `reactor-core` si tiene
 (lo usa `IClientPushStream` del core). Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei segreti) e' del core.
 
-**Test** (`src/test/java/org/dual/replicate/`)
+**Test** (`src/test/java/org/hexa/`)
 
 - Cancellare: `app/` per intero (compresi `app/manual/ManualContentTest` e `ManualControllerTest`, che asseriscono pagine e gruppi del manuale di QUESTA app: la nuova app scrive i suoi), `controller/TemplateRenderingTests` (quasi tutto sulle pagine dell'app; i test generici su `/system/events`,
   `/tokens`, bundle, select e toast hanno gia' una copia nei test di `core/`), `config/FlywayCoreAppMigrationTest` (controlla anche le tabelle
@@ -139,23 +139,23 @@ del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential so
 
 ## Rinominare il package radice
 
-`org.dual.replicate` compare nei sorgenti, in `META-INF/spring.factories` (test), in `ArchitectureTest` e nel `groupId` del `pom.xml` (`org.dual`,
+`org.hexa` compare nei sorgenti, in `META-INF/spring.factories` (test), in `ArchitectureTest` e nel `groupId` del `pom.xml` (`org.hexa`,
 che di per se' non deve combaciare). Procedura (esempio verso `com.acme.shop`); farla su un commit pulito e poi eseguire la suite:
 
 ```bash
-OLD=org/dual/replicate; NEW=com/acme/shop
+OLD=org/hexa; NEW=com/acme/shop
 mkdir -p src/main/java/$NEW src/test/java/$NEW
 git mv src/main/java/$OLD/* src/main/java/$NEW/
 git mv src/test/java/$OLD/* src/test/java/$NEW/
 find src -type d -empty -delete
 # riferimenti testuali (java, yml, properties, factories, html)
-grep -rl 'org\.dual\.replicate' src pom.xml CLAUDE.md docs README.md \
-  | xargs sed -i '' 's/org\.dual\.replicate/com.acme.shop/g'   # Linux: sed -i senza ''
+grep -rl 'org\.hexa' src pom.xml CLAUDE.md docs README.md \
+  | xargs sed -i '' 's/org\.hexa/com.acme.shop/g'   # Linux: sed -i senza ''
 # groupId/artifactId (facoltativo)
-sed -i '' 's#<groupId>org.dual</groupId>#<groupId>com.acme</groupId>#' pom.xml
+sed -i '' 's#<groupId>org.hexa</groupId>#<groupId>com.acme</groupId>#' pom.xml
 ```
 
-Controlli dopo il rename: `ArchitectureTest.ROOT` (stringa letterale `"org.dual.replicate"`, aggiornata dal `sed` solo se ha esattamente quel
+Controlli dopo il rename: `ArchitectureTest.ROOT` (stringa letterale `"org.hexa"`, aggiornata dal `sed` solo se ha esattamente quel
 formato: verificarla), `src/test/resources/META-INF/spring.factories` (cita `...support.PostgresTestContainerInitializer`), i FQCN nelle
 query JPQL e nelle annotazioni, `@AnalyzeClasses(packages = ...)`. Dopo: `rm -rf target && mvn -q -o test`.
 

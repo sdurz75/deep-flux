@@ -11,21 +11,21 @@
         <relativePath/>
     </parent>
 
-    <groupId>org.dual</groupId>
-    <artifactId>dual-parent</artifactId>
+    <groupId>org.hexa</groupId>
+    <artifactId>hexa-parent</artifactId>
     <version>0.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>dual-parent</name>
+    <name>hexa-parent</name>
     <description>
-        Reactor: dual-core (libreria riusabile: kernel, UI kit, chat/AI, ricerca, storage, backup, manuale),
-        dual-test-support (container PostgreSQL per i test) e l'app spring-htmx-starter (dominio: generazione, training).
+        Reactor: hexa-core (libreria riusabile: kernel, UI kit, chat/AI, ricerca, storage, backup, manuale),
+        hexa-test-support (container PostgreSQL per i test) e l'app deep-flux (dominio: generazione, training).
     </description>
 
     <modules>
-        <module>dual-test-support</module>
-        <module>dual-core</module>
-        <module>app</module>
+        <module>hexa-test-support</module>
+        <module>hexa-core</module>
+        <module>deep-flux</module>
     </modules>
 
     <properties>
@@ -45,13 +45,13 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>org.dual</groupId>
-                <artifactId>dual-core</artifactId>
+                <groupId>org.hexa</groupId>
+                <artifactId>hexa-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.dual</groupId>
-                <artifactId>dual-test-support</artifactId>
+                <groupId>org.hexa</groupId>
+                <artifactId>hexa-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
