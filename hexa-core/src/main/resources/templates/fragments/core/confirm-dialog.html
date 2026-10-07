@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Conferma di un'azione (UN punto per tutto il progetto: mai il `confirm()` nativo del browser). Incluso UNA volta da fragments/core/layout.html.
+  Dialog modale Pines UI (fragments/core/modal :: dialog) con la domanda e due bottoni (Annulla / Conferma); Esc, clic sullo scrim e Annulla
+  rispondono "no". Due modi d'uso, stessa finestra:
+  - htmx: si continua a scrivere `hx-confirm="<domanda gia' tradotta>"` (button :: danger, th:hx-confirm...). Il componente ascolta `htmx:confirm`
+    sulla finestra, ferma la richiesta, mostra la domanda e, su "Conferma", la fa partire (`issueRequest(true)`: htmx non richiede una seconda
+    conferma). Senza domanda l'evento passa intatto.
+  - JavaScript: `window.hexaConfirm(domanda)` ritorna una Promise<boolean> (es. i bottoni di /deep-chat, che non sono htmx):
+        window.hexaConfirm(button.dataset.confirm).then((ok) => { if (ok) { ... } });
+  Le conferme con parola digitata (azioni nucleari, es. "Elimina tutto") NON passano da qui: hanno un proprio modal :: dialog.
+  Lo stato `dialogOpen` e' quello che leggono modal :: dialog e button :: dialogClose. Chiusa in qualunque modo, la Promise si risolve (false se
+  non si e' premuto Conferma): una richiesta htmx non resta mai in sospeso.
+-->
+<th:block th:fragment="container">
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('confirmDialog', () => ({
+                dialogOpen: false,
+                question: '',
+                resolver: null,
+
+                init() {
+                    window.hexaConfirm = (question) => this.ask(question);
+                    this.$watch('dialogOpen', (open) => { if (!open) { this.settle(false); } });
+                },
+                ask(question) {
+                    this.settle(false);
+                    this.question = question;
+                    this.dialogOpen = true;
+                    return new Promise((resolve) => { this.resolver = resolve; });
+                },
+                answer(accepted) {
+                    this.settle(accepted);
+                    this.dialogOpen = false;
+                },
+                settle(accepted) {
+                    const resolve = this.resolver;
+                    this.resolver = null;
+                    if (resolve) { resolve(accepted); }
+                },
+                onHtmxConfirm(event) {
+                    if (!event.detail.question) { return; }
+                    event.preventDefault();
+                    this.ask(event.detail.question).then((accepted) => { if (accepted) { event.detail.issueRequest(true); } });
+                }
+            }));
+        });
+    </script>
+    <div id="confirm-dialog" x-data="confirmDialog" @htmx:confirm.window="onHtmxConfirm($event)" @keydown.escape.window="dialogOpen = false">
+        <th:block th:replace="~{fragments/core/modal :: dialog(titleId='confirm-dialog-question', maxWidth='max-w-md', body=~{::#confirm-dialog-body})}">
+            <div id="confirm-dialog-body">
+                <p id="confirm-dialog-question" class="m-0 text-[0.95rem]" x-text="question"></p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button th:replace="~{fragments/core/button :: dialogClose(text=#{confirm.dialog.cancel}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Annulla</button>
+                    <button th:replace="~{fragments/core/button :: dialogConfirm(text=#{confirm.dialog.accept}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Conferma</button>
+                </div>
+            </div>
+        </th:block>
+    </div>
+</th:block>
+
+</body>
+</html>

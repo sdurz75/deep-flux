@@ -114,6 +114,13 @@
         class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark"
         th:classappend="${extraClass}" th:text="${text}">Annulla</button>
 
+<!--
+  dialogConfirm(text, extraClass): "Conferma" del dialog di conferma (fragments/core/confirm-dialog.html). Assume il componente Alpine
+  `confirmDialog` (answer) sull'antenato; e' il primario di default del tema.
+-->
+<button th:fragment="dialogConfirm(text, extraClass)" type="button" @click="answer(true)"
+        th:classappend="${extraClass}" th:text="${text}">Conferma</button>
+
 <button th:fragment="dialogCloseIcon(title)" type="button" @click="dialogOpen = false"
         th:title="${title}" th:aria-label="${title}"
         class="shrink-0 w-8 h-8 p-0 rounded-full bg-transparent border-0 text-ink-muted dark:text-ink-muted-dark hover:bg-canvas dark:hover:bg-canvas-dark text-xl leading-none">&times;</button>

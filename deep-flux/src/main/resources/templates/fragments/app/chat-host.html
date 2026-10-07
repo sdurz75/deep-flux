@@ -299,21 +299,24 @@
                                 window.location.href = target.toString();
                                 return;
                             }
-                            if (!window.confirm(button.dataset.confirm)) {
-                                return;
-                            }
-                            button.disabled = true;
-                            // Un file solo: l'endpoint della galleria contestuale (files = <idGenerazione>:<file>, l'ultimo file elimina la generazione).
-                            const body = button.dataset.actionType === 'DELETE_FILE'
-                                ? new URLSearchParams({files: button.dataset.generationId + ':' + button.dataset.file}) : undefined;
-                            fetch(button.dataset.url, {method: 'POST', body})
-                                .then((response) => {
-                                    if (!response.ok) {
-                                        throw new Error('action failed');
-                                    }
-                                    button.textContent = button.dataset.doneText;
-                                })
-                                .catch(() => { button.textContent = button.dataset.failedText; });
+                            // Conferma nel dialog Pines della pagina (fragments/core/confirm-dialog.html), non nella finestra nativa del browser.
+                            window.hexaConfirm(button.dataset.confirm).then((accepted) => {
+                                if (!accepted) {
+                                    return;
+                                }
+                                button.disabled = true;
+                                // Un file solo: l'endpoint della galleria contestuale (files = <idGenerazione>:<file>, l'ultimo file elimina la generazione).
+                                const body = button.dataset.actionType === 'DELETE_FILE'
+                                    ? new URLSearchParams({files: button.dataset.generationId + ':' + button.dataset.file}) : undefined;
+                                fetch(button.dataset.url, {method: 'POST', body})
+                                    .then((response) => {
+                                        if (!response.ok) {
+                                            throw new Error('action failed');
+                                        }
+                                        button.textContent = button.dataset.doneText;
+                                    })
+                                    .catch(() => { button.textContent = button.dataset.failedText; });
+                            });
                         }
                     }
                 },
@@ -321,20 +324,25 @@
                     events: {
                         click: (event) => {
                             const button = event.target.closest('.gen-cancel');
-                            if (!button || button.disabled || !window.confirm(button.dataset.confirm)) {
+                            if (!button || button.disabled) {
                                 return;
                             }
-                            button.disabled = true;
-                            fetch(button.dataset.cancelUrl, {method: 'POST'})
-                                .then((response) => {
-                                    if (!response.ok) {
-                                        throw new Error('cancel failed');
-                                    }
-                                    button.textContent = button.dataset.disabledText;
-                                })
-                                // Interruzione non riuscita: resta disabilitato, si attende la fine
-                                // della generazione (arrivera' comunque via SSE "chat-message").
-                                .catch(() => { button.textContent = button.dataset.failedText; });
+                            window.hexaConfirm(button.dataset.confirm).then((accepted) => {
+                                if (!accepted) {
+                                    return;
+                                }
+                                button.disabled = true;
+                                fetch(button.dataset.cancelUrl, {method: 'POST'})
+                                    .then((response) => {
+                                        if (!response.ok) {
+                                            throw new Error('cancel failed');
+                                        }
+                                        button.textContent = button.dataset.disabledText;
+                                    })
+                                    // Interruzione non riuscita: resta disabilitato, si attende la fine
+                                    // della generazione (arrivera' comunque via SSE "chat-message").
+                                    .catch(() => { button.textContent = button.dataset.failedText; });
+                            });
                         }
                     }
                 }

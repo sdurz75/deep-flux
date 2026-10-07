@@ -8,26 +8,25 @@
 <!--
   x-data qui in cima (non su un <div> interno): il modal "Elimina tutto"
   vive FUORI da #generations-content apposta (vedi sotto), quindi il suo
-  stato (deleteAllOpen/confirmText) deve stare su un antenato comune a
+  stato (dialogOpen/confirmText) deve stare su un antenato comune a
   entrambi, non dentro il contenuto che un refresh SSE ri-renderizza.
 -->
 <div layout:fragment="breadcrumbs">
     <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{generations.title})}"></nav>
 </div>
-<div layout:fragment="content" x-data="{ deleteAllOpen: false, confirmText: '' }">
+<div layout:fragment="content" x-data="{ dialogOpen: false, confirmText: '' }" x-init="$watch('dialogOpen', (open) => { if (!open) { confirmText = '' } })" @keydown.escape.window="dialogOpen = false">
     <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
         <h1 th:text="#{generations.title}">Generazioni</h1>
         <!--
           Azione nucleare, SEPARATA dalla cancellazione della selezione
           (fragments/app/generations.html :: list): elimina OGNI generazione
           esistente, non solo quelle spuntate. Doppio controllo
-          sull'intento (modal con parola di conferma digitata, adattamento
-          Pines UI come la lightbox di fragments/app/gallery.html :: grid),
-          non il semplice hx-confirm nativo usato altrove per le
+          sull'intento (fragments/core/modal :: dialog con parola di conferma digitata),
+          non la semplice conferma (hx-confirm, fragments/core/confirm-dialog.html) usata altrove per le
           cancellazioni "normali": la posta in gioco qui e' l'intero
           archivio.
         -->
-        <button type="button" @click="deleteAllOpen = true"
+        <button type="button" @click="dialogOpen = true"
                 class="bg-danger dark:bg-danger-dark text-accent-contrast dark:text-accent-contrast-dark
                        rounded-md px-3 py-1.5 text-[0.85rem] cursor-pointer"
                 th:text="#{generations.button.deleteAll}">Elimina tutto</button>
@@ -49,32 +48,27 @@
       finche' il testo digitato non coincide esattamente (case-insensitive,
       confirmWord e' gia' tutto maiuscolo in entrambi i bundle).
     -->
-    <div x-show="deleteAllOpen" x-cloak x-trap.inert.noscroll="deleteAllOpen"
-         @keydown.window.escape="deleteAllOpen = false"
-         class="fixed inset-0 z-[99] flex items-center justify-center bg-black/50">
-        <div class="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg p-6 w-11/12 max-w-md"
-             th:data-confirm-word="#{generations.deleteAll.confirmWord}">
-            <p class="font-semibold" th:text="#{generations.deleteAll.warning}">Questa azione elimina TUTTE le generazioni.</p>
+    <th:block th:replace="~{fragments/core/modal :: dialog(titleId='delete-all-warning', maxWidth='max-w-md', body=~{::#delete-all-body})}">
+        <div id="delete-all-body" th:data-confirm-word="#{generations.deleteAll.confirmWord}">
+            <p id="delete-all-warning" class="m-0 font-semibold" th:text="#{generations.deleteAll.warning}">Questa azione elimina TUTTE le generazioni.</p>
             <p class="mt-2 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{generations.deleteAll.instructions}">Digita la parola di conferma qui sotto:</p>
             <p class="font-mono font-semibold mt-1" th:text="#{generations.deleteAll.confirmWord}">ELIMINA TUTTO</p>
             <input type="text" x-model="confirmText" autocomplete="off"
                    class="border border-line dark:border-line-dark rounded-md px-2 py-1 w-full mt-2
                           bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark">
             <div class="flex justify-end gap-2 mt-4">
-                <button type="button" @click="deleteAllOpen = false; confirmText = ''"
-                        class="px-3 py-1.5 text-[0.85rem] cursor-pointer"
-                        th:text="#{generations.deleteAll.cancel}">Annulla</button>
+                <button th:replace="~{fragments/core/button :: dialogClose(text=#{generations.deleteAll.cancel}, extraClass='px-3 py-1.5 text-[0.85rem]')}">Annulla</button>
                 <button type="button"
                         :disabled="confirmText.trim().toUpperCase() !== $el.closest('[data-confirm-word]').dataset.confirmWord"
                         class="bg-danger dark:bg-danger-dark text-accent-contrast dark:text-accent-contrast-dark
                                rounded-md px-3 py-1.5 text-[0.85rem] cursor-pointer
                                disabled:opacity-40 disabled:cursor-not-allowed"
                         th:hx-post="@{/generations/delete-all}" hx-swap="none"
-                        @click="deleteAllOpen = false; confirmText = ''"
+                        @click="dialogOpen = false"
                         th:text="#{generations.deleteAll.confirm}">Conferma eliminazione</button>
             </div>
         </div>
-    </div>
+    </th:block>
 </div>
 </body>
 </html>
