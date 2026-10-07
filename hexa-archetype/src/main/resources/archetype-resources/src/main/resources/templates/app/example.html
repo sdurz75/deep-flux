@@ -29,6 +29,13 @@
         <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{example.button.add}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Aggiungi</button>
     </form>
 
+    <h2 th:text="#{example.remote.title}">Servizio esterno</h2>
+    <p th:text="#{example.remote.intro}">Controllo.</p>
+    <div class="flex items-center gap-3 my-4">
+        <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{example.remote.button.check}, hxGet=null, hxPost=@{/example/remote-check}, hxTarget='#example-remote-status', hxSwap='innerHTML', extraClass=null)}">Controlla</button>
+        <span id="example-remote-status" class="text-ink-muted dark:text-ink-muted-dark"></span>
+    </div>
+
     <div th:replace="~{fragments/app/example-list :: list(items=${items}, error=${error})}"></div>
 </div>
 </body>

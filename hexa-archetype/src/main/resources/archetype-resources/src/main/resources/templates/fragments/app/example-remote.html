@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Esito del controllo del servizio esterno: vista diretta con parametri NOMINATI. Un errore non passa di qui: lo gestisce il toast del core. -->
+<span th:fragment="status(status)" th:text="#{example.remote.result.ok(${status})}">Il servizio ha risposto: ok</span>
+
+</body>
+</html>

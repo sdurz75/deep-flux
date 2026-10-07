@@ -3,6 +3,7 @@
 #set( $symbol_escape = '\' )
 package ${package}.example.adapter.in.web;
 
+import ${package}.example.port.in.IExampleRemoteStatus;
 import ${package}.example.port.in.IExamples;
 import jakarta.servlet.http.HttpServletResponse;
 import org.hexa.core.kernel.i18n.Messages;
@@ -29,11 +30,13 @@ public class ExampleController {
     private static final String LIST_FRAGMENT = "fragments/app/example-list :: list(items=${symbol_dollar}{items}, error=${symbol_dollar}{error})";
 
     private final IExamples examples;
+    private final IExampleRemoteStatus remoteStatus;
     private final Messages messages;
     private final HtmxEvents htmxEvents;
 
-    public ExampleController(IExamples examples, Messages messages, HtmxEvents htmxEvents) {
+    public ExampleController(IExamples examples, IExampleRemoteStatus remoteStatus, Messages messages, HtmxEvents htmxEvents) {
         this.examples = examples;
+        this.remoteStatus = remoteStatus;
         this.messages = messages;
         this.htmxEvents = htmxEvents;
     }
@@ -81,6 +84,17 @@ public class ExampleController {
         model.addAttribute("items", examples.list());
         model.addAttribute("error", null);
         return LIST_FRAGMENT;
+    }
+
+    /**
+     * Chiamata a un servizio esterno. Nessun {@code try/catch}: se fallisce, l'{@code ExampleRemoteException} risale al resolver del core, che la registra
+     * ({@code /system/events}, campanella), la logga e risponde con un toast (502 per i guasti, 500 per un bug, 422 senza registro per un rifiuto atteso);
+     * htmx non sostituisce il target su un errore, quindi lo stato precedente resta.
+     */
+    @PostMapping("/example/remote-check")
+    public String remoteCheck(Model model) {
+        model.addAttribute("status", remoteStatus.check());
+        return "fragments/app/example-remote :: status(status=${symbol_dollar}{status})";
     }
 
     private static UploadedFile toUploadedFile(MultipartFile file) {

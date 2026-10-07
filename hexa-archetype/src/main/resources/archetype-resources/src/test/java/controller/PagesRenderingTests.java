@@ -59,6 +59,18 @@ class PagesRenderingTests {
         assertThat(fragment).contains("obbligatorio");
     }
 
+    /**
+     * Un guasto del servizio esterno (qui: URL non configurato) risale al resolver del core: 502, evento nel registro e toast nell'header htmx.
+     * Il target non viene sostituito (htmx ignora le risposte di errore), quindi lo stato precedente resta.
+     */
+    @Test
+    void aRemoteFailureIsRecordedAndShownAsAToast() throws Exception {
+        var response = mockMvc.perform(post("/example/remote-check").header("HX-Request", "true"))
+                .andExpect(status().isBadGateway()).andReturn().getResponse();
+
+        assertThat(response.getHeader("HX-Trigger")).contains("system-toast").contains("EXAMPLE_REMOTE_BASE_URL");
+    }
+
     /** 1x1 px, PNG vero: lo storage riconosce il tipo dai magic bytes, mai dal nome o dal content-type. */
     private static final byte[] PNG = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");

@@ -23,3 +23,8 @@ app:
 searxng:
   base-url: ${symbol_dollar}{SEARXNG_BASE_URL:}
 #end
+
+example:
+  remote:
+    # Servizio esterno di esempio (ExampleRemoteClient): l'URL base di un endpoint GET /status. Vuoto = il controllo risponde con un avviso di configurazione.
+    base-url: ${symbol_dollar}{EXAMPLE_REMOTE_BASE_URL:}

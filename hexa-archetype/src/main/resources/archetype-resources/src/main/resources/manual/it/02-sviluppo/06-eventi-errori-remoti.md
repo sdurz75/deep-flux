@@ -18,6 +18,17 @@ I toast viaggiano nell'header `HX-Trigger` (helper `HtmxEvents#addToastHeader`).
 
 Un nuovo servizio remoto richiede: un valore di sorgente e la sua etichetta nei bundle; `FooException extends RemoteServiceException`; un client che estende `RestRemoteClient` e implementa la `port.out`, con ogni chiamata dentro `remote.call(...)`. `RemoteServiceException` porta `source()` e `kind()`: `TRANSIENT` (ritentabile), `PERMANENT`, `CONFIGURATION`, `REJECTED` (esito atteso, non si registra). `RemoteCaller` ritenta solo i transienti: per le operazioni non idempotenti o a pagamento si passa `RetryPolicy.NONE`. I client usano il `RestClient.Builder` iniettato, mai `RestClient.create()`.
 
+## Il flusso completo, già funzionante
+
+La slice `example/` contiene un client vero, da copiare: `ExampleRemoteClient` (estende `RestRemoteClient`, ogni chiamata in `remote.call`), `ExampleRemoteException` (porta la sorgente `EXAMPLE` e il `Kind`), la porta `IExampleRemote` e il servizio `ExampleRemoteStatusService`. Il pulsante «Controlla stato» della pagina `/example` lo percorre fino in fondo:
+
+1. `RemoteCaller` traduce ogni errore HTTP o di rete in un `Kind` e ritenta, con la policy della chiamata, **solo** i `TRANSIENT` (408, 429, 5xx, rete): un ritentativo riuscito non lascia tracce.
+2. L'eccezione definitiva risale senza `catch` fino al resolver del core, che la registra **una volta** (`/system/events`, campanella, log) e risponde 502 per un guasto, 500 per un bug e 422 senza registro per un rifiuto atteso (`REJECTED`).
+3. Per una richiesta htmx il resolver aggiunge anche il toast nell'header `HX-Trigger`: il target non viene sostituito, l'utente vede il messaggio già tradotto. Un `CONFIGURATION` (qui l'URL `EXAMPLE_REMOTE_BASE_URL` mancante, il caso di partenza) è notificato ma non ritentato.
+4. Dove l'errore si ingoia (lavoro in background, watcher) non c'è resolver: si chiama `ISystemEvents#record` a mano, come fa `ExampleService`.
+
+Le operazioni non idempotenti o a pagamento passano `RetryPolicy.NONE` esplicita. Il test `ExampleRemoteClientTest` mostra il contratto senza rete (`MockRestServiceServer`); `PagesRenderingTests` verifica 502 e toast. Per provarlo dal vero basta impostare `EXAMPLE_REMOTE_BASE_URL` nel `.env` verso un endpoint che risponda a `GET /status`.
+
 ## Riferimento API
 
 [`ISystemEvents`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/events/port/in/ISystemEvents.html), e in [`org.hexa.core.kernel.remote`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/kernel/remote/package-summary.html): `RemoteCaller`, `RetryPolicy`, `RemoteServiceException`.
