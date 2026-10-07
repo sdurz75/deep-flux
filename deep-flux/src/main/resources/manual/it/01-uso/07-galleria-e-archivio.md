@@ -4,7 +4,7 @@ Ogni generazione, dalla chat o dal form, è una riga dell'archivio. Questa pagin
 
 ## La Galleria
 
-[Galleria](/gallery) mostra le immagini **riuscite**, a pagine. Si aggiorna da sola quando ne finisce una nuova, senza ricaricare. Tre schede:
+[Galleria](/gallery) mostra le immagini **riuscite**; scorrendo verso il fondo se ne caricano altre da sole. Si aggiorna da sola quando ne finisce una nuova, senza ricaricare. Tre schede:
 
 - **Tutte**: una scheda per generazione.
 - **Preferiti**: una scheda per **file** con la stella (non per generazione).

@@ -125,7 +125,7 @@ class SemanticSearchControllerTest {
     }
 
     @Test
-    void theSingleListIsPaginatedBothBrowsingAndRankedAndPageLinksKeepTheFilters() throws Exception {
+    void theSingleListLoadsMoreOnScrollBothBrowsingAndRankedAndSentinelKeepsTheFilters() throws Exception {
         // type "note": la riconciliazione di fondo (ArchiveIndexService, attiva in questo contesto) cancella i derivati finti ("chat") che non trova nel DB
         for (int i = 0; i < 25; i++) {
             derivedAt("note:n" + i, "note", i, "castello numero " + i, java.time.LocalDate.of(2026, 1, 1).plusDays(i));
@@ -133,15 +133,15 @@ class SemanticSearchControllerTest {
         derived("generation:1", "generation", 1, "altro tipo");
 
         String first = body(get("/search/results").param("type", "note"));
-        String second = body(get("/search/results").param("type", "note").param("page", "2"));
+        String second = body(get("/search/results").param("type", "note").param("page", "2").param("more", "true"));
         String ranked = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01"));
-        String rankedSecond = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01").param("page", "2"));
+        String rankedSecond = body(get("/search/results").param("q", "castello").param("type", "note").param("from", "2026-01-01").param("page", "2").param("more", "true"));
 
         assertThat(first).contains("25 risultati").contains("castello numero 24").doesNotContain("altro tipo")
-                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;tag=&amp;page=2");
-        assertThat(second).contains("castello numero").doesNotContain("page=3");
+                .contains("/search/results?q=&amp;type=note&amp;from=&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;tag=&amp;page=2&amp;more=true");
+        assertThat(second).contains("castello numero").doesNotContain("page=3").doesNotContain("risultati");
         assertThat(ranked).contains("Somiglianza").contains("25 risultati")
-                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;tag=&amp;page=2");
+                .contains("q=castello&amp;type=note&amp;from=2026-01-01&amp;to=&amp;threshold=0&amp;media=all&amp;favourites=false&amp;tag=&amp;page=2&amp;more=true");
         assertThat(rankedSecond).contains("castello numero").doesNotContain("page=3");
         mockMvc.perform(get("/search/list/chat")).andExpect(status().is4xxClientError());
     }

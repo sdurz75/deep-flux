@@ -20,16 +20,16 @@
   GalleryPushNotifier) deve stare QUI dentro, non sul div
   #gallery-content in gallery.html: quel div e' il target dello swap
   (hx-swap="innerHTML"), sopravvive intatto a ogni ricarica, quindi un
-  hx-get="@{/gallery(page=...)}" li' sopra congelerebbe currentPage al
-  valore del primo caricamento. Qui dentro invece si ri-renderizza a ogni
-  swap (pagina cambiata O refresh da SSE), cosi' currentPage e' sempre
-  quello appena servito da GalleryController. style="display:contents":
+  hx-get="@{/gallery}" li' sopra sarebbe sparito allo swap successivo.
+  Qui dentro invece si ri-renderizza a ogni swap (tab, filtro O refresh da
+  SSE): il refresh riparte dalla prima pagina (scroll infinito, le pagine
+  gia' caricate si scartano). style="display:contents":
   serve solo da hook per gli attributi hx-*, non deve influire sul layout
   (la griglia CSS vive sul div grid() qui sotto, la paginazione e' un
   fratello separato).
 -->
-<th:block th:fragment="content(items, tab, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, tag)">
-    <div style="display:contents" th:hx-get="${tag == ''} ? @{/gallery(page=${currentPage}, tab=${tab})} : @{/gallery(page=${currentPage}, tab=${tab}, tag=${tag})}"
+<th:block th:fragment="content(items, tab, nextPage, tag)">
+    <div style="display:contents" th:hx-get="${tag == ''} ? @{/gallery(tab=${tab})} : @{/gallery(tab=${tab}, tag=${tag})}"
          hx-trigger="gallery-update from:body" hx-target="#gallery-content" hx-swap="innerHTML">
         <!--
           Il messaggio "galleria vuota" vive QUI (non piu' in gallery.html,
@@ -77,9 +77,8 @@
            class="text-ink-muted dark:text-ink-muted-dark">Nessun preferito ancora.</p>
         <!-- th:unless su un th:block separato, non th:if sullo stesso tag di th:replace: stesso principio gia' documentato altrove in questo file (th:each+th:replace), th:replace ha precedenza piu' alta e scatterebbe comunque. Altrimenti la toolbar di selezione (dentro grid(...)) comparirebbe anche a galleria vuota. -->
         <th:block th:unless="${#lists.isEmpty(items)}">
-            <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab != 'favourites'}, false)}"></div>
+            <div th:replace="~{fragments/app/gallery :: grid(${items}, null, ${tab != 'favourites'}, false, ${nextPage}, ${tab}, ${tag})}"></div>
         </th:block>
-        <div th:replace="~{fragments/core/pagination :: nav(${tab != 'all' or tag != ''} ? '/gallery?tab=' + ${tab} + (${tag != ''} ? '&tag=' + ${#uris.escapeQueryParam(tag)} : '') : '/gallery', '#gallery-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
     </div>
 </th:block>
 
@@ -103,8 +102,24 @@
     <p th:if="${#lists.isEmpty(items)}" th:text="${emptyMessage}"
        class="text-ink-muted dark:text-ink-muted-dark">Nessuna immagine.</p>
     <th:block th:unless="${#lists.isEmpty(items)}">
-        <div th:replace="~{fragments/app/gallery :: grid(${items}, ${conversationId}, true, true)}"></div>
+        <div th:replace="~{fragments/app/gallery :: grid(${items}, ${conversationId}, true, true, null, null, null)}"></div>
     </th:block>
+</th:block>
+
+<!--
+  Le card di una pagina + la sentinella dello scroll infinito: se c'e' una pagina successiva (nextPage), un div che al
+  "revealed" (entra nel viewport) chiede /gallery?more=true&page=N e si sostituisce (outerHTML) con le card successive e la
+  nuova sentinella. Sta dentro la griglia e il form di grid(...): selezione multipla e lightbox (che rilegge le <img> dal DOM)
+  valgono anche per le card aggiunte. data-busy="off": e' un GET, ma l'overlay "operazione in corso" non deve mai comparire.
+  Risposta diretta di GalleryController#list con more=true (parametri nominati).
+-->
+<th:block th:fragment="cards(items, selectable, selectionByFile, conversationId, nextPage, tab, tag)">
+    <th:block th:each="item : ${items}">
+        <div th:replace="~{fragments/app/gallery-card :: card(${item}, ${conversationId}, ${selectable}, ${selectionByFile})}"></div>
+    </th:block>
+    <div th:if="${nextPage != null}" class="col-span-full py-4 text-center text-[0.85rem] text-ink-muted dark:text-ink-muted-dark"
+         th:hx-get="${tag == ''} ? @{/gallery(page=${nextPage}, tab=${tab}, more=true)} : @{/gallery(page=${nextPage}, tab=${tab}, tag=${tag}, more=true)}"
+         hx-trigger="revealed" hx-swap="outerHTML" data-busy="off" th:text="#{gallery.loadingMore}">Caricamento...</div>
 </th:block>
 
 <!--
@@ -165,7 +180,7 @@
   lo stato disabled, e da ogni checkbox delle card per il proprio stato
   checked/unchecked.
 -->
-<th:block th:fragment="grid(items, conversationId, selectable, selectionByFile)">
+<th:block th:fragment="grid(items, conversationId, selectable, selectionByFile, nextPage, tab, tag)">
     <form x-data="{
             selectedIds: [],
             imageGalleryOpened: false,
@@ -218,9 +233,7 @@
         <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
              x-ref="gallery">
 
-        <th:block th:each="item : ${items}">
-            <div th:replace="~{fragments/app/gallery-card :: card(${item}, ${conversationId}, ${selectable}, ${selectionByFile})}"></div>
-        </th:block>
+        <th:block th:replace="~{::cards(items=${items}, selectable=${selectable}, selectionByFile=${selectionByFile}, conversationId=${conversationId}, nextPage=${nextPage}, tab=${tab}, tag=${tag})}"></th:block>
 
         <div th:replace="~{fragments/core/lightbox :: overlay}"></div>
         </div>

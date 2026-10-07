@@ -35,9 +35,9 @@
 
 <!--
   L'unica lista di /search (target #search-results): classifica per significato (con testo) o documenti recenti (senza), gia'
-  filtrata e paginata dal controller. baseQuery = filtri correnti gia' codificati: la paginazione ci accoda &page=N.
+  filtrata e paginata dal controller. baseQuery = filtri correnti gia' codificati: la sentinella ci accoda &page=N&more=true.
 -->
-<th:block th:fragment="results(hits, total, query, error, baseQuery, currentPage, totalPages, hasPrevious, hasNext, pageNumbers)">
+<th:block th:fragment="results(hits, total, query, error, baseQuery, nextPage)">
     <th:block th:if="${error}">
         <p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
     </th:block>
@@ -46,11 +46,22 @@
         <th:block th:unless="${#lists.isEmpty(hits)}">
             <p class="mt-0 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{search.results.count(${total})}">12 risultati</p>
             <ul class="list-none p-0 flex flex-col gap-3">
-                <th:block th:each="h : ${hits}"><th:block th:replace="~{::row(hit=${h})}"></th:block></th:block>
+                <th:block th:replace="~{::rows(hits=${hits}, baseQuery=${baseQuery}, nextPage=${nextPage})}"></th:block>
             </ul>
-            <div th:replace="~{fragments/core/pagination :: nav('/search/results?' + ${baseQuery}, '#search-results', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
         </th:block>
     </th:block>
+</th:block>
+
+<!--
+  Le righe di una pagina + la sentinella dello scroll infinito: se c'e' una pagina successiva (nextPage), un <li> che al
+  "revealed" chiede /search/results?...&page=N&more=true (baseQuery = filtri correnti gia' codificati) e si sostituisce
+  (outerHTML) con le righe successive e la nuova sentinella. Risposta diretta del controller con more=true.
+-->
+<th:block th:fragment="rows(hits, baseQuery, nextPage)">
+    <th:block th:each="h : ${hits}"><th:block th:replace="~{::row(hit=${h})}"></th:block></th:block>
+    <li th:if="${nextPage != null}" th:with="moreUrl='/search/results?' + ${baseQuery} + '&page=' + ${nextPage} + '&more=true'"
+        th:hx-get="@{${moreUrl}}" hx-trigger="revealed" hx-swap="outerHTML" data-busy="off"
+        class="list-none py-4 text-center text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{search.loadingMore}">Caricamento…</li>
 </th:block>
 
 <!-- Una riga documento (<li>): risposta diretta di modifica/ri-embedda, che sostituiscono il loro "closest li". -->

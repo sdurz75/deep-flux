@@ -26,7 +26,7 @@ C'è un solo form, che si ri-invia mentre scrivi e cambi i filtri:
 - Ogni campo (testo, tag, date) ha una piccola **x** per svuotarlo; compare solo quando contiene qualcosa.
 - **Azzera filtri** torna alla pagina iniziale.
 
-**Con del testo** vedi la classifica per somiglianza, con il punteggio in percentuale: tutto quello che supera la soglia, venti risultati per pagina. **Senza testo** si sfogliano i documenti, i più recenti per primi, filtrati per tipo, periodo e tag.
+**Con del testo** vedi la classifica per somiglianza, con il punteggio in percentuale: tutto quello che supera la soglia; scorrendo in fondo se ne caricano altri da soli. **Senza testo** si sfogliano i documenti, i più recenti per primi, filtrati per tipo, periodo e tag.
 
 Ogni riga mostra il tipo, il testo, le eventuali miniature (generazioni e importate, con la stella e i tag in sola lettura) e un pulsante per aprire la generazione, l'immagine importata o la conversazione. **Dettagli** mostra id, metadati e hash del documento.
 

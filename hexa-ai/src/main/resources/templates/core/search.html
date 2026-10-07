@@ -115,7 +115,7 @@
         </th:block>
 
         <div id="search-results" class="mt-4">
-            <div th:replace="~{fragments/core/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})}"></div>
+            <div th:replace="~{fragments/core/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, nextPage=${nextPage})}"></div>
         </div>
     </div>
 </div>

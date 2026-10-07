@@ -20,8 +20,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
  * Galleria delle immagini generate: SOLO generazioni SUCCEEDED,
- * paginazione classica (numeri di pagina + precedente/successiva, markup
- * in fragments/core/pagination.html, riusabile da futuri altri listati) e
+ * scroll infinito (sentinella htmx in fondo alla griglia, vedi fragments/app/gallery.html :: cards) e
  * cancellazione in blocco dalla griglia stessa (checkbox per card, vedi
  * fragments/app/gallery.html/gallery-card.html). Il dettaglio di una singola
  * generazione (prompt/parametri, cancellazione singola e per-immagine)
@@ -48,41 +47,31 @@ public class GalleryController {
     public String list(@RequestParam(defaultValue = "1") int page,
                         @RequestParam(defaultValue = TAB_ALL) String tab,
                         @RequestParam(defaultValue = "") String tag,
+                        @RequestParam(defaultValue = "false") boolean more,
                         @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                         Model model) {
         int pageIndex = Math.max(0, page - 1);
         String activeTab = TAB_FAVOURITES.equals(tab) ? TAB_FAVOURITES : (TAB_IMPORTED.equals(tab) ? TAB_IMPORTED : TAB_ALL);
         String activeTag = Tags.normalize(tag);
-        Paged<GalleryItem> result = fetch(activeTab, activeTag, pageIndex);
-
-        // Una pagina che esisteva puo' smettere di esistere fra un refresh e
-        // l'altro (cancellazione in blocco dell'ultima pagina, vedi
-        // GalleryController#deleteSelected): il refresh SSE ri-richiede
-        // esattamente currentPage (fragments/app/gallery.html, hx-get="@{/gallery(page=...)}"),
-        // che a questo punto sarebbe oltre l'ultima pagina rimasta - senza
-        // questo aggiustamento l'utente vedrebbe "nessuna immagine" anche se
-        // le pagine precedenti hanno ancora contenuto.
-        if (result.isEmpty() && result.totalPages() > 0 && pageIndex >= result.totalPages()) {
-            pageIndex = result.totalPages() - 1;
-            result = fetch(activeTab, activeTag, pageIndex);
-        }
-        int currentPage = pageIndex + 1;
+        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
+        // Scroll infinito: la sentinella in fondo alla griglia chiede la pagina successiva ({@code more=true}) e ottiene solo
+        // le card (e la nuova sentinella). Ogni altra richiesta (pagina intera, tab, filtro, refresh SSE) riparte dalla prima.
+        boolean append = more && isHtmxRequest;
+        Paged<GalleryItem> result = fetch(activeTab, activeTag, append ? pageIndex : 0);
 
         model.addAttribute("items", result.content());
         model.addAttribute("tab", activeTab);
         model.addAttribute("tag", activeTag);
-        model.addAttribute("currentPage", currentPage);
-        model.addAttribute("totalPages", result.totalPages());
-        model.addAttribute("hasPrevious", result.hasPrevious());
-        model.addAttribute("hasNext", result.hasNext());
-        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));
+        model.addAttribute("nextPage", result.hasNext() ? result.pageIndex() + 2 : null);
 
-        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
         // Nota: come vista di risposta diretta (non dentro un th:replace inline)
         // Thymeleaf richiede parametri nominati, non posizionali.
+        if (append) {
+            return "fragments/app/gallery :: cards(items=${items}, selectable=${tab != 'favourites'}, selectionByFile=false, "
+                    + "conversationId=null, nextPage=${nextPage}, tab=${tab}, tag=${tag})";
+        }
         return isHtmxRequest
-                ? "fragments/app/gallery :: content(items=${items}, tab=${tab}, currentPage=${currentPage}, "
-                        + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers}, tag=${tag})"
+                ? "fragments/app/gallery :: content(items=${items}, tab=${tab}, nextPage=${nextPage}, tag=${tag})"
                 : "app/gallery";
     }
 

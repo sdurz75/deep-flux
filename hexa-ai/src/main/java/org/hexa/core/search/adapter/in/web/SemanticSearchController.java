@@ -20,7 +20,6 @@ import org.hexa.core.kernel.Paged;
 import org.hexa.core.kernel.i18n.Messages;
 import jakarta.servlet.http.HttpServletResponse;
 import org.hexa.core.web.HtmxEvents;
-import org.hexa.core.web.PaginationSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -113,18 +112,22 @@ public class SemanticSearchController {
     /**
      * L'unica lista della pagina. Con {@code q}: classifica per significato (punteggio), per somiglianza decrescente, sopra la soglia
      * {@code threshold} (percentuale 0..100). Senza {@code q}: i documenti, piu' recenti prima. In entrambi i casi filtrati per
-     * {@code type} (vuoto/{@code all} = tutti) e per periodo di creazione {@code from}/{@code to} (date ISO, estremi inclusi), e paginati.
+     * {@code type} (vuoto/{@code all} = tutti) e per periodo di creazione {@code from}/{@code to} (date ISO, estremi inclusi), e paginati (scroll infinito: pagina successiva con {@code more=true}).
      */
     @GetMapping("/results")
     public String results(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String type,
                           @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
                           @RequestParam(required = false) Integer threshold, @RequestParam(defaultValue = "all") String media,
                           @RequestParam(defaultValue = "false") boolean favourites, @RequestParam(defaultValue = "") String tag,
-                          @RequestParam(defaultValue = "1") int page, Model model) {
-        populateResults(q, type, from, to, threshold, media, favourites, tag, page, model);
-        return "fragments/core/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
-                + "currentPage=${currentPage}, totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, "
-                + "pageNumbers=${pageNumbers})";
+                          @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "false") boolean more,
+                          Model model) {
+        populateResults(q, type, from, to, threshold, media, favourites, tag, more ? page : 1, model);
+        // Scroll infinito: la sentinella in fondo alla lista chiede la pagina successiva ({@code more=true}) e ottiene solo
+        // le righe (e la nuova sentinella); ogni altra richiesta (form, note salvata) riparte dalla prima.
+        return more
+                ? "fragments/core/search :: rows(hits=${hits}, baseQuery=${baseQuery}, nextPage=${nextPage})"
+                : "fragments/core/search :: results(hits=${hits}, total=${total}, query=${query}, error=${error}, baseQuery=${baseQuery}, "
+                        + "nextPage=${nextPage})";
     }
 
     // --- note manuali -----------------------------------------------------------------------------------------------
@@ -219,11 +222,7 @@ public class SemanticSearchController {
         model.addAttribute("hits", List.of());
         model.addAttribute("total", 0L);
         model.addAttribute("baseQuery", baseQuery(query, type, from, to, minPercent, media, favourites, tag));
-        model.addAttribute("currentPage", 1);
-        model.addAttribute("totalPages", 1);
-        model.addAttribute("hasPrevious", false);
-        model.addAttribute("hasNext", false);
-        model.addAttribute("pageNumbers", List.of());
+        model.addAttribute("nextPage", null);
 
         String error = null;
         Instant start = null;
@@ -271,11 +270,7 @@ public class SemanticSearchController {
         }
         model.addAttribute("hits", hits);
         model.addAttribute("total", total);
-        model.addAttribute("currentPage", current);
-        model.addAttribute("totalPages", totalPages);
-        model.addAttribute("hasPrevious", current > 1);
-        model.addAttribute("hasNext", current < totalPages);
-        model.addAttribute("pageNumbers", PaginationSupport.window(current, totalPages));
+        model.addAttribute("nextPage", current < totalPages ? current + 1 : null);
     }
 
     /** Query string (gia' codificata) dei filtri correnti: la paginazione ci accoda {@code page=N} e non li perde. */
