@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="it">
+<body>
+<p>API pubbliche di <b>hexa-core</b> (<code>org.hexa.core.*</code>) e <b>hexa-ai</b> (<code>org.hexa.core.{ai,chat,search,credits}</code>),
+le librerie su cui si costruisce un'app hexa.</p>
+<p>Ogni sottosistema e' un esagono (<code>domain</code>, <code>application</code>, <code>port.in</code>, <code>port.out</code>,
+<code>adapter.in</code>, <code>adapter.out</code>). Un'app host dipende solo da <code>port.in</code> (le capability <code>I&lt;Nome&gt;</code>
+e le SPI da implementare) e da <code>domain</code>: sono i package da cui partire.</p>
+<p>La guida dello sviluppatore sta nel manuale (<code>/manual</code>) dell'app generata dall'archetype <code>hexa-archetype</code>.</p>
+</body>
+</html>

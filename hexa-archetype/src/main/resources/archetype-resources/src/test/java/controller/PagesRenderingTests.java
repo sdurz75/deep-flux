@@ -122,6 +122,9 @@ class PagesRenderingTests {
     void theManualPageOfTheExampleIsServed() throws Exception {
         assertThat(mockMvc.perform(get("/manual")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).contains("Esempio");
         mockMvc.perform(get("/manual/esempio")).andExpect(status().isOk());
+        // la guida dello sviluppatore (gruppo "sviluppo") e' distribuita dall'archetype
+        assertThat(mockMvc.perform(get("/manual/introduzione")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("Introduzione per lo sviluppatore", "sdurz75.github.io");
     }
 
     /** Una chiave aggiunta a un bundle e dimenticata nell'altro. */

@@ -89,7 +89,7 @@ ${h2} Backup e restore
 
 ${h2} Manuale online
 
-Markdown in `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md`, servito da `/manual` (voce di menu a carico dell'app); slug = nome file senza prefisso, unico fra tutti i gruppi; etichetta del gruppo `manual.group.<gruppo>` nel bundle dell'APP; titolo = primo `${symbol_pound} `; un solo `${symbol_pound}` per pagina; link fra pagine col nome VERO del file (`../01-uso/03-x.md${p}ancora`), verso l'app un path radice (`/example`). Quando cambia cio' che l'utente vede o fa, si aggiorna il manuale: nessun test blocca il testo vecchio, solo i link morti.
+Markdown in `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md`, servito da `/manual` (voce di menu a carico dell'app); slug = nome file senza prefisso, unico fra tutti i gruppi; etichetta del gruppo `manual.group.<gruppo>` nel bundle dell'APP; titolo = primo `${symbol_pound} `; un solo `${symbol_pound}` per pagina; link fra pagine col nome VERO del file (`../01-uso/03-x.md${p}ancora`), verso l'app un path radice (`/example`). Il gruppo `02-sviluppo` e' la guida dello sviluppatore su hexa-core/hexa-ai (con link al javadoc su GitHub Pages): e' distribuita dall'archetype come esempio di manuale e si puo' modificare o cancellare (con la chiave `manual.group.sviluppo`). Quando cambia cio' che l'utente vede o fa, si aggiorna il manuale: nessun test blocca il testo vecchio, solo i link morti.
 #if( $useAi == "true" )
 
 ${h2} AI: chat, ricerca, prompt (hexa-ai)

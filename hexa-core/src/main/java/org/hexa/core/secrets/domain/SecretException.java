@@ -4,7 +4,7 @@ import org.hexa.core.events.domain.CoreEventSource;
 import org.hexa.core.kernel.remote.RemoteServiceException;
 
 /**
- * Errore della cifratura dei segreti ({@link SecretCipher}): chiave di cifratura mancante/errata o dato manomesso, cioe'
+ * Errore della cifratura dei segreti ({@code SecretCipher}): chiave di cifratura mancante/errata o dato manomesso, cioe'
  * {@code Kind.CONFIGURATION} (non e' input dell'utente, va notificato). Come {@code TokenException} e' un
  * {@link RemoteServiceException} con source TOKENS, quindi il resolver e il registro eventi lo trattano allo stesso modo.
  */

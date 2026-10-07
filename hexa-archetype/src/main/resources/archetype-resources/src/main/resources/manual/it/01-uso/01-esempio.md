@@ -1,6 +1,6 @@
 # Esempio
 
-Questa pagina e' un segnaposto del manuale online di hexa-core: si cancella insieme alla feature di esempio e si sostituisce con le pagine della tua app.
+Questa pagina e' un segnaposto del manuale online di hexa-core: si cancella insieme alla feature di esempio e si sostituisce con le pagine della tua app. La guida per chi sviluppa sta nel gruppo **Sviluppo** (parti da [Introduzione per lo sviluppatore](../02-sviluppo/01-introduzione.md)) ed e' anch'essa un esempio di come si scrive il manuale.
 
 ## Come si scrive
 

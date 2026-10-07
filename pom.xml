@@ -97,7 +97,47 @@
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.12.0</version>
+                    <configuration>
+                        <release>${java.version}</release>
+                        <encoding>UTF-8</encoding>
+                        <doclint>all,-missing</doclint>
+                        <quiet>true</quiet>
+                        <additionalOptions>-Xmaxerrs 1000 -Xmaxwarns 1000</additionalOptions>
+                        <detectJavaApiLink>true</detectJavaApiLink>
+                        <links>
+                            <link>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</link>
+                        </links>
+                        <!-- Solo le librerie: l'app (deep-flux, org.hexa.app) non fa parte dell'API documentata. -->
+                        <excludePackageNames>org.hexa.app.*:org.hexa.support.*</excludePackageNames>
+                        <overview>${maven.multiModuleProjectDirectory}/src/main/javadoc/overview.html</overview>
+                        <windowtitle>hexa ${project.version}</windowtitle>
+                        <doctitle>hexa-core e hexa-ai ${project.version}</doctitle>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
+
+    <profiles>
+        <!-- Documentazione API: mvn -Pjavadoc javadoc:aggregate -> target/reports/apidocs (publicata da .github/workflows/javadoc.yml). Fuori dal build normale. -->
+        <profile>
+            <id>javadoc</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <inherited>false</inherited>
+                        <configuration>
+                            <sourcepath>hexa-core/src/main/java:hexa-ai/src/main/java</sourcepath>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
