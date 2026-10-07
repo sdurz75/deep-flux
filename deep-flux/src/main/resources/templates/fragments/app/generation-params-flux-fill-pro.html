@@ -37,8 +37,10 @@
 
     <div th:replace="~{fragments/app/generation-params-seed :: field}"></div>
 
-    <div th:replace="~{fragments/core/switch :: toggle(id='param-prompt-upsampling', name='prompt_upsampling', text=#{generationParams.label.promptUpsampling},
+    <div class="my-3">
+        <div th:replace="~{fragments/core/switch :: toggle(id='param-prompt-upsampling', name='prompt_upsampling', text=#{generationParams.label.promptUpsampling},
                     checked=${prompt_upsampling == true or prompt_upsampling == 'true'}, model=null, title=null)}">Prompt upsampling</div>
+    </div>
 
 </th:block>
 
