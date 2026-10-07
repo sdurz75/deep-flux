@@ -7,7 +7,7 @@ Guida al repository: le scelte sono vincoli deliberati per tenere il progetto sn
 - `hexa-core`: libreria base `org.hexa.core.{kernel,web,events,push,secrets,tokens,storage,backup,manual}` + risorse core (`core.yml`, `messages-core*`, `db/migration/core`, `templates/{core,fragments/core}`).
 - `hexa-ai`: libreria opzionale sopra core, `org.hexa.core.{ai,chat,search,credits}` (stessi package `core.*`, jar a parte) + `ai.yml`, `messages-ai*`, `db/migration/ai`, template chat/ricerca. `hexa-core` non dipende da `hexa-ai` (lo impone Maven).
 - `deep-flux`: l'applicazione (host, `org.hexa.app.*`, `Application`, `application.yml`, `messages*`, `prompts.properties`, `db/migration/app`, `templates/{app,fragments/app}`, `manual/`, `tailwind/`).
-- `hexa-test-support` (container di test), `hexa-archetype` (genera un'app su hexa, `-DuseAi=true` per hexa-ai: `docs/TEMPLATE.md`), `pom.xml` radice = parent/reactor.
+- `hexa-test-support` (container di test e `HexaArchitectureRules`: le regole di layering per un host con package radice qualunque, usate dall'`ArchitectureTest` generato dall'archetype), `hexa-archetype` (genera un'app su hexa, `-DuseAi=true` per hexa-ai: `docs/TEMPLATE.md`), `pom.xml` radice = parent/reactor.
 - I test `@SpringBootTest` (anche di package `core.*`) stanno in `deep-flux`; in `hexa-core`/`hexa-ai` solo test senza contesto Spring e i test di autoconfigurazione con host fuori da `org.hexa` (`com.example.*`: `CoreOnlyHostTest`, `AiHostTest`); i loro helper (`FakeWebDavServer`, `FakeEmbeddingModel`) arrivano come test-jar. `.env` e `data/` stanno nella radice (`spring-boot:run` parte da li').
 
 ## Scopo

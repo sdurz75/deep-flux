@@ -56,6 +56,16 @@ class PagesRenderingTests {
         assertThat(load("/messages.properties").keySet()).containsExactlyInAnyOrderElementsOf(load("/messages_en.properties").keySet());
     }
 
+    /** Una chiave dell'app ridefinita da una libreria (o viceversa): il bundle che vince dipende dall'ordine, il testo cambia in silenzio. */
+    @Test
+    void appBundleKeysAreDisjointFromTheLibraryBundles() throws IOException {
+        Properties app = load("/messages.properties");
+        assertThat(app.keySet()).doesNotContainAnyElementsOf(load("/messages-core.properties").keySet());
+#if( $useAi == "true" )
+        assertThat(app.keySet()).doesNotContainAnyElementsOf(load("/messages-ai.properties").keySet());
+#end
+    }
+
     private static Properties load(String resource) throws IOException {
         Properties properties = new Properties();
         try (InputStream in = PagesRenderingTests.class.getResourceAsStream(resource)) {

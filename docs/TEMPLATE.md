@@ -14,7 +14,7 @@ Proprieta': `appName` (brand, default l'artifactId), `useAi` (`true` aggiunge `h
 `pgvector/pgvector:pg17` nel compose), `dbName` (default l'artifactId). Si genera con package radice QUALUNQUE (autoconfigurazione, nessuno scan da scrivere).
 
 L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
-`fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione), `ArchitectureTest`, test di rendering e
+`fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione), `ArchitectureTest` (le regole di layering di hexa, da `HexaArchitectureRules` in `hexa-test-support`: dentro la feature, fra feature e verso le librerie solo `port.in`/`domain`), test di rendering (con bundle disgiunti dalle librerie) e
 di contesto (Testcontainers), `compose.yaml`, `.env.example`, `Dockerfile`, workflow GitHub Actions, profilo `-Ptailwind` (CSS compilato, scansiona anche i template di hexa-core
 estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue due test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai}`):
 generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build scarica il packaging `maven-archetype`: con il mirror aziendale usare

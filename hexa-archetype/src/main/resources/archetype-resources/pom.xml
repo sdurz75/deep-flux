@@ -47,7 +47,7 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
-        <!-- Container PostgreSQL per i test (registrato da META-INF/spring.factories: nessuna configurazione). -->
+        <!-- Container PostgreSQL per i test (registrato da META-INF/spring.factories: nessuna configurazione) e regole di architettura (HexaArchitectureRules, ArchUnit). -->
         <dependency>
             <groupId>org.hexa</groupId>
             <artifactId>hexa-test-support</artifactId>
@@ -62,13 +62,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- Fa rispettare l'architettura esagonale (ArchitectureTest). -->
-        <dependency>
-            <groupId>com.tngtech.archunit</groupId>
-            <artifactId>archunit-junit5</artifactId>
-            <version>1.4.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -73,6 +73,7 @@
                 <include>compose.yaml</include>
                 <include>.env.example</include>
                 <include>README.md</include>
+                <include>CLAUDE.md</include>
             </includes>
         </fileSet>
         <fileSet filtered="false" encoding="UTF-8">
@@ -80,7 +81,6 @@
             <includes>
                 <include>.gitignore</include>
                 <include>Dockerfile</include>
-                <include>CLAUDE.md</include>
                 <include>.github/**</include>
             </includes>
         </fileSet>

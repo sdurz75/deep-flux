@@ -36,6 +36,7 @@
         <spring-ai.version>2.0.1</spring-ai.version>
         <!-- Markdown del manuale (core.manual, adapter markdown). Non e' gestita dalle BOM: versione esplicita. -->
         <commonmark.version>0.24.0</commonmark.version>
+        <archunit.version>1.4.2</archunit.version>
     </properties>
 
     <dependencyManagement>
@@ -46,6 +47,11 @@
                 <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5</artifactId>
+                <version>${archunit.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.hexa</groupId>

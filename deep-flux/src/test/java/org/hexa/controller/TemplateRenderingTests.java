@@ -754,7 +754,7 @@ class TemplateRenderingTests {
         String crumbs = breadcrumbsOf(mockMvc.perform(get("/deep-chat/" + conversation.getId()))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
 
-        assertThat(crumbs).containsPattern("aria-current=\"page\"[^>]*>Deep Flux<");
+        assertThat(crumbs).containsPattern("aria-current=\"page\"[^>]*>Deep Chat<");
     }
 
     /** Il livello intermedio del dettaglio dipende da dove si arriva e sostituisce i vecchi link "Torna a...". */
@@ -775,7 +775,7 @@ class TemplateRenderingTests {
         assertThat(fromList).contains("href=\"/generations?page=2\"").contains("Generazioni");
 
         String fromChat = breadcrumbsOf(mockMvc.perform(get(url).param("conversationId", "7")).andReturn().getResponse().getContentAsString());
-        assertThat(fromChat).contains("href=\"/deep-chat/7\"").contains("Deep Flux");
+        assertThat(fromChat).contains("href=\"/deep-chat/7\"").contains("Deep Chat");
     }
 
     /**

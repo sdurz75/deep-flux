@@ -1,46 +1,119 @@
+#set( $symbol_pound = '#' )
+#set( $symbol_dollar = '$' )
+#set( $symbol_escape = '\' )
+#set( $p = '#' )
+#set( $h2 = '##' )
+#set( $h3 = '###' )
 # CLAUDE.md
 
-Guida per questa applicazione, costruita su `hexa-core` (e, se scelto, `hexa-ai`): le convenzioni vengono dalle librerie, qui solo cio' che serve per estenderla.
-Il package radice e' quello scelto alla generazione; nessun Maven Wrapper; Java 21.
+Guida di ${appName}, costruita su `hexa-core`#if( $useAi == "true" ) e `hexa-ai`#end: le convenzioni vengono dalle librerie hexa (le stesse del progetto da cui nasce questo template), qui solo cio' che serve per estendere l'app senza violarle. Le scelte sono vincoli deliberati per tenere il progetto snello: una violazione si corregge nel codice, non allentando una regola o un test. Java 21, Maven, nessun Maven Wrapper. Il package radice e' quello scelto alla generazione (`${package}`).
 
-## Cosa e' di chi
+${h2} Scopo
 
-- **hexa-core** (jar): layout e UI kit Thymeleaf, eventi di sistema (`ISystemEvents`, campanella, toast), token API (`/tokens`), storage dei binari, backup (`export`/`import`),
-  push SSE, manuale. Si configura con `classpath:core.yml` (importato in `application.yml`). hexa-ai, se presente, porta chat (`/deep-chat`), ricerca semantica (`/search`),
-  chiamate LLM e visione, crediti OpenRouter, con `classpath:ai.yml` e `prompts.properties` (i testi dei prompt sono vostri).
-- **Questa app**: tutto sotto il package radice. Punti di estensione obbligatori del layout: `templates/fragments/app/nav.html :: links(inline)` (le voci della sidebar) e
-  `templates/fragments/app/status-extras.html :: container` (a destra della barra di stato). Il menu laterale e' `app.layout.nav: sidebar` in `application.yml` (`top` = barra in alto).
-- Le chiavi di un file importato (`core.yml`, `ai.yml`) vincono su `application.yml`: si cambiano da env/.env, da un profilo o da `-D`, non sovrascrivendole qui.
+Una sola app, un solo dominio: non aggiungere feature (demo, integrazioni, pattern) che non servano a quello scopo; un pattern htmx/Alpine nuovo si dimostra in una feature vera. La slice `example/` e' solo un modello da copiare e poi cancellare (con la sua migrazione, la pagina, la voce di menu, le chiavi di bundle e i test).
 
-## Architettura (esagoni)
+${h2} Cosa e' di chi
 
-Un sottosistema per feature: `<package>/<feature>/{domain,application,port/in,port/out,adapter/in/web,adapter/out/persistence}`. `ArchitectureTest` fa rispettare le regole (correggere il codice,
-non la regola). Interfacce SEMPRE con prefisso `I` (`IExamples` -> `ExampleService`, `IExampleStore` -> `JpaExampleStore`); repository Spring Data package-private nell'adapter.
-`application` non conosce web/HTTP/Spring Data; un controller parla solo con le porte `in`; fra feature solo `port.in` e `domain`. `example/` e' la slice di riferimento: copiarla, poi cancellarla.
+- **hexa-core** (jar): layout e UI kit Thymeleaf, eventi di sistema (`ISystemEvents`, campanella, toast), token API (`/tokens`), storage dei binari, backup (`export`/`import`), push SSE, manuale online (`/manual`). Config: `classpath:core.yml` (importato da `application.yml`).
+#if( $useAi == "true" )
+- **hexa-ai** (jar, sopra core): chat (`/deep-chat`), ricerca semantica (`/search`), chiamate LLM e visione, crediti OpenRouter. Config: `classpath:ai.yml` e `prompts.properties` (i testi dei prompt sono VOSTRI). Stessi package `org.hexa.core.*`, jar a parte.
+#end
+- **Questa app**: tutto sotto `${package}`. Le librerie NON conoscono l'app: si dipende da loro solo attraverso `port.in`, `domain` e il kernel (vedi Architettura).
+- Punti di estensione obbligatori del layout: `templates/fragments/app/nav.html :: links(inline)` (voci della sidebar) e `templates/fragments/app/status-extras.html :: container` (a destra della barra di stato). `app.layout.nav: sidebar` in `application.yml` (`top` = barra in alto). Bundle: `app.brand` e `app.title` sono richieste dal layout del core.
+- Una chiave di un file IMPORTATO (`core.yml`#if( $useAi == "true" ), `ai.yml`#end) vince su `application.yml`: si cambia da env/`.env`, da un profilo o da `-D`, non sovrascrivendola qui. Il `.env` sta nella radice (`spring-boot:run` parte da li').
 
-## Convenzioni
+${h2} Architettura (esagoni)
 
-- **Hypermedia-first**: il server risponde HTML; stessa URL, fragment se `HX-Request`, pagina intera altrimenti. Fragment restituito come vista: parametri NOMINATI (`frag(items=${items})`).
-- **URL**: ogni `href`/`src`/`action`/`hx-*` passa da `@{...}` (reverse proxy su subpath). **Bottoni**: mai `<button>` a mano, fragment di `fragments/core/button.html`. **Select**: wrapper `pinesSelect`.
-- **Tema**: solo Tailwind, token (`bg-canvas dark:bg-canvas-dark`...), mai colori hardcoded; la config e' `src/main/tailwind/tailwind.config.js` (unica: la usano Play CDN e CLI).
-- **i18n**: ogni testo da `MessageSource` + `#{...}`, in `messages.properties` e `messages_en.properties` con le STESSE chiavi (lo verifica un test); apostrofi raddoppiati se la chiave ha argomenti.
-- **Pagine**: `layout:decorate="~{fragments/core/layout}"`, contenuto in `layout:fragment="content"`, breadcrumbs in `layout:fragment="breadcrumbs"` su ogni pagina tranne la Home.
-- **Errori**: ogni errore interno o chiamata remota passa da `ISystemEvents#record`/`warn`, mai un `catch` che ingoia.
-- **Migrazioni Flyway**: `src/main/resources/db/migration/app/V<AAAA>_<MM>_<GG>_<HHMM>__<descrizione>.sql`, SEMPRE con timestamp piu' recente di quelle del core (1200) e di hexa-ai (1210); mai modificare una gia' eseguita.
-  Nessuna `spring.flyway.locations`: il default scansiona le sottocartelle. Un DB di sviluppo si riparte con `docker compose down && rm -rf data/postgres`.
-- **Binari**: tutto passa da `IImageStorageService` (core); nomi opachi, mai derivati da input.
+Un sottosistema per feature: `<package>/<feature>/{domain,application,port/in,port/out,adapter/in/web,adapter/out/persistence}`. Fuori dalle feature solo `Application` e `shared` (trasversale: non dipende dalle feature).
 
-## Nuova pagina o feature
+- **Naming**: interfacce SEMPRE con prefisso `I` (porte comprese), implementazioni senza, col ruolo/backend (`IExamples` -> `ExampleService`, `IExampleStore` -> `JpaExampleStore`). Repository Spring Data package-private in `adapter.out.persistence`.
+- **Regole** (`ArchitectureTest` usa `HexaArchitectureRules` di `hexa-test-support`, le stesse del framework): `domain` = JDK + `jakarta.persistence` + Hibernate types + kernel; `application` usa solo `port`, niente adapter, `org.springframework.web|http|data|jdbc`, servlet, `java.sql`, I/O su file o immagini (stanno dietro una porta); `port` dipende solo da domain/port/kernel; `adapter.in` e `adapter.out` non si conoscono; un controller parla solo con porte `in`. Fra feature e verso le librerie hexa si dipende SOLO da `port.in` e `domain` (kernel e `core.web` esclusi); nessun ciclo. Con una seconda feature la regola e' gia' attiva: non serve aggiungerla.
+- **Punti di estensione delle librerie** (l'host li implementa, il SERVIZIO li inietta come `Optional<...>`): `IBlobReferences` (backup), `IEventLinkResolver`, `ITokenProviderCatalog`#if( $useAi == "true" ), `ISearchableSource`, `IChatToolkit`, `IChatTurnContributor`, `IChatPageContributor`, `IChatOutcomeResolver`, `ICreditSource`#end. L'elenco e' chiuso: non implementare altre porte `out` delle librerie.
+- **Nei commenti** citare classi di altri strati con `{@code Nome}`, mai `{@link}`.
+- **Nuova feature**: disegnare PRIMA le porte (tipi di dominio, mai web/HTTP/Spring Data#if( $useAi == "true" )/Spring AI#end), poi gli adapter; se serve un dato di un'altra feature senza che ti conosca, una SPI nella tua `port.in`. Le colonne di collegamento fra feature sono `Long`, mai `@ManyToOne` verso un'altra feature; la FK c'e' solo nella direzione delle dipendenze.
 
-1. Feature nuova: porte prima (tipi di dominio, mai web/Spring Data), poi adapter; copiare `example/`. 2. Controller in `adapter/in/web` + template `templates/app/<pagina>.html`.
-3. Voce in `nav.html` e breadcrumbs. 4. Testi in entrambi i bundle. 5. Entity -> migrazione. 6. `mvn test` verde (richiede Docker).
+${h2} Filosofia e cosa NON introdurre
 
-## Comandi
+Hypermedia-first, non SPA: server -> HTML. Spring MVC + Thymeleaf; aggiornamenti parziali htmx; micro-interattivita' Alpine; un componente complesso e stateful = Web Component isolato. Zero build frontend (htmx, Alpine, Tailwind da CDN nel layout del core).
+
+- **No** WebFlux come modello del server (resta `spring-boot-starter-webmvc`; solo tipi Reactor dove lo impone una libreria), **no** React/Vue/Angular, **no** build Tailwind obbligatorio (opt-in: `mvn -Ptailwind clean package`), **no** CSS in `static/`. Classi Tailwind sempre stringhe LETTERALI (la CLI le scansiona).
+- Le immagini/binari stanno in `./data/images`, il DB di sviluppo in `./data/postgres` (fuori da git).
+
+${h2} Pattern Thymeleaf e controller
+
+- **Pagine**: `layout:decorate="~{fragments/core/layout}"` sul proprio `<html>` (senza `lang` letterale), contenuto in `<div layout:fragment="content">` (NON un `<main>`). `<title>` sostituisce quello del layout. Pagine in `templates/app/`.
+- **Due subtree di fragment, `app -> core`**: `fragments/core` (delle librerie) e `fragments/app` (i vostri, di dominio). I vostri fragment possono comporre quelli del core; mai il contrario. Se scrivete un fragment generico riusabile, i testi e gli URL arrivano gia' risolti come parametri.
+- **Stessa URL, due risposte** distinte da `HX-Request` (fragment/pagina intera). Un fragment con parametri restituito come vista diretta richiede parametri **nominati** (`frag(items=${symbol_dollar}{items})`); la forma posizionale vale solo in `th:replace`. In un parametro di fragment NON si usano `@bean`, `new`, `T(...)` ne' mappe SpEL: calcolarli con `th:with`.
+- **Breadcrumbs** su OGNI pagina tranne la Home: `fragments/core/breadcrumbs :: trail(group, parentPath, parentText, current)` nello slot `breadcrumbs`, parametri nominati e tutti passati (inutilizzati `null`), `parentPath` grezzo. Le pagine di sistema del core (Token, Eventi) usano il gruppo "Gestione" (`header.menu.manage`): tenere `navSystemCore` nel menu "Gestione" di `nav.html`.
+- **Bottoni**: mai `<button>` a mano; fragment di `fragments/core/button.html` / `field-buttons.html` (o uno vostro in `fragments/app/`), parametri nominati e TUTTI passati. **Select**: mai `<select>` nuda; wrapper `pinesSelect` (`fragments/core/select.html`); un cambio da codice si annuncia con `select.dispatchEvent(new Event('pines-select:sync'))`.
+- **URL**: ogni attributo con un URL (`href`, `src`, `action`, `hx-*`) passa SEMPRE da `@{...}` (reverse proxy su subpath): `th:hx-post="@{/x}"`; fuori da htmx `th:attr` con `@{...}` in `|...|`. Lato Java `request.getContextPath() + "/x"`; `redirect:` no.
+- **Alpine**: i binding non passano da `th:attr`/`${symbol_pound}{...}`: il valore dinamico in un `data-*` e `${symbol_dollar}el.dataset`.
+- **Theming**: solo Tailwind, utility inline; mai colori hardcoded fuori da `theme.extend.colors` in `src/main/tailwind/tailwind.config.js` (unica config: Play CDN e CLI); token `{ DEFAULT, dark }` (`canvas|surface|ink|ink-muted|line|accent|accent-contrast|danger|warning`) come `bg-canvas dark:bg-canvas-dark`. Mai nuove regole `@layer`; il blocco `@layer base` e' in `input.css` E nel layout del core: non toccarlo.
+- **Toast**: header `HX-Trigger` via `HtmxEvents${p}addToastHeader`/`addHxTrigger`. Nessun bottone "Riprova" sul toast (rieseguire una POST non idempotente duplicherebbe l'effetto, e se costa, la spesa). L'overlay "operazione in corso" blocca la UI durante i non-GET htmx (`data-busy`, `data-busy-text`, `data-busy-delay`).
+
+${h2} i18n
+
+Ogni testo utente-visibile da `MessageSource` + `${symbol_pound}{...}`; lingua da `Accept-Language`, default italiano. Tre bundle con chiavi **DISGIUNTE**: `messages-core*` (hexa-core)#if( $useAi == "true" ), `messages-ai*` (hexa-ai)#end e `messages*` (vostro, italiano + `_en`). Una chiave nuova va nel bundle del lato del codice che la usa, in ENTRAMBE le lingue; non ridefinire mai una chiave delle librerie (per cambiarne il testo, una chiave vostra). Chiavi `<pagina-o-componente>.<categoria>.<elemento>`. **Apostrofi** raddoppiati (`''`) nei messaggi con argomenti; argomenti numerici `{0,number,#}`. Lato Java: errori all'utente con `core.kernel.i18n.Messages`, risolti al call site prima dell'eccezione. I test verificano che it/en abbiano le stesse chiavi e che i bundle siano disgiunti.
+
+${h2} Errori, eventi di sistema, servizi remoti
+
+- Ogni chiamata a un servizio remoto e ogni errore interno passa da `ISystemEvents${p}record(operation, throwable[, subject])`: MAI un `catch` che ingoia o solo logga. `record` non lancia e consegna il toast alla prima occorrenza di una serie (5 min). Avvisi: `warn(source, operation, subject, message)` (messaggio gia' tradotto). Registra chi gestisce/ingoia l'eccezione (servizi in background, watcher); se risale a un controller, il controller.
+- **`core.kernel.remote`**: `RemoteServiceException` (radice delle eccezioni dei servizi) porta `source()` e `kind()`: `TRANSIENT`, `PERMANENT`, `CONFIGURATION`, `REJECTED` (atteso, non si registra). Il resolver risponde 502 / 422 (toast, niente evento) / 500. `RemoteCaller${p}call` ritenta solo i `TRANSIENT`; **`RetryPolicy.NONE` ESPLICITA per le operazioni NON idempotenti o a pagamento**. `RestClientTranslator` = unica regola stato HTTP -> `Kind`.
+- **Nuovo servizio remoto**: una vostra `EventSource` (enum) con `events.source.<X>` nel bundle in entrambe le lingue; `FooException extends RemoteServiceException`; client `extends RestRemoteClient` che implementa la `port.out`, ogni chiamata in `remote.call(...)`. Un nuovo client HTTP usa il `RestClient.Builder` iniettato, mai `RestClient.create()`.
+- **Nessuno stato indefinito**: un'operazione asincrona non lascia stati parziali (errore -> stato terminale + risorse ripulite); recovery all'avvio per cio' che e' rimasto a meta'.
+
+${h2} Token API e segreti
+
+CRUD in `/tokens` (`ApiToken.provider` e' una stringa; i servizi li elenca l'app con un `ITokenProviderCatalog`, etichette `tokens.provider.<NOME>`). Dopo il salvataggio solo gli ultimi 4 caratteri; mai il segreto in log, eventi, toast o Model. Cifratura `ISecretCipher` con la STESSA chiave dei binari WebDAV (`app.secrets.encryption-key`, base64 di 32 byte, `openssl rand -base64 32`); persa = token e binari WebDAV irrecuperabili. Senza chiave `isConfigured()` e' falso e salvare e' `CONFIGURATION`.
+
+${h2} Storage dei binari
+
+Tutto cio' che l'app serve come file passa da `IImageStorageService` (nessun accesso diretto a filesystem/WebDAV, nessun resource handler statico: `/images/**` e' del core). Backend `storage.type=local|webdav`; lancia SOLO `StorageException`; espone `UploadedFile`, non `MultipartFile`. Ogni binario nuovo = `StorageNames${p}newFilename` (nome opaco, mai derivato da id/URL/nome originale, nessuna dedup). Con WebDAV i contenuti sono SEMPRE cifrati.
+
+${h2} Persistenza e migrazioni (Flyway)
+
+- Ogni modifica alla persistenza = **nuova migrazione SQL PostgreSQL** in `src/main/resources/db/migration/app/`, nome `V<AAAA>_<MM>_<GG>_<HHMM>__<descrizione>.sql`; mai modificare un file gia' eseguito (il checksum fa fallire l'avvio). Nessuna `spring.flyway.locations`: il default scansiona le sottocartelle (`core`, `ai`, `app`).
+- **Ordine**: le migrazioni dell'app devono essere PIU' RECENTI delle baseline delle librerie (core `V2026_10_01_1200`#if( $useAi == "true" ), ai `1210`#end) e `outOfOrder` e' falso: dopo un aggiornamento di hexa che porti nuove migrazioni, controllare che le loro versioni non precedano quelle gia' applicate dall'app.
+- **Dialetto**: identificatori minuscoli non quotati; testo lungo `text` + `@JdbcTypeCode(SqlTypes.LONGVARCHAR)` (MAI `@Lob`); `timestamptz`, `bytea`; enum Java = `varchar` senza ENUM/CHECK; `ddl-auto: validate`. In sviluppo: `docker compose down && rm -rf data/postgres`.
+- **Nessuna FK dalle librerie all'app**; una libreria legge i dati dell'app solo tramite le sue SPI.
+
+${h2} Backup e restore
+
+`java -jar app.jar export <file> [--no-encrypt]` / `import <file> [--replace]` (esito 0/1/2): profilo `backup`, senza web ne' lavori in background. Esporta TUTTE le tabelle (tranne `flyway_schema_history`) e i binari REFERENZIATI dal DB: **una colonna con il nome di un binario (`...filename...`) va dichiarata con un `IBlobReferences`** (coppie tabella/colonna), altrimenti i binari restano fuori dal backup senza errori. Credenziali: solo `DB_*` e, con WebDAV, `STORAGE_WEBDAV_*`. `backup.encryption-key` ripiega su `storage.webdav.encryption-key`; senza chiave l'export RIFIUTA (serve `--no-encrypt`). Un backup vecchio entra in un jar nuovo, non viceversa. Una feature con binari propri aggiunge un test di round-trip sul proprio schema (esporta, importa in un DB vergine, confronta tabelle e binari).
+
+${h2} Manuale online
+
+Markdown in `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md`, servito da `/manual` (voce di menu a carico dell'app); slug = nome file senza prefisso, unico fra tutti i gruppi; etichetta del gruppo `manual.group.<gruppo>` nel bundle dell'APP; titolo = primo `${symbol_pound} `; un solo `${symbol_pound}` per pagina; link fra pagine col nome VERO del file (`../01-uso/03-x.md${p}ancora`), verso l'app un path radice (`/example`). Quando cambia cio' che l'utente vede o fa, si aggiorna il manuale: nessun test blocca il testo vecchio, solo i link morti.
+#if( $useAi == "true" )
+
+${h2} AI: chat, ricerca, prompt (hexa-ai)
+
+- **Chat** (`/deep-chat`, nel core con slot dell'host): la cronologia e' lato SERVER, il client manda solo l'ultimo messaggio. SPI verso l'host (la chat non conosce il dominio): `IChatToolkit` (tool; `promptSection` e `@Order`), `IChatTurnContributor` (contesto del turno come `ToolContext`), `IChatPageContributor`, `IChatOutcomeResolver`. La pagina la riempie UN template dell'host (`app.chat.host-fragment`, slot `intro|leftRail|below|scripts|conversationTags|knownTags`); lo script di `scripts` definisce `window.deepChatHost` PRIMA del modulo di core.
+- **Tool e prompt**: ogni tool implementa `promptSection`; le sezioni stanno in `prompts.properties` (`deep-chat.section.<nome>`; `core` e `guidance` sempre, le altre solo per i tool presenti) e il prompt complessivo ha un tetto (10.000 caratteri): scrivere sezioni brevi e testarlo. I RITORNI dei tool sono in INGLESE, dicono di non riprovare e di avvisare l'utente; i tool catturano da soli i guasti (`record`) e restituiscono i rifiuti attesi com'e'. Un tool che muta e' IDEMPOTENTE (mai toggle); un tool a pagamento ha un tetto per turno. Il risultato dei tool `propose*` NON esegue: deposita un'azione resa come bottone.
+- **Link in chat**: elenco CHIUSO di path (`app.chat.link-paths`, `app.chat.entity-link-paths`); una nuova pagina citabile va li' e nella sezione `appmap` del prompt.
+- **Ricerca semantica** (`/search`, stesso Postgres/pgvector): UN documento per entita' indicizzata via `ISearchableSource` (un nuovo tipo = una nuova fonte nel suo sottosistema; metadata con chiavi riservate `contentHash`, `embeddingModel`, `indexedAt`; niente null nei metadata). Slot dell'host in `app.search.host-fragment`. Le note (`type=note`) sono modificabili, i derivati in sola lettura. Embedding locali (~120 MB in `./data/models` al primo avvio); nessun indice ANN di proposito.
+- **Test**: `app.search.enabled=false` e `spring.ai.model.embedding: none` (gia' in `application-test.yml`) spengono indice ed `EmbeddingModel`. Mai chiamate vere a OpenRouter/SearXNG: `@MockitoBean` sulle porte o `MockRestServiceServer`.
+- `searxng.base-url` e' obbligatorio con la chat (vuoto = nessuna ricerca web); `OPENROUTER_API_TOKEN` per chat e visione; `OPENROUTER_MANAGEMENT_KEY` solo per il chip dei crediti.
+#end
+
+${h2} Test
+
+- `mvn test` richiede Docker: `hexa-test-support` avvia UN container PostgreSQL#if( $useAi == "true" )+pgvector#end usa-e-getta e Flyway applica lo schema reale; non tocca mai il DB di sviluppo. Surefire fissa il profilo `test`, `storage.type=local`, la migrazione spenta e una chiave di test.
+- I test condividono il DB: i `@SpringBootTest` che scrivono sono `@Transactional` o ripuliscono a mano.
+- **Mai chiamate vere a servizi remoti nei test**: `@MockitoBean` sulle porte `out` verso l'esterno, `MockRestServiceServer` per i client; con uno stub gia' lanciante ri-stubbare con `doReturn(...).when(mock)`.
+- Test di regole gia' presenti: `ArchitectureTest` (layering), bundle it/en con le stesse chiavi e disgiunti dalle librerie, rendering delle pagine. Una pagina nuova ha il suo test di rendering (pagina intera e fragment htmx).
+
+${h2} Nuova pagina o feature
+
+1. Feature nuova: porte prima, poi adapter; copiare `example/`. 2. Controller in `adapter/in/web` (solo porte `in`) + template `templates/app/<pagina>.html` col layout del core. 3. Voce in `nav.html` e breadcrumbs. 4. Aggiornamento parziale -> fragment in `fragments/app/`, restituito se `HX-Request`. 5. Testi in entrambi i bundle. 6. Entity -> migrazione Flyway. 7. `<button>` -> fragment; `<select>` -> `pinesSelect`. 8. Evento che l'utente deve notare -> `ISystemEvents${p}warn`/`${p}record`. 9. Binari -> `IImageStorageService` e `IBlobReferences`. 10. Cambia cio' che l'utente vede o fa -> manuale. 11. `mvn test` verde (`ArchitectureTest` compreso).
+
+${h2} Comandi
 
 ```
-cp .env.example .env && docker compose up -d      # DB di sviluppo
+cp .env.example .env && docker compose up -d      # DB di sviluppo (DB_NAME/DB_USERNAME/DB_PASSWORD nel .env)
 mvn spring-boot:run                               # sviluppo
 mvn test                                          # test (Docker)
-mvn test -Dtest=ArchitectureTest                  # solo architettura
+mvn test -Dtest=ArchitectureTest                  # solo architettura (senza Docker)
 mvn -Ptailwind clean package                      # CSS compilato (opzionale)
+java -jar target/*.jar export backup.dfb          # backup
 ```
