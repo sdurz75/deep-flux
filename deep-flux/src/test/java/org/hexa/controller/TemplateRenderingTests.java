@@ -537,6 +537,27 @@ class TemplateRenderingTests {
         assertThat(removed).doesNotContain("id=\"conv-tags-" + conversation.getId() + "\"").contains("id=\"conv-tags-" + other.getId() + "\"");
     }
 
+    /** Rinominare la conversazione aperta aggiorna anche il titolo sul bottone del popover (OOB), una diversa no; la pagina intera non porta l'OOB. */
+    @Test
+    @Transactional
+    void renamingTheActiveConversationUpdatesTheButtonTitle() throws Exception {
+        ChatConversation active = chatConversationRepository.save(new ChatConversation());
+        ChatConversation other = chatConversationRepository.save(new ChatConversation());
+
+        String renamed = mockMvc.perform(post("/deep-chat/" + active.getId() + "/rename").param("title", "Nuovo titolo")
+                        .param("activeConversationId", String.valueOf(active.getId())))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(renamed).contains("id=\"active-conversation-title\"").contains("hx-swap-oob=\"innerHTML\"").contains(">Nuovo titolo</span>");
+
+        String renamedOther = mockMvc.perform(post("/deep-chat/" + other.getId() + "/rename").param("title", "Altro")
+                        .param("activeConversationId", String.valueOf(active.getId())))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(renamedOther).contains(">Nuovo titolo</span>").doesNotContain(">Altro</span>\n");
+
+        String page = mockMvc.perform(get("/deep-chat/" + active.getId())).andReturn().getResponse().getContentAsString();
+        assertThat(page).contains("id=\"active-conversation-title\"").doesNotContain("hx-swap-oob");
+    }
+
     /** /system/events (e il vecchio /errors che reindirizza): pagina intera e frammento htmx, e "Svuota" cancella il registro. */
     @Test
     @Transactional

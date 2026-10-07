@@ -10,7 +10,7 @@
 </div>
 <div layout:fragment="content">
     <h1>Deep Chat</h1>
-    <!--/* Introduzione, dell'host: il fragment indicato da chatHost (app.chat.host-fragment) e' il suo punto di innesto (intro, leftRail,
+    <!--/* Introduzione, dell'host: il fragment indicato da chatHost (app.chat.host-fragment) e' il suo punto di innesto (intro, settings,
          below, scripts, conversationTags, knownTags); senza host la pagina e' la sola chat con la lista delle conversazioni. */-->
     <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: intro}"></th:block></th:block>
 
@@ -51,35 +51,33 @@
     </script>
 
     <!--
-      Layout a due colonne: colonna sinistra a larghezza FISSA (280px
-      da 861px in su, mai variabile in base al contenuto/pannello) con
-      bottone "Nuova conversazione" + rail NON collassabile sotto
-      (fragments/core/accordion.html :: staticPanels - lista conversazioni
-      e impostazioni di generazione, sempre entrambe visibili) +
-      <deep-chat> a destra (occupa lo spazio restante). Sotto gli
-      861px torna a impilarsi (flex-col di base, min-[861px]:flex-row
-      per le due colonne - vedi anche il commento su <deep-chat> sotto
-      per il calcolo della larghezza).
-
-      Il bottone vive FUORI da staticPanels, non dentro alla sezione
-      "Conversazioni": deve restare visibile a prescindere da quale
-      pannello sta mostrando contenuto piu' lungo sotto, quindi e' un
-      fratello che precede l'accordion nella stessa colonna, non un
-      figlio del suo primo pannello. La larghezza fissa vive su QUESTA
-      colonna (non piu' dentro staticPanels, vedi fragments/core/accordion.html):
-      un solo posto tiene bottone e accordion alla stessa identica
-      larghezza sempre, invece di doverli sincronizzare in due punti.
+      Layout a colonna singola: sopra la chat una barra: a sinistra il popover `settings` dell'host (le impostazioni di generazione, a sola icona), a destra
+      la conversazione corrente (il suo titolo e' il bottone di un popover Pines, fragments/core/popover.html, che apre l'elenco delle
+      conversazioni, ancorato a destra) e "Nuova conversazione"; <deep-chat> occupa tutta la larghezza.
+      I popover si nascondono con x-show (mai x-if): i campi delle impostazioni devono restare nel DOM per gli script dell'host.
+      "Nuova conversazione" vive FUORI dai popover: resta sempre raggiungibile.
+      activeConversationTitle (dal controller): il titolo della conversazione attiva, risolto con th:with perche' un parametro di fragment
+      non puo' contenere espressioni complesse; senza titolo, il testo "senza titolo". conversation-list-section e' un <div> con id apposta:
+      ~{::#id} risolve SOLO contro il sorgente di QUESTO template (l'elenco vive in un altro file). Un rename (o un tag) aggiorna anche il titolo del bottone: la risposta htmx
+      della lista porta uno span OOB con id active-conversation-title (vedi chat-conversation-list.html).
     -->
-    <div class="flex flex-col gap-4 items-start min-[861px]:flex-row">
-        <div class="w-full min-[861px]:w-[280px] min-[861px]:flex-none">
-            <form th:hx-post="@{/deep-chat/new}" hx-swap="none" class="mb-3">
-                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{deepChat.button.newConversation}, extraClass='w-full text-[0.85rem] py-1.5')}">Nuova conversazione</button>
-            </form>
-
-            <!--/* Colonna sinistra: quella dell'host (per l'app, accordion con conversazioni e impostazioni) o la sola lista. */-->
-            <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: leftRail}"></th:block></th:block>
-            <div th:unless="${chatHost != null and !#strings.isEmpty(chatHost)}" id="conversation-list-section">
-                <div th:replace="~{fragments/core/chat-conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
+    <div class="flex flex-col gap-4 items-start">
+        <!--/* A sinistra le impostazioni di generazione (slot `settings` dell'host: un popover con le impostazioni; senza host nulla), a destra le conversazioni e "Nuova conversazione". */-->
+        <div class="flex flex-wrap items-center gap-2 w-full">
+            <th:block th:if="${chatHost != null and !#strings.isEmpty(chatHost)}"><th:block th:replace="~{${chatHost} :: settings}"></th:block></th:block>
+            <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+                <th:block th:with="conversationsLabel=${activeConversationTitle} ?: #{deepChat.conversation.untitled},
+                                    conversationsTitle=#{deepChat.button.conversations},
+                                    conversationsBody=~{::#conversation-list-section}">
+                <div th:replace="~{fragments/core/popover :: panel(label=${conversationsLabel}, labelId='active-conversation-title', title=${conversationsTitle}, body=${conversationsBody}, align='right', extraClass='w-96 max-w-[90vw]')}">
+                    <div id="conversation-list-section">
+                        <div th:replace="~{fragments/core/chat-conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
+                    </div>
+                </div>
+                </th:block>
+                <form th:hx-post="@{/deep-chat/new}" hx-swap="none">
+                    <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{deepChat.button.newConversation}, extraClass='text-[0.85rem] py-1.5')}">Nuova conversazione</button>
+                </form>
             </div>
         </div>
 
@@ -99,39 +97,16 @@
           display:table-cell (stile interno di deep-chat), che rende
           width:100% inefficace.
 
-          LARGHEZZA: min-[861px]:flex-1 (flex-grow/shrink/basis via
-          flexbox) + min-[861px]:w-auto, MAI un valore calc() sulla
-          proprieta' width qui — anche se sembra il modo piu' diretto
-          per "100% meno i 280px della colonna sinistra". Root cause
-          verificata dal vivo (ispezionando lo shadow DOM con Chrome
-          devtools): lo shadow root di deep-chat ha una regola interna
-          `#container { width: inherit; ... }`. Il valore ereditato da
-          `width: inherit` e' il COMPUTED value della proprieta' `width`
-          sull'host, non il suo used value (il box renderizzato): per un
-          `calc()`/percentuale il computed value resta simbolico (non si
-          risolve in px), quindi #container lo RIVALUTA da capo contro
-          il proprio containing block — che e' lo stesso box dell'host.
-          Con `width: calc(100% - 280px - 1rem)` sull'host, il risultato
-          e' che i 280px+1rem vengono sottratti DUE VOLTE (una volta per
-          il box esterno, una seconda implicita nell'inherit), lasciando
-          uno spazio vuoto a destra esattamente di quella larghezza — il
-          box esterno risultava effettivamente piu' grande del suo
-          stesso #container. `flex-1` + `w-auto` evita il problema alla
-          radice: 'auto' come valore specificato di `width` ha un
-          computed value gia' risolto in px (non simbolico), quindi
-          l'inherit lo copia cosi' com'e', una sola volta. Sotto 861px
-          la regola min-[861px]: non si applica, resta il fallback
-          w-full mobile-first (una percentuale pura, senza sottrazioni —
-          non soffre dello stesso problema perche' non c'e' nulla da
-          raddoppiare).
+          LARGHEZZA: w-full (percentuale pura), MAI un calc() sulla proprieta' width dell'host: lo shadow root di deep-chat ha
+          `#container { width: inherit }` e il computed value simbolico di un calc() verrebbe rivalutato dentro, sottraendo due volte
+          (verificato dal vivo, spazio vuoto a destra).
         -->
         <deep-chat
                 id="deep-chat-el"
                 th:attr="connect=|{&quot;url&quot;: &quot;@{/api/deep-chat}&quot;}|"
                 requestBodyLimits='{"maxMessages": 1}'
                 class="block w-full min-w-0 h-[75vh] min-h-[420px] rounded-md border border-line dark:border-line-dark
-                       bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
-                       min-[861px]:flex-1 min-[861px]:w-auto">
+                       bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark">
         </deep-chat>
         <!--
           TEMA della chat: <deep-chat> sta in uno shadow DOM che Tailwind non raggiunge (sfondo e testo

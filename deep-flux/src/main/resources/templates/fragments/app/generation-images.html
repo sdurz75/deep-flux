@@ -83,9 +83,11 @@
     <div th:each="filename : ${generation.imageFilenames}" th:classappend="${generation.video} ? 'col-span-full'">
         <!-- Contenitore relative SOLO del thumbnail: gli overlay (stella in basso a destra inclusa) si ancorano all'immagine, non alla riga del seed sotto. -->
         <div class="relative group">
-        <!-- Video: un solo elemento a larghezza piena con i controlli nativi, fuori dalla lightbox ('.generation-image' e' solo delle <img>). -->
-        <video th:if="${generation.video}" th:src="@{'/images/' + ${filename}}" controls playsinline preload="metadata"
-               class="w-full max-h-[70vh] bg-black rounded-md border border-line dark:border-line-dark block"></video>
+        <!-- Video: player Pines (fragments/core/video-player.html) a larghezza piena, fuori dalla lightbox ('.generation-image' e' solo delle <img>). -->
+        <th:block th:if="${generation.video}">
+            <div th:replace="~{fragments/core/video-player :: player(url=@{'/images/' + ${filename}}, extraClass='w-full max-h-[70vh] border border-line dark:border-line-dark',
+                          play=#{video.player.play}, mute=#{video.player.mute}, volume=#{video.player.volume}, seek=#{video.player.seek}, fullscreen=#{video.player.fullscreen})}"></div>
+        </th:block>
         <img th:unless="${generation.video}" th:src="@{'/images/' + ${filename}}"
              th:alt="${generation.prompt}"
              class="generation-image w-full aspect-[5/6] lg:aspect-[2/3] xl:aspect-[3/4] object-contain

@@ -4,18 +4,13 @@
 
 <!--
   Contenuto della lista conversazioni di /deep-chat: solo items(...),
-  il <ul> - incluso da core/deep-chat.html dentro il rail sinistro non
-  collassabile (fragments/core/accordion.html :: staticPanels, sezione
-  "Conversazioni", insieme al pannello impostazioni), che fornisce gia'
-  lui il contenitore (bordo/sfondo/larghezza). Il bottone "Nuova
-  conversazione" NON e' piu' qui (ne' in un ipotetico list(...) che lo
-  includesse insieme a items(...)): deve restare visibile a prescindere
-  dai pannelli sotto, quindi vive in deep-chat.html sopra l'intero
-  accordion, non dentro una sua sezione - vedi il commento li'.
+  il <ul> - incluso da core/deep-chat.html dentro il popover delle conversazioni (fragments/core/popover.html), che fornisce gia' lui il
+  contenitore (bordo/sfondo/larghezza). Il bottone "Nuova conversazione" NON e' qui: deve restare visibile a popover chiuso, quindi vive
+  in deep-chat.html accanto al bottone del popover.
   Tag utente e suggerimenti sono dell'host: li fornisce il fragment indicato da chatHost (app.chat.host-fragment, conversationTags e
-  knownTags); senza host la sidebar non ha tag.
+  knownTags); senza host l'elenco non ha tag.
   items(...) e' anche il target htmx di rename/delete
-  (#conversation-list-items): uno swap della SOLA lista.
+  (#conversation-list-items): uno swap della sola lista, piu' il titolo del bottone (OOB, solo con `titleOob` nel model).
 
   activeConversationId viaggia come query param appeso a ogni URL
   @{...} di questo fragment (rename/delete), non come campo hidden nel
@@ -35,6 +30,11 @@
   separata.
 -->
 <ul th:fragment="items(conversations, activeConversationId)" id="conversation-list-items" class="flex flex-col gap-1">
+    <!--/* Solo nelle risposte htmx (il controller mette `titleOob`): aggiorna il titolo sul bottone del popover (OOB, id di deep-chat.html). */-->
+    <th:block th:if="${titleOob != null}">
+        <span th:each="c : ${conversations}" th:if="${c.id == activeConversationId}" id="active-conversation-title" hx-swap-oob="innerHTML"
+              th:text="${c.title} ?: #{deepChat.conversation.untitled}">Conversazione</span>
+    </th:block>
     <li th:if="${#lists.isEmpty(conversations)}" th:text="#{deepChat.sidebar.empty}"
         class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark px-2 py-1">Nessuna conversazione.</li>
 

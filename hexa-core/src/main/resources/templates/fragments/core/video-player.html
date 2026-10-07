@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Player video di Pines UI (https://devdojo.com/pines/docs/video): controlli propri (play, mute, volume, timeline, tempo, schermo intero) al
+  posto di quelli nativi. Due pezzi, come select.html:
+
+  - `script`: registra UNA volta il componente Alpine `pinesVideo` (alpine:init), a livello di PAGINA (layout.html, prima del core Alpine).
+    Rispetto al sorgente Pines la logica e' in un componente (niente variabili globali implicite, niente `alert`) e i testi non stanno nel JS.
+  - `player(url, extraClass, play, mute, volume, seek, fullscreen)`: il markup. `url` e' GIA' risolto dal chiamante (`@{...}`); le etichette
+    (title/aria-label dei controlli) arrivano gia' tradotte (regola "il core riceve testi gia' risolti": ogni host ha i suoi bundle, qui
+    chiamare con `#{video.player.*}` di messages-core). Il file si legge con Range da `/images/**` (ImageController), come col <video> nativo.
+
+  I controlli sono bianchi su nero (sopra il video, non sul tema): stessa scelta degli overlay `bg-black/60 text-white` delle card.
+  La timeline usa il token `accent`. SENZA JS (o con `x-cloak` non risolto) il <video> resta quello nativo con `controls`: Alpine lo
+  spegne in x-init e mostra i controlli propri solo a metadati caricati.
+-->
+<th:block th:fragment="script">
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('pinesVideo', () => ({
+                playing: false,
+                ended: false,
+                controls: true,
+                muted: false,
+                volume: 1,
+                volumeBeforeMute: 1,
+                ready: false,
+                showTime: false,
+                elapsed: '00:00',
+                duration: '00:00',
+                hideDelay: 3000,
+                hideTimer: null,
+
+                init() {
+                    const player = this.$refs.player;
+                    player.controls = false;
+                    player.load();
+                    if (!document.fullscreenEnabled) {
+                        this.$refs.fullscreenButton.style.display = 'none';
+                    }
+                    this.$watch('playing', value => {
+                        clearTimeout(this.hideTimer);
+                        if (value) {
+                            this.ended = false;
+                            this.hideTimer = setTimeout(() => { this.controls = false; }, this.hideDelay);
+                        } else {
+                            this.controls = true;
+                        }
+                    });
+                    },
+
+                formatTime(seconds) {
+                    const s = Math.max(0, Math.round(Number(seconds) || 0));
+                    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+                    return mm + ':' + String(s % 60).padStart(2, '0');
+                },
+                metadataLoaded() {
+                    const player = this.$refs.player;
+                    this.$refs.progress.max = player.duration;
+                    this.duration = this.formatTime(player.duration);
+                    this.showTime = true;
+                    this.ready = true;
+                },
+                timeUpdated() {
+                    const player = this.$refs.player;
+                    if (!this.$refs.progress.max || this.$refs.progress.max === '100') {
+                        this.$refs.progress.max = player.duration;
+                    }
+                    this.$refs.progress.value = player.currentTime;
+                    this.elapsed = this.formatTime(player.currentTime);
+                },
+                seeking(event) {
+                    this.elapsed = this.formatTime(event.target.value);
+                },
+                seek(event) {
+                    const rect = this.$refs.progress.getBoundingClientRect();
+                    const position = (event.clientX - rect.left) / rect.width;
+                    this.$refs.player.currentTime = Math.min(Math.max(position, 0), 1) * this.$refs.player.duration;
+                },
+                togglePlay() {
+                    const player = this.$refs.player;
+                    if (player.paused || player.ended) {
+                        this.playing = true;
+                        player.play().catch(() => { this.playing = false; });
+                    } else {
+                        player.pause();
+                        this.playing = false;
+                    }
+                },
+                toggleMute() {
+                    this.muted = !this.muted;
+                    this.$refs.player.muted = this.muted;
+                    if (this.muted) {
+                        this.volumeBeforeMute = this.volume;
+                        this.volume = 0;
+                    } else {
+                        this.volume = this.volumeBeforeMute;
+                    }
+                },
+                updateVolume(event) {
+                    this.volume = Number(event.target.value);
+                    this.$refs.player.volume = this.volume;
+                    this.muted = this.volume === 0;
+                    this.$refs.player.muted = this.muted;
+                },
+                toggleFullscreen() {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    } else {
+                        this.$refs.container.requestFullscreen();
+                    }
+                },
+                ended_() {
+                    this.ended = true;
+                    this.playing = false;
+                    this.$refs.player.currentTime = 0;
+                },
+                mouseMoved() {
+                    clearTimeout(this.hideTimer);
+                    this.controls = true;
+                    if (this.playing) {
+                        this.hideTimer = setTimeout(() => { this.controls = false; }, this.hideDelay);
+                    }
+                }
+            }));
+        });
+    </script>
+</th:block>
+
+<div th:fragment="player(url, extraClass, play, mute, volume, seek, fullscreen)"
+     x-data="pinesVideo" x-ref="container" @mousemove="mouseMoved()"
+     th:class="'relative isolate overflow-hidden rounded-md bg-black aspect-video ' + ${extraClass}">
+    <video x-ref="player" th:src="${url}" controls playsinline preload="metadata"
+           @loadedmetadata="metadataLoaded()" @timeupdate="timeUpdated()" @ended="ended_()"
+           class="relative z-10 w-full h-full object-contain bg-black"></video>
+
+    <div x-show="ready" x-cloak class="absolute inset-0 w-full h-full">
+        <!-- Click sul video = play/pausa, con l'icona che dissolve. -->
+        <div @click="togglePlay()" class="flex absolute inset-0 z-30 justify-center items-center w-full h-full cursor-pointer">
+            <div x-show="playing" x-cloak
+                 x-transition:enter="transition ease-out duration-1000"
+                 x-transition:enter-start="scale-50 opacity-100" x-transition:enter-end="scale-100 opacity-0"
+                 class="flex justify-center items-center w-20 h-20 rounded-full opacity-0 bg-black/20">
+                <svg class="w-10 h-10 text-white translate-x-0.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8.42737 3.41611C6.46665 2.24586 4.00008 3.67188 4.00007 5.9427L4 18.0572C3.99999 20.329 6.46837 21.7549 8.42907 20.5828L18.5698 14.5207C20.4775 13.3802 20.4766 10.6076 18.568 9.46853L8.42737 3.41611Z" fill="currentColor"/></svg>
+            </div>
+            <div x-show="!playing &amp;&amp; !ended" x-cloak
+                 x-transition:enter="transition ease-out duration-1000"
+                 x-transition:enter-start="scale-50 opacity-100" x-transition:enter-end="scale-100 opacity-0"
+                 class="flex justify-center items-center w-20 h-20 rounded-full opacity-0 bg-black/20">
+                <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M8 3C8.55228 3 9 3.44772 9 4L9 20C9 20.5523 8.55228 21 8 21C7.44772 21 7 20.5523 7 20L7 4C7 3.44772 7.44772 3 8 3ZM16 3C16.5523 3 17 3.44772 17 4V20C17 20.5523 16.5523 21 16 21C15.4477 21 15 20.5523 15 20V4C15 3.44772 15.4477 3 16 3Z" fill="currentColor"/></svg>
+            </div>
+        </div>
+        <div x-show="controls" x-cloak
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-y-full" x-transition:enter-end="translate-y-0"
+             x-transition:leave="transition ease-in duration-300" x-transition:leave-start="translate-y-0" x-transition:leave-end="translate-y-full"
+             class="absolute bottom-0 left-0 z-20 w-full h-1/2 bg-gradient-to-b from-transparent to-black opacity-20 pointer-events-none"></div>
+        <div x-show="controls" x-cloak
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-y-full" x-transition:enter-end="translate-y-0"
+             x-transition:leave="transition ease-in duration-300" x-transition:leave-start="translate-y-0" x-transition:leave-end="translate-y-full"
+             class="absolute bottom-0 left-0 z-40 w-full h-12">
+            <div class="absolute bottom-0 z-30 px-2.5 w-full -translate-y-10">
+                <div class="relative w-full h-2 rounded-full">
+                    <input x-ref="progress" type="range" min="0" max="100" value="0" step="any"
+                           th:aria-label="${seek}" th:title="${seek}"
+                           @click="seek($event)" @input="seeking($event)"
+                           class="w-full h-full appearance-none flex items-center cursor-pointer bg-transparent z-30 p-0 border-0
+                                  [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:appearance-none
+                                  [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:appearance-none
+                                  [&::-webkit-slider-runnable-track]:bg-white/30 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:overflow-hidden [&::-moz-range-track]:bg-white/30 [&::-moz-range-track]:rounded-full
+                                  [&::-moz-range-progress]:bg-accent [&::-moz-range-progress]:rounded-full [&::-webkit-slider-thumb]:shadow-[-995px_0px_0px_990px_theme(colors.accent.DEFAULT)]">
+                </div>
+            </div>
+            <ul class="flex absolute bottom-0 left-0 z-20 items-center w-full text-white">
+                <li class="inline"><button th:replace="~{fragments/core/button :: videoPlay(title=${play})}"></button></li>
+                <li class="flex items-center">
+                    <button th:replace="~{fragments/core/button :: videoMute(title=${mute})}"></button>
+                    <div class="relative mx-1 w-12 h-1.5 rounded-full">
+                        <input type="range" min="0" max="1" step="0.01" :value="volume"
+                               th:aria-label="${volume}" th:title="${volume}" @input="updateVolume($event)"
+                               class="w-full h-full appearance-none flex items-center cursor-pointer bg-transparent z-30 p-0 border-0
+                                      [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:appearance-none
+                                      [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:appearance-none
+                                      [&::-webkit-slider-runnable-track]:bg-white/30 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:overflow-hidden [&::-moz-range-track]:bg-white/30 [&::-moz-range-track]:rounded-full
+                                      [&::-moz-range-progress]:bg-white/80 [&::-moz-range-progress]:rounded-full [&::-webkit-slider-thumb]:shadow-[-995px_0px_0px_990px_rgba(255,_255,_255,_0.8)]">
+                    </div>
+                </li>
+                <li x-show="showTime" x-cloak class="mx-2.5 font-mono text-xs opacity-80 hover:opacity-100">
+                    <time x-text="elapsed">00:00</time><span> / </span><time x-text="duration">00:00</time>
+                </li>
+                <li class="ml-auto"><button th:replace="~{fragments/core/button :: videoFullscreen(title=${fullscreen})}"></button></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

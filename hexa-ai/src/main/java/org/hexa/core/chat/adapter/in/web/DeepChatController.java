@@ -83,6 +83,8 @@ public class DeepChatController {
         model.addAttribute("chatHistoryJson", objectMapper.writeValueAsString(loadHistory(id)));
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", id);
+        // Titolo del bottone delle conversazioni (null = senza titolo, il fallback e' del template, nella lingua della richiesta).
+        model.addAttribute("activeConversationTitle", conversation.getTitle());
         model.addAttribute("chatLinkAlternatives", linkPaths.alternatives());
         model.addAttribute("chatLinkEntities", linkPaths.entities());
         // Il resto del model (pannello di generazione, placeholder, galleria contestuale) lo mette chi ospita la chat.
@@ -125,6 +127,7 @@ public class DeepChatController {
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", activeConversationId);
         model.addAttribute("chatHost", linkPaths.hostFragment());
+        model.addAttribute("titleOob", true);
         return "fragments/core/chat-conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 
@@ -153,6 +156,7 @@ public class DeepChatController {
         model.addAttribute("conversations", conversations.list());
         model.addAttribute("activeConversationId", activeConversationId);
         model.addAttribute("chatHost", linkPaths.hostFragment());
+        model.addAttribute("titleOob", true);
         return "fragments/core/chat-conversation-list :: items(conversations=${conversations}, activeConversationId=${activeConversationId})";
     }
 

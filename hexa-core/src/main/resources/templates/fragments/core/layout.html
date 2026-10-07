@@ -45,6 +45,10 @@
 
     <!-- Componente Alpine "pinesSelect" (alpine:init): registrato PRIMA del core Alpine, che parte defer. Vedi fragments/core/select.html. -->
     <script th:replace="~{fragments/core/select :: script}"></script>
+    <!-- Componente Alpine "pinesVideo" (player video di Pines UI): stessa regola di ordine. Vedi fragments/core/video-player.html. -->
+    <script th:replace="~{fragments/core/video-player :: script}"></script>
+    <!-- Componente Alpine "pinesPopover" (popover di Pines UI): stessa regola di ordine. Vedi fragments/core/popover.html. -->
+    <script th:replace="~{fragments/core/popover :: script}"></script>
 
     <!-- Nessun bundler: htmx e Alpine arrivano da CDN, zero build step -->
     <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>

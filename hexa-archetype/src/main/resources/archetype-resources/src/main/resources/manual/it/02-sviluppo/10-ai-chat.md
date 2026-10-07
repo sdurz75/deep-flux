@@ -21,7 +21,7 @@ Una classe con metodi `@Tool` che implementa `IChatToolkit`. I valori restituiti
 
 ## Lo slot della pagina
 
-La pagina è `core/deep-chat.html`; l'app la completa con un unico template indicato da `app.chat.host-fragment`, con gli slot `intro`, `leftRail`, `below`, `scripts`, `conversationTags`, `knownTags`. Lo script dello slot `scripts` definisce `window.deepChatHost` prima del modulo del core.
+La pagina è `core/deep-chat.html`; l'app la completa con un unico template indicato da `app.chat.host-fragment`, con gli slot `intro`, `settings`, `below`, `scripts`, `conversationTags`, `knownTags`. Lo script dello slot `scripts` definisce `window.deepChatHost` prima del modulo del core.
 
 ## Link nella chat
 

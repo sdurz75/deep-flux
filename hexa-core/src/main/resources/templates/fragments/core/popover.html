@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Popover di Pines UI (https://devdojo.com/pines/docs/popover): un bottone che apre un pannello ancorato sotto (o sopra, se sotto non c'e'
+  spazio) con contenuto qualunque. Due pezzi, come select.html:
+
+  - `script`: registra UNA volta il componente Alpine `pinesPopover` (alpine:init), a livello di PAGINA (layout.html, prima del core Alpine).
+    Rispetto al sorgente Pines la posizione si calcola all'apertura (niente apertura invisibile all'init) e il pannello scorre da solo
+    (`max-h-[70vh]`): un contenuto alto, come la form dei parametri di generazione, non esce dal viewport.
+  - `panel(label, labelId, title, body, align, extraClass)`: il markup. `label` = testo del bottone (null = solo icona a cursori), `labelId` = id (o null) dello <span> del testo, cosi' una risposta htmx puo' aggiornarlo (OOB `innerHTML`), `title` = tooltip e aria-label, entrambi GIA' risolti dal
+    chiamante (`#{...}`); `body` = fragment-expression (`~{::#id}`) col contenuto, inserito dentro il pannello (stesso schema dei corpi di
+    accordion.html: `th:with` per risolvere prima le `#{...}`, poi il `th:replace` con il contenuto come figlio); `align` = lato del bottone a cui si ancora il pannello, `left` (default) o `right` (bottone a destra della pagina: il pannello si apre verso sinistra, senza uscire dal viewport); `extraClass` = larghezza
+    del pannello (es. `w-96 max-w-[90vw]`; null = `w-80 max-w-[90vw]`).
+
+  Il contenuto resta nel DOM anche da chiuso (x-show, mai x-if): campi di una form dentro il popover si leggono e si ripristinano sempre.
+  Esc e click fuori chiudono; da aperto il resto della pagina e' inerte (x-trap.inert, plugin focus come la lightbox).
+-->
+<th:block th:fragment="script">
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('pinesPopover', () => ({
+                open: false,
+                position: 'bottom',
+
+                toggle() {
+                    this.open ? this.close() : this.show();
+                },
+                show() {
+                    this.open = true;
+                    this.$nextTick(() => this.place());
+                },
+                close() {
+                    this.open = false;
+                },
+                /* Sotto se ci sta; altrimenti sopra, purche' sopra ci sia piu' spazio che sotto. */
+                place() {
+                    const button = this.$refs.button.getBoundingClientRect();
+                    const height = this.$refs.panel.offsetHeight + 8;
+                    const below = window.innerHeight - button.bottom;
+                    this.position = below < height && button.top > below ? 'top' : 'bottom';
+                }
+            }));
+        });
+    </script>
+</th:block>
+
+<div th:fragment="panel(label, labelId, title, body, align, extraClass)" x-data="pinesPopover" @keydown.escape.window="close()" class="relative inline-block">
+    <button th:replace="~{fragments/core/button :: popoverToggle(content=${label}, contentId=${labelId}, title=${title})}">Impostazioni</button>
+    <div x-ref="panel" x-show="open" x-cloak x-trap.inert="open" @click.outside="close()"
+         :class="position === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'"
+         th:class="'absolute z-50 ' + (${align == 'right'} ? 'right-0 ' : 'left-0 ') + (${extraClass} ?: 'w-80 max-w-[90vw]')">
+        <div x-show="open" x-transition.opacity.duration.150ms
+             class="relative rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-lg">
+            <!--/* Freccia: un quadrato ruotato ancorato al bordo del pannello rivolto verso il bottone. */-->
+            <span aria-hidden="true" x-show="position === 'bottom'"
+                  th:classappend="${align == 'right'} ? 'right-4' : 'left-4'"
+                  class="absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark"></span>
+            <span aria-hidden="true" x-show="position === 'top'" x-cloak
+                  th:classappend="${align == 'right'} ? 'right-4' : 'left-4'"
+                  class="absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-line dark:border-line-dark bg-surface dark:bg-surface-dark"></span>
+            <div class="relative max-h-[70vh] overflow-y-auto p-4" th:insert="${body}"></div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

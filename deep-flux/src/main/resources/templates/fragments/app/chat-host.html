@@ -13,61 +13,29 @@
         <span th:text="#{deepChat.intro.prefix}">Genera immagini con l'aiuto dell'assistente: descrivi cosa vuoi,
         l'assistente puo' cercare sul web per informarsi e generare
         l'immagine su Replicate col modello e i parametri scelti
-        nel pannello a sinistra (o con un modello diverso, se lo chiedi
+        nelle impostazioni (o con un modello diverso, se lo chiedi
         esplicitamente in chat). Le immagini generate finiscono anche in</span>
         <a th:href="@{/gallery}" th:text="#{header.nav.gallery}">Galleria</a><span th:text="#{deepChat.intro.suffix}">. Ogni conversazione e' persistita lato server: scegline una dalla
-        lista a sinistra per riprenderla, o creane una nuova.</span>
+        lista delle conversazioni per riprenderla, o creane una nuova.</span>
     </p>
 </th:block>
 
-<!--/* Colonna sinistra: accordion non collassabile con la lista delle conversazioni e le impostazioni di generazione. */-->
-<th:block th:fragment="leftRail">
-            <!--
-              conversationsBody/settingsBody sono parametri-fragment
-              (~{::#id}): il markup dentro resta scritto una sola volta
-              qui, staticPanels si limita a comporlo nel proprio slot -
-              stesso pattern e stessa necessita' di risolvere prima le
-              #{...} in variabili semplici (vedi il commento sull'accordion
-              in fondo alla pagina, identico problema/soluzione qui).
-              conversation-list-section e' un <div> con id ma SENZA
-              th:replace su se stesso (a differenza del <form> sotto,
-              che fa lo stesso lavoro in un colpo solo perche' e' gia'
-              lui l'elemento con l'id): serve perche' ~{::#id} risolve
-              SOLO contro il sorgente di QUESTO template (deep-chat.html) -
-              #conversation-list-items esiste solo dentro
-              fragments/core/chat-conversation-list.html, un file diverso, quindi
-              non e' visibile al selettore finche' non e' anche
-              scritto, letteralmente, qui - da cui il div wrapper con
-              id apposta.
-            -->
-            <th:block th:with="conversationsLabel=#{deepChat.accordion.conversations},
-                                settingsLabel=#{deepChat.accordion.settings},
-                                conversationsBody=~{::#conversation-list-section},
-                                settingsBody=~{::#generation-settings-panel},
-                                leftLabels=${ {conversationsLabel, settingsLabel} },
-                                leftBodies=${ {conversationsBody, settingsBody} }">
-            <div th:replace="~{fragments/core/accordion :: panels(labels=${leftLabels}, bodies=${leftBodies}, storageKey='deepChat.accordion.leftRail')}">
-                <div id="conversation-list-section">
-                    <div th:replace="~{fragments/core/chat-conversation-list :: items(${conversations}, ${activeConversationId})}"></div>
-                </div>
+<!--/*
+  Slot `settings`: le impostazioni di generazione in un popover Pines (fragments/core/popover :: panel, bottone a sola icona col tooltip "Impostazioni") accanto ai bottoni sopra la chat.
+  settings-panel raggruppa il <form> (mai sottomesso, vedi sotto) e il bottone di reset in un solo elemento: settingsBody e' un
+  parametro-fragment ~{::#id}, che porta con se' SOLO l'elemento con quell'id (non i suoi fratelli) - senza questo wrapper il bottone,
+  fratello del <form>, resterebbe fuori dal popover.
 
-                <!--
-                  generation-settings-panel raggruppa il <form> (mai
-                  sottomesso, vedi sotto) e il bottone di reset in un solo
-                  elemento: settingsBody sopra e' un parametro-fragment
-                  ~{::#id}, che porta con se' SOLO l'elemento con
-                  quell'id (non i suoi fratelli) - senza questo wrapper il
-                  bottone, fratello del <form>, resterebbe fuori dal
-                  pannello "Impostazioni" dell'accordion.
-
-                  onsubmit="return false" perche' questo <form> non viene mai
-                  sottomesso a nessun endpoint: serve solo a raggruppare i
-                  campi del fragment cosi' che new FormData(form) (script piu'
-                  sotto) possa leggerli tutti in un colpo, come farebbe una
-                  vera sottomissione — stesso identico fragment usato da
-                  generate.html dentro il SUO <form>, che invece si sottomette
-                  davvero (vedi fragments/app/generate-form.html).
-                -->
+  onsubmit="return false" perche' questo <form> non viene mai sottomesso a nessun endpoint: serve solo a raggruppare i campi del
+  fragment cosi' che new FormData(form) (script piu' sotto) possa leggerli tutti in un colpo, come farebbe una vera sottomissione -
+  stesso identico fragment usato da generate.html dentro il SUO <form>, che invece si sottomette davvero
+  (vedi fragments/app/generate-form.html). Il popover tiene il contenuto nel DOM anche da chiuso (x-show): gli script che leggono
+  `#generation-settings-form` funzionano a popover chiuso.
+*/-->
+<th:block th:fragment="settings">
+            <th:block th:with="settingsLabel=#{deepChat.button.settings},
+                                settingsBody=~{::#generation-settings-panel}">
+            <div th:replace="~{fragments/core/popover :: panel(label=null, labelId=null, title=${settingsLabel}, body=${settingsBody}, align='left', extraClass='w-[26rem] max-w-[90vw]')}">
                 <div id="generation-settings-panel">
                     <form id="generation-settings-form" data-persist-key="deepChat.generationSettings" onsubmit="return false;"
                           th:data-persist-server-state="${generationSettingsJson}"
@@ -86,8 +54,7 @@
       Accordion generico (fragments/core/accordion.html :: panels(labels,
       bodies), collassabile - qui con un solo pannello, la galleria
       contestuale a questa conversazione: le impostazioni di
-      generazione sono finite nel rail sinistro non collassabile sopra,
-      insieme alla lista conversazioni). Gli elementi di bodies sono
+      generazione stanno nel popover `settings` sopra la chat). Gli elementi di bodies sono
       parametri-fragment (~{::selector}): il markup dentro resta
       scritto una sola volta qui, l'accordion si limita a comporlo nel
       proprio slot.

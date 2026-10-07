@@ -88,7 +88,7 @@ app:
       trailing:
         - prompts.creative-context
         - deep-chat.image-prompting-guide
-    # Il template dell'app con i punti di innesto della pagina /deep-chat (intro, leftRail, below, scripts, conversationTags, knownTags).
+    # Il template dell'app con i punti di innesto della pagina /deep-chat (intro, settings, below, scripts, conversationTags, knownTags).
     host-fragment: fragments/app/chat-host
     # Path dell'app che la chat trasforma in link (solo in visualizzazione, vedi ChatLinkPaths): elenco CHIUSO di frammenti di regex senza lo
     # slash iniziale, i piu' lunghi per primi. Un path nuovo citabile va aggiunto qui e nella sezione di prompt deep-chat.section.appmap.

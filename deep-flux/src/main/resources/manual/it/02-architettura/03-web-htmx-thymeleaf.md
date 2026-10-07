@@ -24,7 +24,26 @@ Solo Tailwind, con la configurazione in un file unico, `src/main/tailwind/tailwi
 - Nello strato base ci sono solo gli elementi nudi (link, `code`, controlli dei form). Tutto il resto è classi inline: niente nuove regole `@layer`.
 - I **bottoni** non si scrivono a mano: si usano i fragment di `fragments/core/button.html` e `fragments/core/field-buttons.html` (generici) e `fragments/app/button-gen.html` (azioni del dominio). I fragment sono divisi in due sottoalberi: `core` (generico) e `app` (dominio); `core` non dipende da `app`, verificato da `TemplateLayeringTest`.
 - Le **select** non sono mai nude: usano il componente Pines (`pinesSelect`) che nasconde la select nativa ma la mantiene come fonte di verità.
+- Per un componente di interfaccia si parte da quelli di Pines UI elencati sotto, in [Componenti Pines supportati](#componenti-pines-supportati).
 - Un valore dinamico per un binding Alpine non passa da Thymeleaf: si porta in un attributo `data-*` e si legge a runtime.
+
+## Componenti Pines supportati
+
+Pines UI (devdojo.com/pines) è una raccolta di componenti Alpine e Tailwind, usata senza build. Un componente Pines entra nel progetto come **fragment di `fragments/core`**, con i colori ridotti ai token del tema, i testi già risolti dal chiamante e lo script Alpine registrato una volta in `layout.html` (evento `alpine:init`, prima del core Alpine). Questo è l'elenco di quelli oggi supportati: chi ne aggiunge o ne toglie uno aggiorna la tabella.
+
+| Componente Pines | Dove | Note |
+|---|---|---|
+| Select | `fragments/core/select.html` (`pinesSelect`) | obbligatorio per ogni selezione; la select nativa resta la fonte di verità |
+| Accordion | `fragments/core/accordion.html` | pannelli a indice, apertura ricordata con `storageKey` |
+| Popover | `fragments/core/popover.html` (`pinesPopover`) | `panel(label, title, body, extraClass)`; il contenuto resta nel DOM da chiuso. In Deep Chat ospita l'elenco delle conversazioni e le impostazioni di generazione (slot `settings` dell'host) |
+| Video | `fragments/core/video-player.html` (`pinesVideo`) | controlli propri al posto di quelli nativi; senza JavaScript resta il `<video>` nativo |
+| Image gallery | `fragments/core/lightbox.html` | lightbox a schermo intero, usa il plugin Alpine `focus` |
+| Pagination | `fragments/core/pagination.html` | stile Pines, paginazione server |
+| Modal (dialog) | `dialogOpen`/`dialogClose` in `fragments/core/button.html` | usato da `/tokens` e dalle note di `/search` |
+| Slideover | `fragments/core/header.html` | menu mobile |
+| Dropdown menu | `fragments/core/header.html` (`navMenu`) | menu a tendina del header |
+
+I bottoni di un componente Pines non si scrivono a mano: stanno in `fragments/core/button.html`.
 
 ## Internazionalizzazione
 

@@ -40,7 +40,7 @@ class ChatPageConfig {
         return entities;
     }
 
-    /** Il template dell'host con i punti di innesto della pagina ({@code intro}, {@code leftRail}, {@code below}, {@code scripts}, {@code conversationTags}, {@code knownTags}); vuoto = nessun host. */
+    /** Il template dell'host con i punti di innesto della pagina ({@code intro}, {@code settings}, {@code below}, {@code scripts}, {@code conversationTags}, {@code knownTags}); vuoto = nessun host. */
     String hostFragment() {
         return hostFragment;
     }

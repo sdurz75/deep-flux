@@ -4,7 +4,7 @@
 
 ## Le conversazioni
 
-La colonna a sinistra elenca le conversazioni, la più recente in alto. Ogni conversazione è salvata sul server: puoi chiudere la pagina e riprenderla più tardi.
+Il pulsante sopra la chat, che porta il titolo della conversazione corrente, apre l'elenco delle conversazioni, la più recente in alto. Ogni conversazione è salvata sul server: puoi chiudere la pagina e riprenderla più tardi.
 
 - **Nuova conversazione** ne apre una vuota.
 - Cliccando una conversazione dell'elenco ne ricarichi la cronologia completa.
@@ -15,10 +15,10 @@ Sotto la chat c'è il pannello **Galleria della conversazione**, con tutte le im
 
 ## Le impostazioni di generazione
 
-Nella colonna a sinistra, sotto l'elenco, il pannello **Impostazioni** contiene il modello e i parametri con cui l'assistente genera. Sono gli stessi campi del [form di generazione](03-genera-immagini.md), con un'eccezione: la chat propone solo i modelli che funzionano senza un'immagine di partenza, e solo modelli per immagini (non video).
+Il pulsante **Impostazioni**, sopra la chat, apre un popover che contiene il modello e i parametri con cui l'assistente genera. Sono gli stessi campi del [form di generazione](03-genera-immagini.md), con un'eccezione: la chat propone solo i modelli che funzionano senza un'immagine di partenza, e solo modelli per immagini (non video).
 
-- L'assistente genera **sempre** con il modello scelto qui: non può sceglierne un altro. Se vuoi un modello diverso, cambialo nel pannello.
-- Il numero di immagini per generazione lo decide il pannello, non l'assistente.
+- L'assistente genera **sempre** con il modello scelto qui: non può sceglierne un altro. Se vuoi un modello diverso, cambialo nelle impostazioni.
+- Il numero di immagini per generazione lo decidono le impostazioni, non l'assistente.
 - Le impostazioni sono salvate **per conversazione**: aprendo una conversazione ritrovi il modello e i parametri che aveva.
 - **Reimposta ai default** riporta modello e parametri ai valori iniziali.
 
