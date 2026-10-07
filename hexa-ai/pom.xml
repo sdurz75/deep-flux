@@ -48,12 +48,6 @@
             <artifactId>hexa-test-support</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Testcontainers lo vuole; commons-compress 1.27.1 (portato da Spring AI/DJL, vince su quello di Testcontainers) non lo porta piu' con se'. -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

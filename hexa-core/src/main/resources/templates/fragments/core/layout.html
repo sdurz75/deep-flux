@@ -139,7 +139,11 @@
                 document.documentElement.setAttribute('data-theme', resolved);
               })">
 
-<header th:replace="~{fragments/core/header :: header}"></header>
+<!-- Navigazione: barra in alto (default) o colonna laterale (`app.layout.nav=sidebar`, fragments/core/sidebar.html). -->
+<th:block th:with="sidebarNav=${@environment.getProperty('app.layout.nav', 'top') == 'sidebar'}">
+
+<th:block th:unless="${sidebarNav}"><header th:replace="~{fragments/core/header :: header}"></header></th:block>
+<th:block th:if="${sidebarNav}"><th:block th:replace="~{fragments/core/sidebar :: sidebar}"></th:block></th:block>
 
 <!--
   max-w-[1200px]/px-[clamp(...)] invece del container "stock" di
@@ -150,7 +154,8 @@
   prima di questa migrazione, non una differenza introdotta ora - vedi
   fragments/core/header.html.
 -->
-<main class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] pt-8 pb-16 min-h-[60vh]">
+<main class="max-w-[1200px] mx-auto px-[clamp(16px,5vw,64px)] pt-8 pb-16 min-h-[60vh]"
+      th:classappend="${sidebarNav} ? 'md:ml-64'">
 
     <div layout:fragment="breadcrumbs">
         <!-- breadcrumbs -->
@@ -164,7 +169,9 @@
 
 <div th:replace="~{fragments/core/busy-overlay :: container}"></div>
 <div th:replace="~{fragments/core/toast :: container}"></div>
-<div th:replace="~{fragments/core/status-bar :: bar}"></div>
+<div th:replace="~{fragments/core/status-bar :: bar(sidebarNav=${sidebarNav})}"></div>
+
+</th:block>
 
 </body>
 </html>

@@ -31,5 +31,10 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-junit-jupiter</artifactId>
         </dependency>
+        <!-- Lo richiede Testcontainers (ExceptionUtils); commons-compress di versioni diverse puo' non portarlo piu' con se' (es. con Spring AI/DJL). -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
     </dependencies>
 </project>

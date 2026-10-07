@@ -52,10 +52,10 @@ spring:
         cachecontrol:
           no-cache: true
   # PostgreSQL con l'estensione pgvector (dati relazionali E vector store della ricerca semantica): `docker compose up -d`
-  # avvia quello di sviluppo (compose.yaml). Credenziali dal .env, mai committate.
+  # avvia quello di sviluppo (compose.yaml). DB_NAME e DB_USERNAME (senza default: sono dell'app) e DB_PASSWORD dal .env, mai committate.
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:deepflux}
-    username: ${DB_USERNAME:deepflux}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
     password: ${DB_PASSWORD:}
   jpa:
     hibernate:
