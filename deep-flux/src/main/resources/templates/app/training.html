@@ -33,10 +33,14 @@
         </th:block>
 
         <label for="training-name" th:text="#{training.form.name}">Nome</label>
-        <input type="text" id="training-name" name="name" class="w-full" maxlength="80" required th:value="${formName}">
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#training-name}, clearable=true, title=null)}">
+            <input type="text" id="training-name" name="name" class="w-full" maxlength="80" required th:value="${formName}">
+        </th:block>
 
         <label for="training-trigger-word" th:text="#{training.form.triggerWord}">Trigger word</label>
-        <input type="text" id="training-trigger-word" name="triggerWord" class="w-full" maxlength="40" required th:value="${formTriggerWord}">
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#training-trigger-word}, clearable=true, title=null)}">
+            <input type="text" id="training-trigger-word" name="triggerWord" class="w-full" maxlength="40" required th:value="${formTriggerWord}">
+        </th:block>
         <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{training.form.triggerWordHelp}">Una parola che non esiste.</p>
 
         <fieldset class="mt-3 border-0 p-0">

@@ -55,12 +55,16 @@
                th:classappend="${t == tab} ? 'border-accent dark:border-accent-dark text-accent dark:text-accent-dark font-semibold' : 'border-transparent text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'">Tutte</a>
         </nav>
         <!--/* Filtro per tag utente (generazione o file): invio o scelta dal suggerimento; la datalist known-tags sta nella pagina intera. */-->
-        <form th:hx-get="@{/gallery}" hx-trigger="submit, change" hx-target="#gallery-content" hx-swap="innerHTML" data-busy="off"
+        <form th:hx-get="@{/gallery}" hx-trigger="submit, change, input changed delay:500ms" hx-target="#gallery-content" hx-swap="innerHTML" data-busy="off"
               class="mb-4 flex flex-wrap items-center gap-2">
             <input type="hidden" name="tab" th:value="${tab}">
             <label for="gallery-tag" class="mt-0 text-[0.85rem]" th:text="#{tags.filter.label}">Tag</label>
-            <input type="search" id="gallery-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
-                   th:placeholder="#{tags.filter.placeholder}" class="w-48 text-[0.85rem] py-1 px-2">
+            <div class="w-48">
+                <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#gallery-tag}, clearable=true, title=null)}">
+                    <input type="search" id="gallery-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
+                           th:placeholder="#{tags.filter.placeholder}" class="w-full text-[0.85rem] py-1 pl-2">
+                </th:block>
+            </div>
             <a th:if="${tag != ''}" th:href="@{/gallery(tab=${tab})}" th:hx-get="@{/gallery(tab=${tab})}" hx-target="#gallery-content" hx-swap="innerHTML"
                class="text-[0.85rem]" th:text="#{search.query.reset}">Azzera filtri</a>
         </form>

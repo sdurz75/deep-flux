@@ -46,8 +46,10 @@
                          xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                     </svg>
-                    <input type="search" id="search-q" name="q" class="w-full pl-10 py-2.5" autocomplete="off" th:value="${q}"
-                           th:placeholder="#{search.query.placeholder}">
+                    <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#search-q}, clearable=true, title=null)}">
+                        <input type="search" id="search-q" name="q" class="w-full pl-10 py-2.5" autocomplete="off" th:value="${q}"
+                               th:placeholder="#{search.query.placeholder}">
+                    </th:block>
                 </div>
                 <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{search.query.button}, extraClass='w-full sm:w-auto py-2.5')}">Cerca</button>
             </div>
@@ -71,17 +73,23 @@
                     <th:block th:if="${searchHost != null and !#strings.isEmpty(searchHost)}"><th:block th:replace="~{${searchHost} :: filterMedia}"></th:block></th:block>
                     <div>
                         <label for="search-tag" class="mt-0 mb-1.5 font-medium" th:text="#{tags.filter.label}" th:title="#{tags.filter.help}">Tag</label>
-                        <input type="search" id="search-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
-                               th:placeholder="#{tags.filter.placeholder}" th:title="#{tags.filter.help}">
+                        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#search-tag}, clearable=true, title=null)}">
+                            <input type="search" id="search-tag" name="tag" th:value="${tag}" list="known-tags" autocomplete="off" maxlength="40"
+                                   th:placeholder="#{tags.filter.placeholder}" th:title="#{tags.filter.help}" class="w-full">
+                        </th:block>
                         <datalist id="known-tags"><option th:each="s : ${knownTags}" th:value="${s}"></option></datalist>
                     </div>
                     <div>
                         <label for="search-from" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.from}">Dal</label>
-                        <input type="date" id="search-from" name="from" th:value="${from}">
+                        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#search-from}, clearable=true, title=null)}">
+                            <input type="date" id="search-from" name="from" th:value="${from}" class="w-full">
+                        </th:block>
                     </div>
                     <div>
                         <label for="search-to" class="mt-0 mb-1.5 font-medium" th:text="#{search.query.to}">Al</label>
-                        <input type="date" id="search-to" name="to" th:value="${to}">
+                        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#search-to}, clearable=true, title=null)}">
+                            <input type="date" id="search-to" name="to" th:value="${to}" class="w-full">
+                        </th:block>
                     </div>
                 </div>
             </div>

@@ -23,6 +23,7 @@ C'è un solo form, che si ri-invia mentre scrivi e cambi i filtri:
 - **Dal** / **Al**: il periodo di creazione.
 - **Tag**: il tag esatto (vedi [Tag](07-galleria-e-archivio.md#tag)).
 - **Somiglianza minima (%)**: una soglia, solo quando c'è del testo. Parte da 80, perché i punteggi di questo tipo di ricerca sono compressi (di solito fra 70 e 90): una soglia più bassa lascia passare più rumore, una più alta può svuotare i risultati.
+- Ogni campo (testo, tag, date) ha una piccola **x** per svuotarlo; compare solo quando contiene qualcosa.
 - **Azzera filtri** torna alla pagina iniziale.
 
 **Con del testo** vedi la classifica per somiglianza, con il punteggio in percentuale: tutto quello che supera la soglia, venti risultati per pagina. **Senza testo** si sfogliano i documenti, i più recenti per primi, filtrati per tipo, periodo e tag.

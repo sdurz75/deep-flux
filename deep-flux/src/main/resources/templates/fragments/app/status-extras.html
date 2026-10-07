@@ -19,8 +19,10 @@
                  bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark"
           th:hx-post="@{/credits/replicate}" hx-target="#status-credits" hx-swap="innerHTML" data-busy="off">
         <label for="credits-replicate-balance" th:text="#{credits.form.label}">Saldo Replicate (USD)</label>
-        <input type="text" inputmode="decimal" id="credits-replicate-balance" name="balance" autocomplete="off"
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#credits-replicate-balance}, clearable=true, title=null)}">
+            <input type="text" inputmode="decimal" id="credits-replicate-balance" name="balance" autocomplete="off"
                th:placeholder="#{credits.form.placeholder}" placeholder="25,00">
+        </th:block>
         <p class="m-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{credits.form.hint}">Replicate non espone il saldo.</p>
         <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{credits.form.save}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Salva</button>
     </form>

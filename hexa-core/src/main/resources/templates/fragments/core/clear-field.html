@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  wrap(content, clearable, title): rende "svuotabile" un <input> testo/search/date/number (kit UI, UN punto per tutto il progetto: mai un reset
+  scritto a mano). Il chiamante tiene il PROPRIO <input> (id OBBLIGATORIO e univoco nel template, list, maxlength, th:value, required...) dentro un
+  th:block che lo seleziona per id (th:replace batte th:if/th:unless sullo stesso elemento: per questo il ramo spento ha un blocco esterno):
+      <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#search-tag}, clearable=true, title=null)}">
+          <input type="search" id="search-tag" name="tag" ...>
+      </th:block>
+  clearable false/null = esce SOLO l'input (nessun wrapper ne' bottone): e' l'interruttore di attivazione. title gia' risolto (null = #{field.clear}).
+  Un solo meccanismo per ogni tipo: `filled` (input valorizzato e ne' readonly ne' disabled), ricalcolato su input/change dell'input, su
+  `generation-settings:restored` (lo script di persistenza scrive i valori con `.value`, senza eventi; auto-rimozione se il nodo non e' piu' nel DOM) e
+  su `clear-field:sync` (da lanciare sull'input dopo una scrittura da codice, come `pines-select:sync`). Il wrapper da' padding a destra all'input e
+  nasconde la "x" nativa di WebKit; per type=date il bottone si sposta a right-9 (icona calendario). Il click svuota e dispatcha `input` e `change`
+  (bubbles): persistenza, hx-trigger dei form e `filled` reagiscono come a una cancellazione digitata.
+-->
+<th:block th:fragment="wrap(content, clearable, title)">
+    <div th:if="${clearable}" class="relative [&_input]:pr-8 [&_input::-webkit-search-cancel-button]:hidden [&_input[type=date]~button]:right-9"
+         x-data="{ filled: false,
+                   refresh() {
+                       const input = this.$root.querySelector('input');
+                       this.filled = input.value !== '' &amp;&amp; !input.readOnly &amp;&amp; !input.disabled;
+                   } }"
+         x-init="refresh(); const h = () => { if ($el.isConnected) { refresh() } else { window.removeEventListener('generation-settings:restored', h) } }; window.addEventListener('generation-settings:restored', h)"
+         @input="refresh()" @change="refresh()" @clear-field:sync="refresh()">
+        <th:block th:replace="${content}"></th:block>
+        <button th:replace="~{fragments/core/field-buttons :: clearInput(title=${title != null ? title : #messages.msg('field.clear')})}"></button>
+    </div>
+    <th:block th:unless="${clearable}"><th:block th:replace="${content}"></th:block></th:block>
+</th:block>
+
+</body>
+</html>

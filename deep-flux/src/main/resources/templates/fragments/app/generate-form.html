@@ -85,7 +85,7 @@
 <div th:fragment="promptField(prompt, enhanceError)" id="prompt-field">
     <label for="prompt" th:text="#{generateForm.label.prompt}">Prompt</label>
     <div class="relative">
-        <!--/* placeholder " " + peer: lo stato :placeholder-shown (textarea vuota) nasconde "Svuota" in puro CSS, come resetSeed. */-->
+        <!--/* placeholder " " + peer: lo stato :placeholder-shown (textarea vuota) nasconde "Svuota" in puro CSS (e' una textarea: non usa clear-field). */-->
         <textarea id="prompt" name="prompt" rows="3" required placeholder=" " class="peer w-full pr-10" th:text="${prompt}"></textarea>
         <button th:replace="~{fragments/app/button-gen :: aiEnhance(title=#{generateForm.button.enhance})}">AI enhance</button>
         <button th:replace="~{fragments/app/button-gen :: clearPrompt(title=#{generateForm.button.clearPrompt})}">Svuota il prompt</button>

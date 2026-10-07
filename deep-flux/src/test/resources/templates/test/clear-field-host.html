@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#f}, clearable=${clearable}, title=${title})}">
+    <input type="search" id="f" name="f">
+</th:block>
+</body>
+</html>

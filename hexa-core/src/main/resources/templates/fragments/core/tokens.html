@@ -68,14 +68,18 @@
         </th:block>
 
         <label for="token-name" th:text="#{tokens.form.name}">Nome</label>
-        <input type="text" id="token-name" name="name" class="w-full" maxlength="60" required th:value="${tokenName}">
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#token-name}, clearable=true, title=null)}">
+            <input type="text" id="token-name" name="name" class="w-full" maxlength="60" required th:value="${tokenName}">
+        </th:block>
 
         <label for="token-value" th:text="${tokenId == null} ? #{tokens.form.token} : #{tokens.form.tokenKeep}">Token</label>
         <input type="password" id="token-value" name="token" class="w-full" autocomplete="off" maxlength="500"
                th:required="${tokenId == null}">
 
         <label for="token-expires" th:text="#{tokens.form.expires}">Scadenza (opzionale)</label>
-        <input type="date" id="token-expires" name="expiresAt" class="w-full" th:value="${tokenExpires}">
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#token-expires}, clearable=true, title=null)}">
+            <input type="date" id="token-expires" name="expiresAt" class="w-full" th:value="${tokenExpires}">
+        </th:block>
 
         <div class="mt-4 flex flex-wrap justify-end gap-2">
             <button th:replace="~{fragments/core/button :: dialogClose(text=#{tokens.form.cancel}, extraClass=null)}">Annulla</button>
