@@ -77,7 +77,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 class BackupRoundTripTest {
 
-    private static final String[] LOCATIONS = {"classpath:db/migration/core", "classpath:db/migration/app"};
+    private static final String[] LOCATIONS = {"classpath:db/migration/core", "classpath:db/migration/ai", "classpath:db/migration/app"};
     private static final String OLDER_SCHEMA = "2026.10.04.1000";
 
     @Value("${spring.datasource.url}")
@@ -546,7 +546,7 @@ class BackupRoundTripTest {
 
     private static Messages realMessages() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasenames("messages", "messages-core");
+        source.setBasenames("messages", "messages-core", "messages-ai");
         source.setDefaultEncoding("UTF-8");
         source.setFallbackToSystemLocale(false);
         return new Messages(source);

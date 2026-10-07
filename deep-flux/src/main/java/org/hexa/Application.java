@@ -12,7 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * {@code backup} (senza web ne' lavori in background, vedi {@code application-backup.yml}), dove un {@code ApplicationRunner} del core
  * ({@code core.backup}) esegue il comando ed esce. Senza un sottocomando e' il server di sempre.
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "org.hexa.app")
 public class Application {
 
     public static void main(String[] args) {

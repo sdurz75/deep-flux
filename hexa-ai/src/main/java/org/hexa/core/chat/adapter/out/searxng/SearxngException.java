@@ -1,6 +1,6 @@
 package org.hexa.core.chat.adapter.out.searxng;
 
-import org.hexa.core.events.domain.CoreEventSource;
+import org.hexa.core.ai.domain.AiEventSource;
 import org.hexa.core.kernel.remote.RemoteServiceException;
 
 /**
@@ -12,10 +12,10 @@ public class SearxngException extends RemoteServiceException {
 
     /** Credenziali mancanti: configurazione. */
     public SearxngException(String message) {
-        super(CoreEventSource.SEARXNG, Kind.CONFIGURATION, message, null);
+        super(AiEventSource.SEARXNG, Kind.CONFIGURATION, message, null);
     }
 
     public SearxngException(String message, Throwable cause, Kind kind) {
-        super(CoreEventSource.SEARXNG, kind, message, cause);
+        super(AiEventSource.SEARXNG, kind, message, cause);
     }
 }

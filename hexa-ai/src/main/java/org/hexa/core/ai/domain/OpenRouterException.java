@@ -1,6 +1,5 @@
 package org.hexa.core.ai.domain;
 
-import org.hexa.core.events.domain.CoreEventSource;
 import org.hexa.core.kernel.remote.RemoteServiceException;
 
 /**
@@ -10,6 +9,6 @@ import org.hexa.core.kernel.remote.RemoteServiceException;
 public class OpenRouterException extends RemoteServiceException {
 
     public OpenRouterException(String message, Throwable cause, Kind kind) {
-        super(CoreEventSource.OPENROUTER, kind, message, cause);
+        super(AiEventSource.OPENROUTER, kind, message, cause);
     }
 }

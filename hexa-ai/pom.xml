@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.hexa</groupId>
+        <artifactId>hexa-parent</artifactId>
+        <version>0.3.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>hexa-ai</artifactId>
+    <name>hexa-ai</name>
+    <description>
+        Libreria opzionale sopra hexa-core (org.hexa.core.{ai,chat,search,credits}): chiamate LLM e visione (OpenRouter via Spring AI),
+        chat con tool e cronologia lato server, ricerca semantica (pgvector + embedding ONNX locali), crediti OpenRouter.
+        Un host sceglie hexa-core da solo oppure hexa-core + hexa-ai; hexa-core non dipende da questo modulo.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.hexa</groupId>
+            <artifactId>hexa-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+        <!-- Ricerca semantica (core.search): VectorStore implementato da PgVectorStore su PostgreSQL + pgvector + embedding LOCALI via ONNX
+             (multilingual-e5-small, scaricato al primo avvio in ./data/models). Volutamente l'artefatto dello store e NON lo starter:
+             il bean lo scriviamo noi (SemanticSearchConfig: decorator dei prefissi e5, spegnibile nei test). -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-vector-store</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-transformers</artifactId>
+        </dependency>
+        <!-- Container PostgreSQL per i test che avviano un contesto (host di prova fuori da org.hexa). -->
+        <dependency>
+            <groupId>org.hexa</groupId>
+            <artifactId>hexa-test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Testcontainers lo vuole; commons-compress 1.27.1 (portato da Spring AI/DJL, vince su quello di Testcontainers) non lo porta piu' con se'. -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+            <!-- FakeEmbeddingModel serve ai test dell'host: test-jar. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

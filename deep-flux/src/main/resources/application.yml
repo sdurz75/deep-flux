@@ -10,45 +10,11 @@ spring:
     # variabili d'ambiente). prompts.properties (nessun "optional:": e'
     # nel jar, deve sempre esistere) porta il testo dei system prompt,
     # vedi ChatService.
-    import: optional:file:.env[.properties],classpath:core.yml,classpath:prompts.properties
+    import: optional:file:.env[.properties],classpath:core.yml,classpath:ai.yml,classpath:prompts.properties
   application:
     name: deep-flux
-  flyway:
-    # core (sistemi riusabili) + app: versioni a timestamp, una sola sequenza (vedi db/migration/core/V2026_10_01_1200__core_baseline.sql).
-    # Qui e non in core.yml: una chiave dell'app vince sempre su quella importata, e la lista dipende da quante location ha l'app.
-    locations: classpath:db/migration/core,classpath:db/migration/app
-  ai:
-    openai:
-      # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone un'API OpenAI-compatibile
-      # (https://openrouter.ai/docs): basta puntare lo starter Spring AI per OpenAI sul suo base-url, nessun client custom.
-      # Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_API_TOKEN=sk-or-...
-      api-key: ${OPENROUTER_API_TOKEN:}
-      base-url: https://openrouter.ai/api/v1
-      chat:
-        options:
-          model: ${OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
-    # Ricerca semantica (PgVectorStore): embedding LOCALI, nessuna chiamata di rete a runtime. Il modello ONNX
-    # (multilingual-e5-small quantizzato, ~120 MB, italiano/inglese) e il tokenizer si scaricano UNA volta al primo avvio in
-    # ./data/models. Cambiare l'URI del modello => ArchiveIndexService reindicizza tutto (l'URI e' l'id del modello).
-    model:
-      embedding: transformers
-    embedding:
-      transformer:
-        cache:
-          directory: ./data/models
-        onnx:
-          model-uri: https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/onnx/model_quantized.onnx
-          model-output-name: last_hidden_state
-        tokenizer:
-          uri: https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/tokenizer.json
-
-# Modello di visione dell'"AI enhance" dei video (PromptEnhancementService#enhanceVideo): guarda
-# l'immagine sorgente. Scelto per permissivita' oltre che per prezzo: niente modelli "moderated" di
-# OpenRouter (OpenAI/Anthropic/Amazon) ne' Gemini, che rifiutano spesso il nudo non esplicito.
-# Il fallback e' usato UNA volta se il primo rifiuta.
-enhancer:
-  vision-model: ${OPENROUTER_VISION_MODEL:qwen/qwen3-vl-32b-instruct}
-  vision-fallback-model: ${OPENROUTER_VISION_FALLBACK_MODEL:mistralai/mistral-small-3.2-24b-instruct}
+  # Flyway: nessuna location. Il default (classpath:db/migration) scansiona anche le sottocartelle: core (hexa-core), ai (hexa-ai) e app (qui) si fondono
+  # in una sola sequenza a timestamp (vedi db/migration/core/V2026_10_01_1200__core_baseline.sql); chi manca (hexa-ai assente) semplicemente non c'e'.
 
 # Token generato su https://replicate.com/account/api-tokens.
 # Da esportare come variabile d'ambiente, mai committato:
@@ -67,24 +33,9 @@ replicate:
 huggingface:
   api-base-url: https://huggingface.co/api
 
-# Credito residuo OpenRouter nella barra in basso (CreditsService, GET /credits): serve una MANAGEMENT key
-# (https://openrouter.ai/settings/management-keys), diversa dal token della chat. Senza, il credito OpenRouter non compare.
-# Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_MANAGEMENT_KEY=sk-or-...
-openrouter:
-  base-url: https://openrouter.ai/api/v1
-  management-key: ${OPENROUTER_MANAGEMENT_KEY:}
-
-# Istanza SearXNG usata dal tool di web search del modello su /deep-chat
-# (vedi WebSearchTool/SearxngClient). Richiede che il formato JSON sia
-# abilitato lato server (settings.yml: search.formats: [html, json]),
-# altrimenti risponde 403. Credenziali Basic Auth da esportare come
-# variabili d'ambiente, mai committate:
-#   export SEARXNG_USERNAME=...
-#   export SEARXNG_PASSWORD=...
+# SearXNG: le chiavi sono in ai.yml (hexa-ai); qui solo l'istanza di QUESTA app.
 searxng:
   base-url: ${SEARXNG_BASE_URL:https://sdurz.me/xng/}
-  username: ${SEARXNG_USERNAME:}
-  password: ${SEARXNG_PASSWORD:}
 
 app:
   import:
@@ -128,8 +79,6 @@ app:
     # del modello di visione; history-max-turns/-chars: quanta cronologia (dal DB, non dal client) rientra nel contesto del modello.
     max-generations-per-turn: 3
     max-vision-calls-per-turn: 2
-    history-max-turns: 40
-    history-max-chars: 60000
     # Sezioni del system prompt (chiavi di prompts.properties) prima e dopo quelle dei tool presenti; senza: solo nucleo e guida.
     prompt-sections:
       leading:
@@ -166,16 +115,8 @@ app:
     enabled: true
     sweep-interval: 2m
   search:
-    # Indice semantico (ArchiveIndexService / ArchiveSearchTool): prompt delle generazioni, messaggi e titoli delle chat.
-    # Disattivato nei test (application-test.yml): l'EmbeddingModel locale scaricherebbe il modello.
-    enabled: true
     # Template dell'app con gli slot di /search (filtro media, preferiti, badge, link, miniature dei documenti dell'app).
     host-fragment: fragments/app/search-host
-    reindex-interval: 5m
-    top-k: 5
-    # Soglia di somiglianza minima (%, 0..100) di default della ricerca in /search (i punteggi e5 sono compressi: 70-90%, quindi 80 taglia il rumore
-    # senza svuotare i risultati); la form la mostra e l'utente la cambia per ricerca. Non vale per la tool della chat (top-k).
-    similarity-threshold-percent: 80
   push:
     # Gli eventi SSE dell'app (il core gestisce solo "system-event"): ri-dispatchati da fragments/core/live-events.html come CustomEvent
     # su document.body. reconnect-events: quelli da ri-dispatchare alla riconnessione dell'EventSource (PushModelAdvice).

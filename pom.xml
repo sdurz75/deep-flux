@@ -18,13 +18,15 @@
 
     <name>hexa-parent</name>
     <description>
-        Reactor: hexa-core (libreria riusabile: kernel, UI kit, chat/AI, ricerca, storage, backup, manuale),
+        Reactor: hexa-core (libreria riusabile: kernel, UI kit, eventi, push, token, storage, backup, manuale),
+        hexa-ai (libreria opzionale sopra hexa-core: chat, ricerca semantica, prompt/visione, crediti OpenRouter),
         hexa-test-support (container PostgreSQL per i test) e l'app deep-flux (dominio: generazione, training).
     </description>
 
     <modules>
         <module>hexa-test-support</module>
         <module>hexa-core</module>
+        <module>hexa-ai</module>
         <module>deep-flux</module>
     </modules>
 
@@ -47,6 +49,11 @@
             <dependency>
                 <groupId>org.hexa</groupId>
                 <artifactId>hexa-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hexa</groupId>
+                <artifactId>hexa-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

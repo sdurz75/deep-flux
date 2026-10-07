@@ -34,9 +34,9 @@ class SourceImportsTest {
     @Test
     void sourcesRespectTheLayeringEvenInJavadocAndImports() throws IOException {
         List<String> violations = new ArrayList<>();
-        // I sorgenti del core stanno nel modulo hexa-core, quelli dell'app qui.
+        // I sorgenti del core stanno in hexa-core e hexa-ai, quelli dell'app qui.
         List<Path> sources = new ArrayList<>();
-        for (String root : List.of("../hexa-core/src/main/java", "src/main/java")) {
+        for (String root : List.of("../hexa-core/src/main/java", "../hexa-ai/src/main/java", "src/main/java")) {
             try (Stream<Path> walk = Files.walk(Path.of(root))) {
                 sources.addAll(walk.filter(f -> f.toString().endsWith(".java")).toList());
             }
@@ -49,8 +49,8 @@ class SourceImportsTest {
                     continue;
                 }
                 Matcher from = SLICE.matcher(pkg.group(1));
-                if (!from.matches()) {
-                    continue; // classi nel package radice (Application, OpenRouterCalls...): fuori dalle slice
+                if (!from.matches() || from.group(2).equals("autoconfigure") || pkg.group(1).contains(".autoconfigure")) {
+                    continue; // wiring Spring Boot delle librerie: non e' un sottosistema
                 }
                 Matcher reference = REFERENCE.matcher(source);
                 while (reference.find()) {

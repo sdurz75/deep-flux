@@ -60,7 +60,7 @@ class BackupProfileContextTest {
         assertThat(importer).isNotNull();
         // Le locations di Flyway arrivano da spring.flyway.locations (una stringa separata da virgole): se non si dividessero, nessuna versione sarebbe "nota".
         assertThat(restore.knowsSchemaVersion("2026.10.01.1200")).as("baseline del core").isTrue();
-        assertThat(restore.knowsSchemaVersion("2026.10.01.1201")).as("baseline dell'app").isTrue();
+        assertThat(restore.knowsSchemaVersion("2026.10.01.1220")).as("baseline dell'app").isTrue();
         assertThat(restore.knowsSchemaVersion("1999.01.01.0000")).isFalse();
     }
 

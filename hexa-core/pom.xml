@@ -14,7 +14,7 @@
     <name>hexa-core</name>
     <description>
         Libreria riusabile (org.hexa.core.*): kernel, layout e UI kit Thymeleaf, eventi di sistema, push SSE, secrets/token,
-        storage binari, backup, manuale, e l'AI (chat, prompt, ricerca semantica). Niente dominio: l'host la estende con le SPI
+        storage binari, backup, manuale. Niente AI (e' in hexa-ai) e niente dominio: l'host la estende con le SPI
         elencate in CLAUDE.md e con gli slot di template.
     </description>
 
@@ -26,25 +26,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-restclient</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
-        <!-- Ricerca semantica (core.search): VectorStore implementato da PgVectorStore su PostgreSQL + pgvector + embedding LOCALI via ONNX
-             (multilingual-e5-small, scaricato al primo avvio in ./data/models). Volutamente l'artefatto dello store e NON lo starter:
-             il bean lo scriviamo noi (SemanticSearchConfig: decorator dei prefissi e5, spegnibile nei test). -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-vector-store</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-pgvector-store</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-transformers</artifactId>
         </dependency>
         <!-- Reactor: importato direttamente per il push SSE di /events (Flux/Sinks), non solo come dettaglio interno di Spring AI. -->
         <dependency>
@@ -88,6 +69,12 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
+        <!-- Container PostgreSQL per i test che avviano un contesto (host di prova fuori da org.hexa). -->
+        <dependency>
+            <groupId>org.hexa</groupId>
+            <artifactId>hexa-test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -106,7 +93,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
             </plugin>
-            <!-- I test del core (FakeEmbeddingModel, FakeWebDavServer...) servono anche ai test dell'app: test-jar. -->
+            <!-- I test del core (FakeWebDavServer...) servono anche ai test dell'app: test-jar. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>

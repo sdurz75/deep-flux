@@ -172,6 +172,8 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule subsystemsOnlyUseEachOthersPortsIn = classes()
             .that().resideInAnyPackage(ROOT + ".core..", ROOT + ".app..")
+            // Il wiring Spring Boot delle librerie (HexaCoreAutoConfiguration, HexaAiAutoConfiguration) non e' un sottosistema.
+            .and().resideOutsideOfPackages("..autoconfigure..")
             .should(onlyUseOtherSubsystemsThroughPortInAndDomain())
             .allowEmptyShould(true);
 

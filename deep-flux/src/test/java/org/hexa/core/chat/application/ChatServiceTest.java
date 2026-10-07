@@ -18,7 +18,7 @@ import org.hexa.core.chat.domain.DeepChatFailedException;
 import org.hexa.core.chat.port.out.IAssistant;
 import org.hexa.core.chat.port.out.IChatConversationStore;
 import org.hexa.core.chat.port.out.IChatMessageStore;
-import org.hexa.core.events.domain.CoreEventSource;
+import org.hexa.core.ai.domain.AiEventSource;
 import org.hexa.core.events.port.in.ISystemEvents;
 import org.hexa.core.kernel.i18n.Messages;
 import org.junit.jupiter.api.Test;
@@ -161,7 +161,7 @@ class ChatServiceTest {
                 .isInstanceOf(DeepChatFailedException.class)
                 .hasMessage("Errore assistente");
 
-        verify(systemEvents).record(eq(CoreEventSource.OPENROUTER), eq("chatTurn"), eq(outage),
+        verify(systemEvents).record(eq(AiEventSource.OPENROUTER), eq("chatTurn"), eq(outage),
                 org.mockito.ArgumentMatchers.isNull(String.class));
         ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
         verify(messages, times(2)).save(saved.capture());

@@ -6,7 +6,7 @@ Il codice e' diviso in due:
 - **`app`** (`org.hexa.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
   ricerca semantica). Si **sostituisce** con la propria.
 
-**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.hexa:hexa-core`), `app` il modulo `app`, `hexa-test-support` il container di test. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `app` (`app/src/...`) o `hexa-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
+**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.hexa:hexa-core`), `app` il modulo `deep-flux` (package `org.hexa.app`), `hexa-test-support` il container di test. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `deep-flux` (`deep-flux/src/...`) o `hexa-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
 app implementando i punti di estensione sotto. La regola `coreDoesNotKnowApp` di `ArchitectureTest` impedisce che il codice di `core`
 dipenda da `app`; ogni sottosistema (di `core` e di `app`) e' un esagono (domain / application / port.in / port.out / adapter.in /
 adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
@@ -71,10 +71,12 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/hexa`.
 - `src/main/resources/db/migration/app/` si sostituisce con le migrazioni della nuova app. Le versioni sono **timestamp**
   (`V2026_10_01_1201__...`) in entrambe le location, cosi' le due sequenze si fondono senza conflitti: usare un timestamp
   PIU' RECENTE di quelli del core (e di ogni futuro aggiornamento del core).
-- `V2026_10_01_1201__app_baseline.sql` contiene `CREATE EXTENSION vector` e `vector_store`: servono solo alla ricerca semantica. Senza,
+- `V2026_10_01_1210__ai_baseline.sql` (modulo `hexa-ai`, location `db/migration/ai`) contiene chat, `CREATE EXTENSION vector` e `vector_store`; la baseline dell'app
+  (`V2026_10_01_1220`, dopo di lui) vi aggiunge la FK `chat_message.outcome_ref` -> `generation`. Senza `hexa-ai`,
   `compose.yaml` puo' usare un `postgres` normale al posto di `pgvector/pgvector:pg17` (e `PostgresTestContainerInitializer` lo stesso
   per i test).
-- `application.yml` -> `spring.flyway.locations` elenca `core` e `app`: se la nuova app ha altre location, si cambia li'.
+- Nessuna `spring.flyway.locations`: il default `classpath:db/migration` scansiona anche le sottocartelle (`core`, `ai`, `app`). Se la nuova app ha location fuori da li', le elenca
+  TUTTE (comprese quelle delle librerie).
 
 **Configurazione** (`src/main/resources/application.yml`, tutto cio' e' dell'app)
 
@@ -91,10 +93,14 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/hexa`.
 commentati nell'esempio). Del core: `DB_*`,
 `STORAGE_WEBDAV_*`.
 
-**`pom.xml`** (OBBLIGATORIO, verificato): togliere le dipendenze `spring-ai-starter-model-openai`, `spring-ai-vector-store`,
-`spring-ai-pgvector-store`, `spring-ai-starter-model-transformers`. Lasciarle senza il `spring.ai.*` di `application.yml` fa FALLIRE l'avvio
-del contesto (l'autoconfig OpenAI vuole una API key: `At least one credential source must be specified`). `reactor-core` si tiene
-(lo usa `IClientPushStream` del core). Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei segreti) e' del core.
+**`pom.xml`**: l'AI e' in un modulo a parte, `hexa-ai`. Un host che non usa chat, ricerca semantica, visione ne' crediti OpenRouter dipende solo da `hexa-core`
+(niente Spring AI, pgvector ne' ONNX nel classpath; `reactor-core` resta, lo usa `IClientPushStream`) e non importa `ai.yml`. Chi li vuole aggiunge `hexa-ai`
+(dipende gia' da `hexa-core`), importa `classpath:ai.yml` accanto a `core.yml`, (le migrazioni `db/migration/ai` si trovano da sole) e fornisce
+`searxng.base-url` (con la chat) e le chiavi di prompt di `prompts.properties`. Il bundle `messages-ai` si registra da solo. Con `hexa-ai` il
+`spring.ai.*` di `ai.yml` serve (l'autoconfig OpenAI vuole una API key: `At least one credential source must be specified`). L'host puo' avere qualunque package radice: `HexaCoreAutoConfiguration`/`HexaAiAutoConfiguration` scansionano i componenti e registrano entity/repository
+(provato da `CoreOnlyHostTest` e `AiHostTest`, host in `com.example.*`). Flyway non vuole `spring.flyway.locations`: il default `classpath:db/migration` trova le sottocartelle
+`core`, `ai` e quella dell'host.
+Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei segreti) e' del core.
 
 **Test** (`src/test/java/org/hexa/`)
 
@@ -187,7 +193,7 @@ secrets, storage). Senza il passo sul `pom.xml` l'avvio falla (vedi sopra); senz
 - [ ] `fragments/app/nav.html` e chiavi `app.brand|title` nei bundle `it` ed `en`.
 - [ ] Una propria `EventSource` (+ `events.source.<NAME>`), eventuali `IEventLinkResolver` / `ITokenProviderCatalog`.
 - [ ] `app.push.client-events` aggiornata (o vuota) per gli eventi SSE propri.
-- [ ] Migrazioni app con timestamp piu' recente di quelli del core; `spring.flyway.locations` coerente.
+- [ ] Migrazioni app con timestamp piu' recente di quelli del core; niente `spring.flyway.locations` (o completo).
 - [ ] `application.yml`, `.env.example` e `pom.xml` ripuliti da Replicate/OpenRouter/SearXNG/Spring AI (le dipendenze `spring-ai-*` vanno tolte: senza `spring.ai.*` l'avvio fallisce).
 - [ ] Test dell'app riscritti; `ArchitectureTest` verde (la regola di chiusura vieta package fuori da `core`/`app`).
 - [ ] `docker compose down && rm -rf data/postgres` per ripartire da zero: i baseline Flyway sono cambiati rispetto a un database creato con il

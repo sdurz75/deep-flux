@@ -1,6 +1,6 @@
 # Profilo "backup": lo attiva Application.main per i sottocomandi `export` e `import` (vedi core.backup, CLAUDE.md "Backup e restore"). E' un
-# processo da riga di comando, NON il server: niente web, niente lavori in background, niente servizi remoti dell'app (Replicate, OpenRouter,
-# SearXNG), e lo schema lo pilota il backup stesso. Un profilo batte application.yml (dei default programmatici NO), per questo sta qui.
+# processo da riga di comando, NON il server: niente web, niente lavori in background, niente servizi remoti (Replicate, OpenRouter,
+# SearXNG: l'AI di hexa-ai spegne embedding e ricerca nel proprio ai.yml, profilo backup), e lo schema lo pilota il backup stesso. Un profilo batte application.yml (dei default programmatici NO), per questo sta qui.
 spring:
   main:
     web-application-type: none
@@ -13,14 +13,8 @@ spring:
     # La migrazione automatica all'avvio sporcherebbe il DB sorgente (export) e salterebbe il passo "migra alla versione del backup" (import).
     # Il backup usa Flyway da codice, con le stesse spring.flyway.locations.
     enabled: false
-  ai:
-    model:
-      # Nessun modello di embedding (il locale scaricherebbe ~120 MB): la ricerca semantica e' spenta qui sotto.
-      embedding: none
 app:
   recovery:
-    enabled: false
-  search:
     enabled: false
   tokens:
     expiry-check-enabled: false

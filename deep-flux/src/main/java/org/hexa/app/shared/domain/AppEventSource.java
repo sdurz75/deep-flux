@@ -2,7 +2,7 @@ package org.hexa.app.shared.domain;
 
 import org.hexa.core.kernel.EventSource;
 
-/** Sorgenti di eventi specifiche dell'app (servizi esterni usati dalla generazione e dal training; OpenRouter e SearXNG sono del core). */
+/** Sorgenti di eventi specifiche dell'app (servizi esterni usati dalla generazione e dal training; OpenRouter e SearXNG sono di hexa-ai). */
 public enum AppEventSource implements EventSource {
     REPLICATE,
     LORAS,

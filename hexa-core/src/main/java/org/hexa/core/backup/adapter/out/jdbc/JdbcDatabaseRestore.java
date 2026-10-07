@@ -41,7 +41,7 @@ public class JdbcDatabaseRestore implements IDatabaseRestore {
     private final String[] locations;
     private final Messages messages;
 
-    public JdbcDatabaseRestore(DataSource dataSource, @Value("${spring.flyway.locations}") String[] locations, Messages messages) {
+    public JdbcDatabaseRestore(DataSource dataSource, @Value("${spring.flyway.locations:classpath:db/migration}") String[] locations, Messages messages) {
         this.dataSource = dataSource;
         this.locations = locations;
         this.messages = messages;

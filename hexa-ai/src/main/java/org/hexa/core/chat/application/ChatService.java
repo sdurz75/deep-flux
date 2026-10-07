@@ -19,6 +19,7 @@ import org.hexa.core.chat.port.out.IChatMessageStore;
 import org.hexa.core.chat.domain.event.ChatOutcomesStartedEvent;
 import org.hexa.core.chat.port.in.IChatTurnContributor;
 import org.hexa.core.chat.domain.ChatEventSubjects;
+import org.hexa.core.ai.domain.AiEventSource;
 import org.hexa.core.events.domain.CoreEventSource;
 import org.hexa.core.events.port.in.ISystemEvents;
 import org.hexa.core.kernel.EventSource;
@@ -115,7 +116,7 @@ public class ChatService implements IChat {
                     started = failure.startedOutcomeRefs();
                     cause = failure.getCause();
                 }
-                throw failTurn(conversation, CoreEventSource.OPENROUTER, "chatTurn", cause);
+                throw failTurn(conversation, AiEventSource.OPENROUTER, "chatTurn", cause);
             }
 
             try {

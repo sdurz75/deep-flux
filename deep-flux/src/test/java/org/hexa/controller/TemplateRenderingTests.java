@@ -1784,7 +1784,7 @@ class TemplateRenderingTests {
      */
     @Test
     void messageBundlesHaveMatchingKeys() throws IOException {
-        for (String basename : new String[]{"messages", "messages-core"}) {
+        for (String basename : new String[]{"messages", "messages-core", "messages-ai"}) {
             Properties it = loadProperties("/" + basename + ".properties");
             Properties en = loadProperties("/" + basename + "_en.properties");
 
@@ -1792,13 +1792,15 @@ class TemplateRenderingTests {
         }
     }
 
-    /** Core e app non definiscono la stessa chiave: niente shadowing silenzioso (chi sostituisce l'app non cambia il core). */
+    /** Core, ai e app non definiscono la stessa chiave: niente shadowing silenzioso (chi sostituisce l'app non cambia le librerie). */
     @Test
-    void coreAndAppBundlesDefineDisjointKeys() throws IOException {
+    void coreAiAndAppBundlesDefineDisjointKeys() throws IOException {
         Properties app = loadProperties("/messages.properties");
         Properties core = loadProperties("/messages-core.properties");
+        Properties ai = loadProperties("/messages-ai.properties");
 
-        assertThat(app.keySet()).doesNotContainAnyElementsOf(core.keySet());
+        assertThat(app.keySet()).doesNotContainAnyElementsOf(core.keySet()).doesNotContainAnyElementsOf(ai.keySet());
+        assertThat(ai.keySet()).doesNotContainAnyElementsOf(core.keySet());
     }
 
     private static Properties loadProperties(String classpathResource) throws IOException {
