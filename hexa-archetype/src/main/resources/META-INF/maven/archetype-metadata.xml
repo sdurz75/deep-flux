@@ -56,6 +56,7 @@
             <directory>src/main/resources</directory>
             <includes>
                 <include>templates/**</include>
+                <include>manual/**</include>
             </includes>
             <excludes>
                 <exclude>templates/fragments/app/nav.html</exclude>

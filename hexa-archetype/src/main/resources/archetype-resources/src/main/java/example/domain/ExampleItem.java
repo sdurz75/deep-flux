@@ -20,14 +20,19 @@ public class ExampleItem {
     @Column(nullable = false)
     private String title;
 
+    /** Nome opaco di un binario dello storage (o null): e' una colonna da dichiarare in {@code IBlobReferences}, altrimenti il backup lascia fuori il file. */
+    @Column(name = "attachment_filename")
+    private String attachmentFilename;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     protected ExampleItem() {
     }
 
-    public ExampleItem(String title) {
+    public ExampleItem(String title, String attachmentFilename) {
         this.title = title;
+        this.attachmentFilename = attachmentFilename;
         this.createdAt = Instant.now();
     }
 
@@ -37,6 +42,10 @@ public class ExampleItem {
 
     public String getTitle() {
         return title;
+    }
+
+    public String getAttachmentFilename() {
+        return attachmentFilename;
     }
 
     public Instant getCreatedAt() {

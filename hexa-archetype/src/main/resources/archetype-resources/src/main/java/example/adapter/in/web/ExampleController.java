@@ -4,15 +4,25 @@
 package ${package}.example.adapter.in.web;
 
 import ${package}.example.port.in.IExamples;
+import jakarta.servlet.http.HttpServletResponse;
 import org.hexa.core.kernel.i18n.Messages;
+import org.hexa.core.kernel.remote.RemoteServiceException;
+import org.hexa.core.storage.domain.StorageException;
+import org.hexa.core.storage.domain.UploadedFile;
+import org.hexa.core.web.HtmxEvents;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 
-/** Pagina di esempio: stessa URL, due risposte distinte da {@code HX-Request} (fragment se htmx, pagina intera altrimenti). */
+/**
+ * Pagina di esempio: stessa URL, due risposte distinte da {@code HX-Request} (fragment se htmx, pagina intera altrimenti). Mostra anche un upload
+ * (il {@code MultipartFile} si converte qui in {@code UploadedFile}: le porte non vedono il framework web) e un evento htmx dal server ({@code HtmxEvents}).
+ */
 @Controller
 public class ExampleController {
 
@@ -20,10 +30,12 @@ public class ExampleController {
 
     private final IExamples examples;
     private final Messages messages;
+    private final HtmxEvents htmxEvents;
 
-    public ExampleController(IExamples examples, Messages messages) {
+    public ExampleController(IExamples examples, Messages messages, HtmxEvents htmxEvents) {
         this.examples = examples;
         this.messages = messages;
+        this.htmxEvents = htmxEvents;
     }
 
     @GetMapping("/example")
@@ -34,13 +46,20 @@ public class ExampleController {
     }
 
     @PostMapping("/example")
-    public String add(@RequestParam(defaultValue = "") String title, Model model,
+    public String add(@RequestParam(defaultValue = "") String title, @RequestParam(required = false) MultipartFile attachment, Model model,
                       @RequestHeader(value = "HX-Request", required = false) String htmx) {
         String error = null;
         try {
-            examples.add(title);
+            examples.add(title, toUploadedFile(attachment));
         } catch (IllegalArgumentException e) {
             error = messages.get("example.error.titleRequired");
+        } catch (StorageException e) {
+            // Un rifiuto ATTESO (tipo o dimensione non validi) e' solo un messaggio; un guasto vero (disco, WebDAV) risale al resolver del core,
+            // che lo registra e risponde 502/500.
+            if (e.kind() != RemoteServiceException.Kind.REJECTED) {
+                throw e;
+            }
+            error = e.getMessage();
         }
         if (htmx == null) {
             return "redirect:/example";
@@ -48,5 +67,26 @@ public class ExampleController {
         model.addAttribute("items", examples.list());
         model.addAttribute("error", error);
         return LIST_FRAGMENT;
+    }
+
+    @PostMapping("/example/{id}/delete")
+    public String delete(@PathVariable Long id, Model model, HttpServletResponse response,
+                         @RequestHeader(value = "HX-Request", required = false) String htmx) {
+        examples.delete(id);
+        if (htmx == null) {
+            return "redirect:/example";
+        }
+        // Un evento htmx per il client (qui solo dimostrativo: un componente puo' ascoltare 'example-deleted'; per un toast si usa addToastHeader).
+        htmxEvents.addHxTrigger(response, "example-deleted", id);
+        model.addAttribute("items", examples.list());
+        model.addAttribute("error", null);
+        return LIST_FRAGMENT;
+    }
+
+    private static UploadedFile toUploadedFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        return new UploadedFile(file.getOriginalFilename(), file.getSize(), file::getInputStream);
     }
 }

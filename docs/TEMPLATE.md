@@ -13,8 +13,10 @@ mvn archetype:generate -DarchetypeGroupId=org.hexa -DarchetypeArtifactId=hexa-ar
 Proprieta': `appName` (brand, default l'artifactId), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
 `pgvector/pgvector:pg17` nel compose), `dbName` (default l'artifactId). Si genera con package radice QUALUNQUE (autoconfigurazione, nessuno scan da scrivere).
 
+`hexa-bom` allinea le versioni (`hexa-core`, `hexa-ai`, `hexa-test-support`): l'app lo importa in `dependencyManagement` e aggiorna hexa cambiando `hexa.version`.
+
 L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
-`fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione), `ArchitectureTest` (le regole di layering di hexa, da `HexaArchitectureRules` in `hexa-test-support`: dentro la feature, fra feature e verso le librerie solo `port.in`/`domain`), test di rendering (con bundle disgiunti dalle librerie) e
+`fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione) che mostra anche un allegato nello storage con `IBlobReferences` per il backup (e il test che lo impone), una `EventSource` propria con `ISystemEvents`/`IEventLinkResolver`, un provider di token (`ITokenProviderCatalog`) e una pagina di manuale, `ArchitectureTest` (le regole di layering di hexa, da `HexaArchitectureRules` in `hexa-test-support`: dentro la feature, fra feature e verso le librerie solo `port.in`/`domain`), test di rendering (con bundle disgiunti dalle librerie) e
 di contesto (Testcontainers), `compose.yaml`, `.env.example`, `Dockerfile`, workflow GitHub Actions, profilo `-Ptailwind` (CSS compilato, scansiona anche i template di hexa-core
 estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue due test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai}`):
 generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build scarica il packaging `maven-archetype`: con il mirror aziendale usare

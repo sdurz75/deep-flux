@@ -14,11 +14,15 @@
     <p th:text="#{example.intro}">Elenco di voci.</p>
 
     <!-- Stessa URL, due risposte: con htmx il POST restituisce solo il fragment della lista (hx-target), senza htmx un redirect alla pagina. -->
-    <form th:action="@{/example}" method="post" th:hx-post="@{/example}" hx-target="#example-list" hx-swap="outerHTML"
-          class="flex flex-wrap items-end gap-3 my-4">
+    <form th:action="@{/example}" method="post" enctype="multipart/form-data" th:hx-post="@{/example}" hx-encoding="multipart/form-data"
+          hx-target="#example-list" hx-swap="outerHTML" class="flex flex-wrap items-end gap-3 my-4">
         <div class="flex-1 min-w-48">
             <label for="example-title" class="mt-0" th:text="#{example.label.title}">Titolo</label>
             <input type="text" id="example-title" name="title" autocomplete="off" maxlength="255">
+        </div>
+        <div class="min-w-48">
+            <label for="example-attachment" class="mt-0" th:text="#{example.label.attachment}">Allegato</label>
+            <input type="file" id="example-attachment" name="attachment" accept="image/png,image/jpeg,image/webp">
         </div>
         <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{example.button.add}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Aggiungi</button>
     </form>

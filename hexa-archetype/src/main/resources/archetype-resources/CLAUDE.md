@@ -10,7 +10,13 @@ Guida di ${appName}, costruita su `hexa-core`#if( $useAi == "true" ) e `hexa-ai`
 
 ${h2} Scopo
 
-Una sola app, un solo dominio: non aggiungere feature (demo, integrazioni, pattern) che non servano a quello scopo; un pattern htmx/Alpine nuovo si dimostra in una feature vera. La slice `example/` e' solo un modello da copiare e poi cancellare (con la sua migrazione, la pagina, la voce di menu, le chiavi di bundle e i test).
+Una sola app, un solo dominio: non aggiungere feature (demo, integrazioni, pattern) che non servano a quello scopo; un pattern htmx/Alpine nuovo si dimostra in una feature vera. La slice `example/` e' solo un modello da copiare e poi cancellare (con la sua migrazione, la pagina, la voce di menu, le chiavi di bundle, la pagina del manuale e i test). Oltre alla struttura esagonale mostra, funzionanti e testati, i punti in cui un'app si innesta in hexa-core:
+
+- **Binario nello storage**: l'allegato passa da `IImageStorageService` (upload multipart -> `UploadedFile`, rifiuto atteso = `StorageException` `REJECTED` mostrato inline, file ripulito se la riga non si salva, servito da `/images/**`), e la colonna e' dichiarata da `ExampleBlobReferences` (`IBlobReferences`) con `BackupBlobColumnsTest` a fare da rete.
+- **Eventi di sistema**: `ExampleEventSource` (+ `events.source.EXAMPLE`), `ISystemEvents${p}record` nel punto in cui si ingoia un guasto, `ExampleEventLinks` (`IEventLinkResolver`: subject `example:<id>` -> link nel registro), `HtmxEvents${p}addHxTrigger` per un evento verso il client.
+- **Token**: `ExampleTokenProviders` (`ITokenProviderCatalog` + `tokens.provider.EXAMPLE`): la pagina `/tokens` offre il provider; il plaintext si ottiene solo con `IApiTokens.resolve` dentro il servizio che lo usa.
+- **Manuale**: `manual/it/01-uso/01-esempio.md`, `manual.group.uso`, voce `/manual` in `nav.html`.
+- **Dipendenze**: `hexa-bom` in `dependencyManagement` (le versioni di hexa si cambiano da `hexa.version`).
 
 ${h2} Cosa e' di chi
 

@@ -20,6 +20,7 @@
         <a th:replace="~{fragments/core/header :: navLink(path='/search', text=${symbol_pound}{header.nav.search})}">Ricerca</a>
     </th:block>
 #end
+    <a th:replace="~{fragments/core/header :: navLink(path='/manual', text=${symbol_pound}{header.nav.manual})}">Manuale</a>
     <div th:replace="~{fragments/core/header :: navMenu(label=${symbol_pound}{header.menu.manage}, items=~{fragments/app/nav :: navManage}, inline=${symbol_dollar}{inline})}"></div>
 </th:block>
 

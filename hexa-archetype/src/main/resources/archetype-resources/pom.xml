@@ -28,17 +28,28 @@
         <tailwind.version>3.4.17</tailwind.version>
     </properties>
 
+    <!-- Le versioni di hexa-core, hexa-ai e hexa-test-support vengono dal BOM: per aggiornare hexa basta cambiare hexa.version. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.hexa</groupId>
+                <artifactId>hexa-bom</artifactId>
+                <version>${symbol_dollar}{hexa.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.hexa</groupId>
             <artifactId>hexa-core</artifactId>
-            <version>${symbol_dollar}{hexa.version}</version>
         </dependency>
 #if( $useAi == "true" )
         <dependency>
             <groupId>org.hexa</groupId>
             <artifactId>hexa-ai</artifactId>
-            <version>${symbol_dollar}{hexa.version}</version>
         </dependency>
 #end
         <dependency>
@@ -51,7 +62,6 @@
         <dependency>
             <groupId>org.hexa</groupId>
             <artifactId>hexa-test-support</artifactId>
-            <version>${symbol_dollar}{hexa.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>

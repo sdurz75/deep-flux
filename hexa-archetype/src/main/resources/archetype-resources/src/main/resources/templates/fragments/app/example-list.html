@@ -7,7 +7,12 @@
     <p th:if="${error}" th:text="${error}" class="text-danger dark:text-danger-dark">Errore.</p>
     <p th:if="${#lists.isEmpty(items)}" th:text="#{example.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessuna voce.</p>
     <ul th:unless="${#lists.isEmpty(items)}" class="list-none p-0 my-4">
-        <li th:each="item : ${items}" th:text="${item.title}" class="py-2 border-b border-line dark:border-line-dark">Voce</li>
+        <li th:each="item : ${items}" class="flex items-center gap-3 py-2 border-b border-line dark:border-line-dark">
+            <!-- I binari si servono SEMPRE da /images/** (core, Range + ETag): mai un resource handler proprio. -->
+            <img th:if="${item.attachmentFilename}" th:src="@{/images/{f}(f=${item.attachmentFilename})}" alt="" class="h-12 w-12 rounded object-cover">
+            <span th:text="${item.title}" class="flex-1">Voce</span>
+            <button th:replace="~{fragments/core/button :: danger(type='button', text=#{example.button.delete}, hxPost=@{/example/{id}/delete(id=${item.id})}, hxDelete=null, hxConfirm=#{example.confirm.delete}, hxSwap='outerHTML', hxTarget='#example-list', extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
+        </li>
     </ul>
 </div>
 
