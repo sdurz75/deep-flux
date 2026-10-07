@@ -45,14 +45,17 @@ set -a; source .env; set +a
 mvn -q install -DskipTests && mvn -pl deep-flux spring-boot:run
 ```
 
-Poi apri http://localhost:7070. Senza il token la navigazione normale
+Poi apri http://localhost:7070.
+
+**Una nuova app su hexa**: `mvn archetype:generate -DarchetypeGroupId=org.hexa -DarchetypeArtifactId=hexa-archetype ...` genera un'applicazione con menu laterale,
+tema chiaro/scuro e, a scelta (`-DuseAi=true`), hexa-ai: vedi `docs/TEMPLATE.md`. Senza il token la navigazione normale
 funziona comunque: la generazione fallirà con un errore chiaro finché
 non lo imposti.
 
 Le immagini generate finiscono in `./data/images` e i metadati (prompt,
 modello, parametri) in PostgreSQL con l'estensione pgvector (usato anche per
 la ricerca semantica). Per lo sviluppo basta `docker compose up -d`
-(`compose.yaml`, credenziali `DB_USERNAME`/`DB_PASSWORD` nel `.env`, vedi
+(`compose.yaml`, credenziali `DB_NAME`, `DB_USERNAME` (obbligatori, nessun default nel core) e `DB_PASSWORD` nel `.env`, vedi
 `.env.example`); i dati stanno in `./data/postgres`, escluso da git. I test
 (`mvn test`) richiedono Docker: usano un container pgvector usa-e-getta.
 

@@ -28,6 +28,7 @@
         <module>hexa-core</module>
         <module>hexa-ai</module>
         <module>deep-flux</module>
+        <module>hexa-archetype</module>
     </modules>
 
     <properties>

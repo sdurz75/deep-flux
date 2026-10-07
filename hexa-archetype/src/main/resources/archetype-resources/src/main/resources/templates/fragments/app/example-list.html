@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- La lista dell'esempio: pagina intera (th:replace) e risposta htmx (vista diretta con parametri NOMINATI). -->
+<div th:fragment="list(items, error)" id="example-list">
+    <p th:if="${error}" th:text="${error}" class="text-danger dark:text-danger-dark">Errore.</p>
+    <p th:if="${#lists.isEmpty(items)}" th:text="#{example.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessuna voce.</p>
+    <ul th:unless="${#lists.isEmpty(items)}" class="list-none p-0 my-4">
+        <li th:each="item : ${items}" th:text="${item.title}" class="py-2 border-b border-line dark:border-line-dark">Voce</li>
+    </ul>
+</div>
+
+</body>
+</html>

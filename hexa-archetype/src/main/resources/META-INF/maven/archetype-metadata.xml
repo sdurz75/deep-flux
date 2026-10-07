@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archetype-descriptor xmlns="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0"
+                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xsi:schemaLocation="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0 https://maven.apache.org/xsd/archetype-descriptor-1.1.0.xsd"
+                      name="hexa-app">
+
+    <requiredProperties>
+        <!-- Nome mostrato (brand e titolo delle pagine). -->
+        <requiredProperty key="appName">
+            <defaultValue>${artifactId}</defaultValue>
+        </requiredProperty>
+        <!-- true: aggiunge hexa-ai (chat, ricerca semantica, AI, crediti OpenRouter) e il PostgreSQL con pgvector. -->
+        <requiredProperty key="useAi">
+            <defaultValue>false</defaultValue>
+        </requiredProperty>
+        <requiredProperty key="dbName">
+            <defaultValue>${artifactId}</defaultValue>
+        </requiredProperty>
+        <requiredProperty key="hexaVersion">
+            <defaultValue>@project.version@</defaultValue>
+        </requiredProperty>
+    </requiredProperties>
+
+    <fileSets>
+        <!-- Java: filtrato (package) e collocato nel package. -->
+        <fileSet filtered="true" packaged="true" encoding="UTF-8">
+            <directory>src/main/java</directory>
+            <includes><include>**/*.java</include></includes>
+        </fileSet>
+        <fileSet filtered="true" packaged="true" encoding="UTF-8">
+            <directory>src/test/java</directory>
+            <includes><include>**/*.java</include></includes>
+        </fileSet>
+        <!-- Configurazione e bundle: filtrati (nome, opzione AI). Senza dollaro-graffa, doppio cancelletto e cancelletto-parola che non siano direttive. -->
+        <fileSet filtered="true" encoding="UTF-8">
+            <directory>src/main/resources</directory>
+            <includes>
+                <include>application.yml</include>
+                <include>messages*.properties</include>
+                <include>prompts.properties</include>
+                <include>templates/fragments/app/nav.html</include>
+            </includes>
+        </fileSet>
+        <fileSet filtered="true" encoding="UTF-8">
+            <directory>src/test/resources</directory>
+            <includes><include>**/*.yml</include></includes>
+        </fileSet>
+        <!-- Template Thymeleaf, migrazioni, Tailwind: NON filtrati (dollaro-graffa e cancelletto-graffa sono di Thymeleaf). -->
+        <fileSet filtered="false" encoding="UTF-8">
+            <directory>src/main/resources</directory>
+            <includes>
+                <include>db/**</include>
+            </includes>
+        </fileSet>
+        <fileSet filtered="false" encoding="UTF-8">
+            <directory>src/main/resources</directory>
+            <includes>
+                <include>templates/**</include>
+            </includes>
+            <excludes>
+                <exclude>templates/fragments/app/nav.html</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet filtered="false" encoding="UTF-8">
+            <directory>src/main/tailwind</directory>
+            <includes><include>**</include></includes>
+        </fileSet>
+        <!-- Radice: i file con dati dell'app filtrati, gli altri no. -->
+        <fileSet filtered="true" encoding="UTF-8">
+            <directory></directory>
+            <includes>
+                <include>pom.xml</include>
+                <include>compose.yaml</include>
+                <include>.env.example</include>
+                <include>README.md</include>
+            </includes>
+        </fileSet>
+        <fileSet filtered="false" encoding="UTF-8">
+            <directory></directory>
+            <includes>
+                <include>.gitignore</include>
+                <include>Dockerfile</include>
+                <include>CLAUDE.md</include>
+                <include>.github/**</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+</archetype-descriptor>

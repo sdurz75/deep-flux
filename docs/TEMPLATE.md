@@ -1,5 +1,27 @@
 # Usare il repo come template per una nuova webapp
 
+## Via archetype (consigliata)
+
+`hexa-archetype` genera un'app che dipende da `hexa-core` (e, a scelta, `hexa-ai`) senza copiare nulla:
+
+```bash
+mvn -q install -DskipTests                       # una volta: installa le librerie e l'archetype in ~/.m2
+mvn archetype:generate -DarchetypeGroupId=org.hexa -DarchetypeArtifactId=hexa-archetype -DarchetypeVersion=0.3.0-SNAPSHOT \
+    -DgroupId=com.example -DartifactId=my-app -Dpackage=com.example.myapp -DappName="My App" -DuseAi=false
+```
+
+Proprieta': `appName` (brand, default l'artifactId), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
+`pgvector/pgvector:pg17` nel compose), `dbName` (default l'artifactId). Si genera con package radice QUALUNQUE (autoconfigurazione, nessuno scan da scrivere).
+
+L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
+`fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione), `ArchitectureTest`, test di rendering e
+di contesto (Testcontainers), `compose.yaml`, `.env.example`, `Dockerfile`, workflow GitHub Actions, profilo `-Ptailwind` (CSS compilato, scansiona anche i template di hexa-core
+estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue due test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai}`):
+generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build scarica il packaging `maven-archetype`: con il mirror aziendale usare
+`MAVEN_OPTS="-Dhttps.protocols=TLSv1.2,TLSv1.3"`. Niente script Groovy nell'archetype (il Groovy del plugin non legge i class file di JDK 24+): `.gitignore` e' aggiunto al jar da Ant.
+
+## Via copia del repo
+
 Il codice e' diviso in due:
 
 - **`core`** (`org.hexa.core`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.

@@ -1,0 +1,210 @@
+#set( $symbol_pound = '#' )
+#set( $symbol_dollar = '$' )
+#set( $symbol_escape = '\' )
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>${groupId}</groupId>
+    <artifactId>${artifactId}</artifactId>
+    <version>${version}</version>
+    <packaging>jar</packaging>
+
+    <name>${appName}</name>
+
+    <properties>
+        <java.version>21</java.version>
+        <hexa.version>${hexaVersion}</hexa.version>
+        <!-- Tailwind standalone CLI (profilo "tailwind"). v3 come il Play CDN. -->
+        <tailwind.version>3.4.17</tailwind.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.hexa</groupId>
+            <artifactId>hexa-core</artifactId>
+            <version>${symbol_dollar}{hexa.version}</version>
+        </dependency>
+#if( $useAi == "true" )
+        <dependency>
+            <groupId>org.hexa</groupId>
+            <artifactId>hexa-ai</artifactId>
+            <version>${symbol_dollar}{hexa.version}</version>
+        </dependency>
+#end
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <!-- Container PostgreSQL per i test (registrato da META-INF/spring.factories: nessuna configurazione). -->
+        <dependency>
+            <groupId>org.hexa</groupId>
+            <artifactId>hexa-test-support</artifactId>
+            <version>${symbol_dollar}{hexa.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Fa rispettare l'architettura esagonale (ArchitectureTest). -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>1.4.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Config Tailwind condivisa: il Play CDN (default, layout del core) la carica come /js/tailwind.config.js, la CLI la legge da src/main/tailwind. -->
+            <resource>
+                <directory>src/main/tailwind</directory>
+                <includes>
+                    <include>tailwind.config.js</include>
+                </includes>
+                <targetPath>static/js</targetPath>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <!-- META-INF/build-info.properties: ora (e commit, con -Dbuild.commit=hash) della build nel badge in basso a sinistra. -->
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!-- Profilo "test" (src/test/resources/application-test.yml) per OGNI esecuzione, e mai lo storage ne' la chiave del .env reale. -->
+                        <spring.profiles.active>test</spring.profiles.active>
+                        <storage.type>local</storage.type>
+                        <storage.migration.from-local.enabled>false</storage.migration.from-local.enabled>
+                        <app.secrets.encryption-key>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</app.secrets.encryption-key>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+            Build Tailwind (opt-in): mvn -Ptailwind clean package
+            Scarica via curl il binario standalone (niente Node/npm, cache in target/tailwind), estrae i template di hexa (core e, se presente, hexa-ai) in
+            target/hexa-templates (le loro classi vanno scansionate) e compila target/classes/static/css/tailwind.css: il layout smette di usare il Play CDN.
+            Supportati macOS e Linux (x64/arm64).
+        -->
+        <profile>
+            <id>tailwind</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>unpack-hexa-templates</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.hexa</groupId>
+                                            <artifactId>hexa-core</artifactId>
+                                            <version>${symbol_dollar}{hexa.version}</version>
+                                        </artifactItem>
+#if( $useAi == "true" )
+                                        <artifactItem>
+                                            <groupId>org.hexa</groupId>
+                                            <artifactId>hexa-ai</artifactId>
+                                            <version>${symbol_dollar}{hexa.version}</version>
+                                        </artifactItem>
+#end
+                                    </artifactItems>
+                                    <includes>templates/**</includes>
+                                    <outputDirectory>${symbol_dollar}{project.build.directory}/hexa-templates</outputDirectory>
+                                    <overWriteSnapshots>true</overWriteSnapshots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.2.0</version>
+                        <executions>
+                            <execution>
+                                <id>compile-tailwind</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="sh" failonerror="true">
+                                            <arg value="-c"/>
+                                            <arg value='B="${symbol_dollar}{project.build.directory}/tailwind/${symbol_dollar}{tailwind.binary}"; mkdir -p "${symbol_dollar}{project.build.directory}/tailwind" &amp;&amp; { [ -x "${symbol_dollar}B" ] || { curl -fsSL -o "${symbol_dollar}B" "https://github.com/tailwindlabs/tailwindcss/releases/download/v${symbol_dollar}{tailwind.version}/${symbol_dollar}{tailwind.binary}" &amp;&amp; chmod +x "${symbol_dollar}B"; }; } &amp;&amp; "${symbol_dollar}B" -c src/main/tailwind/tailwind.config.js -i src/main/tailwind/input.css -o "${symbol_dollar}{project.build.outputDirectory}/static/css/tailwind.css" --minify'/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Scelta del binario per OS/arch: solo proprieta', innocui fuori dal profilo "tailwind". -->
+        <profile>
+            <id>tailwind-macos-arm64</id>
+            <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-macos-arm64</tailwind.binary></properties>
+        </profile>
+        <profile>
+            <id>tailwind-macos-x64</id>
+            <activation><os><family>mac</family><arch>x86_64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-macos-x64</tailwind.binary></properties>
+        </profile>
+        <profile>
+            <id>tailwind-linux-x64</id>
+            <activation><os><family>unix</family><name>Linux</name><arch>amd64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-linux-x64</tailwind.binary></properties>
+        </profile>
+        <profile>
+            <id>tailwind-linux-arm64</id>
+            <activation><os><family>unix</family><name>Linux</name><arch>aarch64</arch></os></activation>
+            <properties><tailwind.binary>tailwindcss-linux-arm64</tailwind.binary></properties>
+        </profile>
+    </profiles>
+</project>

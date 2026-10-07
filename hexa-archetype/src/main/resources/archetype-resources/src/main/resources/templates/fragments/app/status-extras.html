@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  PUNTO DI ESTENSIONE obbligatorio: parte dell'app della barra di stato in basso (fragments/core/status-bar.html), a destra. Vuoto di proposito: ci vanno
+  indicatori propri (crediti, stato di un servizio...). Un chip che carica dati remoti li prende con htmx (hx-get, hx-trigger="load"): il render non fa chiamate remote.
+-->
+<div th:fragment="container"></div>
+
+</body>
+</html>

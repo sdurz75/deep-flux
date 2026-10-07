@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{example.title}">Esempio</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{example.title})}"></nav>
+</div>
+
+<div layout:fragment="content">
+    <h1 th:text="#{example.title}">Esempio</h1>
+    <p th:text="#{example.intro}">Elenco di voci.</p>
+
+    <!-- Stessa URL, due risposte: con htmx il POST restituisce solo il fragment della lista (hx-target), senza htmx un redirect alla pagina. -->
+    <form th:action="@{/example}" method="post" th:hx-post="@{/example}" hx-target="#example-list" hx-swap="outerHTML"
+          class="flex flex-wrap items-end gap-3 my-4">
+        <div class="flex-1 min-w-48">
+            <label for="example-title" class="mt-0" th:text="#{example.label.title}">Titolo</label>
+            <input type="text" id="example-title" name="title" autocomplete="off" maxlength="255">
+        </div>
+        <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{example.button.add}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Aggiungi</button>
+    </form>
+
+    <div th:replace="~{fragments/app/example-list :: list(items=${items}, error=${error})}"></div>
+</div>
+</body>
+</html>

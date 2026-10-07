@@ -1,0 +1,15 @@
+# Override di config per `mvn test` (profilo "test", attivato per ogni esecuzione di Surefire dal pom). Il datasource lo imposta hexa-test-support
+# (container PostgreSQL usa-e-getta registrato in META-INF/spring.factories): i test non toccano mai il DB di sviluppo.
+app:
+  tokens:
+    # Niente controllo di scadenza periodico/all'avvio nei @SpringBootTest.
+    expiry-check-enabled: false
+#if( $useAi == "true" )
+  search:
+    # Nessun EmbeddingModel locale nei test (scaricherebbe ~120 MB): la ricerca semantica e' spenta.
+    enabled: false
+spring:
+  ai:
+    model:
+      embedding: none
+#end

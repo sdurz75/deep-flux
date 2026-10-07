@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.hexa</groupId>
+        <artifactId>hexa-parent</artifactId>
+        <version>0.3.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>hexa-archetype</artifactId>
+    <packaging>maven-archetype</packaging>
+
+    <name>hexa-archetype</name>
+    <description>
+        Archetype Maven di un'app basata su hexa-core (e, a scelta, hexa-ai): layout con menu laterale e tema chiaro/scuro, una slice
+        esagonale di esempio, test di architettura, Docker/CI. Uso e opzioni: docs/TEMPLATE.md.
+    </description>
+
+    <properties>
+        <archetype.version>3.3.1</archetype.version>
+    </properties>
+
+    <build>
+        <extensions>
+            <extension>
+                <groupId>org.apache.maven.archetype</groupId>
+                <artifactId>archetype-packaging</artifactId>
+                <version>${archetype.version}</version>
+            </extension>
+        </extensions>
+        <resources>
+            <!-- Filtrato SOLO il descrittore (versione di hexa come default di hexaVersion, delimitatore @ del parent Spring Boot);
+                 archetype-resources resta com'e': e' Velocity, non Maven. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>META-INF/maven/archetype-metadata.xml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>META-INF/maven/archetype-metadata.xml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+        <plugins>
+            <!-- Gli exclude di default dell'archiver lasciano fuori dal jar .gitignore (e simili), che invece e' parte del template
+                 (archetype-resources/.gitignore): lo aggiunge al jar, dopo archetype:jar, Ant (defaultexcludes="no"). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>add-gitignore-to-archetype-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <jar update="true" destfile="${project.build.directory}/${project.build.finalName}.jar">
+                                    <fileset dir="${project.build.outputDirectory}" defaultexcludes="no">
+                                        <include name="archetype-resources/.gitignore"/>
+                                    </fileset>
+                                </jar>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.archetype</groupId>
+                    <artifactId>archetype-maven-plugin</artifactId>
+                    <version>${archetype.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-archetype-plugin</artifactId>
+                    <version>${archetype.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

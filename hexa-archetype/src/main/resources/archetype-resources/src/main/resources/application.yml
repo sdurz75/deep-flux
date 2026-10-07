@@ -1,0 +1,25 @@
+#set( $symbol_pound = '#' )
+#set( $symbol_dollar = '$' )
+#set( $symbol_escape = '\' )
+# Config dell'APP. Il resto, riusabile, e' nei file importati qui sotto (una chiave di un file importato vince su questa: si cambia da
+# env/.env, da un profilo o da -D). Carica .env (working directory) come file .properties: DB_*, STORAGE_*, ...
+spring:
+  config:
+#if( $useAi == "true" )
+    import: optional:file:.env[.properties],classpath:core.yml,classpath:ai.yml,classpath:prompts.properties
+#else
+    import: optional:file:.env[.properties],classpath:core.yml
+#end
+  application:
+    name: ${artifactId}
+
+app:
+  layout:
+    # Navigazione: sidebar (menu laterale, selettore tema chiaro/scuro/auto in fondo) oppure top (barra in alto).
+    nav: sidebar
+#if( $useAi == "true" )
+
+# Ricerca web del bot (WebSearchTool): l'URL della TUA istanza SearXNG (formato JSON abilitato); credenziali in .env. Senza, la ricerca web non funziona.
+searxng:
+  base-url: ${symbol_dollar}{SEARXNG_BASE_URL:}
+#end

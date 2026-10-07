@@ -1,0 +1,31 @@
+#set( $symbol_pound = '#' )
+#set( $symbol_dollar = '$' )
+#set( $symbol_escape = '\' )
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  PUNTO DI ESTENSIONE obbligatorio: le voci di navigazione#if( $useAi == "true" ) (con hexa-ai: chat e ricerca semantica)#end. Il layout del core le mette nella sidebar (`inline=true`, colonna verticale) o nella barra in alto
+  (`app.layout.nav=top`). Si compone con i fragment del core: header :: navLink (path GREZZO, il fragment applica @{...}), header :: navMenu (menu a tendina),
+  header :: navSystemCore (Eventi e Token di sistema).
+-->
+<th:block th:fragment="links(inline)">
+    <a th:replace="~{fragments/core/header :: navLink(path='/', text=${symbol_pound}{header.nav.home})}">Home</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/example', text=${symbol_pound}{header.nav.example})}">Esempio</a>
+#if( $useAi == "true" )
+    <a th:replace="~{fragments/core/header :: navLink(path='/deep-chat', text=${symbol_pound}{header.nav.deepChat})}">Deep Chat</a>
+    <!-- Solo con la ricerca semantica attiva (app.search.enabled): senza, /search non esiste. -->
+    <th:block th:if="${symbol_dollar}{@environment.getProperty('app.search.enabled', 'true') == 'true'}">
+        <a th:replace="~{fragments/core/header :: navLink(path='/search', text=${symbol_pound}{header.nav.search})}">Ricerca</a>
+    </th:block>
+#end
+    <div th:replace="~{fragments/core/header :: navMenu(label=${symbol_pound}{header.menu.manage}, items=~{fragments/app/nav :: navManage}, inline=${symbol_dollar}{inline})}"></div>
+</th:block>
+
+<th:block th:fragment="navManage">
+    <th:block th:replace="~{fragments/core/header :: navSystemCore}"></th:block>
+</th:block>
+
+</body>
+</html>

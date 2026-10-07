@@ -1,0 +1,24 @@
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+
+# Log
+*.log
+
+# Stato locale: binari e DB di sviluppo
+data/
+
+# Credenziali locali, mai committate
+.env
+.env.*
+!.env.example

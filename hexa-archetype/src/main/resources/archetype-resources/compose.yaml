@@ -1,0 +1,26 @@
+#set( $symbol_pound = '#' )
+#set( $symbol_dollar = '$' )
+#set( $symbol_escape = '\' )
+# PostgreSQL di sviluppo: `docker compose up -d`. Credenziali dal .env (DB_NAME/DB_USERNAME/DB_PASSWORD, gli stessi letti da core.yml).
+# I dati stanno in ./data/postgres (fuori da git).
+services:
+  postgres:
+#if( $useAi == "true" )
+    image: pgvector/pgvector:pg17
+#else
+    image: postgres:17
+#end
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${symbol_dollar}{DB_USERNAME:-${dbName}}
+      POSTGRES_PASSWORD: ${symbol_dollar}{DB_PASSWORD:?imposta DB_PASSWORD nel .env}
+      POSTGRES_DB: ${symbol_dollar}{DB_NAME:-${dbName}}
+    ports:
+      - "${symbol_dollar}{DB_PORT:-5432}:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${symbol_dollar}${symbol_dollar}{POSTGRES_USER} -d ${symbol_dollar}${symbol_dollar}{POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
