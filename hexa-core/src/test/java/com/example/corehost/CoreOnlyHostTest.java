@@ -2,9 +2,9 @@ package com.example.corehost;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.hexa.core.events.port.in.ISystemEvents;
-import org.hexa.core.events.domain.CoreEventSource;
-import org.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.events.port.in.ISystemEvents;
+import org.dual.hexa.core.events.domain.CoreEventSource;
+import org.dual.hexa.core.tokens.port.in.IApiTokens;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,7 +32,7 @@ class CoreOnlyHostTest {
 
         assertThat(jdbc.queryForObject("select count(*) from system_event where operation = 'probe'", Integer.class)).isEqualTo(1);
         assertThat(apiTokens.list()).isEmpty();
-        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(2);
     }
 
     @Test

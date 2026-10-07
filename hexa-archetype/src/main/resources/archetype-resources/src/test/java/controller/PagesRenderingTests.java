@@ -12,10 +12,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.InputStream;
 import java.util.Properties;
-import org.hexa.core.events.domain.CoreEventSource;
-import org.hexa.core.events.domain.EventLink;
-import org.hexa.core.events.port.in.ISystemEvents;
-import org.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.events.domain.CoreEventSource;
+import org.dual.hexa.core.events.domain.EventLink;
+import org.dual.hexa.core.events.port.in.ISystemEvents;
+import org.dual.hexa.core.tokens.port.in.IApiTokens;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,6 +37,28 @@ class PagesRenderingTests {
         String body = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(body).contains("<aside", "href=\"/example\"", "data-theme-value=\"dark\"", "${appName}");
+    }
+
+#if( $usePwa == "true" )
+    /** hexa-pwa: ogni pagina dichiara il manifest (col nome dell'app) e registra il service worker; il worker non e' in cache. */
+    @Test
+    void theAppIsInstallable() throws Exception {
+        String body = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(body).contains("rel=\"manifest\" href=\"/manifest.webmanifest\"", "data-sw=\"/sw.js\"");
+
+        assertThat(mockMvc.perform(get("/manifest.webmanifest")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("\"name\":\"${appName}\"");
+        assertThat(mockMvc.perform(get("/sw.js")).andExpect(status().isOk()).andReturn().getResponse().getHeader("Cache-Control")).contains("no-cache");
+    }
+
+#end
+    /** Il blocco con PIN e' del core: senza PIN l'app e' libera e la pagina Sicurezza sta nel menu Gestione. */
+    @Test
+    void theSecurityPageIsInTheManageMenuAndTheAppIsFreeWithoutAPin() throws Exception {
+        String page = mockMvc.perform(get("/security")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(page).contains("Sicurezza", "action=\"/security/pin\"").doesNotContain("id=\"lock-idle\"");
+        assertThat(mockMvc.perform(get("/")).andReturn().getResponse().getContentAsString()).contains("href=\"/security\"");
     }
 
     @Test

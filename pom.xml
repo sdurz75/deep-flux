@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>org.hexa</groupId>
+    <groupId>org.dual</groupId>
     <artifactId>hexa-parent</artifactId>
     <version>0.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -20,6 +20,7 @@
     <description>
         Reactor: hexa-core (libreria riusabile: kernel, UI kit, eventi, push, token, storage, backup, manuale),
         hexa-ai (libreria opzionale sopra hexa-core: chat, ricerca semantica, prompt/visione, crediti OpenRouter),
+        hexa-pwa (libreria opzionale sopra hexa-core: manifest, service worker e shell offline per rendere l'app installabile),
         hexa-test-support (container PostgreSQL per i test) e l'app deep-flux (dominio: generazione, training).
     </description>
 
@@ -28,6 +29,7 @@
         <module>hexa-test-support</module>
         <module>hexa-core</module>
         <module>hexa-ai</module>
+        <module>hexa-pwa</module>
         <module>deep-flux</module>
         <module>hexa-archetype</module>
     </modules>
@@ -55,17 +57,22 @@
                 <version>${archunit.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
+                <artifactId>hexa-pwa</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -99,8 +106,30 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <executions>
+                        <!-- -sources.jar allegato ai moduli che dichiarano il plugin: mvn deploy lo pubblica. -->
+                        <execution>
+                            <id>attach-sources</id>
+                            <goals>
+                                <goal>jar-no-fork</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>3.12.0</version>
+                    <executions>
+                        <!-- Allegati ai moduli che dichiarano il plugin (hexa-core, hexa-ai, hexa-test-support): mvn deploy pubblica anche -javadoc.jar. -->
+                        <execution>
+                            <id>attach-javadocs</id>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                     <configuration>
                         <release>${java.version}</release>
                         <encoding>UTF-8</encoding>
@@ -111,8 +140,8 @@
                         <links>
                             <link>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</link>
                         </links>
-                        <!-- Solo le librerie: l'app (deep-flux, org.hexa.app) non fa parte dell'API documentata. -->
-                        <excludePackageNames>org.hexa.app.*:org.hexa.support.*</excludePackageNames>
+                        <!-- Solo le librerie: l'app (deep-flux, org.dual.hexa.app) non fa parte dell'API documentata. -->
+                        <excludePackageNames>org.dual.hexa.app.*:org.dual.hexa.support.*</excludePackageNames>
                         <overview>${maven.multiModuleProjectDirectory}/src/main/javadoc/overview.html</overview>
                         <windowtitle>hexa ${project.version}</windowtitle>
                         <doctitle>hexa-core e hexa-ai ${project.version}</doctitle>

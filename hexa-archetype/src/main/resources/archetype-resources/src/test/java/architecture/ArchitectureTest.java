@@ -1,7 +1,7 @@
 package ${package}.architecture;
 
 import java.util.stream.Stream;
-import org.hexa.support.HexaArchitectureRules;
+import org.dual.hexa.support.HexaArchitectureRules;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 

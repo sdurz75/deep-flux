@@ -8,10 +8,10 @@ Il client invia solo l'ultimo messaggio; la cronologia è ricostruita dal server
 
 ## Le SPI
 
-- [`IChatToolkit`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/chat/port/in/IChatToolkit.html): un insieme di strumenti `@Tool` con una sezione di prompt (`promptSection`) e un `@Order`; `beginTurn`/`endTurn` aprono e chiudono il turno.
-- [`IChatTurnContributor`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/chat/port/in/IChatTurnContributor.html): aggiunge dati al contesto degli strumenti a partire dalle impostazioni del client.
-- [`IChatPageContributor`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/chat/port/in/IChatPageContributor.html): attributi per la pagina di una conversazione.
-- [`IChatOutcomeResolver`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/chat/port/in/IChatOutcomeResolver.html): trasforma i riferimenti in esiti da mostrare.
+- [`IChatToolkit`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatToolkit.html): un insieme di strumenti `@Tool` con una sezione di prompt (`promptSection`) e un `@Order`; `beginTurn`/`endTurn` aprono e chiudono il turno.
+- [`IChatTurnContributor`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatTurnContributor.html): aggiunge dati al contesto degli strumenti a partire dalle impostazioni del client.
+- [`IChatPageContributor`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatPageContributor.html): attributi per la pagina di una conversazione.
+- [`IChatOutcomeResolver`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatOutcomeResolver.html): trasforma i riferimenti in esiti da mostrare.
 
 Le implementazioni si iniettano come `Optional<...>` nei servizi della chat.
 
@@ -29,4 +29,4 @@ I link che il bot può citare sono un elenco chiuso di percorsi (`app.chat.link-
 
 ## Riferimento API
 
-[`org.hexa.core.chat.port.in`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/chat/port/in/package-summary.html), [`IPromptEnhancer`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/ai/port/in/IPromptEnhancer.html), [`IImageDescriber`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/ai/port/in/IImageDescriber.html).
+[`org.dual.hexa.ai.chat.port.in`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/package-summary.html), [`IPromptEnhancer`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/llm/port/in/IPromptEnhancer.html), [`IImageDescriber`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/llm/port/in/IImageDescriber.html).

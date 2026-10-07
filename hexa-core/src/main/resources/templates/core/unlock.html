@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{lock.unlock.title}">Bloccata</title>
+</head>
+<body>
+<!-- Senza breadcrumbs: e' la schermata di blocco, non una pagina di navigazione. Il cancello lascia passare solo questa pagina. -->
+<div layout:fragment="content">
+    <div class="max-w-sm mx-auto mt-12">
+        <h1 th:text="#{lock.unlock.title}">App bloccata</h1>
+        <p th:text="#{lock.unlock.intro}">Inserisci il PIN per continuare.</p>
+        <form th:action="@{/unlock}" method="post" data-busy="off" autocomplete="off">
+            <input type="hidden" name="next" th:value="${next}">
+            <p th:if="${error}" th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
+            <label for="unlock-pin" th:text="#{lock.label.pin}">PIN</label>
+            <input type="password" id="unlock-pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" autofocus required>
+            <div class="mt-4">
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{lock.unlock.button}, extraClass=null)}">Sblocca</button>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

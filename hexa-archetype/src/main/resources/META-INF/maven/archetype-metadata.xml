@@ -13,6 +13,10 @@
         <requiredProperty key="useAi">
             <defaultValue>false</defaultValue>
         </requiredProperty>
+        <!-- true: aggiunge hexa-pwa (app installabile: manifest, icone, service worker con shell offline). -->
+        <requiredProperty key="usePwa">
+            <defaultValue>false</defaultValue>
+        </requiredProperty>
         <requiredProperty key="dbName">
             <defaultValue>${artifactId}</defaultValue>
         </requiredProperty>

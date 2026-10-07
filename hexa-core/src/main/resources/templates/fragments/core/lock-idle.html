@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Misura l'inattivita' dell'utente e blocca l'app (hexa-pwa, sottosistema lock). Lo inserisce LockLayoutContributor in fondo al <body>, solo con il PIN
+  attivo e la sessione sbloccata. Conta solo input VERI (mouse, tastiera, tocco, scroll): il polling e gli eventi automatici no. Il server blocca da solo
+  comunque, se i "touch" smettono di arrivare: questo script e' la parte reattiva, non il cancello.
+-->
+<script th:fragment="script" id="lock-idle"
+        th:attr="data-touch-url=|@{/lock/touch}|,data-lock-url=|@{/lock/now}|,data-seconds=${lockIdleSeconds}">
+    (function () {
+        var el = document.getElementById('lock-idle');
+        var limit = parseInt(el.dataset.seconds, 10) * 1000;
+        var touchEvery = Math.min(30000, limit / 3);
+        var lastInput = Date.now();
+        var lastTouch = lastInput;
+        var locking = false;
+
+        function lockNow() {
+            if (locking) {
+                return;
+            }
+            locking = true;
+            try { localStorage.setItem('hexa.lock', String(Date.now())); } catch (e) { /* storage non disponibile: il server blocca comunque */ }
+            fetch(el.dataset.lockUrl, { method: 'POST', credentials: 'same-origin', keepalive: true })
+                .catch(function (error) { console.warn('Blocco: richiesta non riuscita', error); })
+                .then(function () { window.location.reload(); });
+        }
+
+        function onInput() {
+            var now = Date.now();
+            lastInput = now;
+            if (now - lastTouch > touchEvery) {
+                lastTouch = now;
+                fetch(el.dataset.touchUrl, { method: 'POST', credentials: 'same-origin', keepalive: true })
+                    .then(function (response) { if (response.status === 401) { window.location.reload(); } })
+                    .catch(function (error) { console.warn('Blocco: touch non riuscito', error); });
+            }
+        }
+
+        function check() {
+            if (Date.now() - lastInput >= limit) {
+                lockNow();
+            }
+        }
+
+        ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(function (name) {
+            window.addEventListener(name, onInput, { passive: true, capture: true });
+        });
+        // Orologio reale, non un timer lungo: una scheda in background rallenta i timer ma al ritorno il controllo scatta subito.
+        setInterval(check, 5000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) { check(); } });
+        // Piu' schede: se una blocca, le altre si ricaricano e il server le manda allo sblocco.
+        window.addEventListener('storage', function (event) { if (event.key === 'hexa.lock') { window.location.reload(); } });
+    })();
+</script>
+</body>
+</html>

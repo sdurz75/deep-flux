@@ -3,10 +3,10 @@ package ${package}.example.adapter.out.remote;
 
 import ${package}.example.domain.ExampleRemoteException;
 import ${package}.example.port.out.IExampleRemote;
-import org.hexa.core.kernel.i18n.Messages;
-import org.hexa.core.kernel.remote.RemoteServiceException.Kind;
-import org.hexa.core.kernel.remote.RestRemoteClient;
-import org.hexa.core.kernel.remote.RetryPolicy;
+import org.dual.hexa.core.kernel.i18n.Messages;
+import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
+import org.dual.hexa.core.kernel.remote.RestRemoteClient;
+import org.dual.hexa.core.kernel.remote.RetryPolicy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;

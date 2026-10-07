@@ -8,8 +8,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import ${package}.example.domain.ExampleRemoteException;
-import org.hexa.core.kernel.i18n.Messages;
-import org.hexa.core.kernel.remote.RemoteServiceException.Kind;
+import org.dual.hexa.core.kernel.i18n.Messages;
+import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.HttpStatus;

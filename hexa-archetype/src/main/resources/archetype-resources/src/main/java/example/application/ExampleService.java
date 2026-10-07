@@ -5,10 +5,10 @@ import ${package}.example.domain.ExampleItem;
 import ${package}.example.port.in.IExamples;
 import ${package}.example.port.out.IExampleStore;
 import java.util.List;
-import org.hexa.core.events.port.in.ISystemEvents;
-import org.hexa.core.storage.domain.StorageException;
-import org.hexa.core.storage.domain.UploadedFile;
-import org.hexa.core.storage.port.in.IImageStorageService;
+import org.dual.hexa.core.events.port.in.ISystemEvents;
+import org.dual.hexa.core.storage.domain.StorageException;
+import org.dual.hexa.core.storage.domain.UploadedFile;
+import org.dual.hexa.core.storage.port.in.IImageStorageService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

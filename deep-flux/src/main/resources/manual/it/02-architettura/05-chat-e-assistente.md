@@ -1,6 +1,6 @@
 # Chat e assistente
 
-Deep Chat è diviso in `core.chat` (il motore) e `app.chat` (i collegamenti con le generazioni). Insieme: conversazioni, turni, l'assistente basato su un modello linguistico con i suoi strumenti, e il collegamento con le generazioni.
+Deep Chat è diviso in `ai.chat` (il motore) e `app.chat` (i collegamenti con le generazioni). Insieme: conversazioni, turni, l'assistente basato su un modello linguistico con i suoi strumenti, e il collegamento con le generazioni.
 
 ## Un turno
 

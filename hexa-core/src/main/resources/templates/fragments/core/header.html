@@ -52,6 +52,10 @@
 <th:block th:fragment="navSystemCore">
     <a th:replace="~{fragments/core/header :: navLink(path='/system/events', text=#{header.nav.events})}">Eventi</a>
     <a th:replace="~{fragments/core/header :: navLink(path='/tokens', text=#{header.nav.tokens})}">Token</a>
+    <!-- Voci delle librerie opzionali (ILayoutContributor#manageMenu), es. la sicurezza di hexa-pwa. -->
+    <th:block th:each="entry : ${manageMenuEntries}">
+        <a th:replace="~{fragments/core/header :: navLink(path=${entry.path}, text=#{${entry.messageKey}})}">Voce</a>
+    </th:block>
 </th:block>
 
 <!--

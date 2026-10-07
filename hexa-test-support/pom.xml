@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.hexa</groupId>
+        <groupId>org.dual</groupId>
         <artifactId>hexa-parent</artifactId>
         <version>0.3.0-SNAPSHOT</version>
     </parent>
@@ -42,4 +42,21 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <configuration>
+                    <!-- Qui org.dual.hexa.support E' l'API (regole di architettura, container di test): il parent la esclude dal javadoc aggregato delle librerie. -->
+                    <excludePackageNames>org.dual.hexa.app.*</excludePackageNames>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

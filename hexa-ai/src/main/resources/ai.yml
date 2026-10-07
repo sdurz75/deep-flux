@@ -37,7 +37,7 @@ enhancer:
   vision-model: ${OPENROUTER_VISION_MODEL:qwen/qwen3-vl-32b-instruct}
   vision-fallback-model: ${OPENROUTER_VISION_FALLBACK_MODEL:mistralai/mistral-small-3.2-24b-instruct}
 
-# Credito residuo OpenRouter (core.credits): serve una MANAGEMENT key (https://openrouter.ai/settings/management-keys), diversa dal token della chat.
+# Credito residuo OpenRouter (ai.credits): serve una MANAGEMENT key (https://openrouter.ai/settings/management-keys), diversa dal token della chat.
 # Senza, il credito OpenRouter non compare. Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_MANAGEMENT_KEY=sk-or-...
 openrouter:
   base-url: https://openrouter.ai/api/v1

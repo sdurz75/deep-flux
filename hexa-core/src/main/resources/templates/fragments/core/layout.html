@@ -29,6 +29,14 @@
     <title th:text="#{app.title}">App</title>
 
     <!--
+      Punto d'innesto per le librerie opzionali (es. hexa-pwa: manifest, theme-color, registrazione del service worker): i nomi
+      di fragment in headFragments li raccoglie LayoutSlotsAdvice dai bean ILayoutContributor delle librerie. Liste vuote senza
+      librerie: il core non le conosce.
+    -->
+    <!-- Annidati di proposito: th:insert ha precedenza su th:each, sullo stesso elemento la variabile non esisterebbe ancora. -->
+    <th:block th:each="headFragment : ${headFragments}"><th:block th:insert="~{__${headFragment}__}"></th:block></th:block>
+
+    <!--
       Boot sincrono del tema PRIMA del CSS: evita il flash bianco/nero
       (FOUC) al primo render. Alpine, una volta partito, prende il
       controllo dello stato "theme" ma parte gia' dal valore corretto.
@@ -177,6 +185,9 @@
 <div th:replace="~{fragments/core/status-bar :: bar(sidebarNav=${sidebarNav})}"></div>
 
 </th:block>
+
+<!-- Fine del <body> per le librerie opzionali (ILayoutContributor#bodyEnd): stesso schema annidato del <head>. -->
+<th:block th:each="bodyEndFragment : ${bodyEndFragments}"><th:block th:insert="~{__${bodyEndFragment}__}"></th:block></th:block>
 
 </body>
 </html>

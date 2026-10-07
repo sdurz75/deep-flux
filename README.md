@@ -47,7 +47,7 @@ mvn -q install -DskipTests && mvn -pl deep-flux spring-boot:run
 
 Poi apri http://localhost:7070.
 
-**Una nuova app su hexa**: `mvn archetype:generate -DarchetypeGroupId=org.hexa -DarchetypeArtifactId=hexa-archetype ...` genera un'applicazione con menu laterale,
+**Una nuova app su hexa**: `mvn archetype:generate -DarchetypeGroupId=org.dual -DarchetypeArtifactId=hexa-archetype ...` genera un'applicazione con menu laterale,
 tema chiaro/scuro e, a scelta (`-DuseAi=true`), hexa-ai: vedi `docs/TEMPLATE.md`. Senza il token la navigazione normale
 funziona comunque: la generazione fallirà con un errore chiaro finché
 non lo imposti.

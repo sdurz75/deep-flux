@@ -1,6 +1,6 @@
 package ${package}.example.domain;
 
-import org.hexa.core.kernel.EventSource;
+import org.dual.hexa.core.kernel.EventSource;
 
 /**
  * Da dove vengono gli eventi di sistema di questa feature (il registro {@code /system/events}, la campanella, i toast). L'etichetta mostrata sta nel

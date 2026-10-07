@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{pwa.offline.title}">Offline</title>
+</head>
+<body>
+<!-- Pagina senza breadcrumbs: e' la shell mostrata dal service worker quando la rete manca, non una pagina di navigazione. -->
+<div layout:fragment="content">
+    <h1 th:text="#{pwa.offline.title}">Sei offline</h1>
+    <p th:text="#{pwa.offline.message}">Connessione assente.</p>
+    <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{pwa.offline.retry}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass='js-reload')}">Riprova</button>
+    <script>
+        document.querySelectorAll('.js-reload').forEach(function (b) { b.addEventListener('click', function () { window.location.reload(); }); });
+    </script>
+</div>
+</body>
+</html>

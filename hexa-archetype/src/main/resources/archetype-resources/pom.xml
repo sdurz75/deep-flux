@@ -28,11 +28,11 @@
         <tailwind.version>3.4.17</tailwind.version>
     </properties>
 
-    <!-- Le versioni di hexa-core, hexa-ai e hexa-test-support vengono dal BOM: per aggiornare hexa basta cambiare hexa.version. -->
+    <!-- Le versioni di hexa-core, hexa-ai, hexa-pwa e hexa-test-support vengono dal BOM: per aggiornare hexa basta cambiare hexa.version. -->
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-bom</artifactId>
                 <version>${symbol_dollar}{hexa.version}</version>
                 <type>pom</type>
@@ -43,13 +43,19 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-core</artifactId>
         </dependency>
 #if( $useAi == "true" )
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-ai</artifactId>
+        </dependency>
+#end
+#if( $usePwa == "true" )
+        <dependency>
+            <groupId>org.dual</groupId>
+            <artifactId>hexa-pwa</artifactId>
         </dependency>
 #end
         <dependency>
@@ -60,7 +66,7 @@
         </dependency>
         <!-- Container PostgreSQL per i test (registrato da META-INF/spring.factories: nessuna configurazione) e regole di architettura (HexaArchitectureRules, ArchUnit). -->
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-test-support</artifactId>
             <scope>test</scope>
         </dependency>
@@ -143,14 +149,21 @@
                                 <configuration>
                                     <artifactItems>
                                         <artifactItem>
-                                            <groupId>org.hexa</groupId>
+                                            <groupId>org.dual</groupId>
                                             <artifactId>hexa-core</artifactId>
                                             <version>${symbol_dollar}{hexa.version}</version>
                                         </artifactItem>
 #if( $useAi == "true" )
                                         <artifactItem>
-                                            <groupId>org.hexa</groupId>
+                                            <groupId>org.dual</groupId>
                                             <artifactId>hexa-ai</artifactId>
+                                            <version>${symbol_dollar}{hexa.version}</version>
+                                        </artifactItem>
+#end
+#if( $usePwa == "true" )
+                                        <artifactItem>
+                                            <groupId>org.dual</groupId>
+                                            <artifactId>hexa-pwa</artifactId>
                                             <version>${symbol_dollar}{hexa.version}</version>
                                         </artifactItem>
 #end

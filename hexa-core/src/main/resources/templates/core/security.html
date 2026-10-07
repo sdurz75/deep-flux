@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{lock.security.title}">Sicurezza</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{lock.security.title})}"></nav>
+</div>
+<div layout:fragment="content">
+    <h1 th:text="#{lock.security.title}">Sicurezza</h1>
+    <p th:text="#{lock.security.intro}">Blocco con PIN.</p>
+    <div th:replace="~{fragments/core/security-panel :: panel(enabled=${enabled}, timeout=${timeout}, timeouts=${timeouts}, error=${error}, saved=${saved})}"></div>
+</div>
+</body>
+</html>

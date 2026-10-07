@@ -39,4 +39,4 @@ Quando cambia ciò che l'utente vede o fa, si aggiorna la pagina che lo descrive
 
 ## Riferimento API
 
-[`IManual`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/manual/port/in/IManual.html) (`contents`, `page`, `sections`, `search`) e il package [`org.hexa.core.manual.port.in`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/manual/port/in/package-summary.html).
+[`IManual`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/manual/port/in/IManual.html) (`contents`, `page`, `sections`, `search`) e il package [`org.dual.hexa.core.manual.port.in`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/manual/port/in/package-summary.html).

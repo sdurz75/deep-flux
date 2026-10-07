@@ -16,11 +16,11 @@ import ${package}.example.port.out.IExampleStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import org.hexa.core.events.port.in.ISystemEvents;
-import org.hexa.core.kernel.remote.RemoteServiceException.Kind;
-import org.hexa.core.storage.domain.StorageException;
-import org.hexa.core.storage.domain.UploadedFile;
-import org.hexa.core.storage.port.in.IImageStorageService;
+import org.dual.hexa.core.events.port.in.ISystemEvents;
+import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
+import org.dual.hexa.core.storage.domain.StorageException;
+import org.dual.hexa.core.storage.domain.UploadedFile;
+import org.dual.hexa.core.storage.port.in.IImageStorageService;
 import org.junit.jupiter.api.Test;
 
 /** Test senza contesto Spring: lo store e' una porta (qui un finto in memoria), storage ed eventi di sistema sono mock delle porte {@code in} di hexa-core. */

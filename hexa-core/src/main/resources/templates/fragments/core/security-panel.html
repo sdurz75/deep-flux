@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Il pannello della pagina Sicurezza (pagina intera via th:replace, risposta htmx come vista diretta con parametri NOMINATI). Con il blocco attivo ogni
+  modifica chiede il PIN attuale. Gli <input> password restano nudi (il clear-field vale per testo/search/date/number).
+-->
+<div th:fragment="panel(enabled, timeout, timeouts, error, saved)" id="security-panel" class="max-w-md">
+    <p th:if="${error}" th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
+    <p th:if="${saved}" th:text="#{lock.security.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>
+
+    <th:block th:unless="${enabled}">
+        <h2 th:text="#{lock.security.enable.title}">Attiva il blocco</h2>
+        <p th:text="#{lock.security.enable.intro}">Imposta un PIN.</p>
+        <form th:hx-post="@{/security/pin}" hx-target="#security-panel" hx-swap="outerHTML" th:action="@{/security/pin}" method="post" autocomplete="off">
+            <label for="sec-pin" th:text="#{lock.label.newPin}">Nuovo PIN</label>
+            <input type="password" id="sec-pin" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="new-password" required>
+            <label for="sec-confirm" th:text="#{lock.label.confirmPin}">Ripeti il PIN</label>
+            <input type="password" id="sec-confirm" name="confirm" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="new-password" required>
+            <label for="sec-timeout" th:text="#{lock.label.timeout}">Blocca dopo</label>
+            <div class="relative" x-data="pinesSelect" x-bind="root">
+                <select id="sec-timeout" name="timeout" class="sr-only" tabindex="-1" aria-hidden="true">
+                    <option th:each="t : ${timeouts}" th:value="${t}" th:text="#{lock.timeout.minutes(${t / 60})}" th:selected="${t == timeout}">5 minuti</option>
+                </select>
+                <div th:replace="~{fragments/core/select :: ui}"></div>
+            </div>
+            <div class="mt-4">
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{lock.security.enable.button}, extraClass=null)}">Attiva</button>
+            </div>
+        </form>
+    </th:block>
+
+    <th:block th:if="${enabled}">
+        <p th:text="#{lock.security.active(${timeout / 60})}">Blocco attivo.</p>
+        <form th:action="@{/lock/now}" method="post" class="my-4">
+            <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{lock.security.lockNow}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Blocca ora</button>
+        </form>
+
+        <h2 th:text="#{lock.security.timeout.title}">Tempo di inattivita'</h2>
+        <form th:hx-post="@{/security/timeout}" hx-target="#security-panel" hx-swap="outerHTML" th:action="@{/security/timeout}" method="post" autocomplete="off">
+            <label for="sec-timeout2" th:text="#{lock.label.timeout}">Blocca dopo</label>
+            <div class="relative" x-data="pinesSelect" x-bind="root">
+                <select id="sec-timeout2" name="timeout" class="sr-only" tabindex="-1" aria-hidden="true">
+                    <option th:each="t : ${timeouts}" th:value="${t}" th:text="#{lock.timeout.minutes(${t / 60})}" th:selected="${t == timeout}">5 minuti</option>
+                </select>
+                <div th:replace="~{fragments/core/select :: ui}"></div>
+            </div>
+            <label for="sec-current1" th:text="#{lock.label.currentPin}">PIN attuale</label>
+            <input type="password" id="sec-current1" name="current" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" required>
+            <div class="mt-4">
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{lock.security.timeout.button}, extraClass=null)}">Salva</button>
+            </div>
+        </form>
+
+        <h2 th:text="#{lock.security.change.title}">Cambia il PIN</h2>
+        <form th:hx-post="@{/security/pin/change}" hx-target="#security-panel" hx-swap="outerHTML" th:action="@{/security/pin/change}" method="post" autocomplete="off">
+            <label for="sec-current2" th:text="#{lock.label.currentPin}">PIN attuale</label>
+            <input type="password" id="sec-current2" name="current" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" required>
+            <label for="sec-new" th:text="#{lock.label.newPin}">Nuovo PIN</label>
+            <input type="password" id="sec-new" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="new-password" required>
+            <label for="sec-new2" th:text="#{lock.label.confirmPin}">Ripeti il PIN</label>
+            <input type="password" id="sec-new2" name="confirm" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="new-password" required>
+            <div class="mt-4">
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{lock.security.change.button}, extraClass=null)}">Cambia PIN</button>
+            </div>
+        </form>
+
+        <h2 th:text="#{lock.security.disable.title}">Disattiva il blocco</h2>
+        <form th:hx-post="@{/security/disable}" hx-target="#security-panel" hx-swap="outerHTML" th:action="@{/security/disable}" method="post" autocomplete="off">
+            <label for="sec-current3" th:text="#{lock.label.currentPin}">PIN attuale</label>
+            <input type="password" id="sec-current3" name="current" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" required>
+            <div class="mt-4">
+                <button th:replace="~{fragments/core/button :: danger(type='submit', text=#{lock.security.disable.button}, hxPost=null, hxDelete=null, hxConfirm=#{lock.security.disable.confirm}, hxSwap=null, hxTarget=null, extraClass=null)}">Disattiva</button>
+            </div>
+        </form>
+    </th:block>
+</div>
+
+</body>
+</html>

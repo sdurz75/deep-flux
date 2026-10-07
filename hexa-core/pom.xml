@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.hexa</groupId>
+        <groupId>org.dual</groupId>
         <artifactId>hexa-parent</artifactId>
         <version>0.3.0-SNAPSHOT</version>
     </parent>
@@ -13,7 +13,7 @@
     <artifactId>hexa-core</artifactId>
     <name>hexa-core</name>
     <description>
-        Libreria riusabile (org.hexa.core.*): kernel, layout e UI kit Thymeleaf, eventi di sistema, push SSE, secrets/token,
+        Libreria riusabile (org.dual.hexa.core.*): kernel, layout e UI kit Thymeleaf, eventi di sistema, push SSE, secrets/token,
         storage binari, backup, manuale. Niente AI (e' in hexa-ai) e niente dominio: l'host la estende con le SPI
         elencate in CLAUDE.md e con gli slot di template.
     </description>
@@ -69,9 +69,9 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
-        <!-- Container PostgreSQL per i test che avviano un contesto (host di prova fuori da org.hexa). -->
+        <!-- Container PostgreSQL per i test che avviano un contesto (host di prova fuori da org.dual.hexa). -->
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-test-support</artifactId>
             <scope>test</scope>
         </dependency>
@@ -89,6 +89,14 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

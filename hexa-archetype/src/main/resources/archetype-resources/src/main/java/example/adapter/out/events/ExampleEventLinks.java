@@ -1,9 +1,9 @@
 package ${package}.example.adapter.out.events;
 
 import java.util.List;
-import org.hexa.core.events.domain.EventLink;
-import org.hexa.core.events.port.out.IEventLinkResolver;
-import org.hexa.core.kernel.i18n.Messages;
+import org.dual.hexa.core.events.domain.EventLink;
+import org.dual.hexa.core.events.port.out.IEventLinkResolver;
+import org.dual.hexa.core.kernel.i18n.Messages;
 import org.springframework.stereotype.Component;
 
 /**

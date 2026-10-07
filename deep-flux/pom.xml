@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.hexa</groupId>
+        <groupId>org.dual</groupId>
         <artifactId>hexa-parent</artifactId>
         <version>0.3.0-SNAPSHOT</version>
     </parent>
@@ -15,7 +15,7 @@
 
     <name>deep-flux</name>
     <description>
-        L'app (org.hexa.app.*): generazione immagini/video, galleria, training LoRA; innesta nel core i suoi toolkit di chat,
+        L'app (org.dual.hexa.app.*): generazione immagini/video, galleria, training LoRA; innesta nel core i suoi toolkit di chat,
         le sorgenti di ricerca e di credito e gli slot di template. Spring MVC + Thymeleaf, htmx, Alpine, nessuno step di build frontend.
     </description>
 
@@ -28,12 +28,16 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-ai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.dual</groupId>
+            <artifactId>hexa-pwa</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -42,19 +46,19 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-test-support</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-core</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-ai</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>

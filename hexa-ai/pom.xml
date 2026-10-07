@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.hexa</groupId>
+        <groupId>org.dual</groupId>
         <artifactId>hexa-parent</artifactId>
         <version>0.3.0-SNAPSHOT</version>
     </parent>
@@ -13,21 +13,21 @@
     <artifactId>hexa-ai</artifactId>
     <name>hexa-ai</name>
     <description>
-        Libreria opzionale sopra hexa-core (org.hexa.core.{ai,chat,search,credits}): chiamate LLM e visione (OpenRouter via Spring AI),
+        Libreria opzionale sopra hexa-core (org.dual.hexa.ai.{llm,chat,search,credits}): chiamate LLM e visione (OpenRouter via Spring AI),
         chat con tool e cronologia lato server, ricerca semantica (pgvector + embedding ONNX locali), crediti OpenRouter.
         Un host sceglie hexa-core da solo oppure hexa-core + hexa-ai; hexa-core non dipende da questo modulo.
     </description>
 
     <dependencies>
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-core</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
-        <!-- Ricerca semantica (core.search): VectorStore implementato da PgVectorStore su PostgreSQL + pgvector + embedding LOCALI via ONNX
+        <!-- Ricerca semantica (ai.search): VectorStore implementato da PgVectorStore su PostgreSQL + pgvector + embedding LOCALI via ONNX
              (multilingual-e5-small, scaricato al primo avvio in ./data/models). Volutamente l'artefatto dello store e NON lo starter:
              il bean lo scriviamo noi (SemanticSearchConfig: decorator dei prefissi e5, spegnibile nei test). -->
         <dependency>
@@ -42,9 +42,9 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-transformers</artifactId>
         </dependency>
-        <!-- Container PostgreSQL per i test che avviano un contesto (host di prova fuori da org.hexa). -->
+        <!-- Container PostgreSQL per i test che avviano un contesto (host di prova fuori da org.dual.hexa). -->
         <dependency>
-            <groupId>org.hexa</groupId>
+            <groupId>org.dual</groupId>
             <artifactId>hexa-test-support</artifactId>
             <scope>test</scope>
         </dependency>
@@ -62,6 +62,14 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<!--
+  Innesto di hexa-pwa nel <head> del layout (lo inserisce layout.html tramite il model attribute headFragments, vedi PwaHeadAdvice).
+  I colori della barra del browser sono esadecimali in configurazione (app.pwa.theme-color[-dark]): un meta non accetta token Tailwind.
+-->
+<th:block th:fragment="head">
+    <link rel="manifest" th:href="@{/manifest.webmanifest}">
+    <meta name="theme-color" th:content="${pwaThemeColor}" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" th:content="${pwaThemeColorDark}" media="(prefers-color-scheme: dark)">
+    <link rel="icon" type="image/svg+xml" th:href="@{/pwa/icons/icon.svg}">
+    <link rel="apple-touch-icon" th:href="@{/pwa/icons/apple-touch-icon.png}">
+    <script id="pwa-register" th:attr="data-sw=|@{/sw.js}|,data-scope=|@{/}|">
+        // Registrazione dopo il load: non compete con il primo render. Un errore (contesto non sicuro, browser senza service worker) non blocca l'app.
+        if ('serviceWorker' in navigator) {
+            var pwaRegister = document.getElementById('pwa-register');
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register(pwaRegister.dataset.sw, { scope: pwaRegister.dataset.scope })
+                    .catch(function (error) { console.warn('Service worker non registrato:', error); });
+            });
+        }
+    </script>
+</th:block>
+</head>
+</html>

@@ -6,19 +6,19 @@
 
 ```bash
 mvn -q install -DskipTests                       # una volta: installa le librerie e l'archetype in ~/.m2
-mvn archetype:generate -DarchetypeGroupId=org.hexa -DarchetypeArtifactId=hexa-archetype -DarchetypeVersion=0.3.0-SNAPSHOT \
+mvn archetype:generate -DarchetypeGroupId=org.dual -DarchetypeArtifactId=hexa-archetype -DarchetypeVersion=0.3.0-SNAPSHOT \
     -DgroupId=com.example -DartifactId=my-app -Dpackage=com.example.myapp -DappName="My App" -DuseAi=false
 ```
 
-Proprieta': `appName` (brand, default l'artifactId), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
+Proprieta': `appName` (brand, default l'artifactId), `usePwa` (`true` aggiunge `hexa-pwa`: app installabile con manifest, icone segnaposto e service worker con shell offline, nessuna configurazione da importare), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
 `pgvector/pgvector:pg17` nel compose), `dbName` (default l'artifactId). Si genera con package radice QUALUNQUE (autoconfigurazione, nessuno scan da scrivere).
 
-`hexa-bom` allinea le versioni (`hexa-core`, `hexa-ai`, `hexa-test-support`): l'app lo importa in `dependencyManagement` e aggiorna hexa cambiando `hexa.version`.
+`hexa-bom` allinea le versioni (`hexa-core`, `hexa-ai`, `hexa-pwa`, `hexa-test-support`): l'app lo importa in `dependencyManagement` e aggiorna hexa cambiando `hexa.version`.
 
 L'app generata include la **guida dello sviluppatore** (manuale, gruppo `02-sviluppo`, con link al javadoc di hexa-core/hexa-ai pubblicato da `.github/workflows/javadoc.yml` su GitHub Pages; in locale `mvn -Pjavadoc javadoc:aggregate` -> `target/reports/apidocs`): e' modificabile o cancellabile. L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
 `fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione) che mostra anche un allegato nello storage con `IBlobReferences` per il backup (e il test che lo impone), una `EventSource` propria con `ISystemEvents`/`IEventLinkResolver`, un provider di token (`ITokenProviderCatalog`) e una pagina di manuale, `ArchitectureTest` (le regole di layering di hexa, da `HexaArchitectureRules` in `hexa-test-support`: dentro la feature, fra feature e verso le librerie solo `port.in`/`domain`), test di rendering (con bundle disgiunti dalle librerie) e
 di contesto (Testcontainers), `compose.yaml`, `.env.example`, `Dockerfile`, workflow GitHub Actions, profilo `-Ptailwind` (CSS compilato, scansiona anche i template di hexa-core
-estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue due test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai}`):
+estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue tre test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai,pwa}`):
 generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build scarica il packaging `maven-archetype`: con il mirror aziendale usare
 `MAVEN_OPTS="-Dhttps.protocols=TLSv1.2,TLSv1.3"`. Niente script Groovy nell'archetype (il Groovy del plugin non legge i class file di JDK 24+): `.gitignore` e' aggiunto al jar da Ant.
 
@@ -26,11 +26,11 @@ generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build s
 
 Il codice e' diviso in due:
 
-- **`core`** (`org.hexa.core`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.
-- **`app`** (`org.hexa.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
+- **`core`** (`org.dual.hexa.core`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.
+- **`app`** (`org.dual.hexa.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
   ricerca semantica). Si **sostituisce** con la propria.
 
-**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.hexa:hexa-core`), `app` il modulo `deep-flux` (package `org.hexa.app`), `hexa-test-support` il container di test. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `deep-flux` (`deep-flux/src/...`) o `hexa-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
+**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.dual:hexa-core`), `app` il modulo `deep-flux` (package `org.dual.hexa.app`), `hexa-test-support` il container di test. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `deep-flux` (`deep-flux/src/...`) o `hexa-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
 app implementando i punti di estensione sotto. La regola `coreDoesNotKnowApp` di `ArchitectureTest` impedisce che il codice di `core`
 dipenda da `app`; ogni sottosistema (di `core` e di `app`) e' un esagono (domain / application / port.in / port.out / adapter.in /
 adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
@@ -47,16 +47,17 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.storage` | `IImageStorageService` (binari su filesystem locale o WebDAV cifrato, cache, migrazione), `ImageController` (`/images/**`) | - |
 | `core.backup` | comandi `export` e `import` del jar (`java -jar app.jar export <file>`): backup completo (tabelle scoperte da `information_schema` + binari) in un archivio cifrato; profilo `backup` (`application-backup.yml`) | la SPI `IBlobReferences` (`port.in`): le coppie (tabella, colonna) con i nomi dei binari; senza, si esporta solo il DB |
 | `core.manual` | manuale online: pagine Markdown di `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md` convertite al volo, `/manual`, ricerca per sezioni (`IManual`) | i TESTI (`manual/`) e le etichette dei gruppi `manual.group.<gruppo>` nel bundle; per il bot di chat un toolkit come `ManualTool` che usa `IManual` (opzionale); la voce di menu `/manual` |
-| `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo` | - |
+| `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo`, `ILayoutContributor` (punto d'innesto del layout per le librerie opzionali: fragment per head e fine body, voci del menu «Gestione») | - |
+| `core.lock` | blocco dell'app con PIN dopo inattivita' (`ILock`, pagina `/security`, `/unlock`, cancello `LockInterceptor` lato server, tabella `app_lock`, recupero con `app.lock.reset=true`, SPI `ILockExemptPaths`) | opzionale: `app.lock.exempt-paths`; il PIN si attiva da `/security`, senza PIN non cambia nulla |
 | template e bundle | `templates/fragments/core/*` (kit generico: bottoni, select Pines, modal, conferma, tabs, switch, popover, slideover, accordion, lightbox, dropzone, campo numerico, tag-chips, paginazione, chip, alert), `templates/fragments/core/*` (layout, header, status-bar, toast, tokens, bottoni del chrome...), `templates/core/*` (`/system/events`, `/tokens`, `/manual`), `messages-core(.en).properties` | vedi "Punti di estensione" |
 | config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
-| Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token` | - |
+| Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token`; `V2026_10_07_1600__app_lock.sql`: `app_lock` | - |
 
 `ApiTokenProvider`, `ReplicatePricing`, il catalogo modelli ecc. NON sono core: stanno in `app.generation`.
 
 ## Cosa cancellare o sostituire
 
-Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/hexa`.
+Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/hexa`.
 
 **Java**
 
@@ -126,7 +127,7 @@ le sezioni di prompt dei tool in `prompts.properties` (`deep-chat.section.*`); `
 `core`, `ai` e quella dell'host.
 Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei segreti) e' del core.
 
-**Test** (`src/test/java/org/hexa/`)
+**Test** (`src/test/java/org/dual/hexa/`)
 
 - Cancellare: `app/` per intero (compresi `app/manual/ManualContentTest` e `ManualControllerTest`, che asseriscono pagine e gruppi del manuale di QUESTA app: la nuova app scrive i suoi), `controller/TemplateRenderingTests` (quasi tutto sulle pagine dell'app; i test generici su `/system/events`,
   `/tokens`, bundle, select e toast hanno gia' una copia nei test di `core/`), `config/FlywayCoreAppMigrationTest` (controlla anche le tabelle
@@ -169,11 +170,11 @@ Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei seg
 
 ## Rinominare il package radice
 
-`org.hexa` compare nei sorgenti, in `META-INF/spring.factories` (test), in `ArchitectureTest` e nel `groupId` del `pom.xml` (`org.hexa`,
+`org.dual.hexa` compare nei sorgenti, in `META-INF/spring.factories` (test), in `ArchitectureTest` e nel `groupId` del `pom.xml` (`org.dual.hexa`,
 che di per se' non deve combaciare). Procedura (esempio verso `com.acme.shop`); farla su un commit pulito e poi eseguire la suite:
 
 ```bash
-OLD=org/hexa; NEW=com/acme/shop
+OLD=org/dual/hexa; NEW=com/acme/shop
 mkdir -p src/main/java/$NEW src/test/java/$NEW
 git mv src/main/java/$OLD/* src/main/java/$NEW/
 git mv src/test/java/$OLD/* src/test/java/$NEW/
@@ -182,10 +183,10 @@ find src -type d -empty -delete
 grep -rl 'org\.hexa' src pom.xml CLAUDE.md docs README.md \
   | xargs sed -i '' 's/org\.hexa/com.acme.shop/g'   # Linux: sed -i senza ''
 # groupId/artifactId (facoltativo)
-sed -i '' 's#<groupId>org.hexa</groupId>#<groupId>com.acme</groupId>#' pom.xml
+sed -i '' 's#<groupId>org.dual</groupId>#<groupId>com.acme</groupId>#' pom.xml
 ```
 
-Controlli dopo il rename: `ArchitectureTest.ROOT` (stringa letterale `"org.hexa"`, aggiornata dal `sed` solo se ha esattamente quel
+Controlli dopo il rename: `ArchitectureTest.ROOT` (stringa letterale `"org.dual.hexa"`, aggiornata dal `sed` solo se ha esattamente quel
 formato: verificarla), `src/test/resources/META-INF/spring.factories` (cita `...support.PostgresTestContainerInitializer`), i FQCN nelle
 query JPQL e nelle annotazioni, `@AnalyzeClasses(packages = ...)`. Dopo: `rm -rf target && mvn -q -o test`.
 

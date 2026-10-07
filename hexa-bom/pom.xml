@@ -5,14 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!-- BOM: autonomo di proposito (niente parent), cosi' chi lo importa non eredita le versioni di Spring Boot di hexa-parent. -->
-    <groupId>org.hexa</groupId>
+    <groupId>org.dual</groupId>
     <artifactId>hexa-bom</artifactId>
     <version>0.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>hexa-bom</name>
     <description>
-        Bill of Materials di hexa: le versioni di hexa-core, hexa-ai e hexa-test-support, allineate. Un host lo importa in dependencyManagement e dichiara
+        Bill of Materials di hexa: le versioni di hexa-core, hexa-ai, hexa-pwa e hexa-test-support, allineate. Un host lo importa in dependencyManagement e dichiara
         le dipendenze senza versione. La versione di questo file va tenuta uguale a quella di hexa-parent: se divergono, gli
         archetype IT (che importano il BOM alla versione del parent) falliscono.
     </description>
@@ -20,17 +20,22 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.hexa</groupId>
+                <groupId>org.dual</groupId>
+                <artifactId>hexa-pwa</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>

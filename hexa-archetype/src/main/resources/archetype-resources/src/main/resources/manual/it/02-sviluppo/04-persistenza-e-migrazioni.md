@@ -22,4 +22,4 @@ Per ripartire da un database pulito: `docker compose down` e cancellare `data/po
 
 ## Riferimento API
 
-Il kernel con tipi condivisi come `Paged` è in [`org.hexa.core.kernel`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/kernel/package-summary.html).
+Il kernel con tipi condivisi come `Paged` è in [`org.dual.hexa.core.kernel`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/kernel/package-summary.html).

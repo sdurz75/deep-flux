@@ -18,6 +18,7 @@ L'app è un host: dipende dai jar tramite `hexa-bom` (le versioni sono allineate
 - [Eventi, errori e servizi remoti](06-eventi-errori-remoti.md), [Storage, token e backup](07-storage-token-backup.md), [Push in tempo reale](08-push-sse.md).
 - [Il manuale online](09-manuale-online.md).
 - Con hexa-ai: [Chat e strumenti](10-ai-chat.md), [Ricerca e crediti](11-ai-ricerca-e-crediti.md).
+- Con hexa-pwa: [App installabile](15-pwa.md). In ogni app: [Blocco con PIN](16-blocco-con-pin.md).
 - [Testare](12-testare.md) e [Ricette](13-ricette.md).
 
 ## Riferimento API

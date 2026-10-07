@@ -4,7 +4,7 @@ Il server può avvisare il browser di un cambiamento senza polling, con Server-S
 
 ## Come funziona
 
-Il browser apre `GET /events` (il fragment `fragments/core/live-events.html` è già nel layout). Il servizio emette un evento con [`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/push/port/in/IClientPush.html)`#emit(eventName, data)`; la pagina lo ascolta con htmx (`hx-trigger="sse:<nome>"`) o con Alpine.
+Il browser apre `GET /events` (il fragment `fragments/core/live-events.html` è già nel layout). Il servizio emette un evento con [`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPush.html)`#emit(eventName, data)`; la pagina lo ascolta con htmx (`hx-trigger="sse:<nome>"`) o con Alpine.
 
 ## Eventi propri
 
@@ -16,4 +16,4 @@ Per esiti che arrivano in ritardo (un'elaborazione in background che termina). P
 
 ## Riferimento API
 
-[`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/push/port/in/IClientPush.html), [`IClientPushStream`](https://sdurz75.github.io/deep-flux/apidocs/org/hexa/core/push/port/in/IClientPushStream.html).
+[`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPush.html), [`IClientPushStream`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPushStream.html).

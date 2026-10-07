@@ -1,7 +1,7 @@
 package ${package}.example.adapter.out.tokens;
 
 import java.util.List;
-import org.hexa.core.tokens.port.out.ITokenProviderCatalog;
+import org.dual.hexa.core.tokens.port.out.ITokenProviderCatalog;
 import org.springframework.stereotype.Component;
 
 /**

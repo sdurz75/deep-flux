@@ -1,6 +1,6 @@
 package ${package}.example.domain;
 
-import org.hexa.core.kernel.remote.RemoteServiceException;
+import org.dual.hexa.core.kernel.remote.RemoteServiceException;
 
 /**
  * Errore del servizio esterno di esempio. Il {@code Kind} decide tutto: {@code TRANSIENT} (rete, timeout, 408/429/5xx) viene ritentato da

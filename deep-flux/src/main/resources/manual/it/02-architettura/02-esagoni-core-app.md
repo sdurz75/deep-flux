@@ -1,6 +1,6 @@
 # Esagoni, core e app
 
-Ogni sottosistema è un **esagono** pragmatico (ports and adapters). Sta in `org.hexa.core.<sottosistema>` se è generico, in `org.hexa.app.<sottosistema>` se è specifico di questa applicazione.
+Ogni sottosistema è un **esagono** pragmatico (ports and adapters). Sta in `org.dual.hexa.core.<sottosistema>` se è generico, in `org.dual.hexa.app.<sottosistema>` se è specifico di questa applicazione.
 
 ## La struttura di un esagono
 
@@ -41,20 +41,20 @@ Queste regole sono verificate da `ArchitectureTest` (ArchUnit) e da `SourceImpor
 | core.storage | i binari: nome, validazione, filesystem o WebDAV, `/images/{file}` |
 | core.backup | export e import del sistema completo |
 | core.manual | questo manuale |
-| core.chat | il motore di Deep Chat: conversazioni, turni, assistente, ricerca web, note, storico lato server |
-| core.ai | miglioramento del prompt, descrizione e didascalia delle immagini con un modello di visione, esecutore delle chiamate al provider LLM |
-| core.search | ricerca semantica: indice, riconciliazione, note |
+| ai.chat | il motore di Deep Chat: conversazioni, turni, assistente, ricerca web, note, storico lato server |
+| ai.llm | miglioramento del prompt, descrizione e didascalia delle immagini con un modello di visione, esecutore delle chiamate al provider LLM |
+| ai.search | ricerca semantica: indice, riconciliazione, note |
 | app.generation | generazioni, immagini importate, catalogo modelli, LoRA, galleria, costo |
 | app.chat | il lato app di Deep Chat: strumenti legati alle generazioni, esiti, azioni proposte, recupero, pagina |
 | app.search | la pagina `/search` |
 | app.training | addestramento LoRA: dataset, ritaglio, didascalie, training su Replicate, risultato |
-| core.credits | credito residuo: riga OpenRouter e aggregazione delle `ICreditSource` dell'host |
+| ai.credits | credito residuo: riga OpenRouter e aggregazione delle `ICreditSource` dell'host |
 | app.credits | stima del saldo Replicate (`ICreditSource` dell'app) e inserimento del saldo |
 | app.shared | dominio comune dell'app (tag, sorgenti degli eventi, home) |
 
 ## Chi dipende da chi, nell'app
 
-`core.ai` e `core.search` sono foglie del core; `core.chat` dipende da `core.ai`, `core.search` e `core.manual` e non conosce le generazioni (le SPI `IChatToolkit`, `IChatTurnContributor`, `IChatPageContributor`, `IChatOutcomeResolver` le implementa l'app). Nell'app `generation` dipende da `core.ai` e `core.search`; `app.chat` da `generation`, `credits` e `core.chat`; `credits` da `generation`; `training` da `generation` (preset e catalogo dei modelli) e da `prompt` (le didascalie), e nessuno dipende da `training`. `generation` non conosce `chat` (solo un numero, `Generation.conversationId`), e `core.search` non conosce né `generation` né `chat`: legge i loro dati tramite una interfaccia di estensione (`ISearchableSource`) che loro implementano.
+`ai.llm` e `ai.search` sono foglie del core; `ai.chat` dipende da `ai.llm`, `ai.search` e `core.manual` e non conosce le generazioni (le SPI `IChatToolkit`, `IChatTurnContributor`, `IChatPageContributor`, `IChatOutcomeResolver` le implementa l'app). Nell'app `generation` dipende da `ai.llm` e `ai.search`; `app.chat` da `generation`, `credits` e `ai.chat`; `credits` da `generation`; `training` da `generation` (preset e catalogo dei modelli) e da `prompt` (le didascalie), e nessuno dipende da `training`. `generation` non conosce `chat` (solo un numero, `Generation.conversationId`), e `ai.search` non conosce né `generation` né `chat`: legge i loro dati tramite una interfaccia di estensione (`ISearchableSource`) che loro implementano.
 
 ## I punti di estensione del core
 

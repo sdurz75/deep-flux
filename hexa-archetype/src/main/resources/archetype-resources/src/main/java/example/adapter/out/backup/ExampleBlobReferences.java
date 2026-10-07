@@ -1,8 +1,8 @@
 package ${package}.example.adapter.out.backup;
 
 import java.util.List;
-import org.hexa.core.backup.domain.BlobColumn;
-import org.hexa.core.backup.port.in.IBlobReferences;
+import org.dual.hexa.core.backup.domain.BlobColumn;
+import org.dual.hexa.core.backup.port.in.IBlobReferences;
 import org.springframework.stereotype.Component;
 
 /**
