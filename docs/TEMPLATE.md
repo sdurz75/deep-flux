@@ -118,7 +118,7 @@ commentati nell'esempio). Del core: `DB_*`,
 **`pom.xml`**: l'AI e' in un modulo a parte, `hexa-ai`. Un host che non usa chat, ricerca semantica, visione ne' crediti OpenRouter dipende solo da `hexa-core`
 (niente Spring AI, pgvector ne' ONNX nel classpath; `reactor-core` resta, lo usa `IClientPushStream`) e non importa `ai.yml`. Chi li vuole aggiunge `hexa-ai`
 (dipende gia' da `hexa-core`), importa `classpath:ai.yml` accanto a `core.yml`, (le migrazioni `db/migration/ai` si trovano da sole) e fornisce
-`searxng.base-url` (con la chat) e le chiavi di prompt di `prompts.properties`. Il bundle `messages-ai` si registra da solo. Con `hexa-ai` il
+le sezioni di prompt dei tool in `prompts.properties` (`deep-chat.section.*`); `searxng.base-url` e le guide di visione (`imageAnalysis.guide`, `trainingCaption.*`, `generateForm.*`) sono facoltativi: senza guida il relativo servizio non nasce. Il bundle `messages-ai` si registra da solo. Con `hexa-ai` il
 `spring.ai.*` di `ai.yml` serve (l'autoconfig OpenAI vuole una API key: `At least one credential source must be specified`). L'host puo' avere qualunque package radice: `HexaCoreAutoConfiguration`/`HexaAiAutoConfiguration` scansionano i componenti e registrano entity/repository
 (provato da `CoreOnlyHostTest` e `AiHostTest`, host in `com.example.*`). Flyway non vuole `spring.flyway.locations`: il default `classpath:db/migration` trova le sottocartelle
 `core`, `ai` e quella dell'host.

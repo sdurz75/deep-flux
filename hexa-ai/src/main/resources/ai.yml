@@ -2,7 +2,9 @@
 # ATTENZIONE: un file importato vince sull'application.yml che lo importa (solo i file di profilo, application-<profilo>.yml, vincono su di lui):
 # le chiavi definite qui NON si cambiano dall'application.yml dell'host, ma da env, da un profilo o da -D. Per questo qui stanno solo i default
 # stabili (spring.ai.*, openrouter.*, enhancer.*) e le chiavi con un default nel codice restano fuori.
-# I testi dei prompt (imageAnalysis.guide, trainingCaption.*, generateForm.*, deep-chat.section.*) NON sono qui: sono dell'host (prompts.properties).
+# I testi dei prompt NON sono qui: sono dell'host (prompts.properties). Le sezioni del system prompt dei tool di hexa-ai (deep-chat.section.web|notes|manual|archive,
+# piu' core e guidance) servono alla chat; i servizi di visione sono OPZIONALI e nascono solo se l'host ne definisce la guida: imageAnalysis.guide (IImageDescriber),
+# trainingCaption.subject-guide + style-guide (IImageCaptioner), generateForm.*-guide (cinque, IPromptEnhancer). Senza la guida il bean non esiste.
 spring:
   ai:
     openai:
@@ -43,7 +45,7 @@ openrouter:
 
 # Istanza SearXNG usata dal tool di web search del modello (WebSearchTool/SearxngClient). Richiede il formato JSON abilitato lato server
 # (settings.yml: search.formats: [html, json]), altrimenti risponde 403. Credenziali Basic Auth da variabili d'ambiente, mai committate.
-# searxng.base-url NON e' qui: e' dell'host (obbligatorio se c'e' la chat). Idem i tetti della chat e dell'indice (app.chat.history-*, app.search.*):
+# searxng.base-url NON e' qui: e' dell'host (facoltativo: senza, la ricerca web del bot risponde che non e' configurata). Idem i tetti della chat e dell'indice (app.chat.history-*, app.search.*):
 # hanno un default nel codice (@Value) e si cambiano nell'application.yml dell'host.
 searxng:
   username: ${SEARXNG_USERNAME:}

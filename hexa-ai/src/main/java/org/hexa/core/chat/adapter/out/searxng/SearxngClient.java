@@ -23,12 +23,13 @@ import org.springframework.web.client.RestClient;
 public class SearxngClient extends RestRemoteClient implements IWebSearchGateway {
 
     private final RestClient restClient;
+    private final boolean configured;
     private final String username;
     private final String password;
     private final Messages messages;
 
     public SearxngClient(RestClient.Builder restClientBuilder,
-                          @Value("${searxng.base-url}") String baseUrl,
+                          @Value("${searxng.base-url:}") String baseUrl,
                           @Value("${searxng.username}") String username,
                           @Value("${searxng.password}") String password,
                           Messages messages) {
@@ -48,6 +49,7 @@ public class SearxngClient extends RestRemoteClient implements IWebSearchGateway
         requestFactory.setReadTimeout(java.time.Duration.ofSeconds(20));
         this.restClient = restClientBuilder.requestFactory(requestFactory)
                 .baseUrl(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/").build();
+        this.configured = !baseUrl.isBlank();
         this.username = username;
         this.password = password;
         this.messages = messages;
@@ -80,6 +82,9 @@ public class SearxngClient extends RestRemoteClient implements IWebSearchGateway
     }
 
     private void requireCredentials() {
+        if (!configured) {
+            throw new SearxngException(messages.get("searxng.error.baseUrlMissing"));
+        }
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
             throw new SearxngException(messages.get("searxng.error.credentialsMissing"));
         }

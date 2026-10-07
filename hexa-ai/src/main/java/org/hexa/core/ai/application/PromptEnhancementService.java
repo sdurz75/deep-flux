@@ -6,6 +6,7 @@ import org.hexa.core.ai.port.in.IPromptEnhancer;
 import org.hexa.core.ai.port.out.IPromptModel;
 import org.hexa.core.ai.port.out.ISourceImageScaler;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Service;
  * testo e di visione, il fallback e il riconoscimento dei rifiuti sono qui; la chiamata al modello e' dietro {@link IPromptModel}.
  */
 @Service
+@ConditionalOnProperty({"generateForm.prompt-enhancement-guide", "generateForm.video-prompt-enhancement-guide",
+        "generateForm.edit-prompt-enhancement-guide", "generateForm.inpaint-prompt-enhancement-guide", "generateForm.img2img-prompt-enhancement-guide"})
 public class PromptEnhancementService implements IPromptEnhancer {
 
     private final IPromptModel model;

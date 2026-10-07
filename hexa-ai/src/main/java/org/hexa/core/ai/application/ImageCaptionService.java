@@ -11,6 +11,7 @@ import org.hexa.core.ai.port.out.IPromptModel;
 import org.hexa.core.ai.port.out.ISourceImageScaler;
 import org.hexa.core.storage.domain.SourceImage;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
  * La trigger word e' una garanzia dello use case, non una speranza sul modello.
  */
 @Service
+@ConditionalOnProperty({"trainingCaption.subject-guide", "trainingCaption.style-guide"})
 public class ImageCaptionService implements IImageCaptioner {
 
     /** Tetto della didascalia: il trainer ne usa una per immagine e un testo molto lungo viene comunque tagliato dal suo tokenizer. */

@@ -13,6 +13,7 @@ import org.hexa.core.ai.port.out.IPromptModel;
 import org.hexa.core.ai.port.out.ISourceImageScaler;
 import org.hexa.core.storage.domain.SourceImage;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
  * modelli che non rispettano un JSON).
  */
 @Service
+@ConditionalOnProperty("imageAnalysis.guide")
 public class ImageDescriptionService implements IImageDescriber {
 
     /** Tetto della descrizione e dei tag: l'indice tronca comunque a {@code DocumentTypes.MAX_CHARS}. */
