@@ -191,10 +191,11 @@
                 themeStyle.textContent =
                     '.ai-message-text{background-color:' + surface + ';color:' + ink + '}'
                     + '.user-message-text{background-color:' + accent + ';color:' + probe('accent-contrast', 'color') + '}'
+                    // !important: gli stili interni di deep-chat possono arrivare nello shadow root DOPO questo <style> e vincerebbero a parita' di specificita'.
                     + '#text-input-container{background-color:' + probe('canvas', 'backgroundColor')
-                    + ';border-color:' + line + '}'
-                    + '#text-input{color:' + ink + '}'
-                    + '#text-input[contenteditable]:empty::before,.text-input-placeholder{color:' + probe('muted', 'color') + '}'
+                    + ' !important;border-color:' + line + ' !important}'
+                    + '#text-input{color:' + ink + ' !important;background-color:transparent !important}'
+                    + '#text-input[contenteditable]:empty::before,.text-input-placeholder{color:' + probe('muted', 'color') + ' !important}'
                     + '.input-button-svg *{fill:' + accent + '}'
                     + '.dropup-menu-item:hover,.dropup-menu-item:focus-visible{background-color:' + surface + '}';
             };
