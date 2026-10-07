@@ -44,7 +44,7 @@
         <label for="param-extra-lora-scale" th:text="#{generationParams.label.extraLoraScale}">Intensita' LoRA aggiuntivo</label>
         <div th:replace="~{fragments/app/generation-params-number :: field(id='param-extra-lora-scale', name='extra_lora_scale', value=${extra_lora_scale}, defaultValue=${fieldDefaults['extra_lora_scale']}, min='-1', max='3', step='0.1', extraClass=null, spinner=true)}"></div>
     </div>
-    <p class="-mt-1 mb-0 text-[0.8rem]"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
+    <p class="-mt-1 mb-0 text-[0.8rem] md:col-span-2"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
 
     <!--/* Token per i LoRA privati: scelti PER NOME fra quelli salvati in /tokens (mai digitati qui); l'ID arriva al server e
          GenerationService lo sostituisce col token in chiaro solo verso Replicate. Scaduto = non selezionabile. */-->
@@ -77,7 +77,7 @@
         <p class="mt-1 mb-0 text-[0.8rem]"><a th:href="@{/tokens}" th:text="#{generationParams.link.manageTokens}">Gestisci i token</a></p>
     </div>
 
-    <div x-data x-cloak x-show="!$el.closest('#generation-settings-panel')">
+    <div x-data x-cloak x-show="!$el.closest('#generation-settings-panel')" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-4">
         <div th:replace="~{fragments/app/generation-params-source-upload :: field(label=#{generationParams.label.sourceUpload}, required=false)}"></div>
 
         <div>

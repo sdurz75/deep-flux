@@ -340,7 +340,7 @@
   teleport); `dialogOpen` e' lo stato Alpine che leggono button :: dialogClose/dialogCloseIcon. Dentro un <form>: tutti i bottoni sono type=button
   e l'unico input con valore e' maskUpload (lo slider non ha name, non viaggia).
 -->
-<div th:fragment="field" x-data="maskEditor" @change.window="sourceChanged($event)" @keydown.escape.window="dialogOpen = false" @resize.window="measure()">
+<div th:fragment="field" class="md:col-span-2" x-data="maskEditor" @change.window="sourceChanged($event)" @keydown.escape.window="dialogOpen = false" @resize.window="measure()">
     <span x-ref="tint" class="hidden bg-favourite" aria-hidden="true"></span>
     <label th:text="#{generationParams.label.mask}">Maschera</label>
     <!--/* Attributi in quest'ordine apposta: la guardia everySelectIsWrappedByThePinesSelectComponent conta le select sr-only con la sequenza class/tabindex/aria-hidden. */-->

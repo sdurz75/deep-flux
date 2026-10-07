@@ -59,7 +59,7 @@
         </th:block>
     </div>
 
-    <div id="generation-params-fields" hx-on:htmx:after-swap="this.dispatchEvent(new Event('input', { bubbles: true }))">
+    <div id="generation-params-fields" class="grid grid-cols-1 md:grid-cols-2 gap-x-4" hx-on:htmx:after-swap="this.dispatchEvent(new Event('input', { bubbles: true }))">
         <!--
           th:switch esplicito su formType (nome dell'enum GenerationFormType
           come stringa), non una risoluzione dinamica del nome del

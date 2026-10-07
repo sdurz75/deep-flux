@@ -8,7 +8,7 @@
   finisce in localStorage / nello stato salvato della conversazione), al server arrivano sempre testo e scala.
   Parametri nominati: selectId (id della select), sourceId / scaleId (id dei campi del suo slot; letti da data-*, vedi CLAUDE.md "Binding Alpine").
 -->
-<div th:fragment="field(selectId, sourceId, scaleId)" x-data="{ words: '' }"
+<div th:fragment="field(selectId, sourceId, scaleId)" class="md:col-span-2" x-data="{ words: '' }"
      th:data-source-field="${sourceId}" th:data-scale-field="${scaleId}"
      x-init="const src = document.getElementById($el.dataset.sourceField);
              const sel = $el.querySelector('select');

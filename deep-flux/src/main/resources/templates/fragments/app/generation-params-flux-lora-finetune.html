@@ -65,9 +65,10 @@
     */-->
     <!--/* Il campo dei passi sta nel fragment condiviso dei numerici (generation-params-number.html, con un x-data suo): un x-ref li' non sarebbe
          visibile a questo componente, quindi lo si legge per id (unico per pagina). */-->
-    <div x-data="{ fluxModel: 'dev', steps() { return document.getElementById('param-steps') } }"
+    <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-4" x-data="{ fluxModel: 'dev', steps() { return document.getElementById('param-steps') } }"
          x-init="fluxModel = $el.querySelector('select[name=flux_model]').value || 'dev';
                  $nextTick(() => { steps().readOnly = (fluxModel === 'schnell'); steps().dispatchEvent(new Event('input', { bubbles: true })) })">
+        <div>
         <label for="param-flux-model" th:text="#{generationParams.label.fluxModel}">Variante Flux</label>
         <div class="relative" x-data="pinesSelect" x-bind="root">
             <select id="param-flux-model" name="flux_model" x-model="fluxModel"
@@ -81,8 +82,12 @@
             <div th:replace="~{fragments/core/select :: ui}"></div>
         </div>
 
+        </div>
+
+        <div>
         <label for="param-steps" th:text="#{generationParams.label.steps}">Passi di inferenza</label>
         <div th:replace="~{fragments/app/generation-params-number :: field(id='param-steps', name='num_inference_steps', value=${num_inference_steps}, defaultValue=${fieldDefaults['num_inference_steps']}, min='1', max='50', step=null, extraClass='read-only:opacity-60 read-only:cursor-not-allowed', spinner=false)}"></div>
+        </div>
     </div>
 
     <div>
@@ -95,7 +100,7 @@
     <!--/* img2img/inpainting OPZIONALI (image/mask/prompt_strength dello schema): senza upload e' un normale text-to-image. Come per
          flux-dev-lora il blocco e' nascosto nel pannello di /deep-chat (nessun upload, il tool non prende sorgenti); l'editor della
          maschera sta in un <template x-if> perche' il componente `maskEditor` e' registrato solo da generate.html e li' non esisterebbe. */-->
-    <div x-data x-cloak x-show="!$el.closest('#generation-settings-panel')">
+    <div x-data x-cloak x-show="!$el.closest('#generation-settings-panel')" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-4">
         <div th:replace="~{fragments/app/generation-params-source-upload :: field(label=#{generationParams.label.sourceUpload}, required=false)}"></div>
 
         <template x-if="!$el.closest('#generation-settings-panel')">
@@ -139,7 +144,7 @@
         <label for="param-extra-lora-scale" th:text="#{generationParams.label.extraLoraScale}">Intensita' LoRA aggiuntivo</label>
         <div th:replace="~{fragments/app/generation-params-number :: field(id='param-extra-lora-scale', name='extra_lora_scale', value=${extra_lora_scale}, defaultValue=${fieldDefaults['extra_lora_scale']}, min='-1', max='3', step='0.1', extraClass=null, spinner=true)}"></div>
     </div>
-    <p class="-mt-1 mb-0 text-[0.8rem]"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
+    <p class="-mt-1 mb-0 text-[0.8rem] md:col-span-2"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
 </th:block>
 
 </body>
