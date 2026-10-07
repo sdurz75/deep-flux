@@ -55,18 +55,21 @@
 </th:block>
 
 <!--
-  Menu a tendina Pines UI: stato Alpine locale `open` (scope annidato, `theme`/`navOpen` restano ereditati); si chiude con
-  click fuori o Esc. `items` e' un fragment-expression con le voci; inline=false = pannello assoluto sotto il toggle (barra),
+  Menu a tendina Pines UI: `pinesPopover` (stato `open`, scope annidato: `theme`/`navOpen` restano ereditati); si chiude con click fuori o Esc.
+  `items` e' un fragment-expression con le voci; inline=false = pannello ancorato sotto il toggle (barra: fragments/core/popover :: floating),
   inline=true = gruppo che si espande sul posto (slideover). I link dentro il pannello prendono padding dal selettore
   figlio-diretto (`[&>a]`), cosi' navLink resta identico ovunque.
 -->
-<div th:fragment="navMenu(label, items, inline)" class="relative" x-data="{ open: false }"
-     @click.outside="open = false" @keydown.escape.window="open = false">
+<div th:fragment="navMenu(label, items, inline)" class="relative" x-data="pinesPopover"
+     @click.outside="close()" @keydown.escape.window="close()">
     <button th:replace="~{fragments/core/button :: menuToggle(text=${label})}">Menu</button>
-    <div x-show="open" x-cloak x-transition.opacity
-         th:classappend="${inline} ? 'mt-2 ml-2 pl-2 border-l border-line dark:border-line-dark flex flex-col gap-1 [&>a]:py-1.5'
-                                   : 'absolute left-0 top-full mt-2 z-50 min-w-48 rounded-md p-1 flex flex-col gap-0.5 shadow-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark [&>a]:px-2 [&>a]:py-1.5 [&>a]:rounded'"
+    <div th:if="${inline}" x-show="open" x-cloak x-transition.opacity
+         class="mt-2 ml-2 pl-2 border-l border-line dark:border-line-dark flex flex-col gap-1 [&>a]:py-1.5"
          th:insert="${items}"></div>
+    <!--/* th:replace batte th:unless sullo stesso elemento (come in clear-field): il ramo spento ha un blocco esterno. */-->
+    <th:block th:unless="${inline}">
+        <th:block th:replace="~{fragments/core/popover :: floating(align='left', extraClass='min-w-48', bodyClass='flex flex-col gap-0.5 p-1 [&>a]:px-2 [&>a]:py-1.5 [&>a]:rounded', trap=false, body=${items})}"></th:block>
+    </th:block>
 </div>
 
 <th:block th:fragment="themeSwitch">
