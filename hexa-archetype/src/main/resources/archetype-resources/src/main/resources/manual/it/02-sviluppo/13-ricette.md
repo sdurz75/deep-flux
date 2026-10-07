@@ -8,7 +8,7 @@ Liste di controllo per le modifiche più frequenti.
 2. Controller in `adapter/in/web` che parla solo con porte `in`, template in `templates/app/` col layout del core.
 3. Voce in `fragments/app/nav.html` e breadcrumbs.
 4. Aggiornamento parziale: un fragment in `fragments/app/`, restituito se la richiesta è htmx.
-5. Testi in entrambi i bundle; bottoni e select con i componenti.
+5. Testi in entrambi i bundle; bottoni, select e campi di testo (`clear-field`) con i componenti.
 6. `mvn test` verde, `ArchitectureTest` compreso.
 7. Aggiornare il manuale se cambia ciò che l'utente vede o fa.
 

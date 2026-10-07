@@ -16,7 +16,7 @@ Ogni pagina tranne la home mostra il percorso: `fragments/core/breadcrumbs :: tr
 
 ## Componenti
 
-I bottoni non si scrivono a mano: si usano i fragment di `fragments/core/button.html` (o se ne aggiunge uno). Le select passano dal wrapper `pinesSelect` di `fragments/core/select.html`. Gli altri componenti (campo numerico, tag, paginazione, dropzone, accordion, lightbox) sono in `fragments/core/`.
+I bottoni non si scrivono a mano: si usano i fragment di `fragments/core/button.html` (o se ne aggiunge uno). Le select passano dal wrapper `pinesSelect` di `fragments/core/select.html`. Gli `<input>` testo/search/date/number si avvolgono con `fragments/core/clear-field.html :: wrap(content=~{::#id}, clearable=true, title=null)` (id obbligatorio e univoco; `clearable=false` lo lascia nudo, mai un reset scritto a mano): compare una **x** quando il campo è valorizzato. Dopo una scrittura da codice del valore si lancia `clear-field:sync` sull'input. Gli altri componenti (campo numerico, tag, paginazione, dropzone, accordion, lightbox) sono in `fragments/core/`.
 
 ## URL e tema
 

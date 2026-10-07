@@ -18,7 +18,9 @@
           hx-target="#example-list" hx-swap="outerHTML" class="flex flex-wrap items-end gap-3 my-4">
         <div class="flex-1 min-w-48">
             <label for="example-title" class="mt-0" th:text="#{example.label.title}">Titolo</label>
-            <input type="text" id="example-title" name="title" autocomplete="off" maxlength="255">
+            <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#example-title}, clearable=true, title=null)}">
+                <input type="text" id="example-title" name="title" autocomplete="off" maxlength="255">
+            </th:block>
         </div>
         <div class="min-w-48">
             <label for="example-attachment" class="mt-0" th:text="#{example.label.attachment}">Allegato</label>
