@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Copy to clipboard di Pines UI (https://devdojo.com/pines/docs/copy-to-clipboard): bottone che copia un testo negli appunti e per un attimo
+  mostra la conferma "Copiato". Autosufficiente (dichiara da se' `x-data`, nessuno script da registrare nel layout).
+
+  copy(text, label, copiedLabel, extraClass): `text` = il testo da copiare (anche lungo e con a-capo: viaggia in `data-copy`, mai dentro un
+  binding Alpine, vedi CLAUDE.md "Alpine"); `label` e `copiedLabel` = etichetta e conferma GIA' tradotte (`#{clipboard.copy}` / `#{clipboard.copied}`
+  di messages-core; il core riceve testi risolti); extraClass = solo aggiustamenti di layout del chiamante. Con un testo vuoto il bottone
+  non ha senso: il chiamante lo omette (th:if su un th:block, perche' th:if e th:replace sullo stesso elemento non convivono).
+
+  Usa `navigator.clipboard` (serve contesto sicuro: HTTPS o localhost); altrimenti ripiega su un <textarea> temporaneo + `execCommand('copy')`,
+  cosi' funziona anche su un'installazione in HTTP su rete locale. La conferma resta 2 s e si annuncia con `aria-live`. Senza JavaScript il
+  bottone resta inerte (nessun effetto, ma anche nessuna rottura).
+-->
+<button th:fragment="copy(text, label, copiedLabel, extraClass)" type="button"
+        x-data="{ copied: false, timer: null }"
+        th:data-copy="${text}"
+        class="inline-flex items-center gap-1 bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark px-2 py-0.5 text-[0.8rem]"
+        th:classappend="${extraClass}"
+        @click="
+            const value = $el.dataset.copy;
+            const done = () => { copied = true; clearTimeout(timer); timer = setTimeout(() => copied = false, 2000); };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(value).then(done);
+            } else {
+                const area = document.createElement('textarea');
+                area.value = value;
+                area.setAttribute('readonly', '');
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                try { if (document.execCommand('copy')) done(); } finally { area.remove(); }
+            }">
+    <svg x-show="!copied" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    <svg x-show="copied" x-cloak class="h-3.5 w-3.5 shrink-0 text-accent dark:text-accent-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+    <span x-show="!copied" th:text="${label}">Copia</span>
+    <span x-show="copied" x-cloak aria-live="polite" th:text="${copiedLabel}">Copiato</span>
+</button>
+
+</body>
+</html>

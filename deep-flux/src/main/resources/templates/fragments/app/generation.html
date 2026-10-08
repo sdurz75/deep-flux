@@ -45,6 +45,10 @@
             <!--/* Il prompt e' uno per generazione; il seed e' per file (generation-images.html). "Usa ..." spinge nello slot globale (generation-shared-slot.html), non apre nulla. */-->
             <dd class="ms-0 mt-1 flex flex-wrap items-start gap-2">
                 <span th:text="${generation.prompt}">prompt</span>
+                <!--/* Copia negli appunti (Pines): il prompt da incollare in un altro LLM; th:if su un th:block perche' non convive con th:replace. */-->
+                <th:block th:if="${!#strings.isEmpty(generation.prompt)}">
+                    <button th:replace="~{fragments/core/copy-to-clipboard :: copy(text=${generation.prompt}, label=#{clipboard.copy}, copiedLabel=#{clipboard.copied}, extraClass=null)}">Copia</button>
+                </th:block>
                 <button th:replace="~{fragments/app/button-gen :: pushShared(text=#{generationDetail.shared.usePrompt}, doneText=#{generationDetail.shared.done},
                             prompt=${generation.prompt}, seed=null, extraClass=null)}">Usa prompt</button>
                 <!--/* Configurazione completa (modello, LoRA, parametri, prompt, seed): link, il server compila il form. Senza `file`: num_outputs resta com'era e il seed e' quello della prima immagine (la rigenerazione per file e' della chat). */-->

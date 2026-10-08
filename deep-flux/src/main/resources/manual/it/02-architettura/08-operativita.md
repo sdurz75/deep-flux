@@ -25,6 +25,7 @@ Due file, con chiavi disgiunte: `application.yml` per l'app (Spring AI, Replicat
 | HX_OPENROUTER_MANAGEMENT_KEY | credito residuo di OpenRouter (facoltativa) |
 | HX_OPENROUTER_CHAT_MODEL, HX_OPENROUTER_VISION_MODEL, HX_OPENROUTER_VISION_FALLBACK_MODEL | scelta dei modelli linguistici |
 | SEARXNG_BASE_URL, HX_SEARXNG_USERNAME, HX_SEARXNG_PASSWORD | ricerca web della chat |
+| HX_STORAGE_TYPE | backend dei binari: `local` (default) o `webdav` |
 | HX_STORAGE_WEBDAV_URL, HX_STORAGE_WEBDAV_USERNAME, HX_STORAGE_WEBDAV_PASSWORD | storage su WebDAV |
 | HX_STORAGE_WEBDAV_ENCRYPTION_KEY | cifratura dei file WebDAV, dei segreti e dei backup |
 | HX_BACKUP_ENCRYPTION_KEY | chiave dei backup, se diversa da quella dello storage |
@@ -72,7 +73,7 @@ All'avvio e a intervalli: il recupero delle generazioni e delle chat in sospeso,
 
 ## PWA e service worker
 
-L'app è installabile grazie a `hexa-pwa` (manifest, icone, service worker). Il worker è volutamente stretto: tiene in cache solo la pagina `/offline`, gli asset statici e gli script dei CDN del layout; l'HTML dinamico, le richieste non GET, gli eventi in tempo reale (`/events`) e le immagini passano sempre dalla rete, perché la stessa URL risponde in due modi (pagina o fragment htmx) e i binari sono serviti con Range ed ETag. Il nome della cache segue la build: ogni release invalida la precedente. Serve HTTPS (dietro un [reverse proxy](#dietro-un-reverse-proxy) con `X-Forwarded-*`); per cambiare le icone si mettono file con gli stessi nomi in `static/pwa/icons/` dell'app, e i colori della barra del browser si impostano con `app.pwa.theme-color` e `app.pwa.theme-color-dark`. Si spegne con `app.pwa.enabled=false`. Per l'utente vedi [Installare come app](../01-uso/13-installare-come-app.md).
+L'app è installabile grazie a `hexa-pwa` (manifest, icone, service worker). Il worker è volutamente stretto: tiene in cache solo la pagina `/offline`, gli asset statici e gli script dei CDN del layout; l'HTML dinamico, le richieste non GET, gli eventi in tempo reale (`/events`) e le immagini passano sempre dalla rete, perché la stessa URL risponde in due modi (pagina o fragment htmx) e i binari sono serviti con Range ed ETag. Il nome della cache segue la build: ogni release invalida la precedente. Serve HTTPS (dietro un [reverse proxy](#dietro-un-reverse-proxy) con `X-Forwarded-*`); per cambiare le icone si mettono file con gli stessi nomi in `static/pwa/icons/` dell'app, e i colori della barra del browser si impostano con `app.pwa.theme-color` e `app.pwa.theme-color-dark`. Si spegne con `app.pwa.enabled=false` o con la variabile d'ambiente `HX_PWA_ENABLED=false` (default acceso; la property prevale). Per l'utente vedi [Installare come app](../01-uso/13-installare-come-app.md).
 
 ## Blocco con PIN
 

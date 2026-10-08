@@ -98,7 +98,7 @@ storage:
   # Backend dei binari (immagini, video, upload sorgente), serviti sempre via /images/** (ImageController):
   #   local  = filesystem locale sotto images-dir (default)
   #   webdav = server WebDAV, contenuti SEMPRE cifrati con chiave simmetrica (AES-256-GCM)
-  type: local
+  type: ${HX_STORAGE_TYPE:local}
   # Directory locale (type=local) dove vengono salvate le immagini/video scaricati.
   images-dir: ./data/images
   webdav:

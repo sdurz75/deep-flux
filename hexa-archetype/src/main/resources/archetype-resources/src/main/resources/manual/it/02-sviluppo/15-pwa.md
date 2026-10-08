@@ -17,7 +17,7 @@ Poco, di proposito: la pagina `/offline`, gli asset statici (`js/`, `css/`, `pwa
 
 - **Icone**: file con gli stessi nomi in `src/main/resources/static/pwa/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`, `icon.svg`); vincono su quelli della libreria.
 - **Colori**: `app.pwa.theme-color` e `app.pwa.theme-color-dark` (esadecimali, perché manifest e `meta` non accettano classi Tailwind), `app.pwa.display` (default `standalone`).
-- **Spegnere**: `app.pwa.enabled=false`.
+- **Spegnere**: `app.pwa.enabled=false` o `HX_PWA_ENABLED=false` (default acceso; la property prevale).
 
 ## Con il blocco con PIN
 

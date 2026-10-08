@@ -16,6 +16,9 @@
     <p th:if="${failed}" class="m-0 text-[0.85rem] text-warning dark:text-warning-dark" th:text="${generation.errorMessage}">Analisi non riuscita</p>
     <th:block th:if="${generation.analysisStatus != null and generation.analysisStatus.name() == 'DONE'}">
         <p class="m-0 text-[0.9rem]" th:text="${generation.prompt}">Descrizione</p>
+        <th:block th:if="${!#strings.isEmpty(generation.prompt)}">
+            <button th:replace="~{fragments/core/copy-to-clipboard :: copy(text=${generation.prompt}, label=#{clipboard.copy}, copiedLabel=#{clipboard.copied}, extraClass='mt-1')}">Copia</button>
+        </th:block>
         <p th:if="${!#lists.isEmpty(generation.analysisTagList)}" class="mt-1 mb-0 flex flex-wrap gap-1">
             <th:block th:each="tag : ${generation.analysisTagList}">
                 <span th:replace="~{fragments/core/chip :: neutral(text=${tag}, textClass='text-[0.75rem] py-0.5')}">tag</span>
