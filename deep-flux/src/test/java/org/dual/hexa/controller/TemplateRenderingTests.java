@@ -537,7 +537,7 @@ class TemplateRenderingTests {
         assertThat(removed).doesNotContain("id=\"conv-tags-" + conversation.getId() + "\"").contains("id=\"conv-tags-" + other.getId() + "\"");
     }
 
-    /** Rinominare la conversazione aperta aggiorna anche il titolo sul bottone del popover (OOB), una diversa no; la pagina intera non porta l'OOB. */
+    /** Rinominare la conversazione aperta aggiorna anche il titolo sopra la chat (OOB), una diversa no; la pagina intera non porta l'OOB. */
     @Test
     @Transactional
     void renamingTheActiveConversationUpdatesTheButtonTitle() throws Exception {
@@ -556,6 +556,20 @@ class TemplateRenderingTests {
 
         String page = mockMvc.perform(get("/deep-chat/" + active.getId())).andReturn().getResponse().getContentAsString();
         assertThat(page).contains("id=\"active-conversation-title\"").doesNotContain("hx-swap-oob");
+    }
+
+    /** Le conversazioni stanno nella colonna collassabile del core (fragment collapsible-column), il titolo e il toggle sopra la chat. */
+    @Test
+    @Transactional
+    void deepChatShowsConversationsInTheCollapsibleColumn() throws Exception {
+        ChatConversation conversation = chatConversationRepository.save(new ChatConversation());
+
+        String page = mockMvc.perform(get("/deep-chat/" + conversation.getId())).andReturn().getResponse().getContentAsString();
+
+        assertThat(page).contains("x-data=\"collapsibleColumn\"").contains("data-storage-key=\"deepChat.conversationsOpen\"")
+                .contains("Alpine.data('collapsibleColumn'")
+                .contains("id=\"conversation-list-items\"").contains("@click=\"togglePanel()\"")
+                .contains("/deep-chat/new").contains("id=\"deep-chat-el\"");
     }
 
     /** /system/events (e il vecchio /errors che reindirizza): pagina intera e frammento htmx, e "Svuota" cancella il registro. */

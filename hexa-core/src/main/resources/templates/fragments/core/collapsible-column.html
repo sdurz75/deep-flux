@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Colonna laterale COLLASSABILE (come la lista conversazioni di claude.ai): una colonna a sinistra del contenuto, che si nasconde e si mostra
+  con un bottone. Pines UI non ha un componente simile (il suo slide-over e' solo un overlay modale): questo fragment ne riprende l'idioma
+  (scrim, focus trap con pagina inerte, Esc) e lo estende con la modalita' "in flusso" da md in su. Per un pannello di NAVIGAZIONE sempre
+  presente resta `slideover :: drawer`; per un pannello ancorato a un bottone `popover :: panel`.
+
+  COMPORTAMENTO
+  - da md in su: la colonna sta in flusso accanto al contenuto (w-72, stessa altezza del contenuto) e scorre da sola se e' piu' alta; si
+    nasconde e si mostra senza lasciare spazio. La scelta si ricorda nel browser (localStorage, chiave `storageKey`; ogni accesso e' in
+    try/catch: senza storage la colonna parte aperta). Esc NON la chiude.
+  - sotto md: parte SEMPRE chiusa (non si ricorda) e si apre come cassetto sopra il contenuto: scrim (clic = chiude), resto della pagina inerte
+    e scroll bloccato (x-trap.inert.noscroll, plugin Alpine focus come modal/slideover), Esc chiude; ha un bottone ✕ nell'intestazione.
+
+  USO: UNA chiamata a `layout(...)` per pagina, con due parti passate come fragment-expression (`~{::#id}`, risolta contro il sorgente del
+  TEMPLATE CHIAMANTE, come modal :: dialog):
+
+      <th:block th:with="colLabel=#{x.conversations}, colHide=#{x.hide}">
+        <div th:replace="~{fragments/core/collapsible-column :: layout(storageKey='x.columnOpen', label=${colLabel}, hideLabel=${colHide},
+                                                                        column=~{::#x-column}, content=~{::#x-content})}">
+          <div id="x-column"> ...elenco, bottoni... </div>
+          <div id="x-content">
+            <button th:replace="~{fragments/core/button :: panelToggle(content=null, title=${colLabel}, extraClass=null)}"></button>
+            ...resto della pagina...
+          </div>
+        </div>
+      </th:block>
+
+  PARAMETRI (tutti obbligatori, nominati; i testi arrivano GIA' risolti dal chiamante, nel fragment non c'e' nessun `#{...}`)
+  - storageKey: chiave localStorage dove si ricorda aperta/chiusa (da md in su), univoca per pagina; null = non si ricorda.
+  - label:      nome della colonna: intestazione, aria-label (es. "Conversazioni").
+  - hideLabel:  tooltip/aria-label del ✕ che la chiude sotto md (es. "Nascondi conversazioni").
+  - column:     il contenuto della colonna (sotto l'intestazione con `label` e il ✕).
+  - content:    il resto della pagina, a destra. DEVE contenere il bottone che apre/chiude la colonna: `button :: panelToggle` (vedi sotto), perche'
+                il fragment non decide dove sta nel layout del chiamante (di solito la riga d'intestazione del contenuto). Il fragment lo
+                avvolge in un contenitore flessibile `flex-1 min-w-0`: l'altezza, se serve fissa, la imposta il chiamante (la colonna la segue).
+
+  CONTRATTO ALPINE: il fragment dichiara `x-data="collapsibleColumn"` (registrato da `script` qui sotto, incluso UNA volta da layout.html) con
+  `panelOpen` (booleano) e `togglePanel()`. Dentro `content` e `column` sono disponibili anche `closeOnMobile()` e `mobile()`: es. un link della
+  colonna che non ricarica la pagina puo' chiudere il cassetto con `@click="closeOnMobile()"`. Il bottone e' `button :: panelToggle(content, title, extraClass)`:
+  `content` null = icona "colonna laterale", altrimenti un testo/glifo; `extraClass` = solo layout (es. `md:hidden`).
+
+  AVVERTENZE
+  - Le classi Tailwind sono LETTERALI (nessun nome costruito), solo token del tema.
+  - Il contenuto di `column` e `content` resta SEMPRE nel DOM (x-show, mai x-if): campi e script che lo leggono funzionano a colonna chiusa.
+  - La colonna e' `fixed` sotto md: non metterla dentro un antenato con `transform`/`filter` (creerebbe un altro contesto di posizionamento).
+  - Se una risposta htmx sostituisce una parte della colonna, il target deve stare DENTRO `column`, mai sul fragment (perderebbe lo stato Alpine).
+-->
+
+<th:block th:fragment="script">
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('collapsibleColumn', () => ({
+                panelOpen: false,
+                storageKey: '',
+
+                /* Stessa soglia del breakpoint `md` di Tailwind. */
+                mobile() {
+                    return !window.matchMedia('(min-width: 768px)').matches;
+                },
+                init() {
+                    /* Chiave letta dall'attributo data-storage-key via $el.dataset (mai th:attr in un binding Alpine). */
+                    this.storageKey = this.$el.dataset.storageKey || '';
+                    let stored = null;
+                    try {
+                        stored = this.storageKey ? localStorage.getItem(this.storageKey) : null;
+                    } catch (e) { /* storage non disponibile: resta il default */ }
+                    this.panelOpen = !this.mobile() && stored !== '0';
+                },
+                togglePanel() {
+                    this.panelOpen = !this.panelOpen;
+                    if (!this.mobile() && this.storageKey) {
+                        try {
+                            localStorage.setItem(this.storageKey, this.panelOpen ? '1' : '0');
+                        } catch (e) { /* best effort */ }
+                    }
+                },
+                closeOnMobile() {
+                    if (this.mobile()) {
+                        this.panelOpen = false;
+                    }
+                }
+            }));
+        });
+    </script>
+</th:block>
+
+<div th:fragment="layout(storageKey, label, hideLabel, column, content)"
+     x-data="collapsibleColumn" th:data-storage-key="${storageKey}"
+     @keydown.escape.window="closeOnMobile()"
+     class="flex gap-4 items-stretch">
+    <!--/* `contents`: il wrapper del trap non genera box, scrim e colonna restano figli del flex. */-->
+    <div class="contents" x-trap.inert.noscroll="panelOpen &amp;&amp; mobile()">
+        <div class="md:hidden fixed inset-0 z-[99] bg-scrim/50" @click="closeOnMobile()" x-show="panelOpen" x-cloak x-transition.opacity></div>
+        <aside x-show="panelOpen" x-cloak x-transition.opacity.duration.150ms th:aria-label="${label}"
+               class="fixed inset-y-0 left-0 z-[100] w-72 max-w-[85vw] overflow-y-auto
+                      bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark shadow-xl
+                      md:relative md:z-auto md:max-w-none md:shrink-0 md:overflow-visible md:rounded-md md:border md:shadow-none">
+            <!--/* Da md in su la colonna ha la stessa altezza del contenuto (stretch) e scorre da sola: l'inner e' absolute, cosi' un elenco lungo non allunga la riga. */-->
+            <div class="flex flex-col gap-3 p-3 md:absolute md:inset-0 md:overflow-y-auto">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-semibold text-[0.95rem]" th:text="${label}">Colonna</span>
+                    <button th:replace="~{fragments/core/button :: panelToggle(content='✕', title=${hideLabel}, extraClass='md:hidden')}">✕</button>
+                </div>
+                <th:block th:replace="${column}"></th:block>
+            </div>
+        </aside>
+    </div>
+    <div class="flex-1 min-w-0">
+        <th:block th:replace="${content}"></th:block>
+    </div>
+</div>
+
+</body>
+</html>

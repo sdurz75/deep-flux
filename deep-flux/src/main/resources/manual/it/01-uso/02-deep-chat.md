@@ -4,14 +4,14 @@
 
 ## Le conversazioni
 
-Il pulsante sopra la chat, che porta il titolo della conversazione corrente, apre l'elenco delle conversazioni, la più recente in alto. Ogni conversazione è salvata sul server: puoi chiudere la pagina e riprenderla più tardi.
+A sinistra della chat c'è la colonna delle conversazioni, la più recente in alto; il titolo della conversazione corrente è sopra la chat. Il pulsante **Conversazioni** (in alto a sinistra, sopra la chat) la nasconde o la mostra, e il browser ricorda la scelta; su schermi stretti la colonna parte chiusa e si apre sopra la chat. Ogni conversazione è salvata sul server: puoi chiudere la pagina e riprenderla più tardi.
 
 - **Nuova conversazione** ne apre una vuota.
 - Cliccando una conversazione dell'elenco ne ricarichi la cronologia completa.
 - Puoi rinominarla (**Rinomina conversazione**) o cancellarla; la cancellazione chiede conferma e non si annulla. Le immagini già generate restano nell'archivio.
 - Una conversazione può avere dei tag, per ritrovarla (vedi [Tag](07-galleria-e-archivio.md#tag)).
 
-La chat occupa tutto lo spazio verticale disponibile fra l'intestazione e il piè di pagina. Il pulsante **Galleria della conversazione**, in alto a sinistra accanto a **Impostazioni**, apre un popover con le immagini e i video generati in quella conversazione, i più recenti per primi: scorrendo se ne caricano altri.
+La chat occupa tutto lo spazio verticale disponibile fra l'intestazione e il piè di pagina. Il pulsante **Galleria della conversazione**, in alto a destra accanto a **Impostazioni**, apre un popover con le immagini e i video generati in quella conversazione, i più recenti per primi: scorrendo se ne caricano altri.
 
 ## Le impostazioni di generazione
 

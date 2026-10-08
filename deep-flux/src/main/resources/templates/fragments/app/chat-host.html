@@ -35,7 +35,7 @@
 <th:block th:fragment="settings">
             <th:block th:with="settingsLabel=#{deepChat.button.settings},
                                 settingsBody=~{::#generation-settings-panel}">
-            <div th:replace="~{fragments/core/popover :: panel(label=null, labelId=null, title=${settingsLabel}, body=${settingsBody}, align='left', extraClass='w-[44rem] max-w-[90vw]')}">
+            <div th:replace="~{fragments/core/popover :: panel(label=null, labelId=null, title=${settingsLabel}, body=${settingsBody}, align='right', extraClass='w-[44rem] max-w-[90vw]', icon=null)}">
                 <div id="generation-settings-panel">
                     <form id="generation-settings-form" data-persist-key="deepChat.generationSettings" onsubmit="return false;"
                           th:data-persist-server-state="${generationSettingsJson}"
@@ -48,7 +48,7 @@
             </th:block>
 
             <!--/*
-              Galleria contestuale: solo le immagini generate in QUESTA conversazione, in un popover accanto alle impostazioni, a scroll infinito
+              Galleria contestuale: solo le immagini generate in QUESTA conversazione, in un popover (bottone a sola icona, tooltip = titolo) accanto alle impostazioni, a scroll infinito
               (sentinella `intersect` in fragments/app/gallery.html :: cards, pagine da ChatGalleryController). Il contenuto resta nel DOM anche da
               chiuso (x-show): si aggiorna da sola dopo ogni turno ("new-message" di <deep-chat id="deep-chat-el">, non-bubbling, `from:` lo intercetta
               lo stesso) e ad ogni "gallery-update" SSE (anche cancellazioni da altrove, vedi GalleryPushNotifier); il refresh riparte dalla prima pagina.
@@ -56,7 +56,7 @@
             */-->
             <th:block th:with="galleryLabel=#{deepChat.accordion.gallery},
                                 galleryBody=~{::#contextual-gallery-section}">
-            <div th:replace="~{fragments/core/popover :: panel(label=${galleryLabel}, labelId=null, title=${galleryLabel}, body=${galleryBody}, align='left', extraClass='w-[40rem] max-w-[90vw]')}">
+            <div th:replace="~{fragments/core/popover :: panel(label=null, labelId=null, title=${galleryLabel}, body=${galleryBody}, align='right', extraClass='w-[40rem] max-w-[90vw]', icon='gallery')}">
                 <div id="contextual-gallery-section">
                     <div id="contextual-gallery"
                          th:hx-get="@{/deep-chat/{id}/gallery(id=${activeConversationId})}"

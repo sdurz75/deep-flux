@@ -152,18 +152,33 @@
         th:text="${content}">☰</button>
 
 <!--
-  popoverToggle(content, contentId, title): bottone che apre/chiude un popover (fragments/core/popover.html :: panel). Assume il componente Alpine
+  popoverToggle(content, contentId, title, icon): bottone che apre/chiude un popover (fragments/core/popover.html :: panel). Assume il componente Alpine
   `pinesPopover` (open, toggle) e dichiara il proprio x-ref `button`, da cui il componente calcola la posizione del pannello.
   `content` = testo del bottone, oppure null per il solo ICONA (cursori di Pines UI); `contentId` = id (o null) dello <span> del testo, per
   aggiornarlo da una risposta htmx con `<span id=... hx-swap-oob="innerHTML">`; `title` = tooltip e aria-label, sempre.
+  `icon` = icona del solo-icona (solo se `content` e' null): `gallery` = immagine, altrimenti (null) i cursori.
 -->
-<button th:fragment="popoverToggle(content, contentId, title)" type="button" x-ref="button" @click="toggle()"
+<button th:fragment="popoverToggle(content, contentId, title, icon)" type="button" x-ref="button" @click="toggle()"
         :aria-expanded="open" aria-haspopup="dialog"
         th:title="${title}" th:aria-label="${title}"
         class="inline-flex items-center justify-center border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark
                rounded-md px-3 py-1.5 cursor-pointer text-[0.85rem] leading-none whitespace-nowrap">
     <span th:if="${content != null}" th:id="${contentId}" th:text="${content}" class="max-w-[16rem] truncate">Popover</span>
-    <svg th:unless="${content != null}" class="h-4 w-4" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M5.5 3C4.67157 3 4 3.67157 4 4.5C4 5.32843 4.67157 6 5.5 6C6.32843 6 7 5.32843 7 4.5C7 3.67157 6.32843 3 5.5 3ZM3 5C3.01671 5 3.03323 4.99918 3.04952 4.99758C3.28022 6.1399 4.28967 7 5.5 7C6.71033 7 7.71978 6.1399 7.95048 4.99758C7.96677 4.99918 7.98329 5 8 5H13.5C13.7761 5 14 4.77614 14 4.5C14 4.22386 13.7761 4 13.5 4H8C7.98329 4 7.96677 4.00082 7.95048 4.00242C7.71978 2.86009 6.71033 2 5.5 2C4.28967 2 3.28022 2.86009 3.04952 4.00242C3.03323 4.00082 3.01671 4 3 4H1.5C1.22386 4 1 4.22386 1 4.5C1 4.77614 1.22386 5 1.5 5H3ZM11.9505 10.9976C11.7198 12.1399 10.7103 13 9.5 13C8.28967 13 7.28022 12.1399 7.04952 10.9976C7.03323 10.9992 7.01671 11 7 11H1.5C1.22386 11 1 10.7761 1 10.5C1 10.2239 1.22386 10 1.5 10H7C7.01671 10 7.03323 10.0008 7.04952 10.0024C7.28022 8.8601 8.28967 8 9.5 8C10.7103 8 11.7198 8.8601 11.9505 10.0024C11.9668 10.0008 11.9833 10 12 10H13.5C13.7761 10 14 10.2239 14 10.5C14 10.7761 13.7761 11 13.5 11H12C11.9833 11 11.9668 10.9992 11.9505 10.9976ZM8 10.5C8 9.67157 8.67157 9 9.5 9C10.3284 9 11 9.67157 11 10.5C11 11.3284 10.3284 12 9.5 12C8.67157 12 8 11.3284 8 10.5Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+    <svg th:if="${content == null and icon != 'gallery'}" class="h-4 w-4" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M5.5 3C4.67157 3 4 3.67157 4 4.5C4 5.32843 4.67157 6 5.5 6C6.32843 6 7 5.32843 7 4.5C7 3.67157 6.32843 3 5.5 3ZM3 5C3.01671 5 3.03323 4.99918 3.04952 4.99758C3.28022 6.1399 4.28967 7 5.5 7C6.71033 7 7.71978 6.1399 7.95048 4.99758C7.96677 4.99918 7.98329 5 8 5H13.5C13.7761 5 14 4.77614 14 4.5C14 4.22386 13.7761 4 13.5 4H8C7.98329 4 7.96677 4.00082 7.95048 4.00242C7.71978 2.86009 6.71033 2 5.5 2C4.28967 2 3.28022 2.86009 3.04952 4.00242C3.03323 4.00082 3.01671 4 3 4H1.5C1.22386 4 1 4.22386 1 4.5C1 4.77614 1.22386 5 1.5 5H3ZM11.9505 10.9976C11.7198 12.1399 10.7103 13 9.5 13C8.28967 13 7.28022 12.1399 7.04952 10.9976C7.03323 10.9992 7.01671 11 7 11H1.5C1.22386 11 1 10.7761 1 10.5C1 10.2239 1.22386 10 1.5 10H7C7.01671 10 7.03323 10.0008 7.04952 10.0024C7.28022 8.8601 8.28967 8 9.5 8C10.7103 8 11.7198 8.8601 11.9505 10.0024C11.9668 10.0008 11.9833 10 12 10H13.5C13.7761 10 14 10.2239 14 10.5C14 10.7761 13.7761 11 13.5 11H12C11.9833 11 11.9668 10.9992 11.9505 10.9976ZM8 10.5C8 9.67157 8.67157 9 9.5 9C10.3284 9 11 9.67157 11 10.5C11 11.3284 10.3284 12 9.5 12C8.67157 12 8 11.3284 8 10.5Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+    <svg th:if="${content == null and icon == 'gallery'}" class="h-4 w-4" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="1.5" width="12" height="12" rx="1.5"/><circle cx="5" cy="5.5" r="1.2"/><path d="M1.5 11l3.5-3.5 3 3 2-2 3.5 3.5"/></svg>
+</button>
+
+<!--
+  panelToggle(content, title, extraClass): apre/chiude una colonna laterale collassabile della pagina (es. le conversazioni di /deep-chat). Assume sull'antenato
+  x-data `panelOpen` (booleano) e `togglePanel()`. `content` = testo/glifo (es. ✕), oppure null per l'icona "colonna laterale"; `title` = tooltip e
+  aria-label GIA' risolti; `extraClass` = solo layout del chiamante (es. md:hidden).
+-->
+<button th:fragment="panelToggle(content, title, extraClass)" type="button" @click="togglePanel()"
+        :aria-expanded="panelOpen"
+        th:title="${title}" th:aria-label="${title}"
+        th:class="'inline-flex items-center justify-center shrink-0 border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark rounded-md px-3 py-1.5 cursor-pointer text-[0.85rem] leading-none ' + (${extraClass} ?: '')">
+    <span th:if="${content != null}" th:text="${content}">✕</span>
+    <svg th:if="${content == null}" class="h-4 w-4" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5"/><path d="M5.5 2.5v10"/></svg>
 </button>
 
 <!--

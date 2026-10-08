@@ -4,9 +4,8 @@
 
 <!--
   Contenuto della lista conversazioni di /deep-chat: solo items(...),
-  il <ul> - incluso da core/deep-chat.html dentro il popover delle conversazioni (fragments/core/popover.html), che fornisce gia' lui il
-  contenitore (bordo/sfondo/larghezza). Il bottone "Nuova conversazione" NON e' qui: deve restare visibile a popover chiuso, quindi vive
-  in deep-chat.html accanto al bottone del popover.
+  il <ul> - incluso da core/deep-chat.html dentro la colonna collassabile delle conversazioni, che fornisce gia' lei il contenitore
+  (bordo/sfondo/larghezza). Il bottone "Nuova conversazione" NON e' qui: vive in deep-chat.html, sopra la lista.
   Tag utente e suggerimenti sono dell'host: li fornisce il fragment indicato da chatHost (app.chat.host-fragment, conversationTags e
   knownTags); senza host l'elenco non ha tag.
   items(...) e' anche il target htmx di rename/delete
@@ -30,7 +29,7 @@
   separata.
 -->
 <ul th:fragment="items(conversations, activeConversationId)" id="conversation-list-items" class="flex flex-col gap-1">
-    <!--/* Solo nelle risposte htmx (il controller mette `titleOob`): aggiorna il titolo sul bottone del popover (OOB, id di deep-chat.html). */-->
+    <!--/* Solo nelle risposte htmx (il controller mette `titleOob`): aggiorna il titolo sopra la chat (OOB, id di deep-chat.html). */-->
     <th:block th:if="${titleOob != null}">
         <span th:each="c : ${conversations}" th:if="${c.id == activeConversationId}" id="active-conversation-title" hx-swap-oob="innerHTML"
               th:text="${c.title} ?: #{deepChat.conversation.untitled}">Conversazione</span>
