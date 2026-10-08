@@ -24,6 +24,11 @@ public interface ILayoutContributor {
         return List.of();
     }
 
+    /** Fragment della barra in alto, subito dopo la campanella (es. l'utente connesso); anche nel pannello laterale. */
+    default List<String> toolbar(HttpServletRequest request) {
+        return List.of();
+    }
+
     /** Voci aggiunte al menu «Gestione» accanto a Eventi e Token. */
     default List<NavEntry> manageMenu() {
         return List.of();

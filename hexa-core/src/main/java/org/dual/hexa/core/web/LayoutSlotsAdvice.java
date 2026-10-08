@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 
 /**
  * Espone a {@code fragments/core/layout.html} e {@code header.html} i contributi di tutte le {@link ILayoutContributor} presenti (nessuna = liste
- * vuote): {@code headFragments}, {@code bodyEndFragments}, {@code manageMenuEntries}. Stessa idea di {@code PushModelAdvice}, ma aggregata, cosi' piu'
+ * vuote): {@code headFragments}, {@code bodyEndFragments}, {@code toolbarFragments}, {@code manageMenuEntries}. Stessa idea di {@code PushModelAdvice}, ma aggregata, cosi' piu'
  * estensioni non si sovrascrivono a vicenda.
  */
 @ControllerAdvice
@@ -30,6 +30,11 @@ public class LayoutSlotsAdvice {
     @ModelAttribute("bodyEndFragments")
     public List<String> bodyEndFragments(HttpServletRequest request) {
         return collect(contributor -> contributor.bodyEnd(request));
+    }
+
+    @ModelAttribute("toolbarFragments")
+    public List<String> toolbarFragments(HttpServletRequest request) {
+        return collect(contributor -> contributor.toolbar(request));
     }
 
     @ModelAttribute("manageMenuEntries")

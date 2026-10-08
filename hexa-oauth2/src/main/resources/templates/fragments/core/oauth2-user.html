@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Utente connesso con OAuth2 (ILayoutContributor#toolbar, dopo la campanella). Dati dal model (`oauth2Me`, OAuthUserAdvice): nome, email, foto
+  (claim OIDC standard `picture`, solo https; senza foto le iniziali) e provider. Il pannello offre «Esci» (POST /oauth2/logout).
+-->
+<div th:fragment="chip" class="relative shrink-0" x-data="pinesPopover" @keydown.escape.window="close()">
+    <button th:replace="~{fragments/core/button :: avatar(src=${oauth2Me.picture}, initials=${oauth2Me.initials}, title=${oauth2Me.name})}">AB</button>
+    <th:block th:replace="~{fragments/core/popover :: floating(align='right', extraClass='w-64 max-w-[90vw]', bodyClass='p-3', trap=false, body=~{::#oauth2-user-panel})}">
+    <div id="oauth2-user-panel" class="flex flex-col gap-2 text-[0.85rem]">
+        <div class="min-w-0">
+            <div class="font-semibold break-words" th:text="${oauth2Me.name}">Nome Cognome</div>
+            <div class="text-ink-muted dark:text-ink-muted-dark break-all" th:text="${oauth2Me.email}">utente@example.com</div>
+            <div class="text-[0.75rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{oauth2.user.provider(${oauth2Me.provider})}">Accesso con google</div>
+        </div>
+        <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{oauth2.gate.logout}, hxGet=null, hxPost=@{/oauth2/logout}, hxTarget=null, hxSwap='none', extraClass=null)}">Esci</button>
+    </div>
+    </th:block>
+</div>
+
+</body>
+</html>

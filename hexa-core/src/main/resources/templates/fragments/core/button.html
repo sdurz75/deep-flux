@@ -241,6 +241,20 @@
 
 
 <!--
+  avatar(src, initials, title): bottone tondo dell'utente connesso (toolbar, dopo la campanella). Stessa convenzione di bell: apre un popover
+  (antenato `x-data="pinesPopover"`). `src` = URL https della foto o null (allora le `initials`); la foto parte senza referrer (alcuni
+  provider rifiutano le richieste con referrer).
+-->
+<button th:fragment="avatar(src, initials, title)" type="button"
+        x-ref="button" @click="toggle()" :aria-expanded="open" aria-haspopup="true"
+        th:title="${title}" th:aria-label="${title}"
+        class="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line dark:border-line-dark
+               bg-canvas dark:bg-canvas-dark p-0 text-[0.75rem] font-semibold text-ink dark:text-ink-dark">
+    <img th:if="${src != null}" th:src="${src}" alt="" referrerpolicy="no-referrer" class="h-full w-full object-cover">
+    <span th:unless="${src != null}" th:text="${initials}">AB</span>
+</button>
+
+<!--
   Controlli del player video (fragments/core/video-player.html): icone bianche sul video, non sul tema. Assumono il componente Alpine
   `pinesVideo` (playing, muted, togglePlay, toggleMute, toggleFullscreen). title = etichetta gia' tradotta (title + aria-label).
 -->

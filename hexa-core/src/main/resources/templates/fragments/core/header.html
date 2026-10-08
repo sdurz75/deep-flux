@@ -29,6 +29,8 @@
                  th:insert="~{fragments/app/nav :: links(inline=false)}"></div>
             <!-- Campanella degli eventi di sistema: fuori dallo slideover, sempre visibile (vedi fragments/core/notification-bell.html). -->
             <div th:replace="~{fragments/core/notification-bell :: container}"></div>
+            <!-- Voci delle librerie opzionali dopo la campanella (ILayoutContributor#toolbar). -->
+            <th:block th:each="toolbarFragment : ${toolbarFragments}"><th:block th:insert="~{__${toolbarFragment}__}"></th:block></th:block>
         </nav>
 
         <!-- Slideover Pines UI (solo sotto md): vedi fragments/core/slideover.html -->

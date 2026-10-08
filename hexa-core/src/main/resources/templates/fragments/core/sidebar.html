@@ -37,6 +37,8 @@
                         <th:block th:insert="~{fragments/core/header :: themeSwitch}"></th:block>
                     </div>
                     <div th:replace="~{fragments/core/notification-bell :: container}"></div>
+                    <!-- Voci delle librerie opzionali dopo la campanella (ILayoutContributor#toolbar). -->
+                    <th:block th:each="toolbarFragment : ${toolbarFragments}"><th:block th:insert="~{__${toolbarFragment}__}"></th:block></th:block>
                 </div>
             </div>
         </th:block>
