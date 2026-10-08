@@ -12,7 +12,7 @@ I token si gestiscono da [/tokens](/tokens). Dopo il salvataggio resta visibile 
 
 ## Backup
 
-`java -jar app.jar export <file>` e `import <file> [--replace]` salvano e ripristinano database e binari. Il database è copiato per intero; i binari sono quelli **referenziati** dal database, che l'app dichiara implementando [`IBlobReferences`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/backup/port/in/IBlobReferences.html) (le coppie tabella e colonna con i nomi dei file; vedi `ExampleBlobReferences`). Un test dell'app fa fallire il build se una colonna `%filename%` non è dichiarata. L'archivio è cifrato con `BACKUP_ENCRYPTION_KEY` (o la chiave WebDAV); senza chiave serve `--no-encrypt`.
+`java -jar app.jar export <file>` e `import <file> [--replace]` salvano e ripristinano database e binari. Il database è copiato per intero; i binari sono quelli **referenziati** dal database, che l'app dichiara implementando [`IBlobReferences`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/backup/port/in/IBlobReferences.html) (le coppie tabella e colonna con i nomi dei file; vedi `ExampleBlobReferences`). Un test dell'app fa fallire il build se una colonna `%filename%` non è dichiarata. L'archivio è cifrato con `HX_BACKUP_ENCRYPTION_KEY` (o la chiave WebDAV); senza chiave serve `--no-encrypt`.
 
 ## Riferimento API
 

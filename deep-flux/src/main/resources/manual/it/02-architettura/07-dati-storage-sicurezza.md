@@ -27,7 +27,7 @@ Immagini, video e upload passano **tutti** da `IImageStorageService`: nessun acc
 
 ### WebDAV cifrato
 
-Su WebDAV i contenuti sono **sempre cifrati** (AES-256-GCM a blocchi da 64 KiB, autenticato, con accesso a intervalli senza decifrare tutto) con la chiave `storage.webdav.encryption-key`, che arriva dalla variabile d'ambiente `STORAGE_WEBDAV_ENCRYPTION_KEY`: 32 byte in base64, generabili con `openssl rand -base64 32`. Solo i contenuti sono cifrati, i nomi no. **Persa la chiave i file sono irrecuperabili**: conservane una copia. Una cache locale cifrata (2 GB di default, `0` per spegnerla) evita di riscaricare i file letti spesso.
+Su WebDAV i contenuti sono **sempre cifrati** (AES-256-GCM a blocchi da 64 KiB, autenticato, con accesso a intervalli senza decifrare tutto) con la chiave `storage.webdav.encryption-key`, che arriva dalla variabile d'ambiente `HX_STORAGE_WEBDAV_ENCRYPTION_KEY`: 32 byte in base64, generabili con `openssl rand -base64 32`. Solo i contenuti sono cifrati, i nomi no. **Persa la chiave i file sono irrecuperabili**: conservane una copia. Una cache locale cifrata (2 GB di default, `0` per spegnerla) evita di riscaricare i file letti spesso.
 
 Passare da locale a WebDAV non sposta i file esistenti da solo: esiste una migrazione una tantum, attivabile da configurazione, che copia i file locali, salta quelli già presenti e non ferma tutto per un file che fallisce.
 

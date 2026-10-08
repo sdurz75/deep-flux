@@ -52,6 +52,19 @@ class PagesRenderingTests {
     }
 
 #end
+#if( $useOauth2 == "true" )
+    /** hexa-oauth2: a cancello spento (default) l'app e' aperta come prima; la pagina Accesso e la schermata di accesso si rendono. */
+    @Test
+    void theOauth2GateIsOffByDefaultAndItsPagesRender() throws Exception {
+        mockMvc.perform(get("/")).andExpect(status().isOk());
+        assertThat(mockMvc.perform(get("/oauth2")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("Cancello di accesso", "Utenti ammessi");
+        assertThat(mockMvc.perform(get("/oauth2/login")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("Nessun provider configurato");
+        assertThat(mockMvc.perform(get("/")).andReturn().getResponse().getContentAsString()).contains("href=\"/oauth2\"");
+    }
+
+#end
     /** Il blocco con PIN e' del core: senza PIN l'app e' libera e la pagina Sicurezza sta nel menu Gestione. */
     @Test
     void theSecurityPageIsInTheManageMenuAndTheAppIsFreeWithoutAPin() throws Exception {

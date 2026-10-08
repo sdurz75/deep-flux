@@ -14,7 +14,7 @@
             <p th:text="#{lock.unlock.intro}">Inserisci il PIN per continuare.</p>
             <form th:action="@{/unlock}" method="post" data-busy="off" autocomplete="off">
                 <input type="hidden" name="next" th:value="${next}">
-                <p th:if="${error}" th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
+                <th:block th:if="${error}"><p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p></th:block>
                 <label for="unlock-pin" th:text="#{lock.label.pin}">PIN</label>
                 <input type="password" id="unlock-pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" autofocus required>
                 <div class="mt-4">

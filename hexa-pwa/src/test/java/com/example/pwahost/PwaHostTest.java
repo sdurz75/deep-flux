@@ -69,4 +69,27 @@ class PwaHostTest {
         assertThat(head).contains("rel=\"manifest\" href=\"/sub/manifest.webmanifest\"", "name=\"theme-color\"", "rel=\"apple-touch-icon\"",
                 "data-sw=\"/sub/sw.js\"", "data-scope=\"/sub/\"");
     }
+
+    @Test
+    void thePwaRegistersItselfInSettingsAndAChangeShowsInTheManifestAtOnce() throws Exception {
+        mockMvc.perform(get("/settings")).andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("id=\"settings-pwa\"")));
+        try {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/settings/pwa")
+                            .param("theme-color", "#123456").param("theme-color-dark", "#000000").param("display", "fullscreen")
+                            .header("HX-Request", "true"))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/manifest.webmanifest")).andExpect(jsonPath("$.display").value("fullscreen"))
+                    .andExpect(jsonPath("$.theme_color").value("#123456"));
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/settings/pwa")
+                            .param("theme-color", "rosso").param("theme-color-dark", "#000000").param("display", "fullscreen")
+                            .header("HX-Request", "true"))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/manifest.webmanifest")).andExpect(jsonPath("$.theme_color").value("#123456"));
+        } finally {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/settings/pwa/reset"));
+        }
+    }
 }

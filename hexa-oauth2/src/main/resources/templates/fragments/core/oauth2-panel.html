@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Il pannello della pagina Accesso (pagina intera via th:replace, risposta htmx come vista diretta con parametro NOMINATO `v`, un OAuthAdminView).
+  Tre blocchi: cancello (stato, precondizioni, interruttore), provider (con l'indirizzo di ritorno da registrare) e utenti ammessi.
+-->
+<div th:fragment="panel(v)" id="oauth2-panel" class="max-w-2xl">
+    <th:block th:if="${v.error}"><p th:replace="~{fragments/core/alert :: error(text=${v.error})}">Errore</p></th:block>
+    <p th:if="${v.saved}" th:text="#{oauth2.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>
+
+    <h2 th:text="#{oauth2.gate.title}">Cancello di accesso</h2>
+    <p th:if="${v.status.resetActive}" th:text="#{oauth2.gate.resetActive}" class="text-warning dark:text-warning-dark">Spento da HX_OAUTH2_RESET.</p>
+    <p th:if="${v.status.requestedByEnv && !v.status.resetActive}" th:text="#{oauth2.gate.requestedByEnv}" class="text-ink-muted dark:text-ink-muted-dark">Acceso da HX_OAUTH2_ENABLED.</p>
+
+    <th:block th:if="${v.status.enabled}">
+        <p th:text="#{oauth2.gate.on}">Il cancello e' acceso.</p>
+        <div class="flex flex-wrap gap-2 my-3">
+            <th:block th:unless="${v.status.requestedByEnv}">
+                <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{oauth2.gate.disable}, hxGet=null, hxPost=@{/oauth2/gate/disable}, hxTarget='#oauth2-panel', hxSwap='outerHTML', extraClass=null)}">Spegni</button>
+            </th:block>
+        </div>
+        <form th:action="@{/oauth2/logout}" method="post" data-busy="off" class="my-3">
+            <button th:replace="~{fragments/core/button :: neutral(type='submit', text=#{oauth2.gate.logout}, hxGet=null, hxPost=null, hxTarget=null, hxSwap=null, extraClass=null)}">Esci</button>
+        </form>
+    </th:block>
+
+    <th:block th:unless="${v.status.enabled}">
+        <p th:text="#{oauth2.gate.off}">Il cancello e' spento: l'app e' aperta a chi la raggiunge.</p>
+        <ul class="list-none p-0 my-3 flex flex-col gap-1 text-[0.9rem]">
+            <li th:text="${v.status.providers > 0} ? #{oauth2.gate.check.provider.ok} : #{oauth2.gate.check.provider.missing}">Provider</li>
+            <li th:text="${v.status.allowed > 0} ? #{oauth2.gate.check.allowed.ok} : #{oauth2.gate.check.allowed.missing}">Ammessi</li>
+            <li th:text="${v.status.verifiedLogin} ? #{oauth2.gate.check.login.ok} : #{oauth2.gate.check.login.missing}">Accesso di prova</li>
+        </ul>
+        <div class="my-3">
+            <th:block th:if="${v.status.canEnable}">
+                <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{oauth2.gate.enable}, hxGet=null, hxPost=@{/oauth2/gate/enable}, hxTarget='#oauth2-panel', hxSwap='outerHTML', extraClass=null)}">Accendi</button>
+            </th:block>
+            <p th:unless="${v.status.canEnable}" th:text="#{oauth2.gate.cannotEnable}" class="text-ink-muted dark:text-ink-muted-dark">Completa i passaggi sopra per accendere il cancello.</p>
+        </div>
+    </th:block>
+
+    <h2 th:text="#{oauth2.providers.title}">Provider</h2>
+    <p th:if="${#lists.isEmpty(v.providers)}" th:text="#{oauth2.providers.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessun provider.</p>
+    <ul th:unless="${#lists.isEmpty(v.providers)}" class="list-none p-0 mt-3 flex flex-col gap-3">
+        <li th:each="row : ${v.providers}" th:id="'oauth2-provider-' + ${row.config.slug}"
+            class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3">
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.9rem]">
+                <strong th:text="${row.config.title}">Google</strong>
+                <code th:text="${row.config.slug}">google</code>
+                <th:block th:if="${row.config.fromEnv}"><span th:replace="~{fragments/core/chip :: neutral(text=#{oauth2.providers.fromEnv}, textClass='text-[0.8rem]')}">ambiente</span></th:block>
+                <a th:replace="~{fragments/core/chip :: link(href=@{/oauth2/start/{slug}(slug=${row.config.slug})}, text=#{oauth2.providers.test}, textClass='text-[0.8rem]')}">Prova accesso</a>
+            </div>
+            <p class="my-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark break-all" th:text="${row.config.issuerUri}">https://accounts.google.com</p>
+            <p class="my-1 text-[0.85rem]"><span th:text="#{oauth2.providers.redirectUri}">Indirizzo di ritorno</span>: <code class="break-all" th:text="${row.redirectUri}">https://app/login/oauth2/code/google</code></p>
+            <div th:unless="${row.config.fromEnv}" class="mt-2">
+                <button th:replace="~{fragments/core/button :: danger(type='button', text=#{oauth2.button.delete}, hxPost=@{/oauth2/providers/{id}/delete(id=${row.config.id})}, hxDelete=null,
+                            hxConfirm=#{oauth2.providers.confirmDelete}, hxSwap='outerHTML', hxTarget='#oauth2-panel', extraClass='px-3 py-1 text-[0.85rem]')}">Elimina</button>
+            </div>
+        </li>
+    </ul>
+
+    <h3 th:text="#{oauth2.providers.add}">Aggiungi un provider</h3>
+    <p class="text-[0.9rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{oauth2.providers.addHelp}">Registra l'indirizzo di ritorno presso il provider.</p>
+    <th:block th:unless="${v.tokensConfigured}"><p th:replace="~{fragments/core/alert :: error(text=#{tokens.alert.notConfigured})}">Chiave di cifratura mancante.</p></th:block>
+    <form th:hx-post="@{/oauth2/providers}" hx-target="#oauth2-panel" hx-swap="outerHTML" th:action="@{/oauth2/providers}" method="post" autocomplete="off">
+        <label for="oauth2-slug" th:text="#{oauth2.form.slug}">Identificativo</label>
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#oauth2-slug}, clearable=true, title=null)}">
+            <input type="text" id="oauth2-slug" name="slug" class="w-full" maxlength="30" pattern="[a-z][a-z0-9-]{1,29}" required>
+        </th:block>
+        <label for="oauth2-title" th:text="#{oauth2.form.title}">Nome mostrato</label>
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#oauth2-title}, clearable=true, title=null)}">
+            <input type="text" id="oauth2-title" name="title" class="w-full" maxlength="60" required>
+        </th:block>
+        <label for="oauth2-issuer" th:text="#{oauth2.form.issuer}">Issuer OIDC</label>
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#oauth2-issuer}, clearable=true, title=null)}">
+            <input type="text" id="oauth2-issuer" name="issuerUri" class="w-full" maxlength="300" placeholder="https://accounts.google.com" required>
+        </th:block>
+        <label for="oauth2-client" th:text="#{oauth2.form.clientId}">Client ID</label>
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#oauth2-client}, clearable=true, title=null)}">
+            <input type="text" id="oauth2-client" name="clientId" class="w-full" maxlength="300" required>
+        </th:block>
+        <label for="oauth2-secret" th:text="#{oauth2.form.secret}">Segreto del client (token OAUTH2)</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="oauth2-secret" name="secretTokenId" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option th:each="t : ${v.secrets}" th:value="${t.id}" th:text="${t.name}">segreto</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+        <p class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark">
+            <span th:text="#{oauth2.form.secretHelp}">Salva prima il segreto in Token con il servizio OAuth2.</span>
+            <a th:href="@{/tokens}" th:text="#{oauth2.form.secretLink}">Apri Token</a>
+        </p>
+        <div class="mt-4">
+            <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{oauth2.form.save}, extraClass=null)}">Salva</button>
+        </div>
+    </form>
+
+    <h2 th:text="#{oauth2.allowed.title}">Utenti ammessi</h2>
+    <p th:text="#{oauth2.allowed.intro}">Solo chi e' in questa lista entra, anche se il provider lo autentica.</p>
+    <p th:if="${#lists.isEmpty(v.allowed)}" th:text="#{oauth2.allowed.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessun utente ammesso.</p>
+    <ul th:unless="${#lists.isEmpty(v.allowed)}" class="list-none p-0 mt-3 flex flex-col gap-2">
+        <li th:each="a : ${v.allowed}" class="flex flex-wrap items-center gap-x-3 gap-y-1 border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-2 text-[0.9rem]">
+            <span th:replace="~{fragments/core/chip :: neutral(text=${a.kind.name() == 'EMAIL'} ? #{oauth2.allowed.kind.email} : #{oauth2.allowed.kind.domain}, textClass='text-[0.8rem]')}">email</span>
+            <strong class="break-all" th:text="${a.value}">utente@example.com</strong>
+            <th:block th:if="${a.fromEnv}"><span th:replace="~{fragments/core/chip :: neutral(text=#{oauth2.providers.fromEnv}, textClass='text-[0.8rem]')}">ambiente</span></th:block>
+            <th:block th:if="${a.bound}"><span th:replace="~{fragments/core/chip :: neutral(text=#{oauth2.allowed.bound}, textClass='text-[0.8rem]')}">legato</span></th:block>
+            <span th:if="${a.lastLoginAt != null}" class="text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="#{oauth2.allowed.lastLogin(${#temporals.format(a.lastLoginAt, 'yyyy-MM-dd HH:mm')})}">ultimo accesso</span>
+            <span th:unless="${a.fromEnv}" class="ml-auto">
+                <button th:replace="~{fragments/core/button :: danger(type='button', text=#{oauth2.button.delete}, hxPost=@{/oauth2/allowed/{id}/delete(id=${a.id})}, hxDelete=null,
+                            hxConfirm=#{oauth2.allowed.confirmDelete}, hxSwap='outerHTML', hxTarget='#oauth2-panel', extraClass='px-3 py-1 text-[0.85rem]')}">Elimina</button>
+            </span>
+        </li>
+    </ul>
+
+    <h3 th:text="#{oauth2.allowed.add}">Aggiungi</h3>
+    <form th:hx-post="@{/oauth2/allowed}" hx-target="#oauth2-panel" hx-swap="outerHTML" th:action="@{/oauth2/allowed}" method="post" autocomplete="off">
+        <label for="oauth2-kind" th:text="#{oauth2.allowed.kind}">Tipo</label>
+        <div class="relative" x-data="pinesSelect" x-bind="root">
+            <select id="oauth2-kind" name="kind" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="EMAIL" th:text="#{oauth2.allowed.kind.email}">Email</option>
+                <option value="DOMAIN" th:text="#{oauth2.allowed.kind.domain}">Dominio</option>
+            </select>
+            <div th:replace="~{fragments/core/select :: ui}"></div>
+        </div>
+        <label for="oauth2-value" th:text="#{oauth2.allowed.value}">Email o dominio</label>
+        <th:block th:replace="~{fragments/core/clear-field :: wrap(content=~{::#oauth2-value}, clearable=true, title=null)}">
+            <input type="text" id="oauth2-value" name="value" class="w-full" maxlength="255" required>
+        </th:block>
+        <div class="mt-4">
+            <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{oauth2.allowed.addButton}, extraClass=null)}">Aggiungi</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

@@ -42,12 +42,12 @@ class ArchitectureTest {
     private static final String ROOT = "org.dual.hexa";
 
     /**
-     * I moduli librerie: {@code core} (hexa-core), {@code ai} (hexa-ai), {@code pwa} (hexa-pwa); {@code app} e' l'host. Ogni modulo ha i suoi sottosistemi:
+     * I moduli librerie: {@code core} (hexa-core), {@code ai} (hexa-ai), {@code pwa} (hexa-pwa), {@code oauth2} (hexa-oauth2); {@code app} e' l'host. Ogni modulo ha i suoi sottosistemi:
      * {@code org.dual.hexa.<modulo>.<sottosistema>.<resto>}.
      */
-    private static final String[] LIBRARIES = {"core", "ai", "pwa"};
+    private static final String[] LIBRARIES = {"core", "ai", "pwa", "oauth2"};
 
-    private static final Pattern SLICE = Pattern.compile("^" + Pattern.quote(ROOT) + "\\.(core|ai|pwa|app)\\.([^.]+)(?:\\.(.*))?$");
+    private static final Pattern SLICE = Pattern.compile("^" + Pattern.quote(ROOT) + "\\.(core|ai|pwa|oauth2|app)\\.([^.]+)(?:\\.(.*))?$");
 
     /** Il suffisso (es. {@code ..domain..}) sotto ogni libreria: {@code org.dual.hexa.<libreria>..domain..}. */
     private static String[] libraries(String suffix) {
@@ -166,11 +166,11 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage(ROOT + ".app..")
             .allowEmptyShould(true);
 
-    /** hexa-core non conosce le librerie opzionali (hexa-ai, hexa-pwa): sono loro a dipendere dal core, mai il contrario (lo impone anche Maven). */
+    /** hexa-core non conosce le librerie opzionali (hexa-ai, hexa-pwa, hexa-oauth2): sono loro a dipendere dal core, mai il contrario (lo impone anche Maven). */
     @ArchTest
     static final ArchRule coreDoesNotKnowOptionalLibraries = noClasses()
             .that().resideInAPackage(ROOT + ".core..")
-            .should().dependOnClassesThat().resideInAnyPackage(ROOT + ".ai..", ROOT + ".pwa..")
+            .should().dependOnClassesThat().resideInAnyPackage(ROOT + ".ai..", ROOT + ".pwa..", ROOT + ".oauth2..")
             .allowEmptyShould(true);
 
     /** Le librerie opzionali non si conoscono fra loro: ognuna dipende solo dal core. */
@@ -182,6 +182,16 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule pwaDoesNotKnowAi = noClasses()
             .that().resideInAPackage(ROOT + ".pwa..").should().dependOnClassesThat().resideInAPackage(ROOT + ".ai..")
+            .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule oauth2DoesNotKnowAiNorPwa = noClasses()
+            .that().resideInAPackage(ROOT + ".oauth2..").should().dependOnClassesThat().resideInAnyPackage(ROOT + ".ai..", ROOT + ".pwa..")
+            .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule aiAndPwaDoNotKnowOauth2 = noClasses()
+            .that().resideInAnyPackage(ROOT + ".ai..", ROOT + ".pwa..").should().dependOnClassesThat().resideInAPackage(ROOT + ".oauth2..")
             .allowEmptyShould(true);
 
     /** Il core non deve appoggiarsi ai vecchi package per layer: quel che e' migrato non torna indietro. */
@@ -225,7 +235,7 @@ class ArchitectureTest {
             .matching(ROOT + ".app.(*)..").should().beFreeOfCycles()
             .allowEmptyShould(true);
 
-    /** Regola di chiusura: nessuna classe fuori da {@code core}, {@code ai}, {@code pwa}, {@code app}, {@code support} e {@code Application} (niente package per layer). */
+    /** Regola di chiusura: nessuna classe fuori da {@code core}, {@code ai}, {@code pwa}, {@code oauth2}, {@code app}, {@code support} e {@code Application} (niente package per layer). */
     @ArchTest
     static final ArchRule nothingOutsideCoreAndApp = classes()
             .that().resideInAPackage(ROOT + "..")
@@ -267,10 +277,13 @@ class ArchitectureTest {
         };
     }
 
-    /** Un adapter dell'app puo' implementare SOLO le porte in uscita del core elencate in {@link #CORE_EXTENSION_POINTS}. */
+    /**
+     * Un adapter dell'app, o di una libreria opzionale (hexa-oauth2 aggiunge un servizio a {@code /tokens}), puo' implementare SOLO le porte in uscita del
+     * core elencate in {@link #CORE_EXTENSION_POINTS}.
+     */
     private static boolean implementsCoreExtensionPoint(Matcher from, Matcher to, JavaClass target) {
         String originRest = from.group(3) == null ? "" : from.group(3);
-        return from.group(1).equals("app") && to.group(1).equals("core") && originRest.startsWith("adapter.")
+        return !from.group(1).equals("core") && to.group(1).equals("core") && originRest.startsWith("adapter.")
                 && CORE_EXTENSION_POINTS.contains(target.getName());
     }
 

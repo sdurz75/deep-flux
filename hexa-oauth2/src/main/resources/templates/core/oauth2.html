@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{oauth2.title}">Accesso</title>
+</head>
+<body>
+<div layout:fragment="breadcrumbs">
+    <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=#{header.menu.manage}, parentPath=null, parentText=null, current=#{oauth2.title})}"></nav>
+</div>
+<div layout:fragment="content">
+    <h1 th:text="#{oauth2.title}">Accesso</h1>
+    <p th:text="#{oauth2.intro}">Accesso con OAuth2/OIDC.</p>
+    <div th:replace="~{fragments/core/oauth2-panel :: panel(v=${view})}"></div>
+</div>
+</body>
+</html>

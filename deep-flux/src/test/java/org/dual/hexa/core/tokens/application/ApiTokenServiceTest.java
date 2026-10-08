@@ -7,7 +7,6 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.events.domain.CoreEventSource;
@@ -21,6 +20,7 @@ import org.dual.hexa.core.secrets.application.SecretCipher;
 import org.dual.hexa.core.tokens.domain.TokenException;
 import org.dual.hexa.core.tokens.port.in.IApiTokens;
 import org.dual.hexa.core.tokens.port.out.IApiTokenStore;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,12 +51,19 @@ class ApiTokenServiceTest {
 
     private ApiTokenService service;
 
+    /** I test condividono il DB: i token e gli eventi di questa classe non devono restare per le altre (es. quelle che contano i token HuggingFace). */
+    @AfterEach
+    void cleanUp() {
+        repository.deleteAll();
+        eventRepository.deleteAll();
+    }
+
     @BeforeEach
     void setUp() {
         repository.deleteAll();
         eventRepository.deleteAll();
         service = new ApiTokenService(repository, cipher, events, messages, 15,
-                Clock.fixed(TODAY.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault()), Optional.empty());
+                Clock.fixed(TODAY.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault()), List.of());
     }
 
     private ApiToken saved(String provider, String name, String plain, LocalDate expires) {
@@ -135,7 +142,7 @@ class ApiTokenServiceTest {
         org.dual.hexa.core.secrets.port.in.ISecretCipher noKey = org.mockito.Mockito.mock(org.dual.hexa.core.secrets.port.in.ISecretCipher.class);
         org.mockito.Mockito.when(noKey.isConfigured()).thenReturn(false);
 
-        var withoutKey = new ApiTokenService(repository, noKey, events, messages, 15, Clock.systemDefaultZone(), Optional.empty());
+        var withoutKey = new ApiTokenService(repository, noKey, events, messages, 15, Clock.systemDefaultZone(), List.of());
 
         assertThat(withoutKey.undecryptableCount()).isEqualTo(2);
     }
@@ -217,18 +224,18 @@ class ApiTokenServiceTest {
     }
 
     @Test
-    void providersComeFromTheAppCatalogAndAreEmptyWithoutOne() {
+    void providersAreMergedFromEveryCatalogAndEmptyWithoutOne() {
         ApiTokenService withCatalog = new ApiTokenService(repository, cipher, events, messages, 15, Clock.systemDefaultZone(),
-                Optional.of(() -> List.of("HUGGINGFACE", "CIVITAI")));
+                List.of(() -> List.of("HUGGINGFACE", "CIVITAI"), () -> List.of("OAUTH2", "CIVITAI")));
 
-        assertThat(withCatalog.providers()).containsExactly("HUGGINGFACE", "CIVITAI");
-        assertThat(new ApiTokenService(repository, cipher, events, messages, 15, Clock.systemDefaultZone(), Optional.empty()).providers())
+        assertThat(withCatalog.providers()).containsExactly("HUGGINGFACE", "CIVITAI", "OAUTH2");
+        assertThat(new ApiTokenService(repository, cipher, events, messages, 15, Clock.systemDefaultZone(), List.of()).providers())
                 .isEmpty();
     }
 
     @Test
     void withoutAnEncryptionKeyCreatingIsAConfigurationErrorAndNothingIsSaved() {
-        ApiTokenService unconfigured = new ApiTokenService(repository, new SecretCipher("", messages), events, messages, 15, Clock.systemDefaultZone(), Optional.empty());
+        ApiTokenService unconfigured = new ApiTokenService(repository, new SecretCipher("", messages), events, messages, 15, Clock.systemDefaultZone(), List.of());
 
         assertThat(unconfigured.isConfigured()).isFalse();
         assertThatThrownBy(() -> unconfigured.create("HUGGINGFACE", "Personale", "hf_secret_abcd", null))

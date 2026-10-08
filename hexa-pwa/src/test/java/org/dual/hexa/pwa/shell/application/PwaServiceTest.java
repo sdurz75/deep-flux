@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
+import org.dual.hexa.core.config.domain.ModuleValues;
+import org.dual.hexa.core.config.port.in.IModuleSettings;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.web.BuildInfo;
 import org.junit.jupiter.api.Test;
@@ -18,7 +21,12 @@ class PwaServiceTest {
         BuildInfo build = mock(BuildInfo.class);
         when(build.getTime()).thenReturn(time);
         when(build.getCommit()).thenReturn(commit);
-        return new PwaService(() -> "scope=__SCOPE__ offline=__OFFLINE_URL__ cache=__CACHE_NAME__", messages, build, "#fff", "#000", "standalone");
+        IModuleSettings settings = mock(IModuleSettings.class);
+        Map<String, String> values = Map.of("theme-color", "#fff", "theme-color-dark", "#000", "display", "standalone");
+        when(settings.values("pwa")).thenReturn(new ModuleValues(values::get, key -> {
+            throw new IllegalStateException(key);
+        }));
+        return new PwaService(() -> "scope=__SCOPE__ offline=__OFFLINE_URL__ cache=__CACHE_NAME__", messages, build, settings);
     }
 
     @Test

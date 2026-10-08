@@ -9,7 +9,7 @@
   - `script`: registra UNA volta il componente Alpine `pinesPopover` (alpine:init), a livello di PAGINA (layout.html, prima del core Alpine).
     Rispetto al sorgente Pines la posizione si calcola all'apertura (niente apertura invisibile all'init) e il pannello scorre da solo
     (`max-h-[70vh]`): un contenuto alto, come la form dei parametri di generazione, non esce dal viewport.
-  - `panel(label, labelId, title, body, align, extraClass)`: il markup. `label` = testo del bottone (null = solo icona a cursori), `labelId` = id (o null) dello <span> del testo, cosi' una risposta htmx puo' aggiornarlo (OOB `innerHTML`), `title` = tooltip e aria-label, entrambi GIA' risolti dal
+  - `panel(label, labelId, title, body, align, extraClass, icon)`: il markup. `label` = testo del bottone (null = solo icona, a cursori o quella di `icon`), `icon` = `gallery` per l'icona immagine (null = cursori), `labelId` = id (o null) dello <span> del testo, cosi' una risposta htmx puo' aggiornarlo (OOB `innerHTML`), `title` = tooltip e aria-label, entrambi GIA' risolti dal
     chiamante (`#{...}`); `body` = fragment-expression (`~{::#id}`) col contenuto, inserito dentro il pannello (stesso schema dei corpi di
     accordion.html: `th:with` per risolvere prima le `#{...}`, poi il `th:replace` con il contenuto come figlio); `align` = lato del bottone a cui si ancora il pannello, `left` (default) o `right` (bottone a destra della pagina: il pannello si apre verso sinistra, senza uscire dal viewport); `extraClass` = larghezza
     del pannello (es. `w-96 max-w-[90vw]`; null = `w-80 max-w-[90vw]`).
@@ -46,8 +46,8 @@
     </script>
 </th:block>
 
-<div th:fragment="panel(label, labelId, title, body, align, extraClass)" x-data="pinesPopover" @keydown.escape.window="close()" class="relative inline-block">
-    <button th:replace="~{fragments/core/button :: popoverToggle(content=${label}, contentId=${labelId}, title=${title})}">Impostazioni</button>
+<div th:fragment="panel(label, labelId, title, body, align, extraClass, icon)" x-data="pinesPopover" @keydown.escape.window="close()" class="relative inline-block">
+    <button th:replace="~{fragments/core/button :: popoverToggle(content=${label}, contentId=${labelId}, title=${title}, icon=${icon})}">Impostazioni</button>
     <div th:replace="~{fragments/core/popover :: floating(align=${align}, extraClass=${extraClass}, bodyClass='p-4', trap=true, body=${body})}"></div>
 </div>
 

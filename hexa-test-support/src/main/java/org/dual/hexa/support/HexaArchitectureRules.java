@@ -43,8 +43,8 @@ public final class HexaArchitectureRules {
 
     private static final String LIBRARY = "org.dual.hexa.core";
 
-    /** I moduli librerie: hexa-core, e le opzionali hexa-ai e hexa-pwa. Ognuno ha sottosistemi sotto la sua radice. */
-    private static final java.util.List<String> LIBRARY_ROOTS = java.util.List.of(LIBRARY, "org.dual.hexa.ai", "org.dual.hexa.pwa");
+    /** I moduli librerie: hexa-core, e le opzionali hexa-ai, hexa-pwa e hexa-oauth2. Ognuno ha sottosistemi sotto la sua radice. */
+    private static final java.util.List<String> LIBRARY_ROOTS = java.util.List.of(LIBRARY, "org.dual.hexa.ai", "org.dual.hexa.pwa", "org.dual.hexa.oauth2");
 
     /** Sottosistemi condivisi delle librerie: kernel e kit web, ci si puo' dipendere da qualunque parte. */
     private static final Set<String> SHARED_LIBRARY_SUBSYSTEMS = Set.of("kernel", "web");

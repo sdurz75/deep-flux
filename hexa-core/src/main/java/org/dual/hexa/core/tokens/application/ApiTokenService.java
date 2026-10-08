@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.events.domain.CoreEventSource;
@@ -16,6 +15,7 @@ import org.dual.hexa.core.tokens.domain.TokenException;
 import org.dual.hexa.core.tokens.port.in.IApiTokens;
 import org.dual.hexa.core.tokens.port.out.IApiTokenStore;
 import org.dual.hexa.core.tokens.port.out.ITokenProviderCatalog;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -39,24 +39,24 @@ public class ApiTokenService implements IApiTokens {
     private final Messages messages;
     private final int warningDays;
     private final Clock clock;
-    private final Optional<ITokenProviderCatalog> providerCatalog;
+    private final List<ITokenProviderCatalog> providerCatalogs;
 
     @Autowired
     public ApiTokenService(IApiTokenStore repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
                            @Value("${app.tokens.expiry-warning-days:15}") int warningDays,
-                           Optional<ITokenProviderCatalog> providerCatalog) {
-        this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone(), providerCatalog);
+                           ObjectProvider<ITokenProviderCatalog> providerCatalogs) {
+        this(repository, cipher, events, messages, warningDays, Clock.systemDefaultZone(), providerCatalogs.orderedStream().toList());
     }
 
     ApiTokenService(IApiTokenStore repository, ISecretCipher cipher, ISystemEvents events, Messages messages,
-                    int warningDays, Clock clock, Optional<ITokenProviderCatalog> providerCatalog) {
+                    int warningDays, Clock clock, List<ITokenProviderCatalog> providerCatalogs) {
         this.repository = repository;
         this.cipher = cipher;
         this.events = events;
         this.messages = messages;
         this.warningDays = warningDays;
         this.clock = clock;
-        this.providerCatalog = providerCatalog;
+        this.providerCatalogs = providerCatalogs;
     }
 
     /** {@code false} se manca la chiave di cifratura: la pagina /tokens lo segnala e creare/modificare e' rifiutato. */
@@ -72,7 +72,7 @@ public class ApiTokenService implements IApiTokens {
 
     @Override
     public List<String> providers() {
-        return providerCatalog.map(ITokenProviderCatalog::providers).orElse(List.of());
+        return providerCatalogs.stream().flatMap(catalog -> catalog.providers().stream()).distinct().toList();
     }
 
     @Override

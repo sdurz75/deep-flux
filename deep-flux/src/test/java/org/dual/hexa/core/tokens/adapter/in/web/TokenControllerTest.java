@@ -6,6 +6,7 @@ import org.dual.hexa.core.tokens.port.out.IApiTokenStore;
 import java.util.List;
 
 import org.dual.hexa.core.tokens.port.out.ITokenProviderCatalog;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,13 @@ class TokenControllerTest {
     private ISystemEventStore eventRepository;
     @Autowired
     private IApiTokens service;
+
+    /** I test condividono il DB: i token e gli eventi di questa classe non devono restare per le altre (es. quelle che contano i token HuggingFace). */
+    @AfterEach
+    void cleanUp() {
+        repository.deleteAll();
+        eventRepository.deleteAll();
+    }
 
     @BeforeEach
     void clean() {

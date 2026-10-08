@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/core/layout}">
+<head>
+    <title th:text="#{oauth2.login.title}">Accesso</title>
+</head>
+<body>
+<!-- Senza breadcrumbs: e' la schermata di accesso, non una pagina di navigazione. Il cancello lascia passare solo questa pagina e i flussi OIDC. -->
+<div layout:fragment="content">
+    <!-- Full-screen modal Pines: copre header/sidebar e rende inerte il resto (fragments/core/fullscreen-modal), come lo sblocco del PIN. -->
+    <th:block th:replace="~{fragments/core/fullscreen-modal :: screen(titleId='oauth2-login-title', body=~{::#oauth2-login-body})}">
+        <div id="oauth2-login-body" class="max-w-sm mx-auto">
+            <h1 id="oauth2-login-title" th:text="#{oauth2.login.title}">Accesso</h1>
+            <p th:text="#{oauth2.login.intro}">Accedi per continuare.</p>
+            <th:block th:if="${error == 'denied'}"><p th:replace="~{fragments/core/alert :: error(text=#{oauth2.login.error.denied})}">Non ammesso</p></th:block>
+            <th:block th:if="${error == 'failed'}"><p th:replace="~{fragments/core/alert :: error(text=#{oauth2.login.error.failed})}">Accesso non riuscito</p></th:block>
+            <th:block th:if="${error == 'provider'}"><p th:replace="~{fragments/core/alert :: error(text=#{oauth2.login.error.provider})}">Provider non raggiungibile</p></th:block>
+            <p th:if="${#lists.isEmpty(providers)}" th:text="#{oauth2.login.noProviders}" class="text-ink-muted dark:text-ink-muted-dark">Nessun provider configurato.</p>
+            <form th:each="p : ${providers}" method="get" th:action="@{/oauth2/start/{slug}(slug=${p.slug})}" data-busy="off" class="mt-3">
+                <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{oauth2.login.button(${p.title})}, extraClass='w-full')}">Accedi con Google</button>
+            </form>
+        </div>
+    </th:block>
+</div>
+</body>
+</html>

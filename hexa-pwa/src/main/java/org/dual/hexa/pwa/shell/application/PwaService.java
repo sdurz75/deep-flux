@@ -1,18 +1,20 @@
 package org.dual.hexa.pwa.shell.application;
 
 import java.util.List;
+import org.dual.hexa.core.config.port.in.IModuleSettings;
 import org.dual.hexa.core.kernel.i18n.Messages;
+import org.dual.hexa.pwa.shell.domain.PwaSettings;
 import org.dual.hexa.pwa.shell.domain.WebManifest;
 import org.dual.hexa.pwa.shell.domain.WebManifest.Icon;
 import org.dual.hexa.pwa.shell.port.in.IPwa;
 import org.dual.hexa.pwa.shell.port.out.IServiceWorkerSource;
 import org.dual.hexa.core.web.BuildInfo;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
  * Compone manifest e service worker. Nome e nome breve vengono dal bundle dell'app ({@code app.title}, {@code app.brand}: le stesse chiavi del layout),
- * quindi per lingua. I colori sono esadecimali in configurazione (default = i token {@code canvas} di Tailwind): il manifest non puo' usare classi.
+ * quindi per lingua. I colori sono esadecimali in configurazione (default = i token {@code canvas} di Tailwind): il manifest non puo' usare classi. Colori e display
+ * vengono dalle impostazioni del modulo ({@code PwaSettings}) e si leggono a ogni richiesta: una modifica da {@code /settings} vale subito.
  */
 @Service
 class PwaService implements IPwa {
@@ -23,26 +25,20 @@ class PwaService implements IPwa {
     private final IServiceWorkerSource source;
     private final Messages messages;
     private final BuildInfo buildInfo;
-    private final String themeColor;
-    private final String themeColorDark;
-    private final String display;
+    private final IModuleSettings settings;
 
-    PwaService(IServiceWorkerSource source, Messages messages, BuildInfo buildInfo,
-               @Value("${app.pwa.theme-color:#ffffff}") String themeColor,
-               @Value("${app.pwa.theme-color-dark:#0d1117}") String themeColorDark,
-               @Value("${app.pwa.display:standalone}") String display) {
+    PwaService(IServiceWorkerSource source, Messages messages, BuildInfo buildInfo, IModuleSettings settings) {
         this.source = source;
         this.messages = messages;
         this.buildInfo = buildInfo;
-        this.themeColor = themeColor;
-        this.themeColorDark = themeColorDark;
-        this.display = display;
+        this.settings = settings;
     }
 
     @Override
     public WebManifest manifest(String contextPath) {
         String root = contextPath + "/";
-        return new WebManifest(root, messages.get("app.title"), messages.get("app.brand"), root, root, display, themeColor, themeColor,
+        String themeColor = themeColor();
+        return new WebManifest(root, messages.get("app.title"), messages.get("app.brand"), root, root, settings.values(PwaSettings.ID).getString(PwaSettings.DISPLAY), themeColor, themeColor,
                 List.of(new Icon(contextPath + ICON_BASE + "icon-192.png", "192x192", "image/png", "any"),
                         new Icon(contextPath + ICON_BASE + "icon-512.png", "512x512", "image/png", "any"),
                         new Icon(contextPath + ICON_BASE + "icon-maskable-512.png", "512x512", "image/png", "maskable"),
@@ -66,11 +62,11 @@ class PwaService implements IPwa {
 
     @Override
     public String themeColor() {
-        return themeColor;
+        return settings.values(PwaSettings.ID).getString(PwaSettings.THEME_COLOR);
     }
 
     @Override
     public String themeColorDark() {
-        return themeColorDark;
+        return settings.values(PwaSettings.ID).getString(PwaSettings.THEME_COLOR_DARK);
     }
 }

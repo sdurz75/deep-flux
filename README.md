@@ -25,7 +25,7 @@ costruire un'altra webapp tenendo il core e sostituendo l'app vedi
 
 Richiede Maven installato (nessun wrapper incluso nello zip), Docker per
 il database (PostgreSQL+pgvector: `cp .env.example .env`, imposta
-`DB_PASSWORD`, poi `docker compose up -d`) e un token API Replicate,
+`HX_DB_PASSWORD`, poi `docker compose up -d`) e un token API Replicate,
 generabile su
 [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens):
 
@@ -55,7 +55,7 @@ non lo imposti.
 Le immagini generate finiscono in `./data/images` e i metadati (prompt,
 modello, parametri) in PostgreSQL con l'estensione pgvector (usato anche per
 la ricerca semantica). Per lo sviluppo basta `docker compose up -d`
-(`compose.yaml`, credenziali `DB_NAME`, `DB_USERNAME` (obbligatori, nessun default nel core) e `DB_PASSWORD` nel `.env`, vedi
+(`compose.yaml`, credenziali `HX_DB_NAME`, `HX_DB_USERNAME` (obbligatori, nessun default nel core) e `HX_DB_PASSWORD` nel `.env`, vedi
 `.env.example`); i dati stanno in `./data/postgres`, escluso da git. I test
 (`mvn test`) richiedono Docker: usano un container pgvector usa-e-getta.
 
@@ -88,9 +88,9 @@ java -jar deep-flux/target/deep-flux-*.jar import backup.dfb --replace  # azzera
 ```
 
 - **Credenziali**: servono solo quelle di cio' che il comando tocca, lette dal `.env` della **directory da cui lanci il jar** (o da variabili d'ambiente), come per il server:
-  `DB_*` (database sorgente per `export`, di destinazione per `import`) e, se `storage.type=webdav`, `STORAGE_WEBDAV_URL/USERNAME/PASSWORD`. Le credenziali di Replicate, OpenRouter
+  `HX_DB_*` (database sorgente per `export`, di destinazione per `import`) e, se `storage.type=webdav`, `HX_STORAGE_WEBDAV_URL`, `HX_STORAGE_WEBDAV_USERNAME` e `HX_STORAGE_WEBDAV_PASSWORD`. Le credenziali di Replicate, OpenRouter
   e SearXNG **non servono** e il backup non le contiene (ne' contiene il `.env`).
-- **Chiave**: l'archivio e' cifrato (AES-256-GCM) con `BACKUP_ENCRYPTION_KEY`, che se manca vale `STORAGE_WEBDAV_ENCRYPTION_KEY`; senza una chiave valida `export` si rifiuta (usa
+- **Chiave**: l'archivio e' cifrato (AES-256-GCM) con `HX_BACKUP_ENCRYPTION_KEY`, che se manca vale `HX_STORAGE_WEBDAV_ENCRYPTION_KEY`; senza una chiave valida `export` si rifiuta (usa
   `--no-encrypt` per un file in chiaro, sconsigliato: contiene prompt, chat e immagini). Per ripristinare serve la **stessa chiave**: conservane una copia fuori dal backup. Le immagini
   stanno nell'archivio in chiaro (dentro la cifratura), quindi si puo' esportare da WebDAV e importare in locale, o su un altro WebDAV con un'altra chiave dello storage.
 - **Token API** (`/tokens`): si copiano cifrati con la chiave dello storage. Se sul nuovo sistema la chiave e' diversa non si aprono: l'import lo segnala (campanella) e vanno reinseriti.
@@ -134,8 +134,21 @@ non appena pronto. Il proxy davanti all'app deve:
   disconnessione non e' definitivo — il messaggio e' comunque gia'
   persistito, ricompare al primo reload/cambio conversazione.
 
-Non essendoci sessioni/cookie ne' Spring Security in questa app, non
-c'e' altro stato lato server da propagare attraverso il proxy.
+Senza `hexa-oauth2` non ci sono sessioni/cookie ne' Spring Security in questa app
+(il blocco con PIN usa la sessione HTTP, ma nessuno stato da propagare oltre il
+cookie). Con l'accesso OAuth2 acceso serve in piu' `server.forward-headers-strategy=framework`
+(e `X-Forwarded-Prefix` per un sottopercorso), o l'indirizzo di ritorno calcolato non
+e' quello pubblico.
+
+## Accesso con OAuth2 (opzionale)
+
+`hexa-oauth2` aggiunge l'accesso con un provider OAuth2/OIDC (Google, Microsoft, Keycloak...) e una lista di
+utenti ammessi (email esatte e domini): essere autenticati dal provider non basta. E' **spento di default**
+(l'app resta aperta come prima). Per essere operativi bastano poche variabili nel `.env` (`HX_OAUTH2_PROVIDER`,
+`HX_OAUTH2_CLIENT_ID`, `HX_OAUTH2_CLIENT_SECRET`, `HX_OAUTH2_ALLOWED_EMAILS` / `HX_OAUTH2_ALLOWED_DOMAINS`, vedi
+`deep-flux/.env.example`); il resto (altri provider, utenti, interruttore) e' in `/oauth2`, menu «Gestione».
+Dalla UI il cancello si accende solo dopo un accesso di prova riuscito; se ci si chiude fuori, `HX_OAUTH2_RESET=true`
+all'avvio lo spegne. Nelle app generate dall'archetype: `-DuseOauth2=true`.
 
 ## Dettagli
 

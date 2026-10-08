@@ -16,4 +16,4 @@ Per cambiare il PIN, il tempo di inattività o per disattivare il blocco serve i
 
 ## Se dimentichi il PIN
 
-Non c'è un recupero dall'app. Chi gestisce il server può impostare `APP_LOCK_RESET=true` nel file `.env` e riavviare: il blocco si spegne e l'evento resta negli [Eventi](/system/events). Poi va tolta la riga, altrimenti ogni riavvio spegne il blocco.
+Non c'è un recupero dall'app. Chi gestisce il server può impostare `HX_LOCK_RESET=true` nel file `.env` e riavviare: il blocco si spegne e l'evento resta negli [Eventi](/system/events). Poi va tolta la riga, altrimenti ogni riavvio spegne il blocco.

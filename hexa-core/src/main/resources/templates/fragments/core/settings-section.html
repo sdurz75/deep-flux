@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  La sezione di un modulo nella pagina Impostazioni (pagina intera via th:replace, risposta htmx come vista diretta con parametri NOMINATI). I campi
+  sono generati dal tipo dichiarato dal modulo (l'<input> ha un id statico solo perche' clear-field :: wrap lo seleziona; a runtime vale th:id); un fragment proprio del modulo (view.fragment, senza parametri) va sotto i campi. I testi sono chiavi
+  di bundle del modulo, risolte qui con #{${...}}.
+-->
+<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="max-w-md mb-8">
+    <h2 th:text="#{${view.titleKey}}">Modulo</h2>
+    <th:block th:if="${error}"><p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p></th:block>
+    <p th:if="${saved}" th:text="#{settings.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>
+    <form th:hx-post="@{/settings/{id}(id=${view.id})}" th:hx-target="|#settings-${view.id}|" hx-swap="outerHTML"
+          th:action="@{/settings/{id}(id=${view.id})}" method="post" autocomplete="off">
+        <th:block th:each="field : ${view.fields}" th:with="fid=|cfg-${view.id}-${field.key}|, current=${view.values.get(field.key)}">
+            <div th:if="${field.type.name() == 'BOOL'}" class="my-3">
+                <label th:replace="~{fragments/core/switch :: toggle(id=${fid}, name=${field.key}, text=#{${field.labelKey}}, checked=${current == 'true'}, model=null, title=null)}">Interruttore</label>
+            </div>
+            <th:block th:unless="${field.type.name() == 'BOOL'}">
+                <label th:for="${fid}" th:text="#{${field.labelKey}}">Etichetta</label>
+                <div th:if="${field.type.name() == 'SELECT'}" class="relative" x-data="pinesSelect" x-bind="root">
+                    <select th:id="${fid}" th:name="${field.key}" class="sr-only" tabindex="-1" aria-hidden="true">
+                        <option th:each="option : ${field.options}" th:value="${option}" th:text="${option}" th:selected="${option == current}">valore</option>
+                    </select>
+                    <div th:replace="~{fragments/core/select :: ui}"></div>
+                </div>
+                <th:block th:unless="${field.type.name() == 'SELECT'}"
+                          th:replace="~{fragments/core/clear-field :: wrap(content=~{::#cfg-input}, clearable=true, title=null)}">
+                    <input id="cfg-input" th:id="${fid}" th:name="${field.key}" th:value="${current}"
+                           th:type="${field.type.name() == 'INT'} ? 'number' : 'text'"
+                           th:attr="min=${field.type.name() == 'INT'} ? ${field.min} : null, max=${field.type.name() == 'INT'} ? ${field.max} : null, pattern=${field.type.name() == 'COLOR'} ? '#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}' : null">
+                </th:block>
+            </th:block>
+            <p th:if="${field.helpKey != null}" th:text="#{${field.helpKey}}" class="text-sm text-ink-muted dark:text-ink-muted-dark">Aiuto</p>
+        </th:block>
+        <th:block th:if="${view.fragment != null}"><div th:insert="~{__${view.fragment}__}"></div></th:block>
+        <div class="mt-4 flex gap-2">
+            <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{settings.save}, extraClass=null)}">Salva</button>
+            <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{settings.reset}, hxGet=null, hxPost=@{/settings/{id}/reset(id=${view.id})}, hxTarget=|#settings-${view.id}|, hxSwap='outerHTML', extraClass=null)}">Ripristina</button>
+        </div>
+    </form>
+</section>
+
+</body>
+</html>

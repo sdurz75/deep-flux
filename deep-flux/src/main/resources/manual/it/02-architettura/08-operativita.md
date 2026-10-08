@@ -6,7 +6,7 @@ Come si avvia, si configura, si pubblica e si salva il sistema.
 
 Servono Java 21, Maven (non c'è il wrapper), Docker per il database e un token API di Replicate.
 
-1. Copia `.env.example` in `.env` (escluso da git) e imposta almeno `DB_PASSWORD` e `REPLICATE_API_TOKEN`. L'app legge `.env` dalla cartella da cui parte il processo.
+1. Copia `.env.example` in `.env` (escluso da git) e imposta almeno `HX_DB_PASSWORD` e `REPLICATE_API_TOKEN`. L'app legge `.env` dalla cartella da cui parte il processo.
 2. Avvia il database: `docker compose up -d`.
 3. Avvia l'app: `mvn spring-boot:run`.
 4. Al primo avvio con la ricerca attiva, l'app scarica il modello di embedding (circa 120 megabyte) in `./data/models`.
@@ -15,19 +15,20 @@ Senza il token di Replicate la navigazione funziona comunque; la generazione fal
 
 ## La configurazione
 
-Due file, con chiavi disgiunte: `application.yml` per l'app (Spring AI, Replicate, SearXNG, `app.*`) e `core.yml` per il core (web, database, eventi, segreti, storage), più `prompts.properties` per i testi dei prompt. I valori sensibili arrivano da variabili d'ambiente o da `.env`:
+Due file, con chiavi disgiunte: `application.yml` per l'app (Spring AI, Replicate, SearXNG, `app.*`) e `core.yml` per il core (web, database, eventi, segreti, storage), più `prompts.properties` per i testi dei prompt. I valori sensibili arrivano da variabili d'ambiente o da `.env`; quelle dei moduli del framework (core e AI) hanno il prefisso `HX_`:
 
 | Variabile | A cosa serve |
 |---|---|
-| DB_USERNAME, DB_PASSWORD (e DB_HOST, DB_PORT, DB_NAME) | accesso al database |
+| HX_DB_USERNAME, HX_DB_PASSWORD (e HX_DB_HOST, HX_DB_PORT, HX_DB_NAME) | accesso al database |
 | REPLICATE_API_TOKEN | generazione di immagini e video |
-| OPENROUTER_API_TOKEN | chat, miglioramento del prompt, analisi delle immagini |
-| OPENROUTER_MANAGEMENT_KEY | credito residuo di OpenRouter (facoltativa) |
-| OPENROUTER_CHAT_MODEL, OPENROUTER_VISION_MODEL, OPENROUTER_VISION_FALLBACK_MODEL | scelta dei modelli linguistici |
-| SEARXNG_BASE_URL, SEARXNG_USERNAME, SEARXNG_PASSWORD | ricerca web della chat |
-| STORAGE_WEBDAV_URL, STORAGE_WEBDAV_USERNAME, STORAGE_WEBDAV_PASSWORD | storage su WebDAV |
-| STORAGE_WEBDAV_ENCRYPTION_KEY | cifratura dei file WebDAV, dei token e dei backup |
-| BACKUP_ENCRYPTION_KEY | chiave dei backup, se diversa da quella dello storage |
+| HX_OPENROUTER_API_TOKEN | chat, miglioramento del prompt, analisi delle immagini |
+| HX_OPENROUTER_MANAGEMENT_KEY | credito residuo di OpenRouter (facoltativa) |
+| HX_OPENROUTER_CHAT_MODEL, HX_OPENROUTER_VISION_MODEL, HX_OPENROUTER_VISION_FALLBACK_MODEL | scelta dei modelli linguistici |
+| SEARXNG_BASE_URL, HX_SEARXNG_USERNAME, HX_SEARXNG_PASSWORD | ricerca web della chat |
+| HX_STORAGE_WEBDAV_URL, HX_STORAGE_WEBDAV_USERNAME, HX_STORAGE_WEBDAV_PASSWORD | storage su WebDAV |
+| HX_STORAGE_WEBDAV_ENCRYPTION_KEY | cifratura dei file WebDAV, dei token e dei backup |
+| HX_BACKUP_ENCRYPTION_KEY | chiave dei backup, se diversa da quella dello storage |
+| HX_LOCK_RESET | recupero di un PIN dimenticato (da togliere dopo l'uso) |
 
 Altri parametri utili: `app.chat.max-generations-per-turn`, `app.chat.max-vision-calls-per-turn`, `app.chat.history-max-turns` e `-chars`, `app.import.max-files`, `app.recovery.*` (recupero delle generazioni), `app.search.*` (ricerca), `app.training.*` (limiti e tempi dell'addestramento) e `storage.type`.
 
@@ -60,7 +61,7 @@ java -jar target/spring-htmx-starter-*.jar import backup.dfb --replace
 ```
 
 - Servono solo le credenziali di ciò che il comando tocca (il database e, con WebDAV, il server), lette da `.env` nella cartella da cui lanci il jar. I token di Replicate, OpenRouter e SearXNG **non servono** e il backup non li contiene.
-- L'archivio è cifrato con `BACKUP_ENCRYPTION_KEY` o, se manca, con la chiave dello storage; senza una chiave valida `export` si rifiuta (`--no-encrypt` produce un file in chiaro, sconsigliato). Per ripristinare serve la **stessa chiave**, da conservare fuori dal backup.
+- L'archivio è cifrato con `HX_BACKUP_ENCRYPTION_KEY` o, se manca, con la chiave dello storage; senza una chiave valida `export` si rifiuta (`--no-encrypt` produce un file in chiaro, sconsigliato). Per ripristinare serve la **stessa chiave**, da conservare fuori dal backup.
 - Contiene tutte le tabelle (note manuali comprese, che esistono solo nell'indice) e i file referenziati dal database. Si può esportare da WebDAV e importare in locale.
 - L'import vuole un database **vergine**; `--replace` azzera lo schema e **cancella i dati attuali**. Un backup di una versione più vecchia entra in un jar più nuovo; uno più nuovo del jar si rifiuta. Il server va fermato durante l'import.
 - I token API si copiano cifrati con la chiave dello storage: se nel sistema di destinazione è diversa non si aprono, e l'import lo segnala nella campanella.
@@ -75,4 +76,22 @@ L'app è installabile grazie a `hexa-pwa` (manifest, icone, service worker). Il 
 
 ## Blocco con PIN
 
-Il blocco sta nel core (`core.lock`), non nella PWA. Il cancello è lato server: con il PIN impostato e la sessione bloccata passano solo la pagina di sblocco, gli asset statici e i path che le librerie dichiarano esenti (la shell della PWA); pagine, htmx, `/events` e `/images/**` rispondono con redirect o 401. Lo stato di sblocco è nella sessione HTTP e conta solo gli input veri dell'utente, inviati dal browser come «touch»: il polling automatico non tiene sveglia l'app. Il PIN è un hash PBKDF2 nella tabella `app_lock`, con rallentamento persistito dei tentativi sbagliati. Un PIN dimenticato si recupera con `app.lock.reset=true` all'avvio (da togliere dopo l'uso). Non c'è Spring Security: il PIN è l'unico accesso, e protegge da un dispositivo incustodito o da un altro browser, non cifra i dati. Il backup include la tabella: ripristinarlo riporta il PIN del momento. Per l'utente vedi [Blocco con PIN](../01-uso/14-blocco-con-pin.md).
+Il blocco sta nel core (`core.lock`), non nella PWA. Il cancello è lato server: con il PIN impostato e la sessione bloccata passano solo la pagina di sblocco, gli asset statici e i path che le librerie dichiarano esenti (la shell della PWA); pagine, htmx, `/events` e `/images/**` rispondono con redirect o 401. Lo stato di sblocco è nella sessione HTTP e conta solo gli input veri dell'utente, inviati dal browser come «touch»: il polling automatico non tiene sveglia l'app. Il PIN è un hash PBKDF2 nella tabella `app_lock`, con rallentamento persistito dei tentativi sbagliati. Un PIN dimenticato si recupera con `app.lock.reset=true` all'avvio (da togliere dopo l'uso). Senza `hexa-oauth2` non c'è Spring Security e il PIN è l'unico accesso; protegge da un dispositivo incustodito o da un altro browser, non cifra i dati. Il backup include la tabella: ripristinarlo riporta il PIN del momento. Per l'utente vedi [Blocco con PIN](../01-uso/14-blocco-con-pin.md).
+
+## Accesso con OAuth2
+
+`hexa-oauth2` è un cancello di primo livello opzionale, nel suo jar (`org.dual.hexa.oauth2.login`): autentica con un provider OIDC e fa entrare solo chi è in una lista. È l'unico punto in cui c'è Spring Security, e la sua catena di filtri (`OAuthSecurityConfig`) è l'unica dell'app. Per l'utente vedi [Accesso con OAuth2](../01-uso/15-accesso-con-oauth2.md).
+
+**Spento è invisibile.** La catena è statica e l'interruttore è un dato: la decisione di autorizzazione legge `IOAuthAccess.isEnabled()` a ogni richiesta (stato in memoria, nessun I/O). A cancello spento le intestazioni di default e il CSRF di Spring Security sono disabilitati e nessuna richiesta cambia risposta; un test lo fissa. A cancello acceso il CSRF è un controllo di stessa origine (`Sec-Fetch-Site`, altrimenti `Origin` contro l'host), non il token: il token romperebbe ogni POST di htmx, i `fetch` degli script e l'upload della maschera.
+
+**Fallisce chiuso.** Acceso senza provider o senza ammessi, nessuno entra. Dalla UI il cancello si accende solo con un provider, un ammesso e un accesso di prova riuscito, e con il cancello acceso non si toglie l'ultima voce utile né l'ultimo provider. Il recupero è `HX_OAUTH2_RESET=true` all'avvio, che spegne il cancello e lo scrive negli eventi.
+
+**Configurazione essenziale con variabili.** `HX_OAUTH2_PROVIDER` (`google` o vuoto), `HX_OAUTH2_ISSUER_URI`, `HX_OAUTH2_CLIENT_ID`, `HX_OAUTH2_CLIENT_SECRET`, `HX_OAUTH2_ALLOWED_EMAILS`, `HX_OAUTH2_ALLOWED_DOMAINS`, `HX_OAUTH2_ENABLED`, `HX_OAUTH2_RESET`. Definiscono un provider d'ambiente virtuale, in sola lettura, il cui segreto non viene mai salvato né scritto in log, eventi o modello; gli elenchi si sommano a quelli del database. Il resto si gestisce da `/oauth2`, e il segreto del client di un provider aggiunto da lì è un token del servizio `OAUTH2` in `/tokens`.
+
+**La lista.** Si applica dentro l'autenticazione (`AllowlistOidcUserService`) prima che la sessione sia salvata, con i soli claim dell'id token. Le regole stanno in `application`, senza tipi di Spring Security: email normalizzata e `email_verified` obbligatorio, dominio uguale alla parte dopo l'ultima chiocciola (mai `endsWith`), legame di `issuer` e `subject` al primo accesso di un'email esatta.
+
+**Provider dinamici.** `DynamicClientRegistrations` è il repository dei client: legge la discovery OIDC con il `RestClient.Builder` dell'app, controlla che l'issuer dichiarato coincida, tiene la registrazione in cache per dieci minuti e usa sempre PKCE. Un guasto si registra come evento di sorgente `OAUTH2`.
+
+**Percorsi.** Passano senza accesso gli asset, la pagina di accesso, i flussi OIDC e i path di `ILockExemptPaths` (con `hexa-pwa`: manifest, service worker, pagina offline, icone). `/unlock` non è esente: prima l'accesso, poi il PIN. Chi non è autenticato riceve un redirect (navigazione), un 401 con `HX-Redirect` (htmx, tranne dalla pagina di accesso) o un 401 secco (SSE, immagini, fetch).
+
+**Non verificato dal vero**: il login con Google o Microsoft, l'indirizzo di ritorno dietro un reverse proxy su sottopercorso e il comportamento dentro la PWA installata. Il flusso intero si prova solo contro un provider OIDC finto, mai uno vero.

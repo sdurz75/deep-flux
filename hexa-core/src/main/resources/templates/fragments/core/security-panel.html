@@ -7,7 +7,7 @@
   modifica chiede il PIN attuale. Gli <input> password restano nudi (il clear-field vale per testo/search/date/number).
 -->
 <div th:fragment="panel(enabled, timeout, timeouts, error, saved)" id="security-panel" class="max-w-md">
-    <p th:if="${error}" th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p>
+    <th:block th:if="${error}"><p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p></th:block>
     <p th:if="${saved}" th:text="#{lock.security.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>
 
     <th:block th:unless="${enabled}">

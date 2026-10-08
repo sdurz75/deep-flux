@@ -32,7 +32,7 @@ class CoreOnlyHostTest {
 
         assertThat(jdbc.queryForObject("select count(*) from system_event where operation = 'probe'", Integer.class)).isEqualTo(1);
         assertThat(apiTokens.list()).isEmpty();
-        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(3);
     }
 
     @Test

@@ -23,6 +23,12 @@ Una classe con metodi `@Tool` che implementa `IChatToolkit`, con un `@Order` e l
 
 Un valore nella sorgente degli eventi (core o app) con la sua etichetta nei due bundle; una eccezione che estende `RemoteServiceException`; un client che implementa la porta out del sottosistema, con ogni chiamata dentro `remote.call(...)` (`RetryPolicy.NONE` se non idempotente); e, nel chiamante in background, la registrazione dell'errore. Niente codice lato interfaccia: il toast è generico.
 
+## Configurare un modulo hexa-*
+
+Un modulo che ha bisogno di configurazione non legge `@Value` né chiede di editare lo yml: implementa la porta `core.config.port.in.IConfigModule` (un bean, si autoregistra) e dichiara i suoi campi (`ConfigField`: testo, intero, booleano, colore, scelta). Il core genera da solo la pagina `/settings` (una sezione per modulo) e la voce «Impostazioni» del menu «Gestione», che compare solo se almeno un modulo si è registrato. Un modulo con una UI propria indica anche un `fragment()` senza parametri, inserito sotto i campi; i dati gli arrivano dal model con un `@ControllerAdvice` del modulo. I testi stanno nel bundle del modulo.
+
+Il modulo legge i valori con `IModuleSettings#values(id)` a ogni uso (mai in un campo), così una modifica vale senza riavvio. Precedenza: override salvato nel database, poi la property `app.<modulo>.<chiave>`, poi il default del campo. Il salvataggio è tutto o niente; un valore non valido è un rifiuto atteso mostrato nella sezione. I segreti non vanno qui: restano nei token. Chi tiene in cache un valore derivato ascolta `ModuleConfigChangedEvent`. Il primo esempio è `hexa-pwa` (`PwaConfigModule`).
+
 ## Riusare il progetto come template
 
 Per costruire un'altra webapp si tiene il **core** (compreso questo motore del manuale) e si sostituisce l'**app**. L'elenco di cosa tenere e cosa riscrivere è in `docs/TEMPLATE.md`. Per il manuale cambia il contenuto: i file in `src/main/resources/manual/`, e le etichette dei gruppi nel bundle dell'app.

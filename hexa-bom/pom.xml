@@ -12,7 +12,7 @@
 
     <name>hexa-bom</name>
     <description>
-        Bill of Materials di hexa: le versioni di hexa-core, hexa-ai, hexa-pwa e hexa-test-support, allineate. Un host lo importa in dependencyManagement e dichiara
+        Bill of Materials di hexa: le versioni di hexa-core, hexa-ai, hexa-pwa, hexa-oauth2 e hexa-test-support, allineate. Un host lo importa in dependencyManagement e dichiara
         le dipendenze senza versione. La versione di questo file va tenuta uguale a quella di hexa-parent: se divergono, gli
         archetype IT (che importano il BOM alla versione del parent) falliscono.
     </description>
@@ -32,6 +32,11 @@
             <dependency>
                 <groupId>org.dual</groupId>
                 <artifactId>hexa-pwa</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.dual</groupId>
+                <artifactId>hexa-oauth2</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

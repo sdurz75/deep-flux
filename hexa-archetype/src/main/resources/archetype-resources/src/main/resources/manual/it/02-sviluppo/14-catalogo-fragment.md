@@ -39,7 +39,7 @@ In `field-buttons.html`, le icone dei campi: `tagRemove(title)`, `clearInput(tit
 - `fullscreen-modal :: screen(titleId, body=~{::#id})`: schermata a tutta finestra che non si chiude (focus trap, pagina inerte, nessuna variabile Alpine da dichiarare); la usa la schermata di blocco con PIN.
 - `tabs :: list(extraClass, body)` e `tabs :: tab(text, href, hxTarget, selected, compact)`: la scheda attiva la decide il server.
 - `accordion :: panels(labels, bodies, storageKey)` e `accordion :: staticPanels(labels, bodies)`.
-- `popover :: floating(align, extraClass, bodyClass, trap, body)` dentro un antenato `x-data="pinesPopover"`; `popover :: panel(label, labelId, title, body, align, extraClass)` quando il pannello porta la propria etichetta; `popover :: script` per lo script.
+- `popover :: floating(align, extraClass, bodyClass, trap, body)` dentro un antenato `x-data="pinesPopover"`; `popover :: panel(label, labelId, title, body, align, extraClass, icon)` quando il pannello porta la propria etichetta; `popover :: script` per lo script.
 - `slideover :: drawer(persistent, body)`: pannello laterale di navigazione (assume `navOpen` su un antenato).
 - `pagination :: nav(basePath, hxTarget, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, ariaLabel)`: i numeri vengono da `PaginationSupport`. Per elenchi lunghi si può preferire lo scroll infinito.
 - `description-list :: term(text)`: coppie termine e valore nelle schede di dettaglio.

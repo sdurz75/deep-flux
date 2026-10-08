@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * Cifratura dei segreti salvati nel DB (oggi i token CivitAI/HuggingFace, {@code IApiTokens}) con la STESSA chiave e lo
  * STESSO algoritmo dei binari su WebDAV ({@link ChunkedAesGcmCipher}, AES-256-GCM): {@code app.secrets.encryption-key}
- * vale {@code ${STORAGE_WEBDAV_ENCRYPTION_KEY}}, nessun segreto nuovo da gestire.
+ * vale {@code ${HX_STORAGE_WEBDAV_ENCRYPTION_KEY}}, nessun segreto nuovo da gestire.
  *
  * <p>A differenza dello storage WebDAV, la chiave NON e' obbligatoria all'avvio (con {@code storage.type=local}, il default,
  * oggi puo' mancare, e il segnaposto di {@code .env.example} non e' base64 valido): il bean esiste sempre, e senza una

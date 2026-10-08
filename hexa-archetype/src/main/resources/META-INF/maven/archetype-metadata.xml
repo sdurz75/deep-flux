@@ -17,6 +17,10 @@
         <requiredProperty key="usePwa">
             <defaultValue>false</defaultValue>
         </requiredProperty>
+        <!-- true: aggiunge hexa-oauth2 (accesso con OAuth2/OIDC e lista degli utenti ammessi; cancello spento finche' non lo si accende). -->
+        <requiredProperty key="useOauth2">
+            <defaultValue>false</defaultValue>
+        </requiredProperty>
         <requiredProperty key="dbName">
             <defaultValue>${artifactId}</defaultValue>
         </requiredProperty>

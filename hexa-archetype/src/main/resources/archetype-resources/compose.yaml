@@ -1,7 +1,7 @@
 #set( $symbol_pound = '#' )
 #set( $symbol_dollar = '$' )
 #set( $symbol_escape = '\' )
-# PostgreSQL di sviluppo: `docker compose up -d`. Credenziali dal .env (DB_NAME/DB_USERNAME/DB_PASSWORD, gli stessi letti da core.yml).
+# PostgreSQL di sviluppo: `docker compose up -d`. Credenziali dal .env (HX_DB_NAME/HX_DB_USERNAME/HX_DB_PASSWORD, gli stessi letti da core.yml).
 # I dati stanno in ./data/postgres (fuori da git).
 services:
   postgres:
@@ -12,11 +12,11 @@ services:
 #end
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${symbol_dollar}{DB_USERNAME:-${dbName}}
-      POSTGRES_PASSWORD: ${symbol_dollar}{DB_PASSWORD:?imposta DB_PASSWORD nel .env}
-      POSTGRES_DB: ${symbol_dollar}{DB_NAME:-${dbName}}
+      POSTGRES_USER: ${symbol_dollar}{HX_DB_USERNAME:-${dbName}}
+      POSTGRES_PASSWORD: ${symbol_dollar}{HX_DB_PASSWORD:?imposta HX_DB_PASSWORD nel .env}
+      POSTGRES_DB: ${symbol_dollar}{HX_DB_NAME:-${dbName}}
     ports:
-      - "${symbol_dollar}{DB_PORT:-5432}:5432"
+      - "${symbol_dollar}{HX_DB_PORT:-5432}:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:

@@ -10,15 +10,15 @@ mvn archetype:generate -DarchetypeGroupId=org.dual -DarchetypeArtifactId=hexa-ar
     -DgroupId=com.example -DartifactId=my-app -Dpackage=com.example.myapp -DappName="My App" -DuseAi=false
 ```
 
-Proprieta': `appName` (brand, default l'artifactId), `usePwa` (`true` aggiunge `hexa-pwa`: app installabile con manifest, icone segnaposto e service worker con shell offline, nessuna configurazione da importare), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
+Proprieta': `appName` (brand, default l'artifactId), `useOauth2` (`true` aggiunge `hexa-oauth2`: accesso con OAuth2/OIDC e lista degli utenti ammessi, configurabile da `/oauth2` e, per l'essenziale, con le variabili `HX_OAUTH2_*` del `.env.example`; il cancello resta spento finche' non lo si accende), `usePwa` (`true` aggiunge `hexa-pwa`: app installabile con manifest, icone segnaposto e service worker con shell offline, nessuna configurazione da importare), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
 `pgvector/pgvector:pg17` nel compose), `dbName` (default l'artifactId). Si genera con package radice QUALUNQUE (autoconfigurazione, nessuno scan da scrivere).
 
-`hexa-bom` allinea le versioni (`hexa-core`, `hexa-ai`, `hexa-pwa`, `hexa-test-support`): l'app lo importa in `dependencyManagement` e aggiorna hexa cambiando `hexa.version`.
+`hexa-bom` allinea le versioni (`hexa-core`, `hexa-ai`, `hexa-pwa`, `hexa-oauth2`, `hexa-test-support`): l'app lo importa in `dependencyManagement` e aggiorna hexa cambiando `hexa.version`.
 
 L'app generata include la **guida dello sviluppatore** (manuale, gruppo `02-sviluppo`, con link al javadoc di hexa-core/hexa-ai pubblicato da `.github/workflows/javadoc.yml` su GitHub Pages; in locale `mvn -Pjavadoc javadoc:aggregate` -> `target/reports/apidocs`): e' modificabile o cancellabile. L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
 `fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione) che mostra anche un allegato nello storage con `IBlobReferences` per il backup (e il test che lo impone), una `EventSource` propria con `ISystemEvents`/`IEventLinkResolver`, un provider di token (`ITokenProviderCatalog`) e una pagina di manuale, `ArchitectureTest` (le regole di layering di hexa, da `HexaArchitectureRules` in `hexa-test-support`: dentro la feature, fra feature e verso le librerie solo `port.in`/`domain`), test di rendering (con bundle disgiunti dalle librerie) e
 di contesto (Testcontainers), `compose.yaml`, `.env.example`, `Dockerfile`, workflow GitHub Actions, profilo `-Ptailwind` (CSS compilato, scansiona anche i template di hexa-core
-estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue tre test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai,pwa}`):
+estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue quattro test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai,pwa,oauth2}`):
 generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build scarica il packaging `maven-archetype`: con il mirror aziendale usare
 `MAVEN_OPTS="-Dhttps.protocols=TLSv1.2,TLSv1.3"`. Niente script Groovy nell'archetype (il Groovy del plugin non legge i class file di JDK 24+): `.gitignore` e' aggiunto al jar da Ant.
 
@@ -48,10 +48,11 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.backup` | comandi `export` e `import` del jar (`java -jar app.jar export <file>`): backup completo (tabelle scoperte da `information_schema` + binari) in un archivio cifrato; profilo `backup` (`application-backup.yml`) | la SPI `IBlobReferences` (`port.in`): le coppie (tabella, colonna) con i nomi dei binari; senza, si esporta solo il DB |
 | `core.manual` | manuale online: pagine Markdown di `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md` convertite al volo, `/manual`, ricerca per sezioni (`IManual`) | i TESTI (`manual/`) e le etichette dei gruppi `manual.group.<gruppo>` nel bundle; per il bot di chat un toolkit come `ManualTool` che usa `IManual` (opzionale); la voce di menu `/manual` |
 | `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo`, `ILayoutContributor` (punto d'innesto del layout per le librerie opzionali: fragment per head e fine body, voci del menu «Gestione») | - |
+| `core.config` | configurazione modulare dei moduli hexa-*: la SPI `IConfigModule` (un bean si autoregistra), `IModuleSettings` (valori letti a ogni uso: override in DB, poi `app.<id>.<chiave>`, poi default), pagina `/settings` e voce «Impostazioni» del menu «Gestione» autogenerate, tabella `module_config` | per configurare un tuo modulo: implementare `IConfigModule` (campi, testi nel bundle del modulo); senza moduli la voce non compare |
 | `core.lock` | blocco dell'app con PIN dopo inattivita' (`ILock`, pagina `/security`, `/unlock`, cancello `LockInterceptor` lato server, tabella `app_lock`, recupero con `app.lock.reset=true`, SPI `ILockExemptPaths`) | opzionale: `app.lock.exempt-paths`; il PIN si attiva da `/security`, senza PIN non cambia nulla |
 | template e bundle | `templates/fragments/core/*` (kit generico: bottoni, select Pines, modal, full-screen modal, conferma, tabs, switch, popover, slideover, accordion, lightbox, dropzone, campo numerico, tag-chips, paginazione, chip, alert), `templates/fragments/core/*` (layout, header, status-bar, toast, tokens, bottoni del chrome...), `templates/core/*` (`/system/events`, `/tokens`, `/manual`), `messages-core(.en).properties` | vedi "Punti di estensione" |
 | config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
-| Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token`; `V2026_10_07_1600__app_lock.sql`: `app_lock` | - |
+| Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token`; `V2026_10_07_1600__app_lock.sql`: `app_lock`; `V2026_10_08_1100__module_config.sql`: `module_config` | - |
 
 `ApiTokenProvider`, `ReplicatePricing`, il catalogo modelli ecc. NON sono core: stanno in `app.generation`.
 
@@ -113,10 +114,10 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/hexa`.
 - `src/test/resources/application-test.yml` imposta `app.recovery.enabled`, `app.search.enabled` (chiavi dell'app; innocue se mancano
   i bean) e `spring.ai.model.embedding: none`. `app.tokens.expiry-check-enabled: false` e' del core.
 
-**Variabili `.env`** (vedi `.env.example`): dell'app sono `REPLICATE_API_TOKEN`, `OPENROUTER_API_TOKEN`, `OPENROUTER_CHAT_MODEL`,
-`OPENROUTER_VISION_MODEL`, `OPENROUTER_VISION_FALLBACK_MODEL`, `SEARXNG_*` (compreso `SEARXNG_BASE_URL`; i modelli e l'URL sono override
-commentati nell'esempio). Del core: `DB_*`,
-`STORAGE_WEBDAV_*`.
+**Variabili `.env`** (vedi `.env.example`): quelle dei moduli hexa-* hanno il prefisso `HX_`. Del core: `HX_DB_*`, `HX_STORAGE_WEBDAV_*`,
+`HX_BACKUP_ENCRYPTION_KEY`, `HX_LOCK_RESET`. Di hexa-ai: `HX_OPENROUTER_*` (token, management key, modelli di chat e visione, commentati nell'esempio),
+`HX_SEARXNG_USERNAME`/`HX_SEARXNG_PASSWORD`. Dell'app restano senza prefisso `REPLICATE_API_TOKEN` e `SEARXNG_BASE_URL` (l'URL e' override
+commentato nell'esempio).
 
 **`pom.xml`**: l'AI e' in un modulo a parte, `hexa-ai`. Un host che non usa chat, ricerca semantica, visione ne' crediti OpenRouter dipende solo da `hexa-core`
 (niente Spring AI, pgvector ne' ONNX nel classpath; `reactor-core` resta, lo usa `IClientPushStream`) e non importa `ai.yml`. Chi li vuole aggiunge `hexa-ai`
@@ -165,7 +166,7 @@ Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei seg
    elencati in `app.push.client-events` (separati da virgola; `app.push.reconnect-events` per quelli da ri-dispatchare alla riconnessione):
    `PushModelAdvice` li passa a `fragments/core/live-events.html`, che li ri-dispatcha come `CustomEvent` su `document.body`.
 8. **Storage dei binari**: l'app lo usa solo tramite `IImageStorageService`; nessun accesso diretto al filesystem/WebDAV.
-9. **Segreti e token**: `app.secrets.encryption-key` riusa `STORAGE_WEBDAV_ENCRYPTION_KEY`; con `storage.type=local` e' facoltativa (senza,
+9. **Segreti e token**: `app.secrets.encryption-key` riusa `HX_STORAGE_WEBDAV_ENCRYPTION_KEY`; con `storage.type=local` e' facoltativa (senza,
    `/tokens` segnala che manca).
 
 ## Rinominare il package radice

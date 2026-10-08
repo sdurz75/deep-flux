@@ -40,6 +40,10 @@
             <artifactId>hexa-pwa</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.dual</groupId>
+            <artifactId>hexa-oauth2</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
             <scope>runtime</scope>
@@ -103,8 +107,8 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <!-- spring-boot:run parte dalla radice del repo: li' vivono .env, data/images e data/postgres (relativi alla working directory). -->
-                    <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
+                    <!-- spring-boot:run parte da deep-flux/: li' vivono .env, data/images e data/postgres (relativi alla working directory). -->
+                    <workingDirectory>${project.basedir}</workingDirectory>
                 </configuration>
                 <executions>
                     <!-- META-INF/build-info.properties (BuildProperties): ora e commit della build nel badge, vedi core.web.BuildInfo.

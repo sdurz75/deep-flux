@@ -270,7 +270,7 @@ class BackupRoundTripTest {
         Path file = tmp.resolve("nokey.dfb");
 
         assertThatThrownBy(() -> exporter(src, "").export(new ExportOptions(file, true)))
-                .isInstanceOf(BackupException.class).hasMessageContaining("BACKUP_ENCRYPTION_KEY");
+                .isInstanceOf(BackupException.class).hasMessageContaining("HX_BACKUP_ENCRYPTION_KEY");
         assertThatThrownBy(() -> exporter(src, "not-base64-!!").export(new ExportOptions(file, true)))
                 .isInstanceOf(BackupException.class);
         assertThat(file).doesNotExist();
@@ -287,7 +287,7 @@ class BackupRoundTripTest {
 
         assertThatThrownBy(() -> importer(dst, otherKey, 0).importFrom(new ImportOptions(file, false))).isInstanceOf(BackupException.class);
         assertThatThrownBy(() -> importer(dst, "", 0).importFrom(new ImportOptions(file, false)))
-                .isInstanceOf(BackupException.class).hasMessageContaining("BACKUP_ENCRYPTION_KEY");
+                .isInstanceOf(BackupException.class).hasMessageContaining("HX_BACKUP_ENCRYPTION_KEY");
 
         assertThat(new JdbcDatabaseRestore(dst, LOCATIONS, messages).isVirgin()).isTrue();
         assertThat(dstDir).as("nessun file scritto").satisfiesAnyOf(d -> assertThat(d).doesNotExist(),

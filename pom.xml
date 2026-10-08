@@ -21,6 +21,7 @@
         Reactor: hexa-core (libreria riusabile: kernel, UI kit, eventi, push, token, storage, backup, manuale),
         hexa-ai (libreria opzionale sopra hexa-core: chat, ricerca semantica, prompt/visione, crediti OpenRouter),
         hexa-pwa (libreria opzionale sopra hexa-core: manifest, service worker e shell offline per rendere l'app installabile),
+        hexa-oauth2 (libreria opzionale sopra hexa-core: accesso con OAuth2/OIDC e lista degli utenti ammessi),
         hexa-test-support (container PostgreSQL per i test) e l'app deep-flux (dominio: generazione, training).
     </description>
 
@@ -30,6 +31,7 @@
         <module>hexa-core</module>
         <module>hexa-ai</module>
         <module>hexa-pwa</module>
+        <module>hexa-oauth2</module>
         <module>deep-flux</module>
         <module>hexa-archetype</module>
     </modules>
@@ -73,6 +75,11 @@
             </dependency>
             <dependency>
                 <groupId>org.dual</groupId>
+                <artifactId>hexa-oauth2</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.dual</groupId>
                 <artifactId>hexa-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -99,7 +106,7 @@
                             <storage.type>local</storage.type>
                             <storage.migration.from-local.enabled>false</storage.migration.from-local.enabled>
                             <!-- Chiave di test (32 byte a zero in base64) per i token API cifrati: senza, userebbe quella del
-                                 .env reale (STORAGE_WEBDAV_ENCRYPTION_KEY) e un test potrebbe cifrare con la chiave vera. -->
+                                 .env reale (HX_STORAGE_WEBDAV_ENCRYPTION_KEY) e un test potrebbe cifrare con la chiave vera. -->
                             <app.secrets.encryption-key>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</app.secrets.encryption-key>
                         </systemPropertyVariables>
                     </configuration>

@@ -37,7 +37,7 @@ class AiHostTest {
         Long id = conversations.create().getId();
 
         assertThat(jdbc.queryForObject("select count(*) from chat_conversation where id = ?", Integer.class, id)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(4);
     }
 
     /** Le guide di visione sono del dominio dell'host: senza, i servizi non nascono e l'avvio non fallisce. */

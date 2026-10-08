@@ -2,7 +2,7 @@
 #set( $symbol_dollar = '$' )
 #set( $symbol_escape = '\' )
 # Config dell'APP. Il resto, riusabile, e' nei file importati qui sotto (una chiave di un file importato vince su questa: si cambia da
-# env/.env, da un profilo o da -D). Carica .env (working directory) come file .properties: DB_*, STORAGE_*, ...
+# env/.env, da un profilo o da -D). Carica .env (working directory) come file .properties: HX_DB_*, HX_STORAGE_*, ...
 spring:
   config:
 #if( $useAi == "true" )

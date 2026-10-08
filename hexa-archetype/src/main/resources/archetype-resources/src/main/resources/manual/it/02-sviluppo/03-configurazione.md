@@ -8,7 +8,7 @@ La configurazione è divisa fra le librerie e l'app, con chiavi disgiunte.
 
 ## Segreti e ambiente
 
-`.env` sta nella radice del progetto (parte da lì anche `spring-boot:run`) e non va in git: parte da `.env.example`. Contiene le credenziali del database (`DB_*`) e le chiavi. `core.yml` non ha un default per `DB_NAME` e `DB_USERNAME`: sono dell'app.
+`.env` sta nella radice del progetto (parte da lì anche `spring-boot:run`) e non va in git: parte da `.env.example`. Contiene le credenziali del database (`HX_DB_*`) e le chiavi. `core.yml` non ha un default per `HX_DB_NAME` e `HX_DB_USERNAME`: sono dell'app.
 
 ## Chiavi principali
 

@@ -1,15 +1,15 @@
-# PostgreSQL + pgvector per lo sviluppo: `docker compose up -d`. Credenziali dal .env (DB_USERNAME/DB_PASSWORD/DB_NAME, stessi
+# PostgreSQL + pgvector per lo sviluppo: `docker compose up -d`. Credenziali dal .env (HX_DB_USERNAME/HX_DB_PASSWORD/HX_DB_NAME, stessi
 # nomi letti da application.yml). I dati stanno in ./data/postgres (fuori da git).
 services:
   postgres:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-deepflux}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD nel .env}
-      POSTGRES_DB: ${DB_NAME:-deepflux}
+      POSTGRES_USER: ${HX_DB_USERNAME:-deepflux}
+      POSTGRES_PASSWORD: ${HX_DB_PASSWORD:?imposta HX_DB_PASSWORD nel .env}
+      POSTGRES_DB: ${HX_DB_NAME:-deepflux}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${HX_DB_PORT:-5432}:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:

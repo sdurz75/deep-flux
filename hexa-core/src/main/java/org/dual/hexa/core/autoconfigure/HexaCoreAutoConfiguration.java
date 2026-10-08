@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Import;
 @ComponentScan(excludeFilters = {
         @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
         @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class)},
-        basePackages = {HexaCoreAutoConfiguration.R + "kernel", HexaCoreAutoConfiguration.R + "web", HexaCoreAutoConfiguration.R + "events", HexaCoreAutoConfiguration.R + "push", HexaCoreAutoConfiguration.R + "secrets", HexaCoreAutoConfiguration.R + "tokens", HexaCoreAutoConfiguration.R + "storage", HexaCoreAutoConfiguration.R + "backup", HexaCoreAutoConfiguration.R + "manual", HexaCoreAutoConfiguration.R + "lock"})
+        basePackages = {HexaCoreAutoConfiguration.R + "kernel", HexaCoreAutoConfiguration.R + "web", HexaCoreAutoConfiguration.R + "events", HexaCoreAutoConfiguration.R + "push", HexaCoreAutoConfiguration.R + "secrets", HexaCoreAutoConfiguration.R + "tokens", HexaCoreAutoConfiguration.R + "storage", HexaCoreAutoConfiguration.R + "backup", HexaCoreAutoConfiguration.R + "manual", HexaCoreAutoConfiguration.R + "lock", HexaCoreAutoConfiguration.R + "config"})
 public class HexaCoreAutoConfiguration {
 
     /** Radice dei sottosistemi, spezzata di proposito: i test di architettura leggono i sorgenti e vedrebbero una dipendenza da ognuno. */
@@ -38,7 +38,7 @@ public class HexaCoreAutoConfiguration {
     static class Packages extends SubsystemPackagesRegistrar {
         @Override
         protected List<String> packages() {
-            return List.of(R + "kernel", R + "web", R + "events", R + "push", R + "secrets", R + "tokens", R + "storage", R + "backup", R + "manual", R + "lock");
+            return List.of(R + "kernel", R + "web", R + "events", R + "push", R + "secrets", R + "tokens", R + "storage", R + "backup", R + "manual", R + "lock", R + "config");
         }
     }
 }

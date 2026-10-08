@@ -1,11 +1,11 @@
 # ${appName}
 
-Applicazione basata su [hexa](https://github.com/sdurz75/deep-flux) (`hexa-core`#if( $useAi == "true" ) + `hexa-ai`#end): Spring MVC + Thymeleaf, htmx, Alpine e Tailwind senza build frontend.
+Applicazione basata su [hexa](https://github.com/sdurz75/deep-flux) (`hexa-core`#if( $useAi == "true" ) + `hexa-ai`#end#if( $usePwa == "true" ) + `hexa-pwa`#end#if( $useOauth2 == "true" ) + `hexa-oauth2`#end): Spring MVC + Thymeleaf, htmx, Alpine e Tailwind senza build frontend.
 
 **Avvio**
 
 ```
-cp .env.example .env                 # imposta DB_PASSWORD
+cp .env.example .env                 # imposta HX_DB_PASSWORD
 docker compose up -d                 # PostgreSQL di sviluppo
 mvn spring-boot:run                  # http://localhost:7070
 mvn test                             # richiede Docker (Testcontainers)

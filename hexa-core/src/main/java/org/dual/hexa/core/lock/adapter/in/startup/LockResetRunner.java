@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
- * Recupero di un PIN dimenticato: con {@code app.lock.reset=true} (es. {@code APP_LOCK_RESET=true} nel {@code .env}) all'avvio il blocco viene spento senza
+ * Recupero di un PIN dimenticato: con {@code app.lock.reset=true} (es. {@code HX_LOCK_RESET=true} nel {@code .env}) all'avvio il blocco viene spento senza
  * PIN, e la cosa resta nel registro eventi. Chi puo' cambiare la configurazione del server puo' comunque leggere il database: non indebolisce il blocco.
  * Si toglie la proprieta' dopo l'uso, altrimenti ogni riavvio spegne il blocco.
  */
@@ -24,7 +24,7 @@ class LockResetRunner implements ApplicationRunner {
     private final Messages messages;
     private final boolean reset;
 
-    LockResetRunner(ILock lock, ISystemEvents systemEvents, Messages messages, @Value("${app.lock.reset:false}") boolean reset) {
+    LockResetRunner(ILock lock, ISystemEvents systemEvents, Messages messages, @Value("${HX_LOCK_RESET:${app.lock.reset:false}}") boolean reset) {
         this.lock = lock;
         this.systemEvents = systemEvents;
         this.messages = messages;

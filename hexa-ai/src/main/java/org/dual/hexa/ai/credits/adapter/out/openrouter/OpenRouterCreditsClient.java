@@ -15,7 +15,7 @@ import org.springframework.web.client.RestClient;
 
 /**
  * Credito OpenRouter ({@code GET /api/v1/credits}, https://openrouter.ai/docs/api/api-reference/credits/get-credits). L'endpoint vuole
- * una MANAGEMENT key (non l'{@code OPENROUTER_API_TOKEN} della chat, che da' 403): senza {@code openrouter.management-key} il gateway
+ * una MANAGEMENT key (non l'{@code HX_OPENROUTER_API_TOKEN} della chat, che da' 403): senza {@code openrouter.management-key} il gateway
  * e' semplicemente non configurato. Lettura idempotente: ritenta i soli errori transitori.
  */
 @Component

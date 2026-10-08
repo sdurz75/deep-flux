@@ -10,12 +10,12 @@ spring:
     openai:
       # Token generato su https://openrouter.ai/settings/keys. OpenRouter espone un'API OpenAI-compatibile
       # (https://openrouter.ai/docs): basta puntare lo starter Spring AI per OpenAI sul suo base-url, nessun client custom.
-      # Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_API_TOKEN=sk-or-...
-      api-key: ${OPENROUTER_API_TOKEN:}
+      # Da esportare come variabile d'ambiente, mai committato:  export HX_OPENROUTER_API_TOKEN=sk-or-...
+      api-key: ${HX_OPENROUTER_API_TOKEN:}
       base-url: https://openrouter.ai/api/v1
       chat:
         options:
-          model: ${OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
+          model: ${HX_OPENROUTER_CHAT_MODEL:deepseek/deepseek-v4.1-flash}
     # Ricerca semantica (PgVectorStore): embedding LOCALI, nessuna chiamata di rete a runtime. Il modello ONNX
     # (multilingual-e5-small quantizzato, ~120 MB, italiano/inglese) e il tokenizer si scaricano UNA volta al primo avvio in
     # ./data/models. Cambiare l'URI del modello => ArchiveIndexService reindicizza tutto (l'URI e' l'id del modello).
@@ -34,22 +34,22 @@ spring:
 # Modelli di visione (descrizione immagini, didascalie, "AI enhance" con immagine): scelti per permissivita' oltre che per prezzo: niente modelli
 # "moderated" di OpenRouter (OpenAI/Anthropic/Amazon) ne' Gemini, che rifiutano spesso il nudo non esplicito. Il fallback e' usato UNA volta se il primo rifiuta.
 enhancer:
-  vision-model: ${OPENROUTER_VISION_MODEL:qwen/qwen3-vl-32b-instruct}
-  vision-fallback-model: ${OPENROUTER_VISION_FALLBACK_MODEL:mistralai/mistral-small-3.2-24b-instruct}
+  vision-model: ${HX_OPENROUTER_VISION_MODEL:qwen/qwen3-vl-32b-instruct}
+  vision-fallback-model: ${HX_OPENROUTER_VISION_FALLBACK_MODEL:mistralai/mistral-small-3.2-24b-instruct}
 
 # Credito residuo OpenRouter (ai.credits): serve una MANAGEMENT key (https://openrouter.ai/settings/management-keys), diversa dal token della chat.
-# Senza, il credito OpenRouter non compare. Da esportare come variabile d'ambiente, mai committato:  export OPENROUTER_MANAGEMENT_KEY=sk-or-...
+# Senza, il credito OpenRouter non compare. Da esportare come variabile d'ambiente, mai committato:  export HX_OPENROUTER_MANAGEMENT_KEY=sk-or-...
 openrouter:
   base-url: https://openrouter.ai/api/v1
-  management-key: ${OPENROUTER_MANAGEMENT_KEY:}
+  management-key: ${HX_OPENROUTER_MANAGEMENT_KEY:}
 
 # Istanza SearXNG usata dal tool di web search del modello (WebSearchTool/SearxngClient). Richiede il formato JSON abilitato lato server
 # (settings.yml: search.formats: [html, json]), altrimenti risponde 403. Credenziali Basic Auth da variabili d'ambiente, mai committate.
 # searxng.base-url NON e' qui: e' dell'host (facoltativo: senza, la ricerca web del bot risponde che non e' configurata). Idem i tetti della chat e dell'indice (app.chat.history-*, app.search.*):
 # hanno un default nel codice (@Value) e si cambiano nell'application.yml dell'host.
 searxng:
-  username: ${SEARXNG_USERNAME:}
-  password: ${SEARXNG_PASSWORD:}
+  username: ${HX_SEARXNG_USERNAME:}
+  password: ${HX_SEARXNG_PASSWORD:}
 
 ---
 # Profilo backup (export/import del jar): nessun modello di embedding (il locale scaricherebbe ~120 MB), ricerca spenta (default del codice: attiva).

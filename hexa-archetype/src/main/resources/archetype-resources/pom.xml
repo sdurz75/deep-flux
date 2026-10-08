@@ -28,7 +28,7 @@
         <tailwind.version>3.4.17</tailwind.version>
     </properties>
 
-    <!-- Le versioni di hexa-core, hexa-ai, hexa-pwa e hexa-test-support vengono dal BOM: per aggiornare hexa basta cambiare hexa.version. -->
+    <!-- Le versioni di hexa-core, hexa-ai, hexa-pwa, hexa-oauth2 e hexa-test-support vengono dal BOM: per aggiornare hexa basta cambiare hexa.version. -->
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -56,6 +56,12 @@
         <dependency>
             <groupId>org.dual</groupId>
             <artifactId>hexa-pwa</artifactId>
+        </dependency>
+#end
+#if( $useOauth2 == "true" )
+        <dependency>
+            <groupId>org.dual</groupId>
+            <artifactId>hexa-oauth2</artifactId>
         </dependency>
 #end
         <dependency>
@@ -164,6 +170,13 @@
                                         <artifactItem>
                                             <groupId>org.dual</groupId>
                                             <artifactId>hexa-pwa</artifactId>
+                                            <version>${symbol_dollar}{hexa.version}</version>
+                                        </artifactItem>
+#end
+#if( $useOauth2 == "true" )
+                                        <artifactItem>
+                                            <groupId>org.dual</groupId>
+                                            <artifactId>hexa-oauth2</artifactId>
                                             <version>${symbol_dollar}{hexa.version}</version>
                                         </artifactItem>
 #end
