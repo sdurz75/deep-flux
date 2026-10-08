@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Full-screen modal Pines UI (https://devdojo.com/pines/docs/full-screen-modal): una schermata che copre TUTTA la finestra e non si chiude (niente scrim, niente
+  Esc, niente bottone di chiusura). UN punto per tutto il progetto: oggi la schermata di blocco con PIN (core/unlock.html), ma vale per ogni "muro" che
+  l'utente deve superare agendo (sblocco, onboarding obbligatorio). Per un dialog che si apre e si chiude c'e' modal :: dialog.
+  screen(titleId, body):
+  - e' autosufficiente (dichiara da se' x-data, nessuna variabile Alpine sull'antenato): sempre aperta, copre la pagina con lo sfondo opaco del tema
+    (bg-canvas) sopra a header/sidebar (z-[110], sopra al dialog e allo slideover); contenuto centrato, con scroll se la finestra e' bassa;
+  - x-trap.inert.noscroll: il focus resta dentro (parte dal primo campo, o dal suo `autofocus`), il resto della pagina diventa inerte (tab order e screen
+    reader) e lo scroll di sfondo e' bloccato. Senza JavaScript la schermata resta comunque visibile e il form dentro funziona (niente x-cloak/x-show);
+  - role="dialog" aria-modal="true" con aria-labelledby=titleId.
+  Il chiamante tiene il PROPRIO contenuto dentro un elemento con id univoco che lo seleziona (come modal :: dialog e clear-field :: wrap):
+      <th:block th:replace="~{fragments/core/fullscreen-modal :: screen(titleId='x-title', body=~{::#x-body})}">
+          <div id="x-body"> <h1 id="x-title">...</h1> ... </div>
+      </th:block>
+  titleId = id dell'intestazione del contenuto. Il contenuto decide da se' la larghezza (es. un contenitore max-w-sm mx-auto).
+-->
+<div th:fragment="screen(titleId, body)" x-data x-trap.inert.noscroll="true"
+     class="fixed inset-0 z-[110] overflow-y-auto bg-canvas dark:bg-canvas-dark"
+     role="dialog" aria-modal="true" th:aria-labelledby="${titleId}">
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="w-full">
+            <th:block th:replace="${body}"></th:block>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

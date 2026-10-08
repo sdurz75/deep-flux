@@ -36,6 +36,7 @@ In `field-buttons.html`, le icone dei campi: `tagRemove(title)`, `clearInput(tit
 ## Contenitori e navigazione locale
 
 - `modal :: dialog(titleId, maxWidth, body=~{::#id})`: la pagina dichiara `dialogOpen` e usa i bottoni `dialogOpen` e `dialogClose`.
+- `fullscreen-modal :: screen(titleId, body=~{::#id})`: schermata a tutta finestra che non si chiude (focus trap, pagina inerte, nessuna variabile Alpine da dichiarare); la usa la schermata di blocco con PIN.
 - `tabs :: list(extraClass, body)` e `tabs :: tab(text, href, hxTarget, selected, compact)`: la scheda attiva la decide il server.
 - `accordion :: panels(labels, bodies, storageKey)` e `accordion :: staticPanels(labels, bodies)`.
 - `popover :: floating(align, extraClass, bodyClass, trap, body)` dentro un antenato `x-data="pinesPopover"`; `popover :: panel(label, labelId, title, body, align, extraClass)` quando il pannello porta la propria etichetta; `popover :: script` per lo script.
