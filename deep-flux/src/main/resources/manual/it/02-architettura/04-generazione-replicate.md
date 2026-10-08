@@ -9,7 +9,7 @@ Ogni generazione, dal form o dalla chat, è una riga `Generation`: il modello, i
 ## Dal form alla prediction
 
 1. Il controller converte i campi del form in parametri con `IGenerationForms` (un **handler** per tipo di form, `IGenerationParameterHandler`, con parsing tollerante) e li passa a `IGenerations#create` come mappa tipizzata: l'esagono non vede mai JSON né campi di form. La stessa conversione serve alla chat.
-2. `GenerationService#create` verifica il modello nel catalogo (`IModelCatalog`, la tabella `replicate_model`), salva eventuali upload (sorgente, maschera), manda la sorgente come indirizzo dati, risolve i token dei LoRA privati (`TokenInputResolver`, sopra `IApiTokens`) e chiama Replicate dalla porta `IPredictionGateway`.
+2. `GenerationService#create` verifica il modello nel catalogo (`IModelCatalog`, la tabella `replicate_model`), salva eventuali upload (sorgente, maschera), manda la sorgente come indirizzo dati, risolve i token dei LoRA privati (`SecretInputResolver`, sopra `ISecrets`) e chiama Replicate dalla porta `IPredictionGateway`.
 3. La chiamata che crea la prediction non ha **mai** un retry (`RetryPolicy.NONE`): un secondo tentativo potrebbe fatturare due volte.
 4. Per modello c'è un limite di prediction contemporanee: oltre, `TooManyPredictionsException`.
 5. Se il salvataggio della riga fallisce dopo aver creato la prediction, la prediction viene annullata.

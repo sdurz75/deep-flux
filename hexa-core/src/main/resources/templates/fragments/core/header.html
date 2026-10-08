@@ -46,12 +46,12 @@
 </th:block>
 
 <!--
-  Voci di sistema del core (registro eventi, token): l'app le include nel proprio menu Sistema
+  Voci di sistema del core (registro eventi, segreti): l'app le include nel proprio menu Sistema
   (fragments/app/nav.html), cosi' ne decide l'ordine e vi aggiunge le sue voci.
 -->
 <th:block th:fragment="navSystemCore">
     <a th:replace="~{fragments/core/header :: navLink(path='/system/events', text=#{header.nav.events})}">Eventi</a>
-    <a th:replace="~{fragments/core/header :: navLink(path='/tokens', text=#{header.nav.tokens})}">Token</a>
+    <a th:replace="~{fragments/core/header :: navLink(path='/secrets', text=#{header.nav.secrets})}">Segreti</a>
     <!-- Voci delle librerie opzionali (ILayoutContributor#manageMenu), es. la sicurezza di hexa-pwa. -->
     <th:block th:each="entry : ${manageMenuEntries}">
         <a th:replace="~{fragments/core/header :: navLink(path=${entry.path}, text=#{${entry.messageKey}})}">Voce</a>

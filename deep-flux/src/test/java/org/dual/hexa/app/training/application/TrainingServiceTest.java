@@ -42,8 +42,8 @@ import org.dual.hexa.app.training.port.out.ITrainerGateway;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
-import org.dual.hexa.core.tokens.domain.TokenException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.domain.SecretException;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -90,7 +90,7 @@ class TrainingServiceTest {
     private final ITrainerGateway trainer = mock(ITrainerGateway.class);
     private final IHuggingFaceRepos huggingFace = mock(IHuggingFaceRepos.class);
     private final IDatasetArchiver archiver = mock(IDatasetArchiver.class);
-    private final IApiTokens tokens = mock(IApiTokens.class);
+    private final ISecrets secrets = mock(ISecrets.class);
     private final ISystemEvents systemEvents = mock(ISystemEvents.class);
     private final Messages messages = mock(Messages.class);
     private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
@@ -111,8 +111,8 @@ class TrainingServiceTest {
         when(datasets.get(DRAFT_ID)).thenAnswer(i -> draft);
         when(datasets.snapshot(DRAFT_ID)).thenAnswer(i -> snapshotOf(draft));
 
-        when(tokens.get(TOKEN_ID)).thenReturn(new IApiTokens.TokenView(TOKEN_ID, "HUGGINGFACE", "hf", "alue", null, IApiTokens.Status.OK));
-        when(tokens.resolve(TOKEN_ID, "HUGGINGFACE")).thenReturn(HF_SECRET);
+        when(secrets.get(TOKEN_ID)).thenReturn(new ISecrets.SecretView(TOKEN_ID, "HUGGINGFACE", "hf", "alue", null, ISecrets.Status.OK, false));
+        when(secrets.resolve(TOKEN_ID, "HUGGINGFACE")).thenReturn(HF_SECRET);
         when(huggingFace.whoami(HF_SECRET)).thenReturn(new HfAccount("sandro", "write"));
 
         when(archiver.build(any())).thenReturn(archive);
@@ -121,7 +121,7 @@ class TrainingServiceTest {
         when(trainer.ensureDestination(anyString())).thenAnswer(i -> "acct/" + i.getArgument(0));
         when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(job("train-1", TrainingStatus.PENDING));
 
-        service = new TrainingService(store, datasets, trainer, huggingFace, archiver, tokens, systemEvents, messages, publisher, clock, 4, 10, TIMEOUT);
+        service = new TrainingService(store, datasets, trainer, huggingFace, archiver, secrets, systemEvents, messages, publisher, clock, 4, 10, TIMEOUT);
     }
 
     // --- lancio: il caso buono ----------------------------------------------------------------------------------
@@ -318,10 +318,10 @@ class TrainingServiceTest {
     @Test
     void anExpiredOrMissingHuggingFaceTokenBlocksTheLaunch() {
         draft.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, TOKEN_ID, null, true), NOW);
-        when(tokens.get(TOKEN_ID)).thenReturn(new IApiTokens.TokenView(TOKEN_ID, "HUGGINGFACE", "hf", "alue", null, IApiTokens.Status.EXPIRED));
+        when(secrets.get(TOKEN_ID)).thenReturn(new ISecrets.SecretView(TOKEN_ID, "HUGGINGFACE", "hf", "alue", null, ISecrets.Status.EXPIRED, false));
         assertThat(service.check(DRAFT_ID).blockers()).containsExactly("training.check.hfTokenExpired");
 
-        when(tokens.get(TOKEN_ID)).thenThrow(new TokenException("non trovato"));
+        when(secrets.get(TOKEN_ID)).thenThrow(new SecretException("non trovato"));
         assertThat(service.check(DRAFT_ID).blockers()).containsExactly("training.check.hfTokenMissing");
         assertRejected(() -> service.start(DRAFT_ID), "training.check.hfTokenMissing");
     }

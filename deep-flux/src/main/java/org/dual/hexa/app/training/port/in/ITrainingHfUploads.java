@@ -21,8 +21,8 @@ public interface ITrainingHfUploads {
      *
      * @throws org.dual.hexa.app.training.domain.TrainingException {@code REJECTED} se il training non si puo' caricare o ne e' gia' in corso uno
      */
-    void request(Long trainingId, Long tokenId);
+    void request(Long trainingId, Long secretId);
 
     /** Il lavoro vero, da un thread in background (lo chiama il listener di {@code HfUploadRequestedEvent}): non lancia mai, ogni esito e' sulla riga o negli eventi. */
-    void upload(Long trainingId, Long tokenId);
+    void upload(Long trainingId, Long secretId);
 }

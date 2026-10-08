@@ -7,9 +7,9 @@
   schema reale di black-forest-labs/flux-dev-lora, escluso "disable_safety_checker" (forzato da
   GenerationService#create). Legge i valori correnti dal Model (nomi = chiave Replicate del campo).
 
-  Token HF/Civitai: select dei token salvati (CRUD /tokens, IApiTokens) per NOME; al server arriva l'ID
+  Token HF/Civitai: select dei token salvati (CRUD /secrets, ISecrets) per NOME; al server arriva l'ID
   (hf_token_id/civitai_token_id), che GenerationService#doCreate trasforma nel token in chiaro solo verso Replicate.
-  hfTokens/civitaiTokens (senza segreti) li mette nel Model GenerationController/DeepChatController solo per questo form-type.
+  hfSecrets/civitaiSecrets (senza segreti) li mette nel Model GenerationController/DeepChatController solo per questo form-type.
 
   LoRA predefiniti: select dei preset anagrafati (CRUD /loras, LoraPresetService; `loraPresets` nel Model, stesso punto dei token)
   sopra ciascuno dei due slot. Sono solo un aiuto di compilazione lato client: al server arrivano sempre testo e scala.
@@ -46,14 +46,14 @@
     </div>
     <p class="-mt-1 mb-0 text-[0.8rem] md:col-span-2"><a th:href="@{/loras}" th:text="#{generationParams.link.manageLoras}">Gestisci i LoRA</a></p>
 
-    <!--/* Token per i LoRA privati: scelti PER NOME fra quelli salvati in /tokens (mai digitati qui); l'ID arriva al server e
+    <!--/* Token per i LoRA privati: scelti PER NOME fra quelli salvati in /secrets (mai digitati qui); l'ID arriva al server e
          GenerationService lo sostituisce col token in chiaro solo verso Replicate. Scaduto = non selezionabile. */-->
     <div>
         <label for="param-hf-token" th:text="#{generationParams.label.hfToken}">Token HuggingFace</label>
         <div class="relative" x-data="pinesSelect" x-bind="root">
             <select id="param-hf-token" name="hf_token_id" class="sr-only" tabindex="-1" aria-hidden="true">
                 <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
-                <option th:each="t : ${hfTokens}" th:value="${t.id}"
+                <option th:each="t : ${hfSecrets}" th:value="${t.id}"
                         th:disabled="${t.status.name() == 'EXPIRED'}"
                         th:selected="${#strings.toString(hf_token_id) == #strings.toString(t.id)}"
                         th:text="${t.expiresAt == null} ? ${t.name + ' ••••' + t.hint} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name + ' ••••' + t.hint})} : #{generationParams.option.tokenExpires(${t.name + ' ••••' + t.hint}, ${t.expiresAt})})">nome</option>
@@ -67,14 +67,14 @@
         <div class="relative" x-data="pinesSelect" x-bind="root">
             <select id="param-civitai-token" name="civitai_token_id" class="sr-only" tabindex="-1" aria-hidden="true">
                 <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
-                <option th:each="t : ${civitaiTokens}" th:value="${t.id}"
+                <option th:each="t : ${civitaiSecrets}" th:value="${t.id}"
                         th:disabled="${t.status.name() == 'EXPIRED'}"
                         th:selected="${#strings.toString(civitai_token_id) == #strings.toString(t.id)}"
                         th:text="${t.expiresAt == null} ? ${t.name + ' ••••' + t.hint} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name + ' ••••' + t.hint})} : #{generationParams.option.tokenExpires(${t.name + ' ••••' + t.hint}, ${t.expiresAt})})">nome</option>
             </select>
             <div th:replace="~{fragments/core/select :: ui}"></div>
         </div>
-        <p class="mt-1 mb-0 text-[0.8rem]"><a th:href="@{/tokens}" th:text="#{generationParams.link.manageTokens}">Gestisci i token</a></p>
+        <p class="mt-1 mb-0 text-[0.8rem]"><a th:href="@{/secrets}" th:text="#{generationParams.link.manageTokens}">Gestisci i token</a></p>
     </div>
 
     <div x-data x-cloak x-show="!$el.closest('#generation-settings-panel')" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-4">

@@ -68,7 +68,7 @@ class ArchitectureTest {
      */
     static final Set<String> CORE_EXTENSION_POINTS = Set.of(
             ROOT + ".core.events.port.out.IEventLinkResolver",
-            ROOT + ".core.tokens.port.out.ITokenProviderCatalog");
+            ROOT + ".core.secrets.port.out.ISecretTypeCatalog");
 
     /**
      * Le SPI che l'host (l'app) implementa per innestarsi in un sottosistema del core che non e' un adattatore in uscita: stanno in
@@ -278,7 +278,7 @@ class ArchitectureTest {
     }
 
     /**
-     * Un adapter dell'app, o di una libreria opzionale (hexa-oauth2 aggiunge un servizio a {@code /tokens}), puo' implementare SOLO le porte in uscita del
+     * Un adapter dell'app, o di una libreria opzionale (hexa-oauth2 aggiunge un servizio a {@code /secrets}), puo' implementare SOLO le porte in uscita del
      * core elencate in {@link #CORE_EXTENSION_POINTS}.
      */
     private static boolean implementsCoreExtensionPoint(Matcher from, Matcher to, JavaClass target) {

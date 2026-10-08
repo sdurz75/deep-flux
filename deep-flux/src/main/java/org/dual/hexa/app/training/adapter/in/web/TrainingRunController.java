@@ -7,7 +7,7 @@ import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.generation.port.in.ILoraPresets;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.app.shared.domain.AppEventSubjects;
@@ -18,7 +18,7 @@ import org.dual.hexa.app.training.port.in.ITrainingDatasets;
 import org.dual.hexa.app.training.port.in.ITrainingHfUploads;
 import org.dual.hexa.app.training.port.in.ITrainings;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -45,18 +45,18 @@ public class TrainingRunController {
     private final ITrainingDatasets datasets;
     private final ILoraPresets presets;
     private final ITrainingHfUploads hfUploads;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final ISystemEvents systemEvents;
     /** Per quanto tempo dopo il successo il blocco stato controlla che il risultato si completi: oltre, lo sweep ha smesso di riprenderlo e nulla lo completera'. */
     private final Duration resultWindow;
 
-    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets, ITrainingHfUploads hfUploads, IApiTokens tokens,
+    public TrainingRunController(ITrainings trainings, ITrainingDatasets datasets, ILoraPresets presets, ITrainingHfUploads hfUploads, ISecrets secrets,
                                  ISystemEvents systemEvents, @Value("${app.training.result-retry-window:6h}") Duration resultWindow) {
         this.trainings = trainings;
         this.datasets = datasets;
         this.presets = presets;
         this.hfUploads = hfUploads;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.systemEvents = systemEvents;
         this.resultWindow = resultWindow;
     }
@@ -83,10 +83,10 @@ public class TrainingRunController {
     @PostMapping("/datasets/{id}/launch-settings")
     public String saveLaunchSettings(@PathVariable Long id, @RequestParam(defaultValue = "") String modelName,
                                      @RequestParam(defaultValue = "") String trainingSteps, @RequestParam(defaultValue = "") String seed,
-                                     @RequestParam(required = false) String hfPublish, @RequestParam(defaultValue = "") String hfTokenId,
+                                     @RequestParam(required = false) String hfPublish, @RequestParam(defaultValue = "") String hfSecretId,
                                      @RequestParam(defaultValue = "") String hfRepoName, @RequestParam(required = false) String hfPrivate,
                                      @RequestHeader(value = "HX-Request", required = false) String hxRequest, Model model) {
-        LaunchSettings settings = new LaunchSettings(modelName, parseInt(trainingSteps), parseSeed(seed), hfPublish != null, parseLong(hfTokenId),
+        LaunchSettings settings = new LaunchSettings(modelName, parseInt(trainingSteps), parseSeed(seed), hfPublish != null, parseLong(hfSecretId),
                 hfRepoName, hfPrivate != null);
         TrainingDataset saved = datasets.saveLaunchSettings(id, settings);
         if (!"true".equalsIgnoreCase(hxRequest)) {
@@ -139,8 +139,8 @@ public class TrainingRunController {
      * solo. Ritorna subito: il lavoro e' in background. Un rifiuto (token scaduto o di sola lettura, training non caricabile, uno gia' in corso) e' un toast.
      */
     @PostMapping("/{id:\\d+}/hf-upload")
-    public String hfUpload(@PathVariable Long id, @RequestParam(defaultValue = "") String hfTokenId, Model model) {
-        hfUploads.request(id, parseLong(hfTokenId));
+    public String hfUpload(@PathVariable Long id, @RequestParam(defaultValue = "") String hfSecretId, Model model) {
+        hfUploads.request(id, parseLong(hfSecretId));
         return statusView(trainings.get(id), model);
     }
 
@@ -173,7 +173,7 @@ public class TrainingRunController {
         boolean uploadable = hfUploads.canUpload(training);
         model.addAttribute("hfUploading", uploading);
         model.addAttribute("hfUploadable", uploadable);
-        model.addAttribute("hfTokens", uploadable ? tokens.options(ApiTokenProvider.HUGGINGFACE.name()) : List.of());
+        model.addAttribute("hfSecrets", uploadable ? secrets.options(AppSecretType.HUGGINGFACE.name()) : List.of());
         model.addAttribute("polling", uploading || isPolling(training));
     }
 

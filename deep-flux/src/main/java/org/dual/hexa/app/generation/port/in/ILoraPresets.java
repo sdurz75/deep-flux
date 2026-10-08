@@ -19,7 +19,7 @@ public interface ILoraPresets {
 
     /** Vista per la UI e per le select delle form. */
     record LoraView(Long id, String name, String source, double scale, String triggerWords, String note,
-                    Long defaultTokenId, String defaultTokenProvider, String defaultTokenName, String defaultTokenHint) {
+                    Long defaultSecretId, String defaultSecretType, String defaultSecretName, String defaultSecretHint) {
 
         /** Senza token di default. */
         public LoraView(Long id, String name, String source, double scale, String triggerWords, String note) {
@@ -39,15 +39,15 @@ public interface ILoraPresets {
         return create(name, source, scale, triggerWords, note, null);
     }
 
-    /** {@code defaultTokenId}: token HuggingFace/CivitAI preselezionato dalle form (null = nessuno); inesistente o di altro provider = rifiuto. */
-    LoraView create(String name, String source, Double scale, String triggerWords, String note, Long defaultTokenId);
+    /** {@code defaultSecretId}: token HuggingFace/CivitAI preselezionato dalle form (null = nessuno); inesistente o di altro provider = rifiuto. */
+    LoraView create(String name, String source, Double scale, String triggerWords, String note, Long defaultSecretId);
 
     /** Senza token di default (lo azzera). */
     default LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note) {
         return update(id, name, source, scale, triggerWords, note, null);
     }
 
-    LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note, Long defaultTokenId);
+    LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note, Long defaultSecretId);
 
     void delete(Long id);
 }

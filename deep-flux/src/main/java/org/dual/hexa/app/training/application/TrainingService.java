@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.shared.domain.AppEventSource;
 import org.dual.hexa.app.shared.domain.AppEventSubjects;
 import org.dual.hexa.app.training.domain.ArchiveItem;
@@ -38,8 +38,8 @@ import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.Paged;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException;
-import org.dual.hexa.core.tokens.domain.TokenException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.domain.SecretException;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,7 +79,7 @@ public class TrainingService implements ITrainings {
     private final ITrainerGateway trainer;
     private final IHuggingFaceRepos huggingFace;
     private final IDatasetArchiver archiver;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final ISystemEvents systemEvents;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
@@ -90,22 +90,22 @@ public class TrainingService implements ITrainings {
 
     @Autowired
     public TrainingService(ITrainingStore store, ITrainingDatasets datasets, ITrainerGateway trainer, IHuggingFaceRepos huggingFace,
-                           IDatasetArchiver archiver, IApiTokens tokens, ISystemEvents systemEvents, Messages messages,
+                           IDatasetArchiver archiver, ISecrets secrets, ISystemEvents systemEvents, Messages messages,
                            ApplicationEventPublisher eventPublisher, @Value("${app.training.min-images:4}") int minImages,
                            @Value("${app.training.warn-images:10}") int warnImages, @Value("${app.training.timeout:2h}") Duration timeout) {
-        this(store, datasets, trainer, huggingFace, archiver, tokens, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), minImages,
+        this(store, datasets, trainer, huggingFace, archiver, secrets, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), minImages,
                 warnImages, timeout);
     }
 
     TrainingService(ITrainingStore store, ITrainingDatasets datasets, ITrainerGateway trainer, IHuggingFaceRepos huggingFace, IDatasetArchiver archiver,
-                    IApiTokens tokens, ISystemEvents systemEvents, Messages messages, ApplicationEventPublisher eventPublisher, Clock clock,
+                    ISecrets secrets, ISystemEvents systemEvents, Messages messages, ApplicationEventPublisher eventPublisher, Clock clock,
                     int minImages, int warnImages, Duration timeout) {
         this.store = store;
         this.datasets = datasets;
         this.trainer = trainer;
         this.huggingFace = huggingFace;
         this.archiver = archiver;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.systemEvents = systemEvents;
         this.messages = messages;
         this.eventPublisher = eventPublisher;
@@ -197,16 +197,16 @@ public class TrainingService implements ITrainings {
     }
 
     private void checkHuggingFaceToken(TrainingDataset dataset, List<String> blockers) {
-        if (dataset.getHfTokenId() == null) {
+        if (dataset.getHfSecretId() == null) {
             blockers.add(messages.get("training.check.hfTokenRequired"));
             return;
         }
         try {
-            IApiTokens.TokenView token = tokens.get(dataset.getHfTokenId());
-            if (token.status() == IApiTokens.Status.EXPIRED) {
+            ISecrets.SecretView token = secrets.get(dataset.getHfSecretId());
+            if (token.status() == ISecrets.Status.EXPIRED) {
                 blockers.add(messages.get("training.check.hfTokenExpired", token.name()));
             }
-        } catch (TokenException e) {
+        } catch (SecretException e) {
             blockers.add(messages.get("training.check.hfTokenMissing"));
         }
     }
@@ -240,7 +240,7 @@ public class TrainingService implements ITrainings {
         String hfToken = null;
         HfAccount hfAccount = null;
         if (dataset.isHfPublish()) {
-            hfToken = tokens.resolve(dataset.getHfTokenId(), ApiTokenProvider.HUGGINGFACE.name());
+            hfToken = secrets.resolve(dataset.getHfSecretId(), AppSecretType.HUGGINGFACE.name());
             hfAccount = huggingFace.whoami(hfToken);
             if (hfAccount.isReadOnly()) {
                 throw new TrainingException(messages.get("training.error.hfReadOnly"));

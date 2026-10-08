@@ -24,7 +24,7 @@ import java.util.Locale;
         "spring.config.import=classpath:core.yml,classpath:ai.yml,classpath:host-prompts.properties",
         "spring.ai.model.embedding=none",
         "app.search.enabled=false",
-        "app.tokens.expiry-check-enabled=false"})
+        "app.secrets.expiry-check-enabled=false"})
 class AiHostTest {
 
     @Autowired IChatConversations conversations;
@@ -37,7 +37,7 @@ class AiHostTest {
         Long id = conversations.create().getId();
 
         assertThat(jdbc.queryForObject("select count(*) from chat_conversation where id = ?", Integer.class, id)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history", Integer.class)).isEqualTo(5);
     }
 
     /** Le guide di visione sono del dominio dell'host: senza, i servizi non nascono e l'avvio non fallisce. */

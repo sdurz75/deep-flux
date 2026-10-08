@@ -6,11 +6,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.generation.domain.GenerationFormType;
 import org.dual.hexa.app.generation.port.in.IGenerationForms;
 import org.dual.hexa.app.generation.port.in.ILoraPresets;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,13 +25,13 @@ import org.springframework.stereotype.Service;
 public class GenerationFormService implements IGenerationForms {
 
     private final Map<GenerationFormType, IGenerationParameterHandler> byFormType;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final ILoraPresets loraPresets;
 
-    public GenerationFormService(List<IGenerationParameterHandler> handlers, IApiTokens tokens, ILoraPresets loraPresets) {
+    public GenerationFormService(List<IGenerationParameterHandler> handlers, ISecrets secrets, ILoraPresets loraPresets) {
         this.byFormType = handlers.stream()
                 .collect(Collectors.toMap(IGenerationParameterHandler::formType, Function.identity()));
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.loraPresets = loraPresets;
     }
 
@@ -59,8 +59,8 @@ public class GenerationFormService implements IGenerationForms {
         }
         // Le select dei token e dei LoRA anagrafati: solo dove si renderizza il fragment di flux-dev-lora, mai a ogni richiesta.
         Map<String, Object> options = new LinkedHashMap<>();
-        options.put("hfTokens", tokens.options(ApiTokenProvider.HUGGINGFACE.name()));
-        options.put("civitaiTokens", tokens.options(ApiTokenProvider.CIVITAI.name()));
+        options.put("hfSecrets", secrets.options(AppSecretType.HUGGINGFACE.name()));
+        options.put("civitaiSecrets", secrets.options(AppSecretType.CIVITAI.name()));
         options.putAll(loraPresets.formOptions());
         return options;
     }

@@ -1,11 +1,9 @@
 package org.dual.hexa.core.config.adapter.in.web;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.dual.hexa.core.config.domain.ConfigException;
-import org.dual.hexa.core.config.domain.ConfigField;
-import org.dual.hexa.core.config.domain.ModuleValues;
+import org.dual.hexa.core.config.domain.FormState;
 import org.dual.hexa.core.config.port.in.IConfigModule;
 import org.dual.hexa.core.config.port.in.IModuleSettings;
 import org.springframework.http.HttpStatus;
@@ -36,7 +34,7 @@ class SettingsController {
 
     @GetMapping("/settings")
     String page(Model model) {
-        model.addAttribute("views", settings.modules().stream().map(module -> view(module, effective(module), null, false)).toList());
+        model.addAttribute("views", settings.modules().stream().map(module -> view(module, settings.formState(module.id()), null, false)).toList());
         return "core/settings";
     }
 
@@ -47,16 +45,16 @@ class SettingsController {
         try {
             settings.save(moduleId, form);
         } catch (ConfigException e) {
-            return render(model, htmx, view(module, submitted(module, form), e.getMessage(), false));
+            return render(model, htmx, view(module, settings.preview(moduleId, form), e.getMessage(), false));
         }
-        return render(model, htmx, view(module, effective(module), null, true));
+        return render(model, htmx, view(module, settings.formState(moduleId), null, true));
     }
 
     @PostMapping("/settings/{module}/reset")
     String reset(@PathVariable("module") String moduleId, Model model, @RequestHeader(value = "HX-Request", required = false) String htmx) {
         IConfigModule module = find(moduleId);
         settings.reset(moduleId);
-        return render(model, htmx, view(module, effective(module), null, true));
+        return render(model, htmx, view(module, settings.formState(moduleId), null, true));
     }
 
     private String render(Model model, String htmx, SettingsView view) {
@@ -67,7 +65,7 @@ class SettingsController {
             return SECTION;
         }
         model.addAttribute("views", settings.modules().stream()
-                .map(module -> module.id().equals(view.id()) ? view : view(module, effective(module), null, false)).toList());
+                .map(module -> module.id().equals(view.id()) ? view : view(module, settings.formState(module.id()), null, false)).toList());
         return "core/settings";
     }
 
@@ -75,28 +73,7 @@ class SettingsController {
         return settings.module(moduleId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
-    private Map<String, String> effective(IConfigModule module) {
-        ModuleValues values = settings.values(module.id());
-        Map<String, String> map = new LinkedHashMap<>();
-        for (ConfigField field : module.fields()) {
-            map.put(field.key(), values.getString(field.key()));
-        }
-        return map;
-    }
-
-    private Map<String, String> submitted(IConfigModule module, Map<String, String> form) {
-        Map<String, String> map = effective(module);
-        for (ConfigField field : module.fields()) {
-            if (field.type() == ConfigField.Type.BOOL) {
-                map.put(field.key(), Boolean.toString(form.containsKey(field.key())));
-            } else if (form.containsKey(field.key())) {
-                map.put(field.key(), form.get(field.key()));
-            }
-        }
-        return map;
-    }
-
-    private SettingsView view(IConfigModule module, Map<String, String> values, String error, boolean saved) {
-        return new SettingsView(module.id(), module.titleKey(), List.copyOf(module.fields()), values, module.fragment().orElse(null), error, saved);
+    private SettingsView view(IConfigModule module, FormState state, String error, boolean saved) {
+        return new SettingsView(module.id(), module.titleKey(), List.copyOf(module.fields()), state, module.fragment().orElse(null), error, saved);
     }
 }

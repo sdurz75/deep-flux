@@ -54,7 +54,7 @@ class HtmxEventsTest {
     @Test
     void theToastHeaderCarriesTheSeverity() {
         var response = new MockHttpServletResponse();
-        htmx.addToastHeader(response, events.warn(CoreEventSource.TOKENS, "tokenExpired", "token:3", "scaduto"));
+        htmx.addToastHeader(response, events.warn(CoreEventSource.SECRETS, "tokenExpired", "token:3", "scaduto"));
 
         assertThat(response.getHeader("HX-Trigger")).contains("\"severity\":\"WARNING\"").contains("\"transient\":false");
     }

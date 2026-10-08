@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.shared.domain.AppEventSource;
 import org.dual.hexa.app.shared.domain.AppEventSubjects;
 import org.dual.hexa.app.training.domain.HfAccount;
@@ -22,7 +22,7 @@ import org.dual.hexa.app.training.port.out.ITrainingStore;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -49,18 +49,18 @@ public class TrainingHfUploadService implements ITrainingHfUploads {
     private final ITrainingStore store;
     private final ITrainerGateway trainer;
     private final IHuggingFaceRepos huggingFace;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final ISystemEvents systemEvents;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
     private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
 
-    public TrainingHfUploadService(ITrainingStore store, ITrainerGateway trainer, IHuggingFaceRepos huggingFace, IApiTokens tokens, ISystemEvents systemEvents,
+    public TrainingHfUploadService(ITrainingStore store, ITrainerGateway trainer, IHuggingFaceRepos huggingFace, ISecrets secrets, ISystemEvents systemEvents,
                                    Messages messages, ApplicationEventPublisher eventPublisher) {
         this.store = store;
         this.trainer = trainer;
         this.huggingFace = huggingFace;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.systemEvents = systemEvents;
         this.messages = messages;
         this.eventPublisher = eventPublisher;
@@ -82,7 +82,7 @@ public class TrainingHfUploadService implements ITrainingHfUploads {
     }
 
     @Override
-    public void request(Long trainingId, Long tokenId) {
+    public void request(Long trainingId, Long secretId) {
         Training training = store.findById(trainingId).orElseThrow(() -> new TrainingException(messages.get("training.error.trainingNotFound")));
         if (inFlight.contains(trainingId)) {
             throw new TrainingException(messages.get("training.hfUpload.running"));
@@ -90,11 +90,11 @@ public class TrainingHfUploadService implements ITrainingHfUploads {
         if (!isEligible(training)) {
             throw new TrainingException(messages.get("training.hfUpload.notAllowed"));
         }
-        if (tokenId == null) {
+        if (secretId == null) {
             throw new TrainingException(messages.get("training.hfUpload.tokenRequired"));
         }
-        // Un token scaduto, cancellato o di un altro provider e' un rifiuto (TokenException); uno di sola lettura non puo' scrivere: si dice PRIMA di scaricare 170 MB.
-        String token = tokens.resolve(tokenId, ApiTokenProvider.HUGGINGFACE.name());
+        // Un token scaduto, cancellato o di un altro provider e' un rifiuto (SecretException); uno di sola lettura non puo' scrivere: si dice PRIMA di scaricare 170 MB.
+        String token = secrets.resolve(secretId, AppSecretType.HUGGINGFACE.name());
         HfAccount account = huggingFace.whoami(token);
         if (account.isReadOnly()) {
             throw new TrainingException(messages.get("training.error.hfReadOnly"));
@@ -103,7 +103,7 @@ public class TrainingHfUploadService implements ITrainingHfUploads {
             throw new TrainingException(messages.get("training.hfUpload.running"));
         }
         try {
-            eventPublisher.publishEvent(new HfUploadRequestedEvent(trainingId, tokenId));
+            eventPublisher.publishEvent(new HfUploadRequestedEvent(trainingId, secretId));
         } catch (RuntimeException e) {
             inFlight.remove(trainingId); // l'executor ha rifiutato il lavoro: nessuno lo fara', il bottone non deve restare bloccato
             throw e;
@@ -112,7 +112,7 @@ public class TrainingHfUploadService implements ITrainingHfUploads {
     }
 
     @Override
-    public void upload(Long trainingId, Long tokenId) {
+    public void upload(Long trainingId, Long secretId) {
         String subject = AppEventSubjects.ofTraining(trainingId);
         try {
             Optional<Training> found = store.findById(trainingId);
@@ -120,7 +120,7 @@ public class TrainingHfUploadService implements ITrainingHfUploads {
                 return; // eliminato nel frattempo
             }
             Training training = found.get();
-            String token = tokens.resolve(tokenId, ApiTokenProvider.HUGGINGFACE.name());
+            String token = secrets.resolve(secretId, AppSecretType.HUGGINGFACE.name());
             Optional<WeightsFile> weights = trainer.weights(training.getExternalId());
             if (weights.isEmpty()) {
                 systemEvents.warn(AppEventSource.TRAINING, OPERATION, subject, messages.get("training.hfUpload.noWeights", trainingId));

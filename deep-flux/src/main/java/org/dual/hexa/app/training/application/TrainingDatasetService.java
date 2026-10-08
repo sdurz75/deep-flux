@@ -185,7 +185,7 @@ public class TrainingDatasetService implements ITrainingDatasets {
         if (repoName != null && repoName.length() > MAX_HF_REPO_NAME) {
             throw new TrainingException(messages.get("training.error.hfRepoNameTooLong", MAX_HF_REPO_NAME));
         }
-        return new LaunchSettings(modelName, raw.trainingSteps(), raw.seed(), raw.hfPublish(), raw.hfTokenId(), repoName, raw.hfPrivate());
+        return new LaunchSettings(modelName, raw.trainingSteps(), raw.seed(), raw.hfPublish(), raw.hfSecretId(), repoName, raw.hfPrivate());
     }
 
     private static String blankToNull(String text) {

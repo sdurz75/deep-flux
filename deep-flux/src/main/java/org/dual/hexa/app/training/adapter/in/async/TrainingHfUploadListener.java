@@ -27,7 +27,7 @@ public class TrainingHfUploadListener {
     public void onUploadRequested(HfUploadRequestedEvent event) {
         LocaleContextHolder.setLocale(Locale.ITALIAN);
         try {
-            uploads.upload(event.trainingId(), event.tokenId());
+            uploads.upload(event.trainingId(), event.secretId());
         } finally {
             LocaleContextHolder.resetLocaleContext();
         }

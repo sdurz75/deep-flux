@@ -55,7 +55,7 @@ public final class HexaArchitectureRules {
      */
     public static final Set<String> LIBRARY_EXTENSION_POINTS = Set.of(
             LIBRARY + ".events.port.out.IEventLinkResolver",
-            LIBRARY + ".tokens.port.out.ITokenProviderCatalog");
+            LIBRARY + ".secrets.port.out.ISecretTypeCatalog");
 
     private HexaArchitectureRules() {
     }

@@ -4,8 +4,8 @@ Questa pagina riguarda le app generate con `-DuseOauth2=true` (dipendenza `hexa-
 
 ## Le tre cose che contano
 
-- **Spento di default e invisibile.** A cancello spento nessuna richiesta cambia risposta: l'app è aperta come senza la libreria. Si accende da `/oauth2` (menu «Gestione», voce «Accesso») o con `HX_OAUTH2_ENABLED=true`.
-- **Fallisce chiuso.** Acceso senza provider o senza utenti ammessi, nessuno entra. Per questo da `/oauth2` si può accendere solo dopo aver configurato un provider, almeno un ammesso e fatto un **accesso di prova** riuscito («Prova accesso»).
+- **Spento di default e invisibile.** A cancello spento nessuna richiesta cambia risposta: l'app è aperta come senza la libreria. Si gestisce dalla sezione «Accesso OAuth2» di `/settings` (menu «Gestione», voce «Impostazioni») e si accende da lì o con `HX_OAUTH2_ENABLED=true` (autorevole: la UI non lo spegne).
+- **Fallisce chiuso.** Acceso senza provider o senza utenti ammessi, nessuno entra. Per questo dalle Impostazioni si può accendere solo dopo aver configurato un provider, almeno un ammesso e fatto un **accesso di prova** riuscito («Prova accesso»).
 - **La lista decide.** Un account autenticato dal provider ma non in lista non ottiene mai una sessione.
 
 ## Essere operativi con poche variabili
@@ -21,20 +21,20 @@ Nel `.env` (vedi `.env.example`, sezione OAuth2) bastano:
 | `HX_OAUTH2_ENABLED` | `true` accende il cancello all'avvio |
 | `HX_OAUTH2_RESET` | `true` lo spegne all'avvio (recupero) |
 
-Il provider d'ambiente compare in `/oauth2` in sola lettura e il suo segreto non viene mai salvato né scritto nei log. Gli elenchi d'ambiente si **sommano** a quelli salvati da `/oauth2`: valgono anche come recupero se la lista salvata è sbagliata. Le stesse chiavi esistono come property `app.oauth2.*` (`enabled`, `reset`, `provider`, `issuer-uri`, `client-id`, `client-secret`, `title`, `allowed-emails`, `allowed-domains`) e prevalgono sulle variabili.
+Il provider d'ambiente compare nelle Impostazioni in sola lettura e il suo segreto non viene mai salvato né scritto nei log. Gli elenchi (`HX_OAUTH2_ALLOWED_*`) sono campi additivi del modulo di configurazione: si **sommano** alle voci salvate dalla UI: valgono anche come recupero se la lista salvata è sbagliata. Le stesse chiavi esistono come property `app.oauth2.*` (`enabled`, `reset`, `provider`, `issuer-uri`, `client-id`, `client-secret`, `title`, `allowed-emails`, `allowed-domains`) e prevalgono sulle variabili.
 
-L'indirizzo di ritorno da registrare presso il provider è `<indirizzo dell'app>/login/oauth2/code/<identificativo>`, dove l'identificativo è `google` o `sso` per il provider d'ambiente; `/oauth2` mostra quello esatto per ogni provider. Dietro un reverse proxy servono `server.forward-headers-strategy=framework` e l'`X-Forwarded-Prefix` per un sottopercorso, altrimenti l'indirizzo calcolato non è quello pubblico.
+L'indirizzo di ritorno da registrare presso il provider è `<indirizzo dell'app>/login/oauth2/code/<identificativo>`, dove l'identificativo è `google` o `sso` per il provider d'ambiente; la sezione mostra quello esatto per ogni provider. Dietro un reverse proxy servono `server.forward-headers-strategy=framework` e l'`X-Forwarded-Prefix` per un sottopercorso, altrimenti l'indirizzo calcolato non è quello pubblico.
 
 ## Altri provider, da UI
 
-`/oauth2` permette di aggiungere provider: identificativo, nome, issuer, client ID e il **segreto**, che non si scrive lì ma si salva in `/tokens` con il servizio «OAuth2» e si sceglie da una lista (cifrato con la chiave dell'app, come ogni token). La configurazione OIDC si legge da `<issuer>/.well-known/openid-configuration` (con il `RestClient.Builder` dell'app) e si tiene in cache qualche minuto.
+La sezione permette di aggiungere provider come righe: identificativo, nome, issuer, client ID e **segreto del client**. Il segreto è un campo `SECRET` del modulo di configurazione: si salva cifrato come segreto di tipo `OAUTH2_CLIENT` (lo vedi in `/secrets`, ma si cambia solo da qui), non compare mai nella pagina e lasciarlo vuoto lo conserva. La configurazione OIDC si legge da `<issuer>/.well-known/openid-configuration` (con il `RestClient.Builder` dell'app) e si tiene in cache qualche minuto.
 
 ## Chi può entrare
 
 - **Email esatta**: confrontata dopo aver tolto gli spazi e messa in minuscolo, e solo se il provider dichiara `email_verified`. Al primo accesso si lega all'identità del provider (`issuer` + `sub`): da quel momento solo quell'identità vale per quell'email.
 - **Dominio**: vale solo se **uguale** alla parte dopo l'ultima chiocciola (`example.com` non fa entrare `evilexample.com` né `sub.example.com`).
 
-Con il cancello acceso non si può togliere l'ultima voce utile né l'ultimo provider.
+Con il cancello acceso non si può togliere l'ultima voce utile né l'ultimo provider. L'identità legata a un'email e gli accessi di prova si azzerano quando cambiano i provider.
 
 ## Dove si applica e che cosa lascia passare
 

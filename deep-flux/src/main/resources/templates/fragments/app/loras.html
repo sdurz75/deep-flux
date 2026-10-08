@@ -15,8 +15,8 @@
                 <strong th:text="${l.name}">nome</strong>
                 <span th:replace="~{fragments/core/chip :: neutral(text=#{loras.scale(${l.scale})}, textClass='text-[0.8rem]')}">intensita' 1</span>
                 <code class="break-all" th:text="${l.source}">owner/nome</code>
-                <th:block th:if="${l.defaultTokenId}">
-                    <span th:replace="~{fragments/core/chip :: neutral(text=#{loras.token(${l.defaultTokenName + ' ••••' + l.defaultTokenHint})}, textClass='text-[0.8rem]')}">token HuggingFace</span>
+                <th:block th:if="${l.defaultSecretId}">
+                    <span th:replace="~{fragments/core/chip :: neutral(text=#{loras.token(${l.defaultSecretName + ' ••••' + l.defaultSecretHint})}, textClass='text-[0.8rem]')}">token HuggingFace</span>
                 </th:block>
             </div>
             <p th:if="${l.triggerWords}" class="mt-2 mb-0 text-[0.85rem]">
@@ -38,7 +38,7 @@
   Contenuto del dialog (loras.html), per CREAZIONE (loraId null) e MODIFICA: sempre ri-caricato all'apertura e, con un errore di
   validazione, rimpiazzato da se' stesso (HX-Retarget/HX-Reswap dal controller). La risposta riuscita e' l'elenco (#lora-list).
 -->
-<div th:fragment="loraForm(loraId, loraName, loraSource, loraScale, loraTriggerWords, loraNote, loraError, loraTokenId, loraTokens)" id="lora-form">
+<div th:fragment="loraForm(loraId, loraName, loraSource, loraScale, loraTriggerWords, loraNote, loraError, loraSecretId, loraSecrets)" id="lora-form">
     <div class="flex items-start justify-between gap-3">
         <h2 id="lora-dialog-title" class="m-0" th:text="${loraId == null} ? #{loras.form.newTitle} : #{loras.form.editTitle}">Nuovo LoRA</h2>
         <button th:replace="~{fragments/core/button :: dialogCloseIcon(title=#{loras.form.close})}">&times;</button>
@@ -77,18 +77,18 @@
 
         <label for="lora-token" th:text="#{loras.form.token}">Token predefinito (opzionale)</label>
         <div class="relative" x-data="pinesSelect" x-bind="root">
-            <select id="lora-token" name="tokenId" class="sr-only" tabindex="-1" aria-hidden="true">
+            <select id="lora-token" name="secretId" class="sr-only" tabindex="-1" aria-hidden="true">
                 <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
-                <option th:each="t : ${loraTokens}" th:value="${t.id}"
+                <option th:each="t : ${loraSecrets}" th:value="${t.id}"
                         th:disabled="${t.status.name() == 'EXPIRED'}"
-                        th:selected="${#strings.toString(loraTokenId) == #strings.toString(t.id)}"
-                        th:text="|#{${'tokens.provider.' + t.provider}}: ${t.name} ••••${t.hint}|">nome</option>
+                        th:selected="${#strings.toString(loraSecretId) == #strings.toString(t.id)}"
+                        th:text="|#{${'secrets.type.' + t.type}}: ${t.name} ••••${t.hint}|">nome</option>
             </select>
             <div th:replace="~{fragments/core/select :: ui}"></div>
         </div>
         <p class="mt-1 mb-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">
             <span th:text="#{loras.form.tokenHelp}">Preselezionato nella form di generazione.</span>
-            <a th:href="@{/tokens}" th:text="#{generationParams.link.manageTokens}">Gestisci i token</a>
+            <a th:href="@{/secrets}" th:text="#{generationParams.link.manageTokens}">Gestisci i token</a>
         </p>
 
         <label for="lora-note" th:text="#{loras.form.note}">Nota (opzionale)</label>

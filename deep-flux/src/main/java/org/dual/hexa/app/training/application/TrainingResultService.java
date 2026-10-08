@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.generation.port.in.ILoraPresets;
 import org.dual.hexa.app.generation.port.in.IModelCatalog;
 import org.dual.hexa.app.shared.domain.AppEventSource;
@@ -29,8 +29,8 @@ import org.dual.hexa.app.training.port.out.ITrainingStore;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException;
-import org.dual.hexa.core.tokens.domain.TokenException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.domain.SecretException;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -63,7 +63,7 @@ public class TrainingResultService implements ITrainingResults {
     private final ILoraPresets presets;
     private final IModelCatalog catalog;
     private final IHuggingFaceRepos huggingFace;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final ISystemEvents systemEvents;
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
@@ -73,21 +73,21 @@ public class TrainingResultService implements ITrainingResults {
 
     @Autowired
     public TrainingResultService(ITrainingStore store, ITrainingDatasets datasets, ILoraPresets presets, IModelCatalog catalog, IHuggingFaceRepos huggingFace,
-                                 IApiTokens tokens, ISystemEvents systemEvents, Messages messages, ApplicationEventPublisher eventPublisher,
+                                 ISecrets secrets, ISystemEvents systemEvents, Messages messages, ApplicationEventPublisher eventPublisher,
                                  @Value("${app.training.result-grace:10m}") Duration grace,
                                  @Value("${app.training.result-retry-window:6h}") Duration retryWindow) {
-        this(store, datasets, presets, catalog, huggingFace, tokens, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), grace, retryWindow);
+        this(store, datasets, presets, catalog, huggingFace, secrets, systemEvents, messages, eventPublisher, Clock.systemDefaultZone(), grace, retryWindow);
     }
 
     TrainingResultService(ITrainingStore store, ITrainingDatasets datasets, ILoraPresets presets, IModelCatalog catalog, IHuggingFaceRepos huggingFace,
-                          IApiTokens tokens, ISystemEvents systemEvents, Messages messages, ApplicationEventPublisher eventPublisher, Clock clock,
+                          ISecrets secrets, ISystemEvents systemEvents, Messages messages, ApplicationEventPublisher eventPublisher, Clock clock,
                           Duration grace, Duration retryWindow) {
         this.store = store;
         this.datasets = datasets;
         this.presets = presets;
         this.catalog = catalog;
         this.huggingFace = huggingFace;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.systemEvents = systemEvents;
         this.messages = messages;
         this.eventPublisher = eventPublisher;
@@ -232,12 +232,12 @@ public class TrainingResultService implements ITrainingResults {
         if (training.getHfStatus() != HfStatus.PENDING) {
             return false;
         }
-        Long tokenId = datasets.find(training.getSnapshotDatasetId()).map(TrainingDataset::getHfTokenId).orElse(null);
+        Long secretId = datasets.find(training.getSnapshotDatasetId()).map(TrainingDataset::getHfSecretId).orElse(null);
         String token = null;
-        if (tokenId != null) {
+        if (secretId != null) {
             try {
-                token = tokens.resolve(tokenId, ApiTokenProvider.HUGGINGFACE.name());
-            } catch (TokenException e) {
+                token = secrets.resolve(secretId, AppSecretType.HUGGINGFACE.name());
+            } catch (SecretException e) {
                 token = null; // scaduto o cancellato: succede, la verifica non e' possibile
             }
         }

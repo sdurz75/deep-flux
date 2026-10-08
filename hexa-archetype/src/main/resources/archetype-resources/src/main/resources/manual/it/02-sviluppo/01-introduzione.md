@@ -4,7 +4,7 @@ Guida a hexa-core e hexa-ai, le librerie su cui è costruita questa applicazione
 
 ## Cosa sono le librerie
 
-**hexa-core** fornisce l'infrastruttura di una webapp hypermedia-first (Spring MVC, Thymeleaf, htmx, Alpine): layout e componenti, registro degli eventi di sistema, token API cifrati, storage dei binari, backup, push SSE e manuale online. **hexa-ai** si aggiunge sopra (chat con strumenti, ricerca semantica su pgvector, servizi AI, crediti) e compare solo se l'app è stata generata con `-DuseAi=true`. hexa-core non dipende mai da hexa-ai.
+**hexa-core** fornisce l'infrastruttura di una webapp hypermedia-first (Spring MVC, Thymeleaf, htmx, Alpine): layout e componenti, registro degli eventi di sistema, segreti cifrati (token API, password), storage dei binari, backup, push SSE e manuale online. **hexa-ai** si aggiunge sopra (chat con strumenti, ricerca semantica su pgvector, servizi AI, crediti) e compare solo se l'app è stata generata con `-DuseAi=true`. hexa-core non dipende mai da hexa-ai.
 
 ## Come si usano
 
@@ -15,7 +15,7 @@ L'app è un host: dipende dai jar tramite `hexa-bom` (le versioni sono allineate
 - [Architettura esagonale](02-architettura-esagonale.md): come si organizza il codice.
 - [Configurazione](03-configurazione.md) e [Persistenza e migrazioni](04-persistenza-e-migrazioni.md).
 - [Web, htmx e Thymeleaf](05-web-htmx-thymeleaf.md) e il [Catalogo dei fragment](14-catalogo-fragment.md).
-- [Eventi, errori e servizi remoti](06-eventi-errori-remoti.md), [Storage, token e backup](07-storage-token-backup.md), [Push in tempo reale](08-push-sse.md).
+- [Eventi, errori e servizi remoti](06-eventi-errori-remoti.md), [Storage, segreti e backup](07-storage-segreti-backup.md), [Push in tempo reale](08-push-sse.md).
 - [Il manuale online](09-manuale-online.md).
 - Con hexa-ai: [Chat e strumenti](10-ai-chat.md), [Ricerca e crediti](11-ai-ricerca-e-crediti.md).
 - Con hexa-pwa: [App installabile](15-pwa.md). Con hexa-oauth2: [Accesso con OAuth2](17-oauth2.md). In ogni app: [Blocco con PIN](16-blocco-con-pin.md).

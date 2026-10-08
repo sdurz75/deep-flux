@@ -10,7 +10,7 @@
 </div>
 <div layout:fragment="content">
     <!--
-      Dialog Pines UI per creare E modificare un LoRA anagrafato (stessa meccanica di tokens.html): `dialogOpen` e' lo stato
+      Dialog Pines UI per creare E modificare un LoRA anagrafato (stessa meccanica di secrets.html): `dialogOpen` e' lo stato
       Alpine letto da button :: dialogOpen/dialogClose. Il contenuto (#lora-form) si ri-carica a ogni apertura; al salvataggio
       riuscito il server emette `lora-saved` (HX-Trigger) che chiude il dialog, con un errore il form si rimpiazza da se'
       (HX-Retarget) e il dialog resta aperto col messaggio.
@@ -26,7 +26,7 @@
 
         <th:block th:replace="~{fragments/core/modal :: dialog(titleId='lora-dialog-title', maxWidth='max-w-lg', body=~{::#lora-dialog-body})}">
             <div id="lora-dialog-body">
-                <div th:replace="~{fragments/app/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError}, loraTokenId=${loraTokenId}, loraTokens=${loraTokens})}"></div>
+                <div th:replace="~{fragments/app/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError}, loraSecretId=${loraSecretId}, loraSecrets=${loraSecrets})}"></div>
             </div>
         </th:block>
 

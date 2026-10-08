@@ -77,7 +77,7 @@ public class TrainingDataset {
     private boolean hfPublish = true;
 
     @Column
-    private Long hfTokenId;
+    private Long hfSecretId;
 
     @Column(length = 96)
     private String hfRepoName;
@@ -122,7 +122,7 @@ public class TrainingDataset {
     }
 
     public LaunchSettings launchSettings() {
-        return new LaunchSettings(modelName, trainingSteps, seed, hfPublish, hfTokenId, hfRepoName, hfPrivate);
+        return new LaunchSettings(modelName, trainingSteps, seed, hfPublish, hfSecretId, hfRepoName, hfPrivate);
     }
 
     /** Sostituisce le impostazioni di lancio (gia' validate da chi chiama). */
@@ -131,7 +131,7 @@ public class TrainingDataset {
         this.trainingSteps = settings.trainingSteps();
         this.seed = settings.seed();
         this.hfPublish = settings.hfPublish();
-        this.hfTokenId = settings.hfTokenId();
+        this.hfSecretId = settings.hfSecretId();
         this.hfRepoName = settings.hfRepoName();
         this.hfPrivate = settings.hfPrivate();
         this.updatedAt = now;
@@ -143,7 +143,7 @@ public class TrainingDataset {
         this.trainingSteps = source.trainingSteps;
         this.seed = source.seed;
         this.hfPublish = source.hfPublish;
-        this.hfTokenId = source.hfTokenId;
+        this.hfSecretId = source.hfSecretId;
         this.hfRepoName = source.hfRepoName;
         this.hfPrivate = source.hfPrivate;
     }
@@ -245,8 +245,8 @@ public class TrainingDataset {
         return hfPublish;
     }
 
-    public Long getHfTokenId() {
-        return hfTokenId;
+    public Long getHfSecretId() {
+        return hfSecretId;
     }
 
     public String getHfRepoName() {

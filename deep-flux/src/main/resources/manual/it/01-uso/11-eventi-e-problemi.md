@@ -10,11 +10,11 @@ Un evento che si ripete a distanza ravvicinata non riaccende la campanella a ogn
 
 ## Gli eventi di sistema
 
-La pagina [Eventi](/system/events), nel menu **Gestione**, è il registro. Ogni riga ha una **gravità** (**Errore** o **Avviso**), una **fonte** (Replicate, OpenRouter, SearXNG, Archivio, Token, LoRA, Interno), cosa stava succedendo, e quante volte si è ripetuta. **Dettagli** mostra il messaggio completo; dove ha senso c'è un link per aprire la generazione o la conversazione coinvolta.
+La pagina [Eventi](/system/events), nel menu **Gestione**, è il registro. Ogni riga ha una **gravità** (**Errore** o **Avviso**), una **fonte** (Replicate, OpenRouter, SearXNG, Archivio, Segreti, LoRA, Interno), cosa stava succedendo, e quante volte si è ripetuta. **Dettagli** mostra il messaggio completo; dove ha senso c'è un link per aprire la generazione o la conversazione coinvolta.
 
 Il filtro **Filtra per gravità** limita l'elenco a **Errori** o **Avvisi**. **Svuota** cancella il registro (chiede conferma).
 
-Gli **avvisi** non sono errori: oggi servono per i token in scadenza o scaduti. Gli errori nascono da chiamate a servizi esterni (Replicate, OpenRouter, il motore di ricerca web) o da un guasto interno.
+Gli **avvisi** non sono errori: oggi servono per i segreti in scadenza o scaduti. Gli errori nascono da chiamate a servizi esterni (Replicate, OpenRouter, il motore di ricerca web) o da un guasto interno.
 
 ## Cosa fare, in ordine
 
@@ -45,9 +45,9 @@ Gli **avvisi** non sono errori: oggi servono per i token in scadenza o scaduti. 
 
 ## Token e LoRA
 
-- **Il token scelto non esiste più** / **è scaduto**: rinnovalo nella pagina [Token](/tokens) o scegline un altro. L'app si ferma prima di chiamare Replicate.
-- **Chiave di cifratura mancante o non valida**: la pagina dei token non può salvare né leggere segreti. L'amministratore deve impostare la chiave nella configurazione del server (vedi [Dati, storage e sicurezza](../02-architettura/07-dati-storage-sicurezza.md)).
-- **Impossibile decifrare il token**: la chiave attuale è diversa da quella con cui fu salvato. Reinseriscilo.
+- **Il token scelto non esiste più** / **è scaduto**: rinnovalo nella pagina [Segreti](/secrets) o scegline un altro. L'app si ferma prima di chiamare Replicate.
+- **Chiave di cifratura mancante o non valida**: la pagina dei segreti non può salvare né leggere segreti. L'amministratore deve impostare la chiave nella configurazione del server (vedi [Dati, storage e sicurezza](../02-architettura/07-dati-storage-sicurezza.md)).
+- **Impossibile decifrare il segreto**: la chiave attuale è diversa da quella con cui fu salvato. Reinseriscilo.
 - **Non è un LoRA di Flux**: la sorgente indicata non ha il campo di intensità tipico di un LoRA; il LoRA salvato resta, ma non diventa un modello.
 
 ## Il training non parte o non finisce

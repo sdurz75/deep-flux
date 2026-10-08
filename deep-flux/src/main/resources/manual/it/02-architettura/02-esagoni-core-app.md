@@ -37,7 +37,7 @@ Queste regole sono verificate da `ArchitectureTest` (ArchUnit) e da `SourceImpor
 | core.events | registro degli eventi di sistema, campanella, toast |
 | core.push | SSE verso le schede aperte |
 | core.secrets | cifratura dei segreti a riposo |
-| core.tokens | token API cifrati, scadenze, la pagina Token |
+| core.secrets | segreti cifrati con tipo (token API, password, segreti dei moduli), scadenze, la pagina Segreti |
 | core.storage | i binari: nome, validazione, filesystem o WebDAV, `/images/{file}` |
 | core.backup | export e import del sistema completo |
 | core.manual | questo manuale |
@@ -58,7 +58,7 @@ Queste regole sono verificate da `ArchitectureTest` (ArchUnit) e da `SourceImpor
 
 ## I punti di estensione del core
 
-Un'implementazione dell'app può implementare solo un elenco chiuso di porte out del core: il risolutore dei link degli eventi (`IEventLinkResolver`) e il catalogo dei provider di token (`ITokenProviderCatalog`). Ogni altra porta del core, per l'app, non esiste. Il menu e le breadcrumb sono un altro punto di estensione: il core include `fragments/app/nav.html` e l'app lo riscrive.
+Un'implementazione dell'app può implementare solo un elenco chiuso di porte out del core: il risolutore dei link degli eventi (`IEventLinkResolver`) e il catalogo dei tipi di segreto (`ISecretTypeCatalog`). Ogni altra porta del core, per l'app, non esiste. Il menu e le breadcrumb sono un altro punto di estensione: il core include `fragments/app/nav.html` e l'app lo riscrive.
 
 ## Aggiungere un sottosistema
 

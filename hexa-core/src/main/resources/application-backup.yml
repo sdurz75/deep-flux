@@ -16,7 +16,7 @@ spring:
 app:
   recovery:
     enabled: false
-  tokens:
+  secrets:
     expiry-check-enabled: false
 storage:
   webdav:

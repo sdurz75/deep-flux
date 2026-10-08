@@ -102,10 +102,10 @@ class BackupRunnerTest {
     }
 
     @Test
-    void missingFilesAndUndecryptableTokensAreWarnings() {
+    void missingFilesAndUndecryptableSecretsAreWarnings() {
         when(importer.importFrom(any())).thenReturn(new ImportResult(3, 10, 2, 0, List.of("gone.png"), 2));
 
         assertThat(run("import", "backup.dfb")).isZero();
-        assertThat(err.toString()).contains("gone.png").contains("/tokens");
+        assertThat(err.toString()).contains("gone.png").contains("/secrets");
     }
 }

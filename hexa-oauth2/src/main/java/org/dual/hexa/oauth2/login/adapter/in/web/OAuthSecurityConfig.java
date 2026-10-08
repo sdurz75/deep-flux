@@ -73,7 +73,16 @@ class OAuthSecurityConfig {
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(entryPoint))
                 .logout(logout -> logout
                         .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/oauth2/logout"))
-                        .logoutSuccessUrl(OAuthRequests.LOGIN_PATH));
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            // htmx segue solo HX-Redirect (un 302 su un fetch caricherebbe la pagina di accesso dentro il pannello).
+                            String login = request.getContextPath() + OAuthRequests.LOGIN_PATH;
+                            if (request.getHeader("HX-Request") != null) {
+                                response.setStatus(204);
+                                response.setHeader("HX-Redirect", login);
+                            } else {
+                                response.sendRedirect(login);
+                            }
+                        }));
         return http.build();
     }
 

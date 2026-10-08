@@ -42,7 +42,7 @@ import org.dual.hexa.core.storage.adapter.out.webdav.WebDavBlobBackend;
 import org.dual.hexa.core.storage.application.ImageStorageService;
 import org.dual.hexa.core.storage.port.in.IImageStorageService;
 import org.dual.hexa.core.storage.port.out.IRemoteFileFetcher;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.BeforeEach;
@@ -304,8 +304,8 @@ class BackupRoundTripTest {
 
         ImportResult imported = importer(dst, key, 2, events).importFrom(new ImportOptions(file, false));
 
-        assertThat(imported.undecryptableTokens()).isEqualTo(2);
-        verify(events).warn(eq(CoreEventSource.TOKENS), eq("restoreTokens"), eq(null), anyString());
+        assertThat(imported.undecryptableSecrets()).isEqualTo(2);
+        verify(events).warn(eq(CoreEventSource.SECRETS), eq("restoreSecrets"), eq(null), anyString());
         assertThat(digests(dst)).isEqualTo(digests(src));
     }
 
@@ -340,7 +340,7 @@ class BackupRoundTripTest {
         JdbcDatabaseRestore real = new JdbcDatabaseRestore(dst, LOCATIONS, messages);
         IDatabaseRestore failingAtTheEnd = new FailingAtCommit(real);
 
-        BackupImportService service = new BackupImportService(new ZipBackupArchive(messages), failingAtTheEnd, dstStorage, tokens(0),
+        BackupImportService service = new BackupImportService(new ZipBackupArchive(messages), failingAtTheEnd, dstStorage, secrets(0),
                 mock(ISystemEvents.class), messages, key);
 
         assertThatThrownBy(() -> service.importFrom(new ImportOptions(file, false)))
@@ -418,7 +418,7 @@ class BackupRoundTripTest {
         j.update("INSERT INTO lora_preset (name, source, scale, trigger_words, created_at, updated_at) VALUES ('mio', 'sdurz75/flux-lora-ff3', 0.7, 'ff3', now(), now())");
         j.update("UPDATE replicate_model SET active = false WHERE name = 'flux-krea-dev'");
         j.update("INSERT INTO system_event (created_at, last_seen_at, occurrences, source, severity, operation, error_type, message) VALUES (now(), now(), 3, 'REPLICATE', 'ERROR', 'op', 'X', 'm')");
-        j.update("INSERT INTO api_token (provider, name, token_encrypted, token_hint, created_at, updated_at) VALUES ('HUGGINGFACE', 'hf', ?, '1234', now(), now())",
+        j.update("INSERT INTO secret (type, name, value_encrypted, hint, created_at, updated_at) VALUES ('HUGGINGFACE', 'hf', ?, '1234', now(), now())",
                 (Object) new ChunkedAesGcmCipher(bytes(32, 5)).encryptBytes("hf_secret".getBytes()));
         j.update("""
                 INSERT INTO vector_store (id, content, metadata, embedding)
@@ -502,19 +502,19 @@ class BackupRoundTripTest {
                 "deep-flux", "local", encryptionKey);
     }
 
-    private BackupImportService importer(DataSource ds, String encryptionKey, int undecryptableTokens) {
-        return importer(ds, encryptionKey, undecryptableTokens, mock(ISystemEvents.class));
+    private BackupImportService importer(DataSource ds, String encryptionKey, int undecryptableSecrets) {
+        return importer(ds, encryptionKey, undecryptableSecrets, mock(ISystemEvents.class));
     }
 
-    private BackupImportService importer(DataSource ds, String encryptionKey, int undecryptableTokens, ISystemEvents events) {
+    private BackupImportService importer(DataSource ds, String encryptionKey, int undecryptableSecrets, ISystemEvents events) {
         return new BackupImportService(new ZipBackupArchive(messages), new JdbcDatabaseRestore(ds, LOCATIONS, messages), dstStorage,
-                tokens(undecryptableTokens), events, messages, encryptionKey);
+                secrets(undecryptableSecrets), events, messages, encryptionKey);
     }
 
-    private static IApiTokens tokens(int undecryptable) {
-        IApiTokens tokens = mock(IApiTokens.class);
-        when(tokens.undecryptableCount()).thenReturn(undecryptable);
-        return tokens;
+    private static ISecrets secrets(int undecryptable) {
+        ISecrets secrets = mock(ISecrets.class);
+        when(secrets.undecryptableCount()).thenReturn(undecryptable);
+        return secrets;
     }
 
     /** WebDAV con la cache locale a 0 byte: e' la configurazione del profilo backup (storage.webdav.cache.max-size: 0). */

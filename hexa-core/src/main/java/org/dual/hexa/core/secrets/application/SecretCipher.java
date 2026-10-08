@@ -11,14 +11,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Cifratura dei segreti salvati nel DB (oggi i token CivitAI/HuggingFace, {@code IApiTokens}) con la STESSA chiave e lo
+ * Cifratura dei segreti salvati nel DB (token API, password, segreti dei moduli: {@code ISecrets}) con la STESSA chiave e lo
  * STESSO algoritmo dei binari su WebDAV ({@link ChunkedAesGcmCipher}, AES-256-GCM): {@code app.secrets.encryption-key}
  * vale {@code ${HX_STORAGE_WEBDAV_ENCRYPTION_KEY}}, nessun segreto nuovo da gestire.
  *
  * <p>A differenza dello storage WebDAV, la chiave NON e' obbligatoria all'avvio (con {@code storage.type=local}, il default,
  * oggi puo' mancare, e il segnaposto di {@code .env.example} non e' base64 valido): il bean esiste sempre, e senza una
  * chiave valida {@link #isConfigured()} e' falso e cifrare/decifrare lancia {@link SecretException} di tipo CONFIGURATION
- * (la pagina {@code /tokens} lo spiega all'utente). Persa la chiave, i segreti sono irrecuperabili, come i binari.
+ * (la pagina {@code /secrets} lo spiega all'utente). Persa la chiave, i segreti sono irrecuperabili, come i binari.
  */
 @Component
 public class SecretCipher implements ISecretCipher {
@@ -58,13 +58,13 @@ public class SecretCipher implements ISecretCipher {
             return new String(cipher.decryptBytes(encrypted), StandardCharsets.UTF_8);
         } catch (IOException e) {
             // Manomesso o cifrato con un'altra chiave: non e' input dell'utente, e' un guasto di configurazione.
-            throw new SecretException(messages.get("tokens.error.cannotDecrypt"), e);
+            throw new SecretException(messages.get("secrets.error.cannotDecrypt"), e);
         }
     }
 
     private void requireConfigured() {
         if (cipher == null) {
-            throw new SecretException(messages.get("tokens.error.keyMissing", problem == null ? "" : problem), null);
+            throw new SecretException(messages.get("secrets.error.keyMissing", problem == null ? "" : problem), null);
         }
     }
 }

@@ -15,7 +15,7 @@ import java.util.Properties;
 import org.dual.hexa.core.events.domain.CoreEventSource;
 import org.dual.hexa.core.events.domain.EventLink;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,15 +53,15 @@ class PagesRenderingTests {
 
 #end
 #if( $useOauth2 == "true" )
-    /** hexa-oauth2: a cancello spento (default) l'app e' aperta come prima; la pagina Accesso e la schermata di accesso si rendono. */
+    /** hexa-oauth2: a cancello spento (default) l'app e' aperta come prima; la sezione nelle Impostazioni e la schermata di accesso si rendono. */
     @Test
     void theOauth2GateIsOffByDefaultAndItsPagesRender() throws Exception {
         mockMvc.perform(get("/")).andExpect(status().isOk());
-        assertThat(mockMvc.perform(get("/oauth2")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
-                .contains("Cancello di accesso", "Utenti ammessi");
+        assertThat(mockMvc.perform(get("/settings")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("id=\"settings-oauth2\"", "Cancello di accesso", "Email ammesse");
         assertThat(mockMvc.perform(get("/oauth2/login")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
                 .contains("Nessun provider configurato");
-        assertThat(mockMvc.perform(get("/")).andReturn().getResponse().getContentAsString()).contains("href=\"/oauth2\"");
+        assertThat(mockMvc.perform(get("/")).andReturn().getResponse().getContentAsString()).contains("href=\"/settings\"");
     }
 
 #end
@@ -114,7 +114,7 @@ class PagesRenderingTests {
     private ISystemEvents systemEvents;
 
     @Autowired
-    private IApiTokens apiTokens;
+    private ISecrets apiSecrets;
 
     /** Upload multipart -> file nello storage servito da /images/** (core); la cancellazione toglie anche il file. */
     @Test
@@ -162,7 +162,7 @@ class PagesRenderingTests {
 
     @Test
     void theTokenPageOffersTheExampleProvider() {
-        assertThat(apiTokens.providers()).contains("EXAMPLE");
+        assertThat(apiSecrets.types()).extracting(org.dual.hexa.core.secrets.domain.SecretType::name).contains("EXAMPLE");
     }
 
     @Test

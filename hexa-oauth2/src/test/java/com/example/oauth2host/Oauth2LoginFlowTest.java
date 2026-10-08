@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.dual.hexa.oauth2.login.port.in.IAllowedUsers;
+import org.dual.hexa.core.config.port.in.IModuleSettings;
 import org.dual.hexa.oauth2.login.port.in.IOAuthAccess;
-import org.dual.hexa.oauth2.login.domain.AllowKind;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +33,7 @@ import java.nio.charset.StandardCharsets;
  */
 @SpringBootTest(properties = {
         "spring.config.import=classpath:core.yml",
-        "app.tokens.expiry-check-enabled=false",
+        "app.secrets.expiry-check-enabled=false",
         "app.oauth2.enabled=true",
         "app.oauth2.client-id=" + FakeOidcProvider.CLIENT_ID,
         "app.oauth2.client-secret=" + FakeOidcProvider.CLIENT_SECRET,
@@ -64,13 +64,13 @@ class Oauth2LoginFlowTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired IOAuthAccess access;
-    @Autowired IAllowedUsers allowed;
+    @Autowired IModuleSettings settings;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
     void reset() {
-        jdbc.update("DELETE FROM oauth2_allowed_user");
-        jdbc.update("DELETE FROM oauth2_gate");
+        jdbc.update("DELETE FROM oauth2_login");
+        jdbc.update("DELETE FROM module_config WHERE module = 'oauth2'");
         provider.email = "ok@example.com";
         provider.emailVerified = true;
         provider.subject = "sub-1";
@@ -142,7 +142,7 @@ class Oauth2LoginFlowTest {
 
     @Test
     void aSavedEmailBindsToTheFirstIdentityAndRefusesAnotherAccountWithTheSameAddress() throws Exception {
-        allowed.add(AllowKind.EMAIL, " Saved@Example.com ");
+        settings.save("oauth2", Map.of("enabled", "true", "allowed-emails", " Saved@Example.com "));
         provider.email = "saved@example.com";
         provider.subject = "sub-A";
         signIn(new MockHttpSession(), redirectedUrl("/"));
@@ -164,8 +164,26 @@ class Oauth2LoginFlowTest {
     }
 
     @Test
-    void theEnvironmentEntriesAppearInTheListAsReadOnly() throws Exception {
-        assertThat(allowed.list()).extracting("value").contains("ok@example.com", "corp.example");
-        assertThat(allowed.list()).filteredOn("fromEnv", true).hasSize(2);
+    void theEnvironmentEntriesAreSummedWithTheSavedOnesAndShownReadOnly() throws Exception {
+        settings.save("oauth2", Map.of("enabled", "true", "allowed-emails", "saved@example.com"));
+
+        assertThat(settings.values("oauth2").getList("allowed-emails")).containsExactlyInAnyOrder("saved@example.com", "ok@example.com");
+        assertThat(settings.formState("oauth2").environment().get("allowed-emails")).containsExactly("ok@example.com");
+    }
+
+    @Test
+    void anEnvironmentEnabledGateCannotBeTurnedOffFromTheSettings() throws Exception {
+        String body = mockMvc.perform(post("/settings/oauth2").header("HX-Request", "true").header("Sec-Fetch-Site", "same-origin")
+                        .session(signedIn()).param("allowed-emails", "ok@example.com"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("HX_OAUTH2_ENABLED");
+        assertThat(access.isEnabled()).isTrue();
+    }
+
+    private MockHttpSession signedIn() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        signIn(session, redirectedUrl("/"));
+        return session;
     }
 }

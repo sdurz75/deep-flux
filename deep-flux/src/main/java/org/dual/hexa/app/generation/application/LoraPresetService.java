@@ -7,14 +7,14 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.generation.domain.LoraException;
 import org.dual.hexa.app.generation.domain.LoraPreset;
 import org.dual.hexa.app.generation.domain.ReplicateModel;
 import org.dual.hexa.app.generation.port.in.IModelCatalog;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.app.generation.port.in.ILoraPresets;
 import org.dual.hexa.app.generation.port.out.ILoraPresetStore;
@@ -35,27 +35,27 @@ public class LoraPresetService implements ILoraPresets {
     private final Messages messages;
     private final IModelCatalog modelCatalog;
     private final ISystemEvents systemEvents;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final Clock clock;
 
     @Autowired
     public LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents,
-                             IApiTokens tokens) {
-        this(repository, messages, modelCatalog, systemEvents, tokens, Clock.systemDefaultZone());
+                             ISecrets secrets) {
+        this(repository, messages, modelCatalog, systemEvents, secrets, Clock.systemDefaultZone());
     }
 
-    LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents, IApiTokens tokens, Clock clock) {
+    LoraPresetService(ILoraPresetStore repository, Messages messages, IModelCatalog modelCatalog, ISystemEvents systemEvents, ISecrets secrets, Clock clock) {
         this.repository = repository;
         this.messages = messages;
         this.modelCatalog = modelCatalog;
         this.systemEvents = systemEvents;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.clock = clock;
     }
 
     @Override
     public List<LoraView> list() {
-        Map<Long, IApiTokens.TokenView> byId = tokens.list().stream().collect(Collectors.toMap(IApiTokens.TokenView::id, Function.identity()));
+        Map<Long, ISecrets.SecretView> byId = secrets.list().stream().collect(Collectors.toMap(ISecrets.SecretView::id, Function.identity()));
         return repository.findAllOrderedByName().stream().map(p -> view(p, byId.get(p.getDefaultTokenId()))).toList();
     }
 
@@ -72,19 +72,19 @@ public class LoraPresetService implements ILoraPresets {
     }
 
     @Override
-    public LoraView create(String name, String source, Double scale, String triggerWords, String note, Long defaultTokenId) {
+    public LoraView create(String name, String source, Double scale, String triggerWords, String note, Long defaultSecretId) {
         String cleanName = validName(name);
         if (repository.existsByNameIgnoreCase(cleanName)) {
             throw new LoraException(messages.get("loras.error.nameDuplicate", cleanName));
         }
         LoraPreset saved = repository.save(new LoraPreset(cleanName, validSource(source), validScale(scale),
-                optional(triggerWords, "loras.error.triggerWordsTooLong"), optional(note, "loras.error.noteTooLong"), validToken(defaultTokenId), clock.instant()));
+                optional(triggerWords, "loras.error.triggerWordsTooLong"), optional(note, "loras.error.noteTooLong"), validToken(defaultSecretId), clock.instant()));
         registerAsModel(saved);
         return view(saved, tokenOf(saved));
     }
 
     @Override
-    public LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note, Long defaultTokenId) {
+    public LoraView update(Long id, String name, String source, Double scale, String triggerWords, String note, Long defaultSecretId) {
         LoraPreset existing = find(id);
         String cleanName = validName(name);
         if (repository.existsByNameIgnoreCaseAndIdNot(cleanName, id)) {
@@ -92,7 +92,7 @@ public class LoraPresetService implements ILoraPresets {
         }
         Instant now = clock.instant();
         existing.update(cleanName, validSource(source), validScale(scale), optional(triggerWords, "loras.error.triggerWordsTooLong"),
-                optional(note, "loras.error.noteTooLong"), validToken(defaultTokenId), now);
+                optional(note, "loras.error.noteTooLong"), validToken(defaultSecretId), now);
         LoraPreset saved = repository.save(existing);
         registerAsModel(saved);
         return view(saved, tokenOf(saved));
@@ -121,18 +121,18 @@ public class LoraPresetService implements ILoraPresets {
     }
 
     /** Mai il segreto: della vista fanno parte solo id, provider, nome e suffisso del token ({@code hint}). */
-    private static LoraView view(LoraPreset p, IApiTokens.TokenView token) {
+    private static LoraView view(LoraPreset p, ISecrets.SecretView token) {
         return new LoraView(p.getId(), p.getName(), p.getSource(), p.getScale(), p.getTriggerWords(), p.getNote(), p.getDefaultTokenId(),
-                token == null ? null : token.provider(), token == null ? null : token.name(), token == null ? null : token.hint());
+                token == null ? null : token.type(), token == null ? null : token.name(), token == null ? null : token.hint());
     }
 
     /** Il token di default, se c'e' ancora (la FK lo scollega alla cancellazione, ma una lettura concorrente puo' non trovarlo). */
-    private IApiTokens.TokenView tokenOf(LoraPreset p) {
+    private ISecrets.SecretView tokenOf(LoraPreset p) {
         if (p.getDefaultTokenId() == null) {
             return null;
         }
         try {
-            return tokens.get(p.getDefaultTokenId());
+            return secrets.get(p.getDefaultTokenId());
         } catch (RemoteServiceException e) {
             return null;
         }
@@ -143,13 +143,13 @@ public class LoraPresetService implements ILoraPresets {
         if (id == null) {
             return null;
         }
-        IApiTokens.TokenView token;
+        ISecrets.SecretView token;
         try {
-            token = tokens.get(id);
+            token = secrets.get(id);
         } catch (RemoteServiceException e) {
             throw new LoraException(messages.get("loras.error.tokenInvalid"));
         }
-        boolean supported = java.util.Arrays.stream(ApiTokenProvider.values()).anyMatch(p -> p.name().equals(token.provider()));
+        boolean supported = java.util.Arrays.stream(AppSecretType.values()).anyMatch(p -> p.name().equals(token.type()));
         if (!supported) {
             throw new LoraException(messages.get("loras.error.tokenInvalid"));
         }

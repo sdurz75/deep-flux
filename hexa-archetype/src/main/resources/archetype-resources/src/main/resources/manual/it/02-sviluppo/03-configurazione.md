@@ -13,10 +13,10 @@ La configurazione è divisa fra le librerie e l'app, con chiavi disgiunte.
 ## Chiavi principali
 
 - `app.layout.nav`: `sidebar` (menu laterale) o `top` (barra in alto).
-- `storage.type`: `local` o `webdav` (vedi [Storage, token e backup](07-storage-token-backup.md)).
-- `app.secrets.encryption-key`: chiave AES-256 per i token cifrati; con `storage.type=local` senza chiave non si può salvare un token.
+- `storage.type`: `local` o `webdav` (vedi [Storage, segreti e backup](07-storage-segreti-backup.md)).
+- `app.secrets.encryption-key`: chiave AES-256 per i segreti cifrati; con `storage.type=local` senza chiave non si può salvare un segreto.
 - `app.push.client-events`: i nomi degli eventi SSE propri dell'app.
-- `app.events`, `app.tokens`: parametri del registro eventi e della scadenza dei token.
+- `app.events`, `app.secrets.expiry-*`: parametri del registro eventi e della scadenza dei segreti.
 
 ## Messaggi
 

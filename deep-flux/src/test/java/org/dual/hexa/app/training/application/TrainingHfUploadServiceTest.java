@@ -21,8 +21,8 @@ import org.dual.hexa.app.training.port.out.ITrainerGateway;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
-import org.dual.hexa.core.tokens.domain.TokenException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.domain.SecretException;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -54,7 +54,7 @@ class TrainingHfUploadServiceTest {
     private final InMemoryTrainingStore store = new InMemoryTrainingStore();
     private final ITrainerGateway trainer = mock(ITrainerGateway.class);
     private final IHuggingFaceRepos huggingFace = mock(IHuggingFaceRepos.class);
-    private final IApiTokens tokens = mock(IApiTokens.class);
+    private final ISecrets secrets = mock(ISecrets.class);
     private final ISystemEvents systemEvents = mock(ISystemEvents.class);
     private final Messages messages = mock(Messages.class);
     private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
@@ -65,10 +65,10 @@ class TrainingHfUploadServiceTest {
     void setUp() {
         when(messages.get(anyString(), any(Object[].class))).thenAnswer(i -> i.getArgument(0));
         when(messages.get(anyString())).thenAnswer(i -> i.getArgument(0));
-        when(tokens.resolve(TOKEN_ID, "HUGGINGFACE")).thenReturn("hf_secret");
+        when(secrets.resolve(TOKEN_ID, "HUGGINGFACE")).thenReturn("hf_secret");
         when(huggingFace.whoami("hf_secret")).thenReturn(new HfAccount("sandro", "write"));
         when(trainer.weights("train-1")).thenReturn(Optional.of(weights));
-        service = new TrainingHfUploadService(store, trainer, huggingFace, tokens, systemEvents, messages, publisher);
+        service = new TrainingHfUploadService(store, trainer, huggingFace, secrets, systemEvents, messages, publisher);
     }
 
     private Training training(TrainingStatus status, boolean hfCopy, HfStatus hfStatus) {
@@ -151,9 +151,9 @@ class TrainingHfUploadServiceTest {
     @Test
     void anExpiredOrDeletedTokenIsAnExpectedRejectionAndLeavesTheButtonAvailable() {
         Training training = training(TrainingStatus.SUCCEEDED, true, HfStatus.UNVERIFIED);
-        when(tokens.resolve(TOKEN_ID, "HUGGINGFACE")).thenThrow(new TokenException("scaduto"));
+        when(secrets.resolve(TOKEN_ID, "HUGGINGFACE")).thenThrow(new SecretException("scaduto"));
 
-        assertThatThrownBy(() -> service.request(training.getId(), TOKEN_ID)).isInstanceOf(TokenException.class);
+        assertThatThrownBy(() -> service.request(training.getId(), TOKEN_ID)).isInstanceOf(SecretException.class);
 
         assertThat(service.canUpload(training)).isTrue();
     }

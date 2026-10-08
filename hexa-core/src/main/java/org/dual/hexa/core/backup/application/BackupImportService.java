@@ -16,7 +16,7 @@ import org.dual.hexa.core.events.domain.CoreEventSource;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.storage.port.in.IImageStorageService;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,17 +39,17 @@ public class BackupImportService implements IBackupImport {
     private final IBackupArchive archive;
     private final IDatabaseRestore restore;
     private final IImageStorageService storage;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     private final ISystemEvents events;
     private final Messages messages;
     private final String encryptionKey;
 
-    public BackupImportService(IBackupArchive archive, IDatabaseRestore restore, IImageStorageService storage, IApiTokens tokens,
+    public BackupImportService(IBackupArchive archive, IDatabaseRestore restore, IImageStorageService storage, ISecrets secrets,
                                ISystemEvents events, Messages messages, @Value("${backup.encryption-key:}") String encryptionKey) {
         this.archive = archive;
         this.restore = restore;
         this.storage = storage;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.events = events;
         this.messages = messages;
         this.encryptionKey = encryptionKey;
@@ -126,7 +126,7 @@ public class BackupImportService implements IBackupImport {
             }
         }
         restore.migrateToLatest();
-        int undecryptable = checkTokens();
+        int undecryptable = checkSecrets();
         long rows = loaded.values().stream().mapToLong(Long::longValue).sum();
         return new ImportResult(loaded.size(), rows, restored, skipped, summary.missingBlobs(), undecryptable);
     }
@@ -178,11 +178,11 @@ public class BackupImportService implements IBackupImport {
     }
 
     /** I token si copiano cifrati con la chiave dello storage di ORIGINE: se la attuale e' un'altra non si aprono, e vanno reinseriti. Mai bloccante. */
-    private int checkTokens() {
+    private int checkSecrets() {
         try {
-            int broken = tokens.undecryptableCount();
+            int broken = secrets.undecryptableCount();
             if (broken > 0) {
-                events.warn(CoreEventSource.TOKENS, "restoreTokens", null, messages.get("backup.warning.tokensUndecryptable", broken));
+                events.warn(CoreEventSource.SECRETS, "restoreSecrets", null, messages.get("backup.warning.secretsUndecryptable", broken));
             }
             return broken;
         } catch (RuntimeException e) {

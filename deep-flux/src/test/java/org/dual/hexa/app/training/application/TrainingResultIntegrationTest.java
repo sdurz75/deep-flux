@@ -21,7 +21,7 @@ import org.dual.hexa.app.training.port.out.IHuggingFaceRepos;
 import org.dual.hexa.app.training.port.out.ITrainerGateway;
 import org.dual.hexa.app.training.port.out.ITrainingDatasetStore;
 import org.dual.hexa.app.training.port.out.ITrainingStore;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,17 +62,17 @@ class TrainingResultIntegrationTest {
     @Autowired
     private IModelCatalog catalog;
     @Autowired
-    private IApiTokens tokens;
+    private ISecrets secrets;
     @Autowired
     private JdbcTemplate jdbc;
 
-    private Long tokenId;
+    private Long secretId;
 
     @BeforeEach
     void stubs() {
         // La versione di un LoRA di Flux ha lora_scale: e' cio' che il catalogo cerca per censirlo come fine-tune.
         when(predictions.latestVersion(MODEL)).thenReturn(Optional.of(new ModelVersion("hash-1", Set.of("prompt", "lora_scale", "num_outputs"))));
-        tokenId = tokens.create("HUGGINGFACE", "hf-test", "hf_secret", null).id();
+        secretId = secrets.create("HUGGINGFACE", "hf-test", "hf_secret", null).id();
         when(huggingFace.repoFiles(anyString(), anyString())).thenReturn(Optional.of(List.of("lora.safetensors")));
     }
 
@@ -82,12 +82,12 @@ class TrainingResultIntegrationTest {
         datasetStore.deleteAll();
         presets.list().stream().filter(p -> MODEL.equals(p.source())).forEach(p -> presets.delete(p.id()));
         jdbc.update("DELETE FROM replicate_model WHERE owner = ? AND name = ?", "acct", "il-mio-gatto-20261005-100000");
-        tokens.delete(tokenId);
+        secrets.delete(secretId);
     }
 
     private Training succeededTraining() {
         TrainingDataset snapshot = new TrainingDataset("Il mio gatto", "TOKCAT", LoraType.SUBJECT, null, true, null, Instant.now());
-        snapshot.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, tokenId, null, true), Instant.now());
+        snapshot.applyLaunchSettings(new LaunchSettings(null, 1000, null, true, secretId, null, true), Instant.now());
         snapshot = datasetStore.save(snapshot);
         Training training = new Training(snapshot, "train-1", TrainingStatus.PROCESSING, "v", "acct", "il-mio-gatto-20261005-100000",
                 "sandro/il-mio-gatto-20261005-100000", Instant.now().minusSeconds(600));

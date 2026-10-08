@@ -29,7 +29,7 @@ replicate:
   # Replicate o di un elenco di modelli personali ad ogni avvio.
 
 # HuggingFace: solo per la copia dei pesi di un LoRA addestrato (repo privato creato prima del training; i pesi li carica il trainer). Il token non e' qui:
-# si sceglie per nome fra quelli salvati in /tokens.
+# si sceglie per nome fra quelli salvati in /secrets.
 huggingface:
   api-base-url: https://huggingface.co/api
 
@@ -102,7 +102,7 @@ app:
       - 'gallery'
       - 'search'
       - 'loras'
-      - 'tokens'
+      - 'secrets'
       - 'system/events'
       - 'manual/[\w\-]+(?:#[\w\-]+)?'
       - 'manual'

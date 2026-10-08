@@ -1,7 +1,7 @@
 # Override di config per `mvn test` (profilo "test", attivato per ogni esecuzione di Surefire dal pom). Il datasource lo imposta hexa-test-support
 # (container PostgreSQL usa-e-getta registrato in META-INF/spring.factories): i test non toccano mai il DB di sviluppo.
 app:
-  tokens:
+  secrets:
     # Niente controllo di scadenza periodico/all'avvio nei @SpringBootTest.
     expiry-check-enabled: false
 #if( $useAi == "true" )

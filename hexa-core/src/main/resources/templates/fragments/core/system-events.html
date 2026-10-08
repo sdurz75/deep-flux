@@ -56,7 +56,7 @@
                           th:text="'×' + ${e.occurrences}">×3</span>
                     <span class="text-ink-muted dark:text-ink-muted-dark" th:text="${e.lastSeenAt}">data</span>
                     <a th:each="link : ${eventLinks.get(e.id)}" th:href="@{${link.path}}" th:text="${link.label}">Generazione #1</a>
-                    <a th:if="${e.source == 'TOKENS'}" th:href="@{/tokens}" th:text="#{events.link.tokens}">Token</a>
+                    <a th:if="${e.source == 'SECRETS'}" th:href="@{/secrets}" th:text="#{events.link.secrets}">Segreti</a>
                 </div>
                 <p class="mt-2 mb-0 break-words" th:text="${e.message}">messaggio</p>
                 <details th:if="${e.details != null}" class="mt-2">

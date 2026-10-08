@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** hexa-pwa dichiara al blocco del core (ILockExemptPaths) la sua shell: con il PIN attivo il browser puo' ancora installare e aggiornare l'app. */
 @SpringBootTest(properties = {
         "spring.config.import=classpath:core.yml",
-        "app.tokens.expiry-check-enabled=false"})
+        "app.secrets.expiry-check-enabled=false"})
 @AutoConfigureMockMvc
 class PwaLockExemptionTest {
 

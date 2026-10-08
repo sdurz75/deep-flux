@@ -1,6 +1,6 @@
 # Addestrare un LoRA
 
-Con [Addestra un LoRA](/trainings), nel menu **Crea**, puoi addestrare un tuo LoRA (un soggetto o uno stile) a partire da un gruppo di immagini. L'addestramento gira su Replicate (`replicate/fast-flux-trainer`) ed è **a pagamento**: il costo dipende dai passi e dalla durata. Alla fine il LoRA compare tra i [LoRA salvati](05-lora-e-token.md) e tra i modelli, pronto da usare.
+Con [Addestra un LoRA](/trainings), nel menu **Crea**, puoi addestrare un tuo LoRA (un soggetto o uno stile) a partire da un gruppo di immagini. L'addestramento gira su Replicate (`replicate/fast-flux-trainer`) ed è **a pagamento**: il costo dipende dai passi e dalla durata. Alla fine il LoRA compare tra i [LoRA salvati](05-lora-e-segreti.md) e tra i modelli, pronto da usare.
 
 ## Come funziona, in breve
 
@@ -58,7 +58,7 @@ Un solo training alla volta per ogni bozza: se ne è già in corso uno, l'avvio 
 
 ### La copia su HuggingFace
 
-Di partenza, oltre al modello su Replicate (quello che userai nell'app), il trainer carica una copia dei pesi in un tuo repo HuggingFace, **privato**. Serve un [token HuggingFace](05-lora-e-token.md) con permesso di scrittura, scelto per nome (si salvano in [Token](/tokens)); un token di sola lettura è rifiutato. L'app crea il repo prima del lancio. Il nome del repo, se non lo scegli, è quello del modello Replicate; se ne scegli uno che esiste già, i pesi lo sovrascrivono.
+Di partenza, oltre al modello su Replicate (quello che userai nell'app), il trainer carica una copia dei pesi in un tuo repo HuggingFace, **privato**. Serve un [token HuggingFace](05-lora-e-segreti.md) con permesso di scrittura, scelto per nome (si salvano in [Token](/tokens)); un token di sola lettura è rifiutato. L'app crea il repo prima del lancio. Il nome del repo, se non lo scegli, è quello del modello Replicate; se ne scegli uno che esiste già, i pesi lo sovrascrivono.
 
 **Il token HuggingFace viene inviato a Replicate**, come segreto del trainer, perché possa caricare i pesi. L'app non lo salva con il training (la riga del training e il dataset congelato ricordano solo quale token hai scelto): resta soltanto, cifrato, in [Token](/tokens), e l'app lo rilegge da lì per controllare la copia a fine training. Se non vuoi che Replicate lo riceva, spegni **Copia i pesi su HuggingFace**: il modello su Replicate si crea comunque.
 

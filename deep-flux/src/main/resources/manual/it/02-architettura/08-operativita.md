@@ -26,7 +26,7 @@ Due file, con chiavi disgiunte: `application.yml` per l'app (Spring AI, Replicat
 | HX_OPENROUTER_CHAT_MODEL, HX_OPENROUTER_VISION_MODEL, HX_OPENROUTER_VISION_FALLBACK_MODEL | scelta dei modelli linguistici |
 | SEARXNG_BASE_URL, HX_SEARXNG_USERNAME, HX_SEARXNG_PASSWORD | ricerca web della chat |
 | HX_STORAGE_WEBDAV_URL, HX_STORAGE_WEBDAV_USERNAME, HX_STORAGE_WEBDAV_PASSWORD | storage su WebDAV |
-| HX_STORAGE_WEBDAV_ENCRYPTION_KEY | cifratura dei file WebDAV, dei token e dei backup |
+| HX_STORAGE_WEBDAV_ENCRYPTION_KEY | cifratura dei file WebDAV, dei segreti e dei backup |
 | HX_BACKUP_ENCRYPTION_KEY | chiave dei backup, se diversa da quella dello storage |
 | HX_LOCK_RESET | recupero di un PIN dimenticato (da togliere dopo l'uso) |
 
@@ -64,7 +64,7 @@ java -jar target/spring-htmx-starter-*.jar import backup.dfb --replace
 - L'archivio è cifrato con `HX_BACKUP_ENCRYPTION_KEY` o, se manca, con la chiave dello storage; senza una chiave valida `export` si rifiuta (`--no-encrypt` produce un file in chiaro, sconsigliato). Per ripristinare serve la **stessa chiave**, da conservare fuori dal backup.
 - Contiene tutte le tabelle (note manuali comprese, che esistono solo nell'indice) e i file referenziati dal database. Si può esportare da WebDAV e importare in locale.
 - L'import vuole un database **vergine**; `--replace` azzera lo schema e **cancella i dati attuali**. Un backup di una versione più vecchia entra in un jar più nuovo; uno più nuovo del jar si rifiuta. Il server va fermato durante l'import.
-- I token API si copiano cifrati con la chiave dello storage: se nel sistema di destinazione è diversa non si aprono, e l'import lo segnala nella campanella.
+- I segreti (token API e simili) si copiano cifrati con la chiave dello storage: se nel sistema di destinazione è diversa non si aprono, e l'import lo segnala nella campanella.
 
 ## Cosa gira da solo
 
@@ -86,7 +86,7 @@ Il blocco sta nel core (`core.lock`), non nella PWA. Il cancello è lato server:
 
 **Fallisce chiuso.** Acceso senza provider o senza ammessi, nessuno entra. Dalla UI il cancello si accende solo con un provider, un ammesso e un accesso di prova riuscito, e con il cancello acceso non si toglie l'ultima voce utile né l'ultimo provider. Il recupero è `HX_OAUTH2_RESET=true` all'avvio, che spegne il cancello e lo scrive negli eventi.
 
-**Configurazione essenziale con variabili.** `HX_OAUTH2_PROVIDER` (`google` o vuoto), `HX_OAUTH2_ISSUER_URI`, `HX_OAUTH2_CLIENT_ID`, `HX_OAUTH2_CLIENT_SECRET`, `HX_OAUTH2_ALLOWED_EMAILS`, `HX_OAUTH2_ALLOWED_DOMAINS`, `HX_OAUTH2_ENABLED`, `HX_OAUTH2_RESET`. Definiscono un provider d'ambiente virtuale, in sola lettura, il cui segreto non viene mai salvato né scritto in log, eventi o modello; gli elenchi si sommano a quelli del database. Il resto si gestisce da `/oauth2`, e il segreto del client di un provider aggiunto da lì è un token del servizio `OAUTH2` in `/tokens`.
+**Configurazione essenziale con variabili.** `HX_OAUTH2_PROVIDER` (`google` o vuoto), `HX_OAUTH2_ISSUER_URI`, `HX_OAUTH2_CLIENT_ID`, `HX_OAUTH2_CLIENT_SECRET`, `HX_OAUTH2_ALLOWED_EMAILS`, `HX_OAUTH2_ALLOWED_DOMAINS`, `HX_OAUTH2_ENABLED`, `HX_OAUTH2_RESET`. Definiscono un provider d'ambiente virtuale, in sola lettura, il cui segreto non viene mai salvato né scritto in log, eventi o modello; gli elenchi si sommano a quelli salvati. Il resto è un modulo di configurazione del core (`Oauth2ConfigModule`, sezione in `/settings`): l'interruttore, i provider come righe (con il segreto del client come campo `SECRET`, un segreto gestito di tipo `OAUTH2_CLIENT` visibile in `/secrets`) e gli elenchi degli ammessi, additivi con le variabili `HX_OAUTH2_ALLOWED_*`. `HX_OAUTH2_ENABLED=true` è autorevole: la UI non lo spegne. Un fragment del modulo mostra stato, checklist, indirizzo di ritorno, «Prova accesso» ed «Esci».
 
 **La lista.** Si applica dentro l'autenticazione (`AllowlistOidcUserService`) prima che la sessione sia salvata, con i soli claim dell'id token. Le regole stanno in `application`, senza tipi di Spring Security: email normalizzata e `email_verified` obbligatorio, dominio uguale alla parte dopo l'ultima chiocciola (mai `endsWith`), legame di `issuer` e `subject` al primo accesso di un'email esatta.
 

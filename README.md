@@ -93,7 +93,7 @@ java -jar deep-flux/target/deep-flux-*.jar import backup.dfb --replace  # azzera
 - **Chiave**: l'archivio e' cifrato (AES-256-GCM) con `HX_BACKUP_ENCRYPTION_KEY`, che se manca vale `HX_STORAGE_WEBDAV_ENCRYPTION_KEY`; senza una chiave valida `export` si rifiuta (usa
   `--no-encrypt` per un file in chiaro, sconsigliato: contiene prompt, chat e immagini). Per ripristinare serve la **stessa chiave**: conservane una copia fuori dal backup. Le immagini
   stanno nell'archivio in chiaro (dentro la cifratura), quindi si puo' esportare da WebDAV e importare in locale, o su un altro WebDAV con un'altra chiave dello storage.
-- **Token API** (`/tokens`): si copiano cifrati con la chiave dello storage. Se sul nuovo sistema la chiave e' diversa non si aprono: l'import lo segnala (campanella) e vanno reinseriti.
+- **Segreti** (`/secrets`, token API e simili): si copiano cifrati con la chiave dello storage. Se sul nuovo sistema la chiave e' diversa non si aprono: l'import lo segnala (campanella) e vanno reinseriti.
 - **Database di destinazione**: deve essere vergine (es. `docker compose up -d` appena creato). Un backup di una versione piu' vecchia dell'app si importa in un jar piu' nuovo (le migrazioni
   mancanti si applicano dopo il caricamento); uno piu' nuovo del jar si rifiuta.
 - **Server fermo** durante l'import (obbligatorio) e, meglio, anche durante l'export: lo snapshot del database e' coerente anche a server acceso, ma i file creati o cancellati nel

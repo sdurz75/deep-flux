@@ -26,7 +26,7 @@ import org.dual.hexa.app.generation.port.out.IGenerationStore;
 import org.dual.hexa.app.generation.port.out.IPredictionGateway;
 import org.dual.hexa.app.shared.domain.AppEventSubjects;
 import org.dual.hexa.core.kernel.Tags;
-import org.dual.hexa.app.generation.application.TokenInputResolver;
+import org.dual.hexa.app.generation.application.SecretInputResolver;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.events.domain.CoreEventSource;
 import org.dual.hexa.app.generation.domain.event.GenerationFavouriteToggledEvent;
@@ -100,7 +100,7 @@ public class GenerationService implements IGenerations {
     private final Messages messages;
     private final ApplicationEventPublisher eventPublisher;
     private final ISystemEvents systemEvents;
-    private final TokenInputResolver apiTokens;
+    private final SecretInputResolver secretInputs;
     private final IModelCatalog modelCatalog;
 
     public GenerationService(IGenerationStore repository,
@@ -110,9 +110,9 @@ public class GenerationService implements IGenerations {
                               Messages messages,
                               ApplicationEventPublisher eventPublisher,
                               ISystemEvents systemEvents,
-                              TokenInputResolver apiTokens,
+                              SecretInputResolver secretInputs,
                               IModelCatalog modelCatalog) {
-        this.apiTokens = apiTokens;
+        this.secretInputs = secretInputs;
         this.modelCatalog = modelCatalog;
         this.repository = repository;
         this.replicateClient = replicateClient;
@@ -271,7 +271,7 @@ public class GenerationService implements IGenerations {
         Map<String, Object> input = new LinkedHashMap<>(parameters);
         // Gli ID dei token scelti (hf_token_id/civitai_token_id) diventano il token in chiaro SOLO nell'input per Replicate:
         // parametersJson (salvato sotto) conserva gli ID. Un token inesistente/scaduto lancia un rifiuto PRIMA di spendere nulla.
-        apiTokens.resolveInto(input);
+        secretInputs.resolveInto(input);
         input.put("prompt", prompt);
         if (kind == GenerationKind.IMAGE && formType != null && formType.safetyToleranceParam() != null) {
             // Il modello non ha disable_safety_checker ma una tolleranza 1-6: sempre la piu' permissiva, mai esposta all'utente.

@@ -13,11 +13,70 @@
     <p th:if="${saved}" th:text="#{settings.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>
     <form th:hx-post="@{/settings/{id}(id=${view.id})}" th:hx-target="|#settings-${view.id}|" hx-swap="outerHTML"
           th:action="@{/settings/{id}(id=${view.id})}" method="post" autocomplete="off">
-        <th:block th:each="field : ${view.fields}" th:with="fid=|cfg-${view.id}-${field.key}|, current=${view.values.get(field.key)}">
+        <th:block th:each="field : ${view.fields}" th:with="fid=|cfg-${view.id}-${field.key}|, current=${view.state.values.get(field.key)}">
             <div th:if="${field.type.name() == 'BOOL'}" class="my-3">
                 <label th:replace="~{fragments/core/switch :: toggle(id=${fid}, name=${field.key}, text=#{${field.labelKey}}, checked=${current == 'true'}, model=null, title=null)}">Interruttore</label>
             </div>
-            <th:block th:unless="${field.type.name() == 'BOOL'}">
+            <th:block th:if="${field.type.name() == 'SECRET'}" th:with="hint=${view.state.secretHints.get(field.key)}">
+                <label th:for="${fid}" th:text="#{${field.labelKey}}">Etichetta</label>
+                <input type="password" th:id="${fid}" th:name="${field.key}" autocomplete="new-password" maxlength="500"
+                       th:placeholder="${hint != null and !hint.isEmpty()} ? #{settings.secret.set(${hint})} : #{settings.secret.empty}">
+            </th:block>
+            <th:block th:if="${field.type.name() == 'LIST'}" th:with="readOnly=${view.state.environment.get(field.key)}">
+                <label th:for="${fid}" th:text="#{${field.labelKey}}">Etichetta</label>
+                <textarea th:id="${fid}" th:name="${field.key}" rows="4" class="w-full" th:text="${current}"></textarea>
+                <p class="text-sm text-ink-muted dark:text-ink-muted-dark" th:text="#{settings.list.hint}">Una voce per riga.</p>
+                <div th:if="${readOnly != null and !readOnly.isEmpty()}">
+                    <p class="text-sm text-ink-muted dark:text-ink-muted-dark" th:text="#{settings.list.fromEnvironment}">Da configurazione del server.</p>
+                    <ul class="list-none p-0 m-0 text-sm"><li th:each="entry : ${readOnly}" th:text="${entry}">voce</li></ul>
+                </div>
+            </th:block>
+            <th:block th:if="${field.type.name() == 'COLLECTION'}">
+                <h3 class="mt-4" th:text="#{${field.labelKey}}">Elenco</h3>
+                <div th:each="row : ${view.state.rows.get(field.key)}" th:unless="${row.id.isEmpty()}"
+                     class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-3 py-2 my-2">
+                    <strong th:text="${row.id}">id</strong>
+                    <input type="hidden" th:name="|${field.key}.${row.id}.__row|" value="1">
+                    <th:block th:each="column : ${field.columns}" th:unless="${column.key == field.idColumn}"
+                              th:with="cid=|${fid}-${row.id}-${column.key}|">
+                        <label th:for="${cid}" th:text="#{${column.labelKey}}">Colonna</label>
+                        <input th:if="${column.type.name() == 'SECRET'}" type="password" th:id="${cid}" th:name="|${field.key}.${row.id}.${column.key}|"
+                               autocomplete="new-password" maxlength="500"
+                               th:placeholder="${!row.secretHints.get(column.key).isEmpty()} ? #{settings.secret.set(${row.secretHints.get(column.key)})} : #{settings.secret.empty}">
+                        <div th:if="${column.type.name() == 'SELECT'}" class="relative" x-data="pinesSelect" x-bind="root">
+                            <select th:id="${cid}" th:name="|${field.key}.${row.id}.${column.key}|" class="sr-only" tabindex="-1" aria-hidden="true">
+                                <option th:each="option : ${column.options}" th:value="${option}" th:text="${option}"
+                                        th:selected="${option == row.values.get(column.key)}">valore</option>
+                            </select>
+                            <div th:replace="~{fragments/core/select :: ui}"></div>
+                        </div>
+                        <input th:if="${column.type.name() == 'TEXT'}" type="text" th:id="${cid}" th:name="|${field.key}.${row.id}.${column.key}|"
+                               th:value="${row.values.get(column.key)}">
+                    </th:block>
+                    <div class="mt-2">
+                        <label th:replace="~{fragments/core/switch :: toggle(id=|${fid}-${row.id}-remove|, name=|${field.key}.${row.id}.__remove|, text=#{settings.collection.remove}, checked=${row.removed}, model=null, title=null)}">Rimuovi</label>
+                    </div>
+                </div>
+                <div class="border border-dashed border-line dark:border-line-dark rounded-lg px-3 py-2 my-2"
+                     th:with="fresh=${view.state.rows.get(field.key).isEmpty() ? null : view.state.rows.get(field.key).get(view.state.rows.get(field.key).size() - 1)}">
+                    <strong th:text="#{settings.collection.new}">Nuova voce</strong>
+                    <th:block th:each="column : ${field.columns}" th:with="cid=|${fid}-new-${column.key}|, freshValue=${fresh != null and fresh.id.isEmpty() ? fresh.values.get(column.key) : ''}">
+                        <label th:for="${cid}" th:text="#{${column.labelKey}}">Colonna</label>
+                        <input th:if="${column.type.name() == 'SECRET'}" type="password" th:id="${cid}" th:name="|${field.key}.__new.${column.key}|"
+                               autocomplete="new-password" maxlength="500">
+                        <div th:if="${column.type.name() == 'SELECT'}" class="relative" x-data="pinesSelect" x-bind="root">
+                            <select th:id="${cid}" th:name="|${field.key}.__new.${column.key}|" class="sr-only" tabindex="-1" aria-hidden="true">
+                                <option th:each="option : ${column.options}" th:value="${option}" th:text="${option}"
+                                        th:selected="${option == freshValue}">valore</option>
+                            </select>
+                            <div th:replace="~{fragments/core/select :: ui}"></div>
+                        </div>
+                        <input th:if="${column.type.name() == 'TEXT'}" type="text" th:id="${cid}" th:name="|${field.key}.__new.${column.key}|"
+                               th:value="${freshValue}">
+                    </th:block>
+                </div>
+            </th:block>
+            <th:block th:if="${field.type.name() != 'BOOL' and field.type.name() != 'SECRET' and field.type.name() != 'LIST' and field.type.name() != 'COLLECTION'}">
                 <label th:for="${fid}" th:text="#{${field.labelKey}}">Etichetta</label>
                 <div th:if="${field.type.name() == 'SELECT'}" class="relative" x-data="pinesSelect" x-bind="root">
                     <select th:id="${fid}" th:name="${field.key}" class="sr-only" tabindex="-1" aria-hidden="true">

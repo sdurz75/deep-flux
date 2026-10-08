@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.generation.domain.GenerationFormType;
 import org.springframework.stereotype.Component;
 
@@ -25,10 +25,10 @@ import static org.dual.hexa.app.shared.domain.FormFields.putIfPresent;
  *       .safetensors) con le rispettive scale; vuoti = nessun LoRA (FLUX dev puro);</li>
  *   <li>{@code prompt_strength}, che ha effetto solo con un'immagine di partenza (img2img: l'{@code image} la aggiunge
  *       {@code IGenerations#create} dal {@code sourceUpload}, come per p-video);</li>
- *   <li>{@code hf_token_id}/{@code civitai_token_id}: l'ID del token salvato (CRUD {@code /tokens}) scelto per nome nelle
+ *   <li>{@code hf_token_id}/{@code civitai_token_id}: l'ID del token salvato (CRUD {@code /secrets}) scelto per nome nelle
  *       select, per i LoRA privati. Il token in chiaro non attraversa mai form/chat: {@code GenerationService#doCreate}
  *       sostituisce l'ID con {@code hf_api_token}/{@code civitai_api_token} solo nell'input per Replicate
- *       ({@code TokenInputResolver#resolveInto}); nel PARAMETERS_JSON salvato resta l'ID.</li>
+ *       ({@code SecretInputResolver#resolveInto}); nel PARAMETERS_JSON salvato resta l'ID.</li>
  * </ul>
  * {@code aspect_ratio} non ha {@code match_input_image}: con un'immagine il modello usa comunque quella dell'immagine.
  * {@code disable_safety_checker} non e' esposto: lo forza {@code IGenerations#create} per ogni immagine.
@@ -65,8 +65,8 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
         putIfPresent(params, "lora_scale", asDouble(submittedFields.get("lora_scale")));
         putIfPresent(params, "extra_lora", asText(submittedFields.get("extra_lora")));
         putIfPresent(params, "extra_lora_scale", asDouble(submittedFields.get("extra_lora_scale")));
-        putIfPresent(params, ApiTokenProvider.HUGGINGFACE.idParam(), asLong(submittedFields.get(ApiTokenProvider.HUGGINGFACE.idParam())));
-        putIfPresent(params, ApiTokenProvider.CIVITAI.idParam(), asLong(submittedFields.get(ApiTokenProvider.CIVITAI.idParam())));
+        putIfPresent(params, AppSecretType.HUGGINGFACE.idParam(), asLong(submittedFields.get(AppSecretType.HUGGINGFACE.idParam())));
+        putIfPresent(params, AppSecretType.CIVITAI.idParam(), asLong(submittedFields.get(AppSecretType.CIVITAI.idParam())));
         putIfPresent(params, "aspect_ratio", asOneOf(submittedFields.get("aspect_ratio"), ASPECT_RATIOS));
         putIfPresent(params, "megapixels", asOneOf(submittedFields.get("megapixels"), MEGAPIXELS));
         putIfPresent(params, "seed", asLong(submittedFields.get("seed")));
@@ -99,8 +99,8 @@ public class FluxDevLoraParameterHandler implements IGenerationParameterHandler 
         defaults.put("prompt_strength", DEFAULT_PROMPT_STRENGTH);
         // Nessun token scelto di default ("": opzione vuota della select); serve qui perche' populateFormTypeFields conserva
         // solo le chiavi dei default (la scelta sopravvive a un errore di validazione o a un cambio modello).
-        defaults.put(ApiTokenProvider.HUGGINGFACE.idParam(), "");
-        defaults.put(ApiTokenProvider.CIVITAI.idParam(), "");
+        defaults.put(AppSecretType.HUGGINGFACE.idParam(), "");
+        defaults.put(AppSecretType.CIVITAI.idParam(), "");
         // "seed" intenzionalmente assente (casuale, come gli altri form-type).
         return defaults;
     }

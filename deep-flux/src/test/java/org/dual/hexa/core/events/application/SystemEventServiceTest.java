@@ -195,7 +195,7 @@ class SystemEventServiceTest {
 
     @Test
     void warnPersistsAWarningRowAndPublishesOneWarningToast() {
-        ISystemEvents.Recorded recorded = service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:12", "Il token scade tra 3 giorni");
+        ISystemEvents.Recorded recorded = service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:12", "Il token scade tra 3 giorni");
 
         SystemEvent row = repository.findAll().get(0);
         assertThat(row.getSeverity()).isEqualTo(SystemEventSeverity.WARNING);
@@ -210,9 +210,9 @@ class SystemEventServiceTest {
 
     @Test
     void warningsOfTheSameSubjectGroupAndDifferentSubjectsAreSeparateSeries() {
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "scade");
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "scade ancora");
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "scade");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:1", "scade");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:1", "scade ancora");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:2", "scade");
 
         assertThat(repository.findAll()).hasSize(2);
         assertThat(repository.findAll()).extracting(SystemEvent::getOccurrences).containsExactlyInAnyOrder(2, 1);
@@ -230,7 +230,7 @@ class SystemEventServiceTest {
     /** Campanella: nuovi eventi non letti, "segna come letti", e una ripetizione di una serie gia' letta resta letta. */
     @Test
     void unseenEventsFeedTheBellAndAcknowledgementSticksAcrossRepeats() {
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:1", "a");
         service.record(TestSource.REPLICATE, "createPrediction", new RuntimeException("x"), "generation:9");
 
         ISystemEvents.Unseen unseen = service.unseen();
@@ -242,10 +242,10 @@ class SystemEventServiceTest {
         assertThat(service.unseen().count()).isZero();
 
         // stessa serie, ancora entro la finestra: il contatore sale ma NON torna "non letta"
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a di nuovo");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:1", "a di nuovo");
         assertThat(service.unseen().count()).isZero();
         // una serie nuova (altro subject) si
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "b");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:2", "b");
         ISystemEvents.Unseen again = service.unseen();
         assertThat(again.count()).isEqualTo(1);
         assertThat(again.hasError()).isFalse();
@@ -253,9 +253,9 @@ class SystemEventServiceTest {
 
     @Test
     void markSeenAcknowledgesOneEventAndMarkSeenBySubjectClearsATokensWarnings() {
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:1", "a");
-        service.warn(CoreEventSource.TOKENS, "tokenExpired", "token:1", "b");
-        service.warn(CoreEventSource.TOKENS, "tokenExpiring", "token:2", "c");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:1", "a");
+        service.warn(CoreEventSource.SECRETS, "tokenExpired", "token:1", "b");
+        service.warn(CoreEventSource.SECRETS, "tokenExpiring", "token:2", "c");
         Long first = repository.findAll().get(0).getId();
 
         service.markSeen(first);

@@ -27,8 +27,8 @@ import org.dual.hexa.app.training.port.out.IHuggingFaceRepos;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
-import org.dual.hexa.core.tokens.domain.TokenException;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.domain.SecretException;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -64,7 +64,7 @@ class TrainingResultServiceTest {
     private final ILoraPresets presets = mock(ILoraPresets.class);
     private final IModelCatalog catalog = mock(IModelCatalog.class);
     private final IHuggingFaceRepos huggingFace = mock(IHuggingFaceRepos.class);
-    private final IApiTokens tokens = mock(IApiTokens.class);
+    private final ISecrets secrets = mock(ISecrets.class);
     private final ISystemEvents systemEvents = mock(ISystemEvents.class);
     private final Messages messages = mock(Messages.class);
     private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
@@ -86,10 +86,10 @@ class TrainingResultServiceTest {
         when(presets.create(anyString(), anyString(), anyDouble(), anyString(), anyString())).thenAnswer(i ->
                 new LoraView(500L, i.getArgument(0), i.getArgument(1), i.getArgument(2), i.getArgument(3), i.getArgument(4)));
         when(catalog.contains(MODEL)).thenReturn(true); // il preset ha gia' censito il modello (regola "preset = modello")
-        when(tokens.resolve(TOKEN_ID, "HUGGINGFACE")).thenReturn("hf_secret");
+        when(secrets.resolve(TOKEN_ID, "HUGGINGFACE")).thenReturn("hf_secret");
         when(huggingFace.repoFiles("hf_secret", REPO)).thenReturn(Optional.of(List.of(".gitattributes", "lora.safetensors")));
 
-        service = new TrainingResultService(store, datasets, presets, catalog, huggingFace, tokens, systemEvents, messages, publisher, clock,
+        service = new TrainingResultService(store, datasets, presets, catalog, huggingFace, secrets, systemEvents, messages, publisher, clock,
                 Duration.ofMinutes(10), Duration.ofHours(6));
     }
 
@@ -140,7 +140,7 @@ class TrainingResultServiceTest {
 
         assertThat(training.getHfStatus()).isEqualTo(HfStatus.NONE);
         assertThat(training.isResultIncomplete()).isFalse();
-        verifyNoInteractions(huggingFace, tokens);
+        verifyNoInteractions(huggingFace, secrets);
     }
 
     @Test
@@ -354,7 +354,7 @@ class TrainingResultServiceTest {
     @Test
     void aTokenThatIsGoneMakesTheCopyUnverifiedWithoutAnError() {
         Training training = succeeded(true);
-        when(tokens.resolve(TOKEN_ID, "HUGGINGFACE")).thenThrow(new TokenException("scaduto"));
+        when(secrets.resolve(TOKEN_ID, "HUGGINGFACE")).thenThrow(new SecretException("scaduto"));
 
         service.complete(training.getId());
 

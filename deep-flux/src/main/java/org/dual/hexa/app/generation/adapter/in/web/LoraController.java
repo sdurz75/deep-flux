@@ -4,11 +4,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.dual.hexa.core.kernel.i18n.Messages;
 import org.dual.hexa.core.kernel.remote.RemoteServiceException;
 import org.dual.hexa.core.web.HtmxEvents;
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.generation.domain.LoraException;
 import org.dual.hexa.app.generation.port.in.ILoraPresets;
 import org.dual.hexa.core.events.port.in.ISystemEvents;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * CRUD dei LoRA anagrafati ({@link ILoraPresets}): pagina {@code /loras} con l'elenco e un dialog Pines per
- * creare/modificare, stessa meccanica di {@code TokenController} (al salvataggio riuscito {@code HX-Trigger: lora-saved}
+ * creare/modificare, stessa meccanica di {@code SecretController} (al salvataggio riuscito {@code HX-Trigger: lora-saved}
  * chiude il dialog; con un errore il form si rimpiazza da se' via {@code HX-Retarget} e il dialog resta aperto).
  */
 @Controller
@@ -31,10 +31,10 @@ public class LoraController {
     private final ISystemEvents systemEvents;
     private final HtmxEvents htmx;
     private final Messages messages;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
 
-    public LoraController(ILoraPresets loras, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages, IApiTokens tokens) {
-        this.tokens = tokens;
+    public LoraController(ILoraPresets loras, ISystemEvents systemEvents, HtmxEvents htmx, Messages messages, ISecrets secrets) {
+        this.secrets = secrets;
         this.loras = loras;
         this.systemEvents = systemEvents;
         this.htmx = htmx;
@@ -58,18 +58,18 @@ public class LoraController {
     public String editForm(@PathVariable Long id, Model model) {
         ILoraPresets.LoraView lora = loras.get(id);
         return formView(model, id, lora.name(), lora.source(), String.valueOf(lora.scale()),
-                lora.triggerWords() == null ? "" : lora.triggerWords(), lora.note() == null ? "" : lora.note(), null, lora.defaultTokenId());
+                lora.triggerWords() == null ? "" : lora.triggerWords(), lora.note() == null ? "" : lora.note(), null, lora.defaultSecretId());
     }
 
     @PostMapping
     public String create(@RequestParam(defaultValue = "") String name, @RequestParam(defaultValue = "") String source,
                          @RequestParam(defaultValue = "") String scale, @RequestParam(defaultValue = "") String triggerWords,
                          @RequestParam(defaultValue = "") String note,
-                         @RequestParam(defaultValue = "") String tokenId, HttpServletResponse response, Model model) {
+                         @RequestParam(defaultValue = "") String secretId, HttpServletResponse response, Model model) {
         try {
-            loras.create(name, source, parseScale(scale), triggerWords, note, parseTokenId(tokenId));
+            loras.create(name, source, parseScale(scale), triggerWords, note, parseSecretId(secretId));
         } catch (RemoteServiceException e) {
-            return failed(e, response, model, null, name, source, scale, triggerWords, note, tokenId);
+            return failed(e, response, model, null, name, source, scale, triggerWords, note, secretId);
         }
         return saved(response, model);
     }
@@ -78,11 +78,11 @@ public class LoraController {
     public String update(@PathVariable Long id, @RequestParam(defaultValue = "") String name, @RequestParam(defaultValue = "") String source,
                          @RequestParam(defaultValue = "") String scale, @RequestParam(defaultValue = "") String triggerWords,
                          @RequestParam(defaultValue = "") String note,
-                         @RequestParam(defaultValue = "") String tokenId, HttpServletResponse response, Model model) {
+                         @RequestParam(defaultValue = "") String secretId, HttpServletResponse response, Model model) {
         try {
-            loras.update(id, name, source, parseScale(scale), triggerWords, note, parseTokenId(tokenId));
+            loras.update(id, name, source, parseScale(scale), triggerWords, note, parseSecretId(secretId));
         } catch (RemoteServiceException e) {
-            return failed(e, response, model, id, name, source, scale, triggerWords, note, tokenId);
+            return failed(e, response, model, id, name, source, scale, triggerWords, note, secretId);
         }
         return saved(response, model);
     }
@@ -104,13 +104,13 @@ public class LoraController {
     }
 
     private String failed(RemoteServiceException e, HttpServletResponse response, Model model, Long id, String name, String source,
-                          String scale, String triggerWords, String note, String tokenId) {
+                          String scale, String triggerWords, String note, String secretId) {
         if (e.isReportable()) {
             htmx.addToastHeader(response, systemEvents.record(id == null ? "createLora" : "updateLora", e));
         }
         response.setHeader("HX-Retarget", "#lora-form");
         response.setHeader("HX-Reswap", "outerHTML");
-        return formView(model, id, name, source, scale, triggerWords, note, e.getMessage(), tokenIdOrNull(tokenId));
+        return formView(model, id, name, source, scale, triggerWords, note, e.getMessage(), secretIdOrNull(secretId));
     }
 
     private void populateList(Model model) {
@@ -118,10 +118,10 @@ public class LoraController {
     }
 
     private void formAttributes(Model model, Long id, String name, String source, String scale, String triggerWords,
-                                String note, String error, Long tokenId) {
-        model.addAttribute("loraTokenId", tokenId);
-        model.addAttribute("loraTokens", java.util.Arrays.stream(ApiTokenProvider.values())
-                .flatMap(provider -> tokens.options(provider.name()).stream()).toList());
+                                String note, String error, Long secretId) {
+        model.addAttribute("loraSecretId", secretId);
+        model.addAttribute("loraSecrets", java.util.Arrays.stream(AppSecretType.values())
+                .flatMap(provider -> secrets.options(provider.name()).stream()).toList());
         model.addAttribute("loraId", id);
         model.addAttribute("loraName", name);
         model.addAttribute("loraSource", source);
@@ -132,10 +132,10 @@ public class LoraController {
     }
 
     private String formView(Model model, Long id, String name, String source, String scale, String triggerWords, String note,
-                            String error, Long tokenId) {
-        formAttributes(model, id, name, source, scale, triggerWords, note, error, tokenId);
+                            String error, Long secretId) {
+        formAttributes(model, id, name, source, scale, triggerWords, note, error, secretId);
         return "fragments/app/loras :: loraForm(loraId=${loraId}, loraName=${loraName}, loraSource=${loraSource}, loraScale=${loraScale}, "
-                + "loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError}, loraTokenId=${loraTokenId}, loraTokens=${loraTokens})";
+                + "loraTriggerWords=${loraTriggerWords}, loraNote=${loraNote}, loraError=${loraError}, loraSecretId=${loraSecretId}, loraSecrets=${loraSecrets})";
     }
 
     private static String listView() {
@@ -143,18 +143,18 @@ public class LoraController {
     }
 
     /** Vuoto = nessun token; un valore non numerico e' un rifiuto con messaggio, non un 400. */
-    private Long parseTokenId(String value) {
+    private Long parseSecretId(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
-        Long id = tokenIdOrNull(value);
+        Long id = secretIdOrNull(value);
         if (id == null) {
             throw new LoraException(messages.get("loras.error.tokenInvalid"));
         }
         return id;
     }
 
-    private static Long tokenIdOrNull(String value) {
+    private static Long secretIdOrNull(String value) {
         try {
             return value == null || value.isBlank() ? null : Long.valueOf(value.strip());
         } catch (NumberFormatException e) {

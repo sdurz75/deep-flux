@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Il fragment di hexa-oauth2 nella sezione Impostazioni (senza parametri: il dato lazy «oauth2» arriva dal model via OAuthSettingsAdvice). Sta DENTRO
+  il <form> della sezione: niente <form> annidati, i bottoni sono htmx. Stato del cancello e checklist, provider con l'indirizzo di ritorno da registrare e
+  «Prova accesso», «Esci».
+-->
+<div th:fragment="extra" th:if="${oauth2 != null}" id="oauth2-extra" class="my-4">
+    <h3 th:text="#{oauth2.gate.title}">Cancello di accesso</h3>
+    <p th:if="${oauth2.status.resetActive}" th:text="#{oauth2.gate.resetActive}" class="text-warning dark:text-warning-dark">Spento da HX_OAUTH2_RESET.</p>
+    <p th:if="${oauth2.status.requestedByEnv && !oauth2.status.resetActive}" th:text="#{oauth2.gate.requestedByEnv}" class="text-ink-muted dark:text-ink-muted-dark">Acceso da HX_OAUTH2_ENABLED.</p>
+
+    <th:block th:if="${oauth2.status.enabled}">
+        <p th:text="#{oauth2.gate.on}">Il cancello e' acceso.</p>
+        <div class="my-3">
+            <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{oauth2.gate.logout}, hxGet=null, hxPost=@{/oauth2/logout}, hxTarget=null, hxSwap='none', extraClass=null)}">Esci</button>
+        </div>
+    </th:block>
+    <th:block th:unless="${oauth2.status.enabled}">
+        <p th:text="#{oauth2.gate.off}">Il cancello e' spento.</p>
+        <ul class="list-none p-0 my-3 flex flex-col gap-1 text-[0.9rem]">
+            <li th:text="${oauth2.status.providers > 0} ? #{oauth2.gate.check.provider.ok} : #{oauth2.gate.check.provider.missing}">Provider</li>
+            <li th:text="${oauth2.status.allowed > 0} ? #{oauth2.gate.check.allowed.ok} : #{oauth2.gate.check.allowed.missing}">Ammessi</li>
+            <li th:text="${oauth2.status.verifiedLogin} ? #{oauth2.gate.check.login.ok} : #{oauth2.gate.check.login.missing}">Accesso di prova</li>
+        </ul>
+    </th:block>
+
+    <h3 th:text="#{oauth2.providers.title}">Provider</h3>
+    <p th:if="${#lists.isEmpty(oauth2.providers)}" th:text="#{oauth2.providers.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessun provider.</p>
+    <ul th:unless="${#lists.isEmpty(oauth2.providers)}" class="list-none p-0 mt-3 flex flex-col gap-3">
+        <li th:each="row : ${oauth2.providers}" th:id="'oauth2-provider-' + ${row.config.slug}"
+            class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3">
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.9rem]">
+                <strong th:text="${row.config.title}">Google</strong>
+                <code th:text="${row.config.slug}">google</code>
+                <th:block th:if="${row.config.fromEnv}"><span th:replace="~{fragments/core/chip :: neutral(text=#{oauth2.providers.fromEnv}, textClass='text-[0.8rem]')}">ambiente</span></th:block>
+                <a th:replace="~{fragments/core/chip :: link(href=@{/oauth2/start/{slug}(slug=${row.config.slug})}, text=#{oauth2.providers.test}, textClass='text-[0.8rem]')}">Prova accesso</a>
+            </div>
+            <p class="my-1 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark break-all" th:text="${row.config.issuerUri}">https://accounts.google.com</p>
+            <p class="my-1 text-[0.85rem]"><span th:text="#{oauth2.providers.redirectUri}">Indirizzo di ritorno</span>: <code class="break-all" th:text="${row.redirectUri}">https://app/login/oauth2/code/google</code></p>
+        </li>
+    </ul>
+</div>
+
+</body>
+</html>

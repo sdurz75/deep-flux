@@ -79,8 +79,8 @@ public class BackupRunner implements ApplicationRunner {
                 ImportResult result = importer.importFrom(new ImportOptions(file, args.containsOption("replace")));
                 out.println(messages.get("backup.cli.imported", result.tables(), result.rows(), result.blobsRestored(), result.blobsSkipped()));
                 warnMissing(result.missingBlobs(), err);
-                if (result.undecryptableTokens() > 0) {
-                    err.println(messages.get("backup.warning.tokensUndecryptable", result.undecryptableTokens()));
+                if (result.undecryptableSecrets() > 0) {
+                    err.println(messages.get("backup.warning.secretsUndecryptable", result.undecryptableSecrets()));
                 }
             }
             return 0;

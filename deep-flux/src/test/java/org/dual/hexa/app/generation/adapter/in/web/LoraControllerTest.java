@@ -32,7 +32,7 @@ class LoraControllerTest {
     @Autowired
     private LoraPresetService service;
     @Autowired
-    private org.dual.hexa.core.tokens.port.in.IApiTokens tokens;
+    private org.dual.hexa.core.secrets.port.in.ISecrets secrets;
 
     @BeforeEach
     void clean() {
@@ -127,21 +127,21 @@ class LoraControllerTest {
 
     @Test
     void theDefaultTokenIsChosenInTheFormAndShownMaskedInTheList() throws Exception {
-        var token = tokens.create("HUGGINGFACE", "hf-ctrl-test", "hf_topsecret9876", null);
+        var token = secrets.create("HUGGINGFACE", "hf-ctrl-test", "hf_topsecret9876", null);
         try {
-            assertThat(body(get("/loras/new"))).contains("name=\"tokenId\"", "HuggingFace: hf-ctrl-test ••••9876");
+            assertThat(body(get("/loras/new"))).contains("name=\"secretId\"", "HuggingFace: hf-ctrl-test ••••9876");
 
             String list = body(post("/loras").param("name", "Privato").param("source", "https://huggingface.co/sdurz/privato")
-                    .param("tokenId", String.valueOf(token.id())));
+                    .param("secretId", String.valueOf(token.id())));
             assertThat(list).contains("hf-ctrl-test ••••9876").doesNotContain("topsecret");
 
             var invalid = mockMvc.perform(post("/loras").header("HX-Request", "true").param("name", "Altro").param("source", "x")
-                    .param("tokenId", "abc")).andExpect(status().isOk()).andReturn().getResponse();
+                    .param("secretId", "abc")).andExpect(status().isOk()).andReturn().getResponse();
             assertThat(invalid.getHeader("HX-Retarget")).isEqualTo("#lora-form");
             assertThat(invalid.getContentAsString()).contains("Il token scelto non esiste");
         } finally {
             repository.deleteAll();
-            tokens.delete(token.id());
+            secrets.delete(token.id());
         }
     }
 }

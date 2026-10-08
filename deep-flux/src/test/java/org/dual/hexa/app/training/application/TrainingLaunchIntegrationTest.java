@@ -32,7 +32,7 @@ import org.dual.hexa.app.training.port.out.ITrainingStore;
 import org.dual.hexa.core.storage.domain.SourceImage;
 import org.dual.hexa.core.storage.domain.UploadedFile;
 import org.dual.hexa.core.storage.port.in.IImageStorageService;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,14 +87,14 @@ class TrainingLaunchIntegrationTest {
     @Autowired
     private ITrainingDatasetStore datasetStore;
     @Autowired
-    private IApiTokens tokens;
+    private ISecrets secrets;
     @Autowired
     private JdbcTemplate jdbc;
 
     private final AtomicInteger names = new AtomicInteger();
     private final AtomicInteger copies = new AtomicInteger();
     private final AtomicReference<Map<String, String>> uploadedZip = new AtomicReference<>();
-    private Long tokenId;
+    private Long secretId;
 
     @BeforeEach
     void stubs() {
@@ -111,15 +111,15 @@ class TrainingLaunchIntegrationTest {
         when(trainer.ensureDestination(anyString())).thenAnswer(i -> "acct/" + i.getArgument(0));
         when(trainer.createTraining(anyString(), anyString(), anyMap())).thenReturn(new TrainerJob("train-1", TrainingStatus.PENDING, null, null, null));
 
-        tokenId = tokens.create("HUGGINGFACE", "hf-test", HF_SECRET, null).id();
+        secretId = secrets.create("HUGGINGFACE", "hf-test", HF_SECRET, null).id();
     }
 
     @AfterEach
     void cleanUp() {
         trainingStore.deleteAll();
         datasetStore.deleteAll();
-        if (tokenId != null) {
-            tokens.delete(tokenId);
+        if (secretId != null) {
+            secrets.delete(secretId);
         }
     }
 
@@ -129,7 +129,7 @@ class TrainingLaunchIntegrationTest {
         for (TrainingImage image : datasets.get(id).getImages()) {
             captions.saveCaption(id, image.getId(), "TOKCAT, foto di " + image.getOriginalName());
         }
-        datasets.saveLaunchSettings(id, new LaunchSettings("Il mio gatto", 1200, 42L, huggingFaceCopy, huggingFaceCopy ? tokenId : null, null, true));
+        datasets.saveLaunchSettings(id, new LaunchSettings("Il mio gatto", 1200, 42L, huggingFaceCopy, huggingFaceCopy ? secretId : null, null, true));
         return id;
     }
 
@@ -178,7 +178,7 @@ class TrainingLaunchIntegrationTest {
         assertThat(row.values()).noneMatch(v -> v != null && v.toString().contains(HF_SECRET));
         Map<String, Object> draftRow = jdbc.queryForMap("SELECT * FROM training_dataset WHERE id = ?", draftId);
         assertThat(draftRow.values()).as("la bozza ricorda l'ID del token, mai il token").noneMatch(v -> v != null && v.toString().contains(HF_SECRET));
-        assertThat(draftRow.get("hf_token_id")).isEqualTo(tokenId);
+        assertThat(draftRow.get("hf_secret_id")).isEqualTo(secretId);
     }
 
     @Test

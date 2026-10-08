@@ -81,7 +81,7 @@ class BackupProfileContextTest {
     void theDetectorRecognisesARealBackgroundJob() {
         List<String> offenders = new ArrayList<>();
 
-        collectBackgroundWork("tokenExpiryScheduler", org.dual.hexa.core.tokens.adapter.in.scheduling.TokenExpiryScheduler.class, offenders);
+        collectBackgroundWork("secretExpiryScheduler", org.dual.hexa.core.secrets.adapter.in.scheduling.SecretExpiryScheduler.class, offenders);
 
         assertThat(offenders).anyMatch(o -> o.contains("(@Scheduled)")).anyMatch(o -> o.contains("(ApplicationReadyEvent)"));
     }

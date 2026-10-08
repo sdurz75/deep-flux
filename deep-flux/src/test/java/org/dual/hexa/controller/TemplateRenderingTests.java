@@ -596,7 +596,7 @@ class TemplateRenderingTests {
     private org.dual.hexa.core.events.domain.SystemEvent savedEvent(org.dual.hexa.core.events.domain.SystemEventSeverity severity, String message,
                                                               String subject) {
         return systemEventRepository.save(new org.dual.hexa.core.events.domain.SystemEvent(severity,
-                org.dual.hexa.core.events.domain.CoreEventSource.TOKENS, "op", "T", message, null, subject,
+                org.dual.hexa.core.events.domain.CoreEventSource.SECRETS, "op", "T", message, null, subject,
                 java.time.Instant.now().minusSeconds(300)));
     }
 
@@ -719,7 +719,7 @@ class TemplateRenderingTests {
         assertThat(body.split("href=\"/loras\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/trainings\"", -1)).hasSize(3); // dal menu Crea: barra + slideover
         assertThat(body.split("href=\"/system/events\"", -1)).hasSize(3);
-        assertThat(body.split("href=\"/tokens\"", -1)).hasSize(3); // da navSystemCore, composto dal nav dell'app
+        assertThat(body.split("href=\"/secrets\"", -1)).hasSize(3); // da navSystemCore, composto dal nav dell'app
         assertThat(body.split("aria-haspopup=\"true\"", -1)).hasSize(5); // 2 menu x 2 contenitori
     }
 
@@ -770,8 +770,8 @@ class TemplateRenderingTests {
 
         String loras = breadcrumbsOf(mockMvc.perform(get("/loras")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(loras).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>LoRA<");
-        String tokens = breadcrumbsOf(mockMvc.perform(get("/tokens")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        assertThat(tokens).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Token<");
+        String secrets = breadcrumbsOf(mockMvc.perform(get("/secrets")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(secrets).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Segreti<");
         String events = breadcrumbsOf(mockMvc.perform(get("/system/events")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(events).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Eventi di sistema<");
 
@@ -908,10 +908,10 @@ class TemplateRenderingTests {
     }
 
     @Autowired
-    private org.dual.hexa.core.tokens.port.in.IApiTokens apiTokenService;
+    private org.dual.hexa.core.secrets.port.in.ISecrets apiTokenService;
 
     @Autowired
-    private org.dual.hexa.core.tokens.port.out.IApiTokenStore apiTokenRepository;
+    private org.dual.hexa.core.secrets.port.out.ISecretStore apiTokenRepository;
 
     @Autowired
     private org.dual.hexa.core.secrets.application.SecretCipher secretCipher;
@@ -933,7 +933,7 @@ class TemplateRenderingTests {
         var hf = apiTokenService.create("HUGGINGFACE", "Personale", "hf_super_secret_1234", null);
         var civitai = apiTokenService.create("CIVITAI", "Civitai lavoro", "cv_other_secret_5678",
                 java.time.LocalDate.now().plusDays(400));
-        apiTokenRepository.save(new org.dual.hexa.core.tokens.domain.ApiToken("CIVITAI", "Vecchio",
+        apiTokenRepository.save(new org.dual.hexa.core.secrets.domain.Secret("CIVITAI", "Vecchio",
                 secretCipher.encrypt("cv_old_secret_0000"), "0000", java.time.LocalDate.now().minusDays(1), java.time.Instant.now()));
 
         String body = mockMvc.perform(get("/generations/params").param("model", "black-forest-labs/flux-dev-lora")

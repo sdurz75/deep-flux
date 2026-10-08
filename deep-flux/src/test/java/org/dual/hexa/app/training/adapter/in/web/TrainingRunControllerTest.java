@@ -31,7 +31,7 @@ import org.dual.hexa.app.training.port.out.ITrainingStore;
 import org.dual.hexa.core.storage.domain.SourceImage;
 import org.dual.hexa.core.storage.domain.UploadedFile;
 import org.dual.hexa.core.storage.port.in.IImageStorageService;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -102,7 +102,7 @@ class TrainingRunControllerTest {
     @Autowired
     private ITrainingStore trainingStore;
     @Autowired
-    private IApiTokens tokens;
+    private ISecrets secrets;
 
     private final AtomicInteger names = new AtomicInteger();
 
@@ -121,7 +121,7 @@ class TrainingRunControllerTest {
     void cleanUp() {
         trainingStore.deleteAll();
         datasetStore.deleteAll();
-        tokens.list().stream().filter(t -> "hf-upload-test".equals(t.name())).forEach(t -> tokens.delete(t.id()));
+        secrets.list().stream().filter(t -> "hf-upload-test".equals(t.name())).forEach(t -> secrets.delete(t.id()));
         presets.list().stream().filter(p -> "acct/il-mio-gatto-20261005-100000".equals(p.source())).forEach(p -> presets.delete(p.id()));
     }
 
@@ -372,7 +372,7 @@ class TrainingRunControllerTest {
         assertThat(page).contains("Avvia il training").contains("A PAGAMENTO")
                 .contains("action=\"/trainings/datasets/" + id + "/launch-settings\"").contains("name=\"trainingSteps\"").contains("value=\"1000\"")
                 .containsPattern("name=\"hfPublish\"[^>]*checked").containsPattern("name=\"hfPrivate\"[^>]*checked")
-                .contains("name=\"hfTokenId\"").contains("name=\"hfRepoName\"").contains("name=\"modelName\"")
+                .contains("name=\"hfSecretId\"").contains("name=\"hfRepoName\"").contains("name=\"modelName\"")
                 .contains("id=\"training-launch-check\"").contains("/trainings/datasets/" + id + "/launch-check")
                 .contains("Servono almeno 4 immagini").doesNotContain("/start");
     }
@@ -512,7 +512,7 @@ class TrainingRunControllerTest {
     }
 
     private Long hfToken() {
-        return tokens.create("HUGGINGFACE", "hf-upload-test", "hf_test_value_1234", null).id();
+        return secrets.create("HUGGINGFACE", "hf-upload-test", "hf_test_value_1234", null).id();
     }
 
     @Test
@@ -522,7 +522,7 @@ class TrainingRunControllerTest {
 
         String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
 
-        assertThat(page).contains("Carica i pesi su HuggingFace").contains("sandro/il-mio-gatto").contains("name=\"hfTokenId\"").contains("hf-upload-test")
+        assertThat(page).contains("Carica i pesi su HuggingFace").contains("sandro/il-mio-gatto").contains("name=\"hfSecretId\"").contains("hf-upload-test")
                 .contains("hx-post=\"/trainings/" + done.getId() + "/hf-upload\"").contains("hx-include=\"#hf-upload-token\"").contains("Carica su HuggingFace")
                 .doesNotContain("every 5s");
     }
@@ -533,7 +533,7 @@ class TrainingRunControllerTest {
 
         String page = body(mockMvc.perform(get("/trainings/" + done.getId())).andExpect(status().isOk()).andReturn());
 
-        assertThat(page).contains("Carica i pesi su HuggingFace").contains("Nessun token salvato: aggiungine uno in /tokens").doesNotContain("hf-upload\"");
+        assertThat(page).contains("Carica i pesi su HuggingFace").contains("Nessun token salvato: aggiungine uno in /secrets").doesNotContain("hf-upload\"");
     }
 
     @Test
@@ -551,7 +551,7 @@ class TrainingRunControllerTest {
     /** Il percorso intero con i collaboratori esterni finti: richiesta, thread in background, esito sulla riga. L'upload e' tenuto fermo per vedere lo stato "in corso". */
     @Test
     void theUploadRunsInTheBackgroundShowsItsProgressAndEndsWithTheCopyVerified() throws Exception {
-        Long tokenId = hfToken();
+        Long secretId = hfToken();
         Training done = succeededWithMissingCopy();
         when(huggingFace.whoami("hf_test_value_1234")).thenReturn(new HfAccount("sandro", "write"));
         when(trainer.weights("train-1")).thenReturn(Optional.of(mock(WeightsFile.class)));
@@ -562,7 +562,7 @@ class TrainingRunControllerTest {
         }).when(huggingFace).uploadWeights(anyString(), anyString(), any(WeightsFile.class), anyString());
 
         try {
-            String progress = body(mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId))
+            String progress = body(mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfSecretId", String.valueOf(secretId))
                     .header("HX-Request", "true")).andExpect(status().isOk()).andReturn());
 
             assertThat(progress).contains("id=\"training-status\"").contains("Caricamento su HuggingFace in corso").contains("Caricamento in corso")
@@ -570,7 +570,7 @@ class TrainingRunControllerTest {
             verify(huggingFace, timeout(5000)).uploadWeights(org.mockito.ArgumentMatchers.eq("hf_test_value_1234"),
                     org.mockito.ArgumentMatchers.eq("sandro/il-mio-gatto"), any(WeightsFile.class), anyString());
             // un secondo clic mentre il primo e' in corso e' un rifiuto, non un secondo upload
-            mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId)).header("HX-Request", "true"))
+            mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfSecretId", String.valueOf(secretId)).header("HX-Request", "true"))
                     .andExpect(status().is4xxClientError());
         } finally {
             release.countDown();
@@ -586,11 +586,11 @@ class TrainingRunControllerTest {
 
     @Test
     void aReadOnlyTokenIsARejectionWithAToastAndNothingIsDownloaded() throws Exception {
-        Long tokenId = hfToken();
+        Long secretId = hfToken();
         Training done = succeededWithMissingCopy();
         when(huggingFace.whoami("hf_test_value_1234")).thenReturn(new HfAccount("sandro", "read"));
 
-        mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId)).header("HX-Request", "true"))
+        mockMvc.perform(post("/trainings/" + done.getId() + "/hf-upload").param("hfSecretId", String.valueOf(secretId)).header("HX-Request", "true"))
                 .andExpect(status().is4xxClientError()).andExpect(header().exists("HX-Trigger"));
 
         verify(trainer, never()).weights(anyString());
@@ -599,10 +599,10 @@ class TrainingRunControllerTest {
 
     @Test
     void uploadingATrainingThatIsNotEligibleIsRejected() throws Exception {
-        Long tokenId = hfToken();
+        Long secretId = hfToken();
         Training verified = succeededWithResult(1L);
 
-        mockMvc.perform(post("/trainings/" + verified.getId() + "/hf-upload").param("hfTokenId", String.valueOf(tokenId)).header("HX-Request", "true"))
+        mockMvc.perform(post("/trainings/" + verified.getId() + "/hf-upload").param("hfSecretId", String.valueOf(secretId)).header("HX-Request", "true"))
                 .andExpect(status().is4xxClientError());
 
         verify(huggingFace, never()).uploadWeights(anyString(), anyString(), any(WeightsFile.class), anyString());

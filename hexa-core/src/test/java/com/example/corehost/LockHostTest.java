@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {
         "spring.config.import=classpath:core.yml",
-        "app.tokens.expiry-check-enabled=false"})
+        "app.secrets.expiry-check-enabled=false"})
 @AutoConfigureMockMvc
 class LockHostTest {
 

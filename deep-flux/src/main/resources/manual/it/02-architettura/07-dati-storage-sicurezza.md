@@ -31,9 +31,9 @@ Su WebDAV i contenuti sono **sempre cifrati** (AES-256-GCM a blocchi da 64 KiB, 
 
 Passare da locale a WebDAV non sposta i file esistenti da solo: esiste una migrazione una tantum, attivabile da configurazione, che copia i file locali, salta quelli già presenti e non ferma tutto per un file che fallisce.
 
-## Segreti e token
+## Segreti
 
-I token API (CivitAI, HuggingFace) si salvano cifrati con **la stessa chiave** e lo stesso algoritmo dei file WebDAV: nessun segreto nuovo da gestire. Con `storage.type=local` la chiave non è obbligatoria all'avvio, ma senza di essa la pagina Token non permette di salvare nulla. Dopo il salvataggio il token non si vede più (restano gli ultimi quattro caratteri) e non finisce mai in log, eventi, toast o modello della pagina. Il core non sa nulla dei servizi: l'elenco dei provider lo offre l'app. Un controllo periodico avvisa dei token in scadenza o scaduti.
+I segreti (token API come CivitAI e HuggingFace, password, segreti dei moduli) sono un'unica entità con un **tipo** e si salvano cifrati con **la stessa chiave** e lo stesso algoritmo dei file WebDAV: nessun segreto nuovo da gestire. Con `storage.type=local` la chiave non è obbligatoria all'avvio, ma senza di essa la pagina Segreti non permette di salvare nulla. Dopo il salvataggio il valore non si vede più (restano gli ultimi quattro caratteri) e non finisce mai in log, eventi, toast o modello della pagina. Il core non sa nulla dei servizi: il core offre i tipi `API_TOKEN`, `PASSWORD` e `GENERIC`, l'app e i moduli ne aggiungono altri implementando `ISecretTypeCatalog` (più cataloghi si sommano). Un tipo «gestito» appartiene a un modulo: si vede in elenco ma si cambia dalle impostazioni del modulo. Un controllo periodico avvisa dei segreti in scadenza o scaduti.
 
 ## Errori delle chiamate remote
 

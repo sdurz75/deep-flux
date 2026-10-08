@@ -16,7 +16,7 @@ Tutti i fragment generici stanno in `templates/fragments/core/` e si compongono 
 - `confirm-dialog :: container`: la finestra delle conferme, già nel layout; si usa solo con `hx-confirm` o `window.hexaConfirm(domanda)`.
 - `alert :: error(text)`: messaggio d'errore inline, per esempio un rifiuto atteso di un form.
 - `live-events :: connect`: la connessione SSE a `GET /events`, già nel layout.
-- `system-events :: content(...)` e `tokens :: list(...)`, `tokens :: tokenForm(...)`: i contenuti delle pagine `/system/events` e `/tokens`, del core; l'app non li richiama.
+- `system-events :: content(...)` e `secrets :: list(...)`, `secrets :: secretForm(...)`: i contenuti delle pagine `/system/events` e `/tokens`, del core; l'app non li richiama.
 
 ## Bottoni
 

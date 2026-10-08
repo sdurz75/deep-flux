@@ -4,23 +4,23 @@ Puoi far entrare in deep-flux solo chi accede con un account Google (o Microsoft
 
 ## Come si accende
 
-Apri [Accesso](/oauth2), nel menu «Gestione». Il cancello è spento finché non lo accendi e, finché è spento, l'app si usa come sempre. Per accenderlo servono tre cose, e la pagina ti dice quali mancano:
+Apri [Impostazioni](/settings), nel menu «Gestione», sezione «Accesso OAuth2». Il cancello è spento finché non lo accendi e, finché è spento, l'app si usa come sempre. Per accenderlo servono tre cose, e la sezione ti dice quali mancano:
 
-1. un **provider**: quello configurato dal server con le variabili `HX_OAUTH2_*`, oppure uno aggiunto qui (nome, issuer, client ID e il segreto, che salvi prima in [Token](/tokens) con il servizio «Segreto client OAuth2»);
+1. un **provider**: quello configurato dal server con le variabili `HX_OAUTH2_*`, oppure uno aggiunto qui (identificativo, nome, issuer, client ID e segreto del client: il segreto si salva cifrato, lo trovi in [Segreti](/secrets) ma si cambia solo da qui, e lasciarlo vuoto lo conserva);
 2. almeno un **utente ammesso**;
 3. un **accesso di prova** riuscito: clicca «Prova accesso» accanto al provider e accedi con un account della lista. Serve a non chiuderti fuori per un errore di configurazione.
 
-Poi premi «Accendi il cancello». Da quel momento, aprendo l'app ti viene chiesto di accedere. Il pulsante «Esci» in questa pagina chiude la sessione.
+Poi attiva «Cancello di accesso acceso» e salva. Da quel momento, aprendo l'app ti viene chiesto di accedere. Il pulsante «Esci» in questa sezione chiude la sessione.
 
 ## Chi è ammesso
 
-Aggiungi **email** (una persona) o **domini** (tutta un'organizzazione, per esempio `example.com`). Un'email vale solo se il provider la dichiara verificata; un dominio vale solo se è identico a quello dell'email, quindi `example.com` non fa entrare `evilexample.com`. Al primo accesso di un'email esatta, quell'email si lega all'identità che l'ha usata: un altro account che dichiara la stessa email viene respinto. Le voci «da ambiente» arrivano dal server e non si possono modificare qui.
+Scrivi le **email** (una persona, una per riga) e i **domini** (tutta un'organizzazione, per esempio `example.com`). Un'email vale solo se il provider la dichiara verificata; un dominio vale solo se è identico a quello dell'email, quindi `example.com` non fa entrare `evilexample.com`. Al primo accesso di un'email esatta, quell'email si lega all'identità che l'ha usata: un altro account che dichiara la stessa email viene respinto. Le voci dal server (`HX_OAUTH2_ALLOWED_*`) si sommano alle tue e compaiono in sola lettura. Se cambi i provider, l'identità legata a un'email e gli accessi di prova si azzerano.
 
 Con il cancello acceso non puoi togliere l'ultimo provider né l'ultima voce utile: ti chiuderesti fuori.
 
 ## Registrare il provider
 
-Presso il provider (per esempio la console Google Cloud) devi registrare l'**indirizzo di ritorno** che trovi nell'elenco dei provider, nella forma `https://tuo-indirizzo/login/oauth2/code/google`. Dipende dall'indirizzo con cui apri l'app: se lo cambi, va registrato di nuovo.
+Presso il provider (per esempio la console Google Cloud) devi registrare l'**indirizzo di ritorno** che trovi nell'elenco dei provider della sezione, nella forma `https://tuo-indirizzo/login/oauth2/code/google`. Dipende dall'indirizzo con cui apri l'app: se lo cambi, va registrato di nuovo.
 
 ## Con il blocco con PIN
 

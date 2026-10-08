@@ -13,11 +13,10 @@ import org.dual.hexa.core.kernel.remote.RemoteServiceException.Kind;
 import org.dual.hexa.core.kernel.remote.RestRemoteClient;
 import org.dual.hexa.core.kernel.remote.RetryPolicy;
 import org.dual.hexa.oauth2.login.domain.OAuthException;
-import org.dual.hexa.oauth2.login.domain.ProviderChanged;
+import org.dual.hexa.core.config.domain.ModuleConfigChangedEvent;
+import org.dual.hexa.oauth2.login.domain.ConfigKeys;
 import org.dual.hexa.oauth2.login.domain.ProviderConfig;
 import org.dual.hexa.oauth2.login.port.in.IOAuthProviders;
-import org.dual.hexa.oauth2.login.port.out.IClientSecrets;
-import org.dual.hexa.oauth2.login.port.out.IOAuthEnvironment;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -31,7 +30,7 @@ import org.springframework.web.client.RestClient;
 /**
  * Il repository dei client OIDC di Spring Security, ma DINAMICO: un provider si aggiunge dalla UI (o dalle variabili d'ambiente) senza riavviare. La
  * registrazione si costruisce dalla discovery ({@code <issuer>/.well-known/openid-configuration}, letta con il {@code RestClient.Builder} iniettato, via
- * {@code RemoteCaller}) e si tiene in cache qualche minuto; il segreto del client (token di {@code /tokens} o variabile d'ambiente) vive in chiaro solo qui
+ * {@code RemoteCaller}) e si tiene in cache qualche minuto; il segreto del client (campo {@code SECRET} delle impostazioni o variabile d'ambiente) vive in chiaro solo qui
  * dentro. Un guasto si registra come evento e il provider risulta assente (il login mostra un errore).
  */
 @Component
@@ -47,20 +46,16 @@ class DynamicClientRegistrations extends RestRemoteClient implements ClientRegis
 
     private final RestClient restClient;
     private final IOAuthProviders providers;
-    private final IOAuthEnvironment env;
-    private final IClientSecrets secrets;
     private final ISystemEvents events;
     private final Messages messages;
     private final Clock clock = Clock.systemUTC();
     private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
-    DynamicClientRegistrations(RestClient.Builder restClientBuilder, IOAuthProviders providers, IOAuthEnvironment env, IClientSecrets secrets,
+    DynamicClientRegistrations(RestClient.Builder restClientBuilder, IOAuthProviders providers,
                                ISystemEvents events, Messages messages) {
         super("oauth2.remote", messages, OAuthException::new, RetryPolicy.DEFAULT);
         this.restClient = restClientBuilder.build();
         this.providers = providers;
-        this.env = env;
-        this.secrets = secrets;
         this.events = events;
         this.messages = messages;
     }
@@ -87,16 +82,16 @@ class DynamicClientRegistrations extends RestRemoteClient implements ClientRegis
         }
     }
 
+    /** Un provider o il suo segreto sono cambiati: la discovery si rifa' subito (un segreto ruotato vale ora, non fra dieci minuti). */
     @EventListener
-    void providersChanged(ProviderChanged event) {
-        cache.clear();
+    void settingsChanged(ModuleConfigChangedEvent event) {
+        if (ConfigKeys.MODULE.equals(event.moduleId())) {
+            cache.clear();
+        }
     }
 
     private ClientRegistration build(ProviderConfig config) {
-        String secret = config.fromEnv()
-                ? env.provider().map(IOAuthEnvironment.EnvProvider::clientSecret)
-                        .orElseThrow(() -> new OAuthException(messages.get("oauth2.error.secretRequired")))
-                : secrets.resolve(config.secretTokenId());
+        String secret = providers.clientSecret(config.slug()).orElseThrow(() -> new OAuthException(messages.get("oauth2.error.secretRequired")));
         Map<String, Object> metadata = remote.call("discovery", () -> {
             Map<String, Object> body = restClient.get().uri(config.issuerUri() + "/.well-known/openid-configuration").retrieve().body(JSON);
             if (body == null) {

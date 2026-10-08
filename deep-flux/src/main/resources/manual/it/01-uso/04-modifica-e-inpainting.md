@@ -51,4 +51,4 @@ Con flux-lora-ff3 e flux-dev-lora l'immagine di partenza è facoltativa. Se la d
 
 ## Poi?
 
-Un'immagine modificata è un'immagine come le altre: si può modificare di nuovo, animare in un video (vedi [Genera video](06-video.md)) o usare come sorgente. Per usare i LoRA e i loro token vedi [LoRA e token](05-lora-e-token.md).
+Un'immagine modificata è un'immagine come le altre: si può modificare di nuovo, animare in un video (vedi [Genera video](06-video.md)) o usare come sorgente. Per usare i LoRA e i loro token vedi [LoRA e token](05-lora-e-segreti.md).

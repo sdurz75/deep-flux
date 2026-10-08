@@ -43,16 +43,16 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | `core.events` | registro eventi di sistema (`ISystemEvents`: `record`/`warn`), pagina `/system/events`, campanella, toast, `UnhandledExceptionResolver`, `AsyncErrorConfig` | opzionale `IEventLinkResolver`; le proprie `EventSource` |
 | `core.push` | SSE `GET /events` (`EventStreamController`), `IClientPush` (emit), `IClientPushStream`, `PushModelAdvice`, `fragments/core/live-events.html` | i nomi degli eventi propri in `app.push.client-events` |
 | `core.secrets` | `ISecretCipher` (AES-256-GCM, stessa chiave dei binari WebDAV) | - |
-| `core.tokens` | CRUD token API cifrati in `/tokens`, scadenza con avvisi (`TokenExpiryScheduler`) | opzionale `ITokenProviderCatalog` (senza: nessun provider selezionabile) |
+| `core.secrets` | CRUD segreti cifrati con tipo in `/secrets` (token API, password, segreti dei moduli), scadenza con avvisi (`SecretExpiryScheduler`) | opzionale `ISecretTypeCatalog` (senza: solo i tipi di default del core) |
 | `core.storage` | `IImageStorageService` (binari su filesystem locale o WebDAV cifrato, cache, migrazione), `ImageController` (`/images/**`) | - |
 | `core.backup` | comandi `export` e `import` del jar (`java -jar app.jar export <file>`): backup completo (tabelle scoperte da `information_schema` + binari) in un archivio cifrato; profilo `backup` (`application-backup.yml`) | la SPI `IBlobReferences` (`port.in`): le coppie (tabella, colonna) con i nomi dei binari; senza, si esporta solo il DB |
 | `core.manual` | manuale online: pagine Markdown di `src/main/resources/manual/<lingua>/<NN-gruppo>/<NN-pagina>.md` convertite al volo, `/manual`, ricerca per sezioni (`IManual`) | i TESTI (`manual/`) e le etichette dei gruppi `manual.group.<gruppo>` nel bundle; per il bot di chat un toolkit come `ManualTool` che usa `IManual` (opzionale); la voce di menu `/manual` |
 | `core.web` | `HtmxEvents`, `PaginationSupport`, `TailwindAssets`, `BuildInfo`, `ILayoutContributor` (punto d'innesto del layout per le librerie opzionali: fragment per head e fine body, voci del menu «Gestione») | - |
-| `core.config` | configurazione modulare dei moduli hexa-*: la SPI `IConfigModule` (un bean si autoregistra), `IModuleSettings` (valori letti a ogni uso: override in DB, poi `app.<id>.<chiave>`, poi default), pagina `/settings` e voce «Impostazioni» del menu «Gestione» autogenerate, tabella `module_config` | per configurare un tuo modulo: implementare `IConfigModule` (campi, testi nel bundle del modulo); senza moduli la voce non compare |
+| `core.config` | configurazione modulare dei moduli hexa-*: la SPI `IConfigModule` (un bean si autoregistra), `IModuleSettings` (valori letti a ogni uso: override in DB, poi `app.<id>.<chiave>`, poi `envVar`, poi default; campi anche segreto, elenco e elenco di record con hook `validate`), pagina `/settings` e voce «Impostazioni» del menu «Gestione» autogenerate, tabella `module_config` | per configurare un tuo modulo: implementare `IConfigModule` (campi, testi nel bundle del modulo); senza moduli la voce non compare |
 | `core.lock` | blocco dell'app con PIN dopo inattivita' (`ILock`, pagina `/security`, `/unlock`, cancello `LockInterceptor` lato server, tabella `app_lock`, recupero con `app.lock.reset=true`, SPI `ILockExemptPaths`) | opzionale: `app.lock.exempt-paths`; il PIN si attiva da `/security`, senza PIN non cambia nulla |
 | template e bundle | `templates/fragments/core/*` (kit generico: bottoni, select Pines, modal, full-screen modal, conferma, tabs, switch, popover, slideover, accordion, lightbox, dropzone, campo numerico, tag-chips, paginazione, chip, alert), `templates/fragments/core/*` (layout, header, status-bar, toast, tokens, bottoni del chrome...), `templates/core/*` (`/system/events`, `/tokens`, `/manual`), `messages-core(.en).properties` | vedi "Punti di estensione" |
-| config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets`, `app.tokens`, `app.events`, `storage.*` | - |
-| Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token`; `V2026_10_07_1600__app_lock.sql`: `app_lock`; `V2026_10_08_1100__module_config.sql`: `module_config` | - |
+| config | `core.yml` (importato da `application.yml`): server/proxy, multipart, thymeleaf, datasource, JPA, i18n, `app.secrets` (chiave e scadenza), `app.events`, `storage.*` | - |
+| Flyway | `db/migration/core/V2026_10_01_1200__core_baseline.sql`: tabelle `system_event` e `api_token` (poi rinominata `secret` da `V2026_10_08_1600__tokens_to_secrets.sql`); `V2026_10_07_1600__app_lock.sql`: `app_lock`; `V2026_10_08_1100__module_config.sql`: `module_config` | - |
 
 `ApiTokenProvider`, `ReplicatePricing`, il catalogo modelli ecc. NON sono core: stanno in `app.generation`.
 
@@ -87,7 +87,7 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/hexa`.
   `app.brand`, `app.title` (le usano `fragments/core/header.html` e `layout.html`, verificato con grep) e le chiavi di
   nav che la nuova `nav.html` referenzia. Va tenuta anche `events.source.<NAME>` per ogni `EventSource` propria
   (e `events.link.*` se si implementa `IEventLinkResolver`), e `tokens.provider.<NOME>` per le etichette dei provider di token (facoltative: senza,
-  `/tokens` mostra il nome del provider). `messages-core*.properties` restano.
+  `/secrets` mostra il nome del tipo). `messages-core*.properties` restano.
 - I due bundle devono avere chiavi **disgiunte** e identiche tra `it` ed `en` (test `coreAndAppBundlesDefineDisjointKeys` e
   `messageBundlesHaveMatchingKeys` in `TemplateRenderingTests`).
 - `prompts.properties`: testo dei system prompt dell'app (importato da `application.yml`), si cancella con l'app.
@@ -112,7 +112,7 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/hexa`.
   emette eventi SSE propri: vedi sotto);
 - `spring.config.import` cita `classpath:prompts.properties` (togliere se si cancella il file). `core.yml` va tenuto importato.
 - `src/test/resources/application-test.yml` imposta `app.recovery.enabled`, `app.search.enabled` (chiavi dell'app; innocue se mancano
-  i bean) e `spring.ai.model.embedding: none`. `app.tokens.expiry-check-enabled: false` e' del core.
+  i bean) e `spring.ai.model.embedding: none`. `app.secrets.expiry-check-enabled: false` e' del core.
 
 **Variabili `.env`** (vedi `.env.example`): quelle dei moduli hexa-* hanno il prefisso `HX_`. Del core: `HX_DB_*`, `HX_STORAGE_WEBDAV_*`,
 `HX_BACKUP_ENCRYPTION_KEY`, `HX_LOCK_RESET`. Di hexa-ai: `HX_OPENROUTER_*` (token, management key, modelli di chat e visione, commentati nell'esempio),
@@ -131,13 +131,13 @@ Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei seg
 **Test** (`src/test/java/org/dual/hexa/`)
 
 - Cancellare: `app/` per intero (compresi `app/manual/ManualContentTest` e `ManualControllerTest`, che asseriscono pagine e gruppi del manuale di QUESTA app: la nuova app scrive i suoi), `controller/TemplateRenderingTests` (quasi tutto sulle pagine dell'app; i test generici su `/system/events`,
-  `/tokens`, bundle, select e toast hanno gia' una copia nei test di `core/`), `config/FlywayCoreAppMigrationTest` (controlla anche le tabelle
+  `/secrets`, bundle, select e toast hanno gia' una copia nei test di `core/`), `config/FlywayCoreAppMigrationTest` (controlla anche le tabelle
   `generation` e `vector_store` dell'app).
 - `app/generation/adapter/out/backup/BackupRoundTripTest` e' lo scenario di riferimento del backup (schema vero, due database dedicati): con `app/` se ne va, e la nuova app ne scrive uno
   sul proprio schema (stessa struttura: esporta, importa in un DB vergine, confronta tabelle e binari, controlla le sequenze).
 - Restano e passano senza `app/`: `ApplicationTests` (carica il contesto), `architecture/ArchitectureTest`, `core/**`, `support/PostgresTestContainerInitializer`
   (+ `META-INF/spring.factories`). I test del core non dipendono dall'app: `SystemEventServiceTest` usa una `EventSource` locale al test,
-  `TokenControllerTest` porta un proprio `ITokenProviderCatalog` (`@Primary`, vince su quello dell'app).
+  `SecretControllerTest` porta un proprio `ISecretTypeCatalog` (si somma a quello dell'app).
 - Quando si scrivono nuovi test di `core/`: niente import da `app`, e non assumere un nav/bundle dell'app (la voce di menu "Token" la compone il nav
   dell'app, la sua presenza si verifica in un test dell'app).
 
@@ -160,14 +160,14 @@ Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei seg
    `RestRemoteClient`, errori registrati con `ISystemEvents#record` (dettagli in `CLAUDE.md`).
 5. **`IEventLinkResolver`** (`core.events.port.out`, opzionale): da un `subject` dell'evento (es. `generation:12`) a un link "apri" nella
    pagina eventi. Oggi `AppEventLinks`. Se non c'e' nessun bean, nessun link (`ObjectProvider`).
-6. **`ITokenProviderCatalog`** (`core.tokens.port.out`, opzionale): i nomi dei provider di token (stringhe) tra cui scegliere in `/tokens`. Oggi
-   `AppTokenProviders` (CivitAI, HuggingFace). Senza bean la pagina non offre provider. Chi usa un token lo risolve da `IApiTokens`.
+6. **`ISecretTypeCatalog`** (`core.secrets.port.out`, opzionale, PIU' bean si sommano): i tipi di segreto (`SecretType`) tra cui scegliere in `/secrets`. Oggi
+   `AppSecretTypes` (CivitAI, HuggingFace). Senza bean restano i tipi di default del core. Chi usa un segreto lo risolve da `ISecrets`.
 7. **Eventi SSE dell'app**: il core emette solo `system-event`. Gli altri si pubblicano con `IClientPush#emit(nome, payload)` e vanno
    elencati in `app.push.client-events` (separati da virgola; `app.push.reconnect-events` per quelli da ri-dispatchare alla riconnessione):
    `PushModelAdvice` li passa a `fragments/core/live-events.html`, che li ri-dispatcha come `CustomEvent` su `document.body`.
 8. **Storage dei binari**: l'app lo usa solo tramite `IImageStorageService`; nessun accesso diretto al filesystem/WebDAV.
 9. **Segreti e token**: `app.secrets.encryption-key` riusa `HX_STORAGE_WEBDAV_ENCRYPTION_KEY`; con `storage.type=local` e' facoltativa (senza,
-   `/tokens` segnala che manca).
+   `/secrets` segnala che manca).
 
 ## Rinominare il package radice
 
@@ -205,7 +205,7 @@ cancellati `app/` (main e test), `templates/app`, `templates/fragments/app`, `db
 `FlywayCoreAppMigrationTest`; `application.yml` ridotto a `spring.config.import` (`.env` + `core.yml`), `spring.application.name` e
 `spring.flyway.locations: classpath:db/migration/core`; i bundle `messages*.properties` ridotti a `app.brand|title|footer`; aggiunto lo stub
 `fragments/app/nav.html` con un fragment `links(inline)` vuoto; tolte dal `pom.xml` le quattro dipendenze `spring-ai-*`.
-Esito: `mvn -o test` verde (142 test: contesto, `ArchitectureTest` con la regola di chiusura, eventi di sistema con `/system/events`, `/tokens`, push,
+Esito: `mvn -o test` verde (142 test: contesto, `ArchitectureTest` con la regola di chiusura, eventi di sistema con `/system/events`, `/secrets`, push,
 secrets, storage). Senza il passo sul `pom.xml` l'avvio falla (vedi sopra); senza correggere `SystemEventServiceTest` e `TokenControllerTest`
 (che dipendevano da `AppEventSource` e dal catalogo dei provider dell'app) la suite non compilava / non passava: ora e' corretto nel repo.
 
@@ -217,7 +217,7 @@ secrets, storage). Senza il passo sul `pom.xml` l'avvio falla (vedi sopra); senz
 - [ ] Rename del package radice e del `groupId`/`artifactId`/`spring.application.name`.
 - [ ] `app/` cancellata e riscritta; `HomeController` + pagina iniziale.
 - [ ] `fragments/app/nav.html` e chiavi `app.brand|title` nei bundle `it` ed `en`.
-- [ ] Una propria `EventSource` (+ `events.source.<NAME>`), eventuali `IEventLinkResolver` / `ITokenProviderCatalog`.
+- [ ] Una propria `EventSource` (+ `events.source.<NAME>`), eventuali `IEventLinkResolver` / `ISecretTypeCatalog`.
 - [ ] `app.push.client-events` aggiornata (o vuota) per gli eventi SSE propri.
 - [ ] Migrazioni app con timestamp piu' recente di quelli del core; niente `spring.flyway.locations` (o completo).
 - [ ] `application.yml`, `.env.example` e `pom.xml` ripuliti da Replicate/OpenRouter/SearXNG/Spring AI (le dipendenze `spring-ai-*` vanno tolte: senza `spring.ai.*` l'avvio fallisce).

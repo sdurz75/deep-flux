@@ -5,7 +5,7 @@
 <!--
   Pannello "Avvia il training" di una bozza (templates/app/training-dataset.html), in due parti:
 
-  settings(dataset, hfTokens, minSteps, maxSteps): le impostazioni di lancio (nome del modello, passi, seed, copia su HuggingFace). Si salvano con la bozza
+  settings(dataset, hfSecrets, minSteps, maxSteps): le impostazioni di lancio (nome del modello, passi, seed, copia su HuggingFace). Si salvano con la bozza
   (POST htmx, azione leggera: data-busy="off") e la risposta rimpiazza i controlli. NON e' dentro il blocco che si ricarica: un form che si riscrive ogni pochi
   secondi cancellerebbe cio' che si sta digitando.
 
@@ -13,10 +13,10 @@
   (le didascalie finiscono in background) e dopo il salvataggio delle impostazioni. L'avvio e' un form htmx con conferma ("a pagamento") e overlay "operazione in
   corso" (e' un POST lento): al successo il server risponde con HX-Redirect alla pagina del training.
 
-  Il copia su HuggingFace e' ACCESO di default e il repo PRIVATO. Il token (scelto per nome fra quelli di /tokens, mai digitato qui) viene inviato a Replicate come
+  Il copia su HuggingFace e' ACCESO di default e il repo PRIVATO. Il token (scelto per nome fra quelli di /secrets, mai digitato qui) viene inviato a Replicate come
   segreto del trainer: il testo lo dice.
 -->
-<form th:fragment="settings(dataset, hfTokens, minSteps, maxSteps)" th:action="@{/trainings/datasets/{id}/launch-settings(id=${dataset.id})}" method="post"
+<form th:fragment="settings(dataset, hfSecrets, minSteps, maxSteps)" th:action="@{/trainings/datasets/{id}/launch-settings(id=${dataset.id})}" method="post"
       th:hx-post="@{/trainings/datasets/{id}/launch-settings(id=${dataset.id})}" hx-target="#training-launch-check" hx-swap="outerHTML" data-busy="off"
       autocomplete="off" class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark p-4 max-w-xl">
 
@@ -48,11 +48,11 @@
         <div x-show="hf" x-cloak class="mt-3">
             <label for="launch-hf-token" th:text="#{training.launch.hf.token}">Token HuggingFace</label>
             <div class="relative" x-data="pinesSelect" x-bind="root">
-                <select id="launch-hf-token" name="hfTokenId" class="sr-only" tabindex="-1" aria-hidden="true">
+                <select id="launch-hf-token" name="hfSecretId" class="sr-only" tabindex="-1" aria-hidden="true">
                     <option value="" th:text="#{generationParams.option.noToken}">— nessuno —</option>
-                    <option th:each="t : ${hfTokens}" th:value="${t.id}"
+                    <option th:each="t : ${hfSecrets}" th:value="${t.id}"
                             th:disabled="${t.status.name() == 'EXPIRED'}"
-                            th:selected="${#strings.toString(dataset.hfTokenId) == #strings.toString(t.id)}"
+                            th:selected="${#strings.toString(dataset.hfSecretId) == #strings.toString(t.id)}"
                             th:text="${t.expiresAt == null} ? ${t.name} : (${t.status.name() == 'EXPIRED'} ? #{generationParams.option.tokenExpired(${t.name})} : #{generationParams.option.tokenExpires(${t.name}, ${t.expiresAt})})">nome</option>
                 </select>
                 <div th:replace="~{fragments/core/select :: ui}"></div>

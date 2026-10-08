@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.dual.hexa.app.generation.domain.ApiTokenProvider;
+import org.dual.hexa.app.generation.domain.AppSecretType;
 import org.dual.hexa.app.training.domain.LoraType;
 import org.dual.hexa.app.training.domain.Training;
 import org.dual.hexa.app.training.domain.TrainingDataset;
@@ -18,7 +18,7 @@ import org.dual.hexa.app.training.port.in.ITrainingDatasets;
 import org.dual.hexa.app.training.port.in.ITrainings;
 import org.dual.hexa.core.kernel.Paged;
 import org.dual.hexa.core.storage.port.in.IImageStorageService;
-import org.dual.hexa.core.tokens.port.in.IApiTokens;
+import org.dual.hexa.core.secrets.port.in.ISecrets;
 import org.dual.hexa.core.web.PaginationSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -49,16 +49,16 @@ public class TrainingController {
     private final ITrainingDatasets datasets;
     private final ITrainingCaptions captions;
     private final ITrainings trainings;
-    private final IApiTokens tokens;
+    private final ISecrets secrets;
     /** Lato lungo massimo di un ritaglio: lo usa solo il browser (canvas), il server non decodifica le immagini. */
     private final int maxImageSide;
 
-    public TrainingController(ITrainingDatasets datasets, ITrainingCaptions captions, ITrainings trainings, IApiTokens tokens,
+    public TrainingController(ITrainingDatasets datasets, ITrainingCaptions captions, ITrainings trainings, ISecrets secrets,
                               @Value("${app.training.max-image-side:1536}") int maxImageSide) {
         this.datasets = datasets;
         this.captions = captions;
         this.trainings = trainings;
-        this.tokens = tokens;
+        this.secrets = secrets;
         this.maxImageSide = maxImageSide;
     }
 
@@ -281,7 +281,7 @@ public class TrainingController {
         model.addAttribute("launchCheck", trainings.check(dataset.getId()));
         model.addAttribute("minSteps", datasets.minSteps());
         model.addAttribute("maxSteps", datasets.maxSteps());
-        model.addAttribute("hfTokens", tokens.options(ApiTokenProvider.HUGGINGFACE.name()));
+        model.addAttribute("hfSecrets", secrets.options(AppSecretType.HUGGINGFACE.name()));
     }
 
     /** I valori del form di configurazione: quelli salvati (dopo un errore di validazione il chiamante li sovrascrive con quelli digitati). */
