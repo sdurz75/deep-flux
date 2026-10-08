@@ -7,7 +7,7 @@
   sono generati dal tipo dichiarato dal modulo (l'<input> ha un id statico solo perche' clear-field :: wrap lo seleziona; a runtime vale th:id); un fragment proprio del modulo (view.fragment, senza parametri) va sotto i campi. I testi sono chiavi
   di bundle del modulo, risolte qui con #{${...}}.
 -->
-<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="max-w-md mb-8">
+<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="max-w-md">
     <h2 th:text="#{${view.titleKey}}">Modulo</h2>
     <th:block th:if="${error}"><p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p></th:block>
     <p th:if="${saved}" th:text="#{settings.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>

@@ -12,7 +12,8 @@
     <h1 th:text="#{settings.title}">Impostazioni</h1>
     <p th:text="#{settings.intro}">Impostazioni dei moduli.</p>
     <p th:if="${#lists.isEmpty(views)}" th:text="#{settings.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessun modulo configurabile.</p>
-    <th:block th:each="view : ${views}">
+    <th:block th:each="view, stat : ${views}">
+        <hr th:unless="${stat.first}" class="max-w-md my-8 border-line dark:border-line-dark">
         <div th:replace="~{fragments/core/settings-section :: section(view=${view}, error=${view.error}, saved=${view.saved})}"></div>
     </th:block>
 </div>
