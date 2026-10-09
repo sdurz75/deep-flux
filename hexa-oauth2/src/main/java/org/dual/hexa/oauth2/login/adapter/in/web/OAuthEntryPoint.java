@@ -17,6 +17,9 @@ class OAuthEntryPoint implements AuthenticationEntryPoint {
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException {
+        if (response.isCommitted()) {
+            return; // flusso SSE gia' avviato (dispatch ASYNC di chiusura): niente da rispondere
+        }
         String login = request.getContextPath() + OAuthRequests.LOGIN_PATH;
         response.setHeader("Cache-Control", "no-store");
         if (OAuthRequests.isHtmx(request)) {

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Riquadro con titolo e, a destra, un link facoltativo ("Vedi tutto"): contenitore delle sezioni di una dashboard.
+
+  section(title, body, href, linkText)
+    title     titolo del riquadro, GIA' risolto dal chiamante con #{...}
+    body      fragment-expression (`~{::#id}`) col contenuto, inserito sotto il titolo (stesso schema di popover.html/accordion.html)
+    href      destinazione del link gia' risolta con @{...}; null = nessun link
+    linkText  testo del link (gia' risolto); ignorato se `href` e' null
+
+  Uso (parametri nominati, tutti passati; inutilizzati null):
+    <th:block th:replace="~{fragments/core/card :: section(title=#{x.title}, body=~{::#x-body}, href=@{/gallery}, linkText=#{x.all})}">
+        <div id="x-body"> ... </div>
+    </th:block>
+  Il corpo e' del chiamante: per un elenco vuoto usare fragments/core/empty-state.
+-->
+<section th:fragment="section(title, body, href, linkText)"
+         class="flex flex-col gap-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4">
+    <div class="flex items-baseline justify-between gap-3">
+        <h2 class="m-0 text-base font-semibold" th:text="${title}">Titolo</h2>
+        <a th:if="${href != null}" th:href="${href}" th:text="${linkText}" class="text-[0.8rem]">Vedi tutto</a>
+    </div>
+    <div th:replace="${body}"></div>
+</section>
+
+</body>
+</html>

@@ -39,7 +39,7 @@ Pines UI (devdojo.com/pines) è una raccolta di componenti Alpine e Tailwind, us
 | Popover | `fragments/core/popover.html` (`pinesPopover`) | `panel(label, labelId, title, body, align, extraClass)` (bottone + pannello) e `floating(align, extraClass, bodyClass, trap, body)` (solo il pannello, per chi ha un bottone proprio con `x-ref="button" @click="toggle()"`: campanella degli eventi e chip del credito); il contenuto resta nel DOM da chiuso. In Deep Chat ospita le impostazioni di generazione e la galleria della conversazione (slot `settings` dell'host, ancorati a destra); l'elenco delle conversazioni sta nella colonna collassabile (riga qui sotto) |
 | Video | `fragments/core/video-player.html` (`pinesVideo`) | controlli propri al posto di quelli nativi; senza JavaScript resta il `<video>` nativo |
 | Image gallery | `fragments/core/lightbox.html` | lightbox a schermo intero, usa il plugin Alpine `focus` |
-| Pagination | `fragments/core/pagination.html` | stile Pines, paginazione server |
+| Pagination | `fragments/core/pagination.html` | stile Pines a tutta larghezza con riepilogo "Da X a Y di N", paginazione server |
 | Modal (dialog) | `fragments/core/modal.html` (`dialog(titleId, maxWidth, body)`) + `dialogOpen`/`dialogClose` in `fragments/core/button.html` | scrim, focus trap e transizioni stanno solo nel fragment; il chiamante dichiara `dialogOpen` e passa il corpo come `~{::#id}`. Usato da `/tokens`, `/loras`, note di `/search`, selettore d'archivio, maschera e ritaglio |
 | Full-screen modal | `fragments/core/fullscreen-modal.html` (`screen(titleId, body)`) | schermata che copre tutta la finestra e non si chiude (niente scrim né Esc); autosufficiente (dichiara da sé `x-data`), focus trap con pagina inerte e scroll bloccato, funziona anche senza JavaScript. Il corpo è del chiamante (`~{::#id}`) e decide la propria larghezza. Usato dalla schermata di blocco con PIN (`core/unlock.html`). Per un dialog che si apre e si chiude resta `modal :: dialog` |
 | Conferma (modal) | `fragments/core/confirm-dialog.html` (incluso UNA volta da `layout.html`) | `hx-confirm="<domanda tradotta>"` apre il modal al posto del `confirm()` del browser (ascolta `htmx:confirm` e fa ripartire la richiesta su "Conferma"); da JavaScript `window.hexaConfirm(domanda)` ritorna una `Promise<boolean>`. Mai `confirm()` nativo (`ConfirmDialogTest` lo verifica sui template). La conferma con parola digitata di "Elimina tutto" resta un `modal :: dialog` a parte |
@@ -49,6 +49,20 @@ Pines UI (devdojo.com/pines) è una raccolta di componenti Alpine e Tailwind, us
 | Colonna collassabile | `fragments/core/collapsible-column.html` (`collapsibleColumn`; `layout(storageKey, label, hideLabel, column, content)`) + `panelToggle` in `fragments/core/button.html` | colonna laterale a sinistra del contenuto, nascosta/mostrata dal bottone `panelToggle` (che il chiamante mette in `content`); da md in su in flusso con scelta ricordata in `localStorage` (`storageKey`), sotto md cassetto con scrim, focus trap ed Esc. Pines non ha un componente simile (il suo slide-over e' solo un overlay): e' l'estensione dell'idioma di `slideover`. Usato da Deep Chat per le conversazioni; la documentazione completa (parametri, contratto Alpine, avvertenze) e' nel commento del fragment |
 | Copy to clipboard | `fragments/core/copy-to-clipboard.html` (`copy(text, label, copiedLabel, extraClass)`) | bottone che copia `text` negli appunti e mostra «Copiato» per 2 s; autosufficiente (`x-data` inline, nessuno script nel layout). Il testo viaggia in `data-copy`, le etichette arrivano già tradotte (`clipboard.copy`/`clipboard.copied`). `navigator.clipboard` in contesto sicuro, altrimenti `execCommand('copy')` su un `<textarea>` temporaneo. Usato per il prompt nel dettaglio di una generazione e per la descrizione di un'immagine importata |
 | Dropdown menu | `fragments/core/header.html` (`navMenu`) | menu a tendina del header: `pinesPopover` + `popover :: floating` nella barra, gruppo che si espande sul posto nello slideover (`inline=true`) |
+
+## Fragment per dashboard
+
+Per una pagina di sintesi (la home è la prima) il core offre cinque fragment generici, senza JavaScript né librerie di grafici: solo HTML e utility Tailwind coi token del tema. Come tutti i fragment del core ricevono testi e URL **già risolti** e non conoscono l'app; ciascuno documenta in testa al file parametri ed esempio d'uso.
+
+| Fragment | Parametri | A cosa serve |
+|---|---|---|
+| `fragments/core/stat-tile.html` (`tile`) | `label, value, hint, href, tone` | un numero in evidenza; con `href` tutta la tessera è cliccabile (link stirato); `tone` = `default`, `warning` o `danger` colora solo il numero |
+| `fragments/core/card.html` (`section`) | `title, body, href, linkText` | riquadro con titolo e link «Vedi tutto» facoltativo; `body` = `~{::#id}` |
+| `fragments/core/bar-chart.html` (`columns`) | `labels, values, titles, ariaLabel, tone` | serie a colonne (altezze in percentuale del massimo, un valore 0 resta una linea sottile); `titles` sono i tooltip |
+| `fragments/core/breakdown.html` (`bars`) | `labels, values, valueLabels, ariaLabel` | ripartizione in barre orizzontali, la più lunga è il massimo |
+| `fragments/core/empty-state.html` (`message`) | `text` | messaggio per una lista o un grafico senza dati |
+
+Le liste dei grafici si preparano nel controller (già nella lingua della richiesta, vedi `DashboardController`) e devono avere la stessa lunghezza; i valori di una serie sono tutti dello stesso tipo (il massimo si ricava ordinando una copia). Un fragment con parametri nominati e `th:if` va avvolto in un `th:block`: `th:replace` ha la precedenza su `th:if` sullo stesso elemento. I dati che richiedono una chiamata remota (il credito) non stanno nel render: si caricano con htmx da un contenitore `display: contents` (vedi `/dashboard/credits`).
 
 I bottoni di un componente Pines non si scrivono a mano: stanno in `fragments/core/button.html`.
 

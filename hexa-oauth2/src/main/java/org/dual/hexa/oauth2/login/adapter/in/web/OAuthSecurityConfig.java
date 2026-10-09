@@ -2,6 +2,7 @@ package org.dual.hexa.oauth2.login.adapter.in.web;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.dual.hexa.core.config.port.in.IModuleSettings;
 import org.dual.hexa.core.lock.port.in.ILockExemptPaths;
 import org.dual.hexa.oauth2.login.port.in.IOAuthAccess;
 import org.springframework.beans.factory.ObjectProvider;
@@ -42,7 +43,7 @@ class OAuthSecurityConfig {
     @Bean
     SecurityFilterChain hexaOauth2FilterChain(HttpSecurity http, IOAuthAccess access, ClientRegistrationRepository registrations,
                                               ObjectProvider<ILockExemptPaths> libraryPaths, AllowlistOidcUserService users, OAuthEntryPoint entryPoint,
-                                              OAuthFailureHandler failureHandler) throws Exception {
+                                              OAuthFailureHandler failureHandler, IModuleSettings settings) throws Exception {
         List<String> open = new ArrayList<>(ALWAYS_OPEN);
         libraryPaths.orderedStream().flatMap(library -> library.paths().stream())
                 .forEach(path -> open.add(path.endsWith("/") ? path + "**" : path));
@@ -61,6 +62,7 @@ class OAuthSecurityConfig {
                 .anonymous(Customizer.withDefaults())
                 .requestCache(cache -> cache.requestCache(requestCache))
                 .addFilterAfter(new SameOriginFilter(access), SecurityContextHolderFilter.class)
+                .addFilterAfter(new SessionLifetimeFilter(access, settings), SameOriginFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(open.toArray(String[]::new)).permitAll()
                         .anyRequest().access((authentication, context) -> new AuthorizationDecision(!access.isEnabled() || authenticated(authentication.get()))))

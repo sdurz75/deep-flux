@@ -6,6 +6,9 @@ public final class ConfigKeys {
     public static final String MODULE = "oauth2";
     public static final String ENABLED = "enabled";
     public static final String PROVIDERS = "providers";
+    public static final String SESSION_DAYS = "session-days";
+    public static final String SESSION_MAX_DAYS = "session-max-days";
+    public static final String SESSION_REMEMBER = "session-remember";
     public static final String ALLOWED_EMAILS = "allowed-emails";
     public static final String ALLOWED_DOMAINS = "allowed-domains";
     public static final String SLUG = "slug";

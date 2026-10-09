@@ -12,6 +12,18 @@ deep-flux serve a tre cose: **generare immagini e video** (anche con l'aiuto di 
 - Portare nell'archivio immagini tue con l'[importazione](08-importare-immagini.md).
 - Ritrovare tutto per significato con la [Ricerca e note](09-ricerca-e-note.md).
 
+## La home
+
+La pagina iniziale è una **dashboard**: un colpo d'occhio su cosa hai fatto e quanto è costato. Si legge dall'alto verso il basso:
+
+- **Le tessere** in alto contano le generazioni degli ultimi 30 giorni, il costo stimato (con gli ultimi 7 giorni e il totale), la quota di generazioni riuscite, quelle ancora in corso, quanto c'è in archivio (con i file preferiti), le conversazioni, i training e i LoRA anagrafati. Quasi tutte portano alla pagina corrispondente al clic. L'ultima tessera (o le ultime due) mostra il credito residuo di Replicate e OpenRouter e si aggiorna da sola: per Replicate è una stima, come nella [barra in basso](#la-barra-in-basso).
+- **Attività** è un grafico con le generazioni di ogni giorno; passando il mouse su una colonna vedi riuscite, fallite e costo di quel giorno.
+- **Modelli più usati** mette in fila i modelli del periodo, con il numero di generazioni e il costo stimato.
+- **Ultime generazioni** mostra le miniature più recenti; un clic apre il dettaglio.
+- **Da guardare** segnala gli eventi di sistema non ancora letti (vedi [La campanella](#la-campanella)) e i training in corso.
+
+Il costo è una **stima** calcolata dai prezzi noti di Replicate: i modelli senza un prezzo noto non vengono sommati. Sotto i riquadri restano i collegamenti rapidi alle pagine principali.
+
 ## Il menu
 
 La barra in alto ha queste voci:

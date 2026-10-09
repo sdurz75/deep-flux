@@ -22,6 +22,10 @@ Con il cancello acceso non puoi togliere l'ultimo provider né l'ultima voce uti
 
 Presso il provider (per esempio la console Google Cloud) devi registrare l'**indirizzo di ritorno** che trovi nell'elenco dei provider della sezione, nella forma `https://tuo-indirizzo/login/oauth2/code/google`. Dipende dall'indirizzo con cui apri l'app: se lo cambi, va registrato di nuovo.
 
+## Durata della sessione
+
+Nella sezione OAuth2 di `/settings` decidi quanto resti collegato: **Durata della sessione (giorni di inattività)** (default 30, ogni uso rinnova il periodo), **Durata massima dal primo accesso (giorni, 0 = nessun limite)** e **Ricorda l'accesso alla chiusura del browser o della PWA** (acceso di default; spento, chiudere il browser o la PWA ti scollega). I valori valgono subito, senza riavvio. I token del provider non contano: dopo l'accesso non vengono più usati. Le sessioni sopravvivono anche a un riavvio dell'app (cartella `data/sessions`).
+
 ## Con il blocco con PIN
 
 Se usi anche il [Blocco con PIN](14-blocco-con-pin.md), prima entri con il provider e poi, dopo un periodo di inattività, serve il PIN. Sono indipendenti: puoi usarne uno, l'altro o entrambi.

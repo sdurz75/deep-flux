@@ -66,6 +66,13 @@ final class InMemoryTrainingStore implements ITrainingStore {
     }
 
     @Override
+    public Map<TrainingStatus, Long> countByStatus() {
+        Map<TrainingStatus, Long> counts = new java.util.EnumMap<>(TrainingStatus.class);
+        rows.values().forEach(t -> counts.merge(t.getStatus(), 1L, Long::sum));
+        return counts;
+    }
+
+    @Override
     public void delete(Training training) {
         rows.remove(training.getId());
     }

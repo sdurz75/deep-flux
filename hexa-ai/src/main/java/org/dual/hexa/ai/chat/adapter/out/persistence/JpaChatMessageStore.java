@@ -45,4 +45,9 @@ class JpaChatMessageStore implements IChatMessageStore {
     public List<ChatMessage> findAll() {
         return repository.findAll();
     }
+
+    @Override
+    public long count() {
+        return repository.count();
+    }
 }

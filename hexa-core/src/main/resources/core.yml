@@ -16,6 +16,12 @@ server:
   # header se un client li invia direttamente: non esporre mai la porta
   # 7070 dell'app stessa a Internet.
   forward-headers-strategy: framework
+  # Le sessioni HTTP (accesso OAuth2, sblocco del PIN) sopravvivono a un riavvio: Tomcat le scrive qui allo spegnimento. Durata e cookie li decide
+  # il modulo oauth2 (/settings), non queste chiavi.
+  servlet:
+    session:
+      persistent: true
+      store-dir: ./data/sessions
 
 spring:
   servlet:

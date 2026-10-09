@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Tessera di una dashboard: un numero in evidenza con etichetta e nota, opzionalmente cliccabile.
+
+  tile(label, value, hint, href, tone)
+    label  testo breve sopra il numero (GIA' risolto dal chiamante con #{...}); con `href` e' il link e l'intera tessera diventa l'area di click
+           (link "stirato": nessun <a> che avvolge blocchi, la tessera resta un <div>)
+    value  il numero (o testo breve, es. "$1,20", "93%") GIA' formattato: il fragment non conosce ne' valute ne' locale
+    hint   riga piccola sotto il numero (es. "ultimi 30 giorni"); null = nessuna
+    href   destinazione gia' risolta con @{...}; null = tessera non cliccabile
+    tone   default | warning | danger: colora SOLO il numero con i token del tema (warning/danger); qualunque altro valore = default
+
+  Uso (parametri nominati, tutti passati; inutilizzati null), dentro una griglia fornita dal chiamante:
+    <div th:replace="~{fragments/core/stat-tile :: tile(label=#{x.label}, value=${total}, hint=null, href=@{/gallery}, tone='default')}"></div>
+  Con th:each avvolgere in un th:block: th:replace ha la precedenza su th:each sullo stesso elemento.
+-->
+<div th:fragment="tile(label, value, hint, href, tone)"
+     class="relative flex flex-col gap-1 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4"
+     th:classappend="${href != null} ? 'hover:border-accent dark:hover:border-accent-dark'">
+    <a th:if="${href != null}" th:href="${href}" th:text="${label}"
+       class="text-[0.8rem] no-underline text-ink-muted dark:text-ink-muted-dark before:absolute before:inset-0 before:content-['']">etichetta</a>
+    <span th:if="${href == null}" th:text="${label}" class="text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">etichetta</span>
+    <span class="text-2xl font-semibold leading-tight"
+          th:classappend="${tone == 'danger'} ? 'text-danger dark:text-danger-dark' : (${tone == 'warning'} ? 'text-warning dark:text-warning-dark' : 'text-ink dark:text-ink-dark')"
+          th:text="${value}">42</span>
+    <span th:if="${hint != null}" th:text="${hint}" class="text-[0.75rem] text-ink-muted dark:text-ink-muted-dark">nota</span>
+</div>
+
+</body>
+</html>

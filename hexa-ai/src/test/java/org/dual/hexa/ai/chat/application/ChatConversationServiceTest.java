@@ -161,6 +161,27 @@ class ChatConversationServiceTest {
         return new ChatConversationService(conversationRepository, chatMessageRepository, messages, new tools.jackson.databind.ObjectMapper(), org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
     }
 
+    @Test
+    void statsCountConversationsAndMessagesAndReportTheLastActivity() {
+        ChatConversation latest = new ChatConversation();
+        when(conversationRepository.count()).thenReturn(3L);
+        when(chatMessageRepository.count()).thenReturn(25L);
+        when(conversationRepository.findMostRecent()).thenReturn(Optional.of(latest));
+
+        org.dual.hexa.ai.chat.domain.ChatStats stats = settingsService().stats();
+
+        assertThat(stats.conversations()).isEqualTo(3);
+        assertThat(stats.messages()).isEqualTo(25);
+        assertThat(stats.lastActivity()).isEqualTo(latest.getUpdatedAt());
+    }
+
+    @Test
+    void statsWithoutConversationsHaveNoLastActivity() {
+        when(conversationRepository.findMostRecent()).thenReturn(Optional.empty());
+
+        assertThat(settingsService().stats().lastActivity()).isNull();
+    }
+
     /** Ogni conversazione nuova parte dai default del catalogo ("{}"); NULL esiste solo per le righe precedenti alla migrazione. */
     @Test
     void aNewConversationStartsWithEmptySettings() {

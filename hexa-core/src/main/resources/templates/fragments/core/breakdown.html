@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Ripartizione in barre orizzontali (es. i modelli piu' usati): una riga per voce con etichetta, barra e valore. La barra piu' lunga e' quella
+  col valore massimo; solo HTML e classi Tailwind (`accent` sul binario `line`), nessuna libreria.
+
+  bars(labels, values, valueLabels, ariaLabel)
+    labels       List<String> etichette delle voci, GIA' risolte (tronca da solo con ellissi; il testo intero sta nel tooltip)
+    values       List<Number> stessa lunghezza, >= 0, tutti dello STESSO tipo (es. tutti Long): decide la lunghezza delle barre
+    valueLabels  List<String> testo a destra di ogni barra, GIA' formattato (es. "12 · $0,40")
+    ariaLabel    descrizione dell'elenco per gli screen reader
+
+  Uso (tutti i parametri passati):
+    <div th:replace="~{fragments/core/breakdown :: bars(labels=${names}, values=${counts}, valueLabels=${texts}, ariaLabel=#{x.models})}"></div>
+  Una lista vuota non renderizza nulla (usare fragments/core/empty-state).
+-->
+<ul th:fragment="bars(labels, values, valueLabels, ariaLabel)" th:if="${!#lists.isEmpty(values)}"
+    th:with="peak=${#lists.sort(values)[values.size() - 1]}" class="m-0 flex list-none flex-col gap-2 p-0" th:aria-label="${ariaLabel}">
+    <li th:each="value, stat : ${values}" class="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-[0.85rem]">
+        <span class="truncate" th:text="${labels[stat.index]}" th:title="${labels[stat.index]}">modello</span>
+        <span class="h-2 overflow-hidden rounded-full bg-line dark:bg-line-dark" aria-hidden="true">
+            <span class="block h-full rounded-full bg-accent dark:bg-accent-dark"
+                  th:style="'width:' + ${peak.doubleValue() > 0 ? value.doubleValue() * 100 / peak.doubleValue() : 0} + '%'"></span>
+        </span>
+        <span class="whitespace-nowrap text-ink-muted dark:text-ink-muted-dark" th:text="${valueLabels[stat.index]}">12</span>
+    </li>
+</ul>
+
+</body>
+</html>

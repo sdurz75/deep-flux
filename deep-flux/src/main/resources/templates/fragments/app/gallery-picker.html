@@ -26,7 +26,7 @@
                  onerror="this.style.visibility='hidden'">
         </a>
     </div>
-    <div th:replace="~{fragments/core/pagination :: nav('/gallery/picker?tab=' + ${tab} + '&kind=' + ${kind ?: ''}, '#archive-picker', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+    <div th:replace="~{fragments/core/pagination :: nav('/gallery/picker?tab=' + ${tab} + '&kind=' + ${kind ?: ''}, '#archive-picker', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null, ${totalElements}, ${pageSize})}"></div>
 </div>
 
 </body>

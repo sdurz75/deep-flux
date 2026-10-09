@@ -27,6 +27,9 @@ public interface ITrainingStore {
     /** Il training che usa questo dataset congelato, se c'e' (per riconoscere uno snapshot dalla pagina del dataset). */
     Optional<Training> findBySnapshotDatasetId(Long snapshotDatasetId);
 
+    /** Righe per stato (solo gli stati presenti). */
+    java.util.Map<TrainingStatus, Long> countByStatus();
+
     void delete(Training training);
 
     /** Svuota la tabella (test e reset). */

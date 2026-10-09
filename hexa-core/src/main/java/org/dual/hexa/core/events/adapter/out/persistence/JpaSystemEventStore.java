@@ -47,7 +47,8 @@ class JpaSystemEventStore implements ISystemEventStore {
         Page<SystemEvent> page = severity == null
                 ? repository.findAllByOrderByLastSeenAtDesc(pageable)
                 : repository.findAllBySeverityOrderByLastSeenAtDesc(severity, pageable);
-        return new EventPage(page.getContent(), page.getTotalPages(), page.hasPrevious(), page.hasNext());
+        return new EventPage(page.getContent(), page.getTotalPages(), page.hasPrevious(), page.hasNext(),
+                page.getTotalElements());
     }
 
     @Override

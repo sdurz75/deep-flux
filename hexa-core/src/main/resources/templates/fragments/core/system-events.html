@@ -67,7 +67,7 @@
         </ul>
 
         <!--/* basePath con il filtro nella query: la paginazione generica appende "&page=N". */-->
-        <div th:replace="~{fragments/core/pagination :: nav(${basePath}, '#events-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        <div th:replace="~{fragments/core/pagination :: nav(${basePath}, '#events-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null, ${totalElements}, ${pageSize})}"></div>
     </div>
 </th:block>
 

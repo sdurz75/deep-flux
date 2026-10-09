@@ -5,10 +5,76 @@
     <title th:text="#{index.title}">Home</title>
 </head>
 <body>
+<!--
+  Home = dashboard di sintesi (DashboardController). Il render legge solo dati locali; il credito residuo arriva da GET /dashboard/credits
+  (htmx, ogni 5 minuti e a fine generazione). I contenitori sono i fragment generici di fragments/core (stat-tile, card, bar-chart,
+  breakdown, empty-state); i dati sono gia' formattati dal controller. In fondo restano i link di avvio rapido.
+-->
 <div layout:fragment="content">
     <h1>deep-flux</h1>
     <p th:text="#{index.intro}">Genera immagini e video con l'aiuto di un assistente, modificali, ritrovali in galleria.</p>
 
+    <!-- Tessere -->
+    <div class="my-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.generations}, value=${view.generation().launchedInWindow()}, hint=#{index.dashboard.tile.window(${windowDays})}, href=@{/generations}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.cost}, value=${costWindow}, hint=#{index.dashboard.tile.cost.hint(${costLast7}, ${costTotal})}, href=null, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.success}, value=${successRate}, hint=#{index.dashboard.tile.success.hint(${view.generation().failed()})}, href=null, tone=${successTone})}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.running}, value=${view.generation().inProgress()}, hint=null, href=@{/generations}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.archive}, value=${view.generation().images() + view.generation().videos() + view.generation().imported()}, hint=#{index.dashboard.tile.archive.hint(${view.generation().favourites()})}, href=@{/gallery}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.chat}, value=${view.chat().conversations()}, hint=#{index.dashboard.tile.chat.hint(${view.chat().messages()})}, href=@{/deep-chat}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.trainings}, value=${view.trainingsTotal()}, hint=#{index.dashboard.tile.trainings.hint(${view.trainingsRunning()}, ${view.trainingsSucceeded()})}, href=@{/trainings}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.loras}, value=${view.loras()}, hint=null, href=@{/loras}, tone='default')}"></div>
+        <!-- Credito: lazy (puo' chiamare OpenRouter). `contents` = le tessere della risposta sono figlie della griglia. -->
+        <div class="contents" th:hx-get="@{/dashboard/credits}" hx-trigger="load, every 300s, gallery-update from:body" hx-swap="innerHTML"></div>
+    </div>
+
+    <!-- Riquadri -->
+    <div class="my-4 grid gap-3 lg:grid-cols-2">
+        <th:block th:replace="~{fragments/core/card :: section(title=#{index.dashboard.activity.title(${windowDays})}, body=~{::#dash-activity}, href=@{/generations}, linkText=#{index.dashboard.all})}">
+            <div id="dash-activity">
+                <th:block th:if="${view.generation().launchedInWindow() > 0}">
+                    <div th:replace="~{fragments/core/bar-chart :: columns(labels=${dailyLabels}, values=${dailyValues}, titles=${dailyTitles}, ariaLabel=#{index.dashboard.activity.aria(${windowDays})}, tone='default')}"></div>
+                </th:block>
+                <th:block th:unless="${view.generation().launchedInWindow() > 0}">
+                    <p th:replace="~{fragments/core/empty-state :: message(text=#{index.dashboard.activity.empty})}"></p>
+                </th:block>
+            </div>
+        </th:block>
+
+        <th:block th:replace="~{fragments/core/card :: section(title=#{index.dashboard.models.title(${windowDays})}, body=~{::#dash-models}, href=null, linkText=null)}">
+            <div id="dash-models">
+                <th:block th:if="${!view.generation().topModels().isEmpty()}">
+                    <div th:replace="~{fragments/core/breakdown :: bars(labels=${modelLabels}, values=${modelValues}, valueLabels=${modelTexts}, ariaLabel=#{index.dashboard.models.aria})}"></div>
+                </th:block>
+                <th:block th:if="${view.generation().topModels().isEmpty()}">
+                    <p th:replace="~{fragments/core/empty-state :: message(text=#{index.dashboard.models.empty})}"></p>
+                </th:block>
+            </div>
+        </th:block>
+
+        <th:block th:replace="~{fragments/core/card :: section(title=#{index.dashboard.recent.title}, body=~{::#dash-recent}, href=@{/gallery}, linkText=#{index.dashboard.all})}">
+            <div id="dash-recent">
+                <th:block th:if="${!view.recent().isEmpty()}">
+                    <div th:replace="~{fragments/app/dashboard :: recent(items=${view.recent()})}"></div>
+                </th:block>
+                <th:block th:if="${view.recent().isEmpty()}">
+                    <p th:replace="~{fragments/core/empty-state :: message(text=#{index.dashboard.recent.empty})}"></p>
+                </th:block>
+            </div>
+        </th:block>
+
+        <th:block th:replace="~{fragments/core/card :: section(title=#{index.dashboard.attention.title}, body=~{::#dash-attention}, href=@{/system/events}, linkText=#{index.dashboard.attention.all})}">
+            <div id="dash-attention">
+                <div th:replace="~{fragments/app/dashboard :: attention(unseen=${view.attention()}, running=${view.trainingsRunning()})}"></div>
+                <div th:if="${view.generation().images() + view.generation().videos() + view.generation().imported() > 0}" class="mt-4 flex flex-col gap-2">
+                    <h3 class="m-0 text-[0.85rem] font-semibold" th:text="#{index.dashboard.archive.title}">Archivio</h3>
+                    <div th:replace="~{fragments/core/breakdown :: bars(labels=${archiveLabels}, values=${archiveValues}, valueLabels=${archiveTexts}, ariaLabel=#{index.dashboard.archive.aria})}"></div>
+                </div>
+            </div>
+        </th:block>
+    </div>
+
+    <!-- Avvio rapido -->
     <ul class="list-none p-0 my-4">
         <li class="py-2">
             <a th:href="@{/deep-chat}" th:text="#{header.nav.deepChat}">Deep Chat</a>

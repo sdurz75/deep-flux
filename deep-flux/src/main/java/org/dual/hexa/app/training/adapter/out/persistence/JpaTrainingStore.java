@@ -57,6 +57,15 @@ class JpaTrainingStore implements ITrainingStore {
     }
 
     @Override
+    public java.util.Map<TrainingStatus, Long> countByStatus() {
+        java.util.Map<TrainingStatus, Long> counts = new java.util.EnumMap<>(TrainingStatus.class);
+        for (Object[] row : repository.countGroupedByStatus()) {
+            counts.put((TrainingStatus) row[0], (Long) row[1]);
+        }
+        return counts;
+    }
+
+    @Override
     public void delete(Training training) {
         repository.delete(training);
     }

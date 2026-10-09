@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.dual.hexa.ai.chat.domain.ChatConversation;
 import org.dual.hexa.ai.chat.domain.ChatMessage;
+import org.dual.hexa.ai.chat.domain.ChatStats;
 import org.dual.hexa.ai.chat.domain.event.ChatConversationChangedEvent;
 import org.dual.hexa.ai.chat.domain.event.ChatConversationDeletedEvent;
 import org.dual.hexa.ai.chat.port.in.IChatConversations;
@@ -64,6 +65,13 @@ public class ChatConversationService implements IChatConversations {
     @Transactional(readOnly = true)
     public Optional<ChatConversation> find(Long id) {
         return conversationRepository.findById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ChatStats stats() {
+        return new ChatStats(conversationRepository.count(), chatMessageRepository.count(),
+                conversationRepository.findMostRecent().map(ChatConversation::getUpdatedAt).orElse(null));
     }
 
     @Override

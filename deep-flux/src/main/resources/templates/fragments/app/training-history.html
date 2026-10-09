@@ -32,7 +32,7 @@
             </li>
         </ul>
 
-        <div th:replace="~{fragments/core/pagination :: nav('/trainings?tab=history', '#trainings-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        <div th:replace="~{fragments/core/pagination :: nav('/trainings?tab=history', '#trainings-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null, ${totalElements}, ${pageSize})}"></div>
     </div>
 </th:block>
 

@@ -1,5 +1,6 @@
 package org.dual.hexa.core.lock.adapter.in.web;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
@@ -39,6 +40,11 @@ class LockInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // Un flusso SSE/asincrono e' gia' stato ammesso al dispatch iniziale e ha le intestazioni inviate: al dispatch ASYNC di chiusura (es. PWA
+        // in background, nel frattempo la sessione si e' bloccata) un sendError lancerebbe «response has been committed».
+        if (request.getDispatcherType() == DispatcherType.ASYNC || response.isCommitted()) {
+            return true;
+        }
         if (!lock.isEnabled() || isExempt(pathOf(request)) || sessions.isUnlocked(request)) {
             return true;
         }

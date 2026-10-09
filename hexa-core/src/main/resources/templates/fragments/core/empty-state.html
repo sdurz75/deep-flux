@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Messaggio per una lista o un grafico senza dati (testo attenuato).
+
+  message(text)
+    text  il messaggio GIA' risolto dal chiamante con #{...}; dica cosa fare, non solo che manca qualcosa
+
+  Uso:  <p th:replace="~{fragments/core/empty-state :: message(text=#{x.empty})}"></p>
+-->
+<p th:fragment="message(text)" class="m-0 text-[0.85rem] text-ink-muted dark:text-ink-muted-dark" th:text="${text}">Niente da mostrare.</p>
+
+</body>
+</html>

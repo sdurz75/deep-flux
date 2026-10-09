@@ -159,7 +159,7 @@ class LibraryToolTest {
 
     @Test
     void recentEventsQueriesTheRegistryWithTheRequestedSeverity() {
-        when(systemEvents.list(SystemEventSeverity.ERROR, 0, 10)).thenReturn(new EventPage(List.of(), 0, false, false));
+        when(systemEvents.list(SystemEventSeverity.ERROR, 0, 10)).thenReturn(new EventPage(List.of(), 0, false, false, 0));
 
         assertThat(tool().recentEvents("error")).isEqualTo("No recent events.");
     }

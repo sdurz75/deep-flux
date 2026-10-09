@@ -103,6 +103,8 @@ public class GalleryController {
         model.addAttribute("kind", kind);
         model.addAttribute("currentPage", currentPage);
         model.addAttribute("totalPages", result.totalPages());
+        model.addAttribute("totalElements", result.totalElements());
+        model.addAttribute("pageSize", result.pageSize());
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
         model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));

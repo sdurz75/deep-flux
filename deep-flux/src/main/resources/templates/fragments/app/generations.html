@@ -24,7 +24,7 @@
         <th:block th:unless="${#lists.isEmpty(generations)}">
             <div th:replace="~{fragments/app/generations :: list(${generations}, ${currentPage})}"></div>
         </th:block>
-        <div th:replace="~{fragments/core/pagination :: nav('/generations', '#generations-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+        <div th:replace="~{fragments/core/pagination :: nav('/generations', '#generations-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null, ${totalElements}, ${pageSize})}"></div>
     </div>
 </th:block>
 

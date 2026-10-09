@@ -131,6 +131,8 @@ public class SystemEventController {
         model.addAttribute("unseenCount", events.unseen().count());
         model.addAttribute("currentPage", currentPage);
         model.addAttribute("totalPages", result.totalPages());
+        model.addAttribute("totalElements", result.totalElements());
+        model.addAttribute("pageSize", PAGE_SIZE);
         model.addAttribute("hasPrevious", result.hasPrevious());
         model.addAttribute("hasNext", result.hasNext());
         model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));

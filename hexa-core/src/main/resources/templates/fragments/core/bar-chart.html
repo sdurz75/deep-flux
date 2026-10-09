@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Grafico a colonne di una serie (es. generazioni al giorno): solo HTML e classi Tailwind, nessuna libreria ne' script. Le altezze sono
+  percentuali del valore massimo della serie (inline `height`, l'unico stile inline: non e' un colore); un valore 0 resta una linea sottile
+  nel colore `line`, cosi' la serie si legge anche quando e' quasi vuota. Se tutti i valori sono 0 nessuna colonna cresce.
+
+  columns(labels, values, titles, ariaLabel, tone)
+    labels     List<String> una per colonna, GIA' formattate; si mostrano solo la prima e l'ultima sotto il grafico
+    values     List<Number> stessa lunghezza di `labels`, >= 0, tutti dello STESSO tipo (es. tutti Long: il massimo si ricava ordinando una copia della lista)
+    titles     List<String> tooltip di ogni colonna (es. "12 ott: 3 generazioni"), stessa lunghezza
+    ariaLabel  descrizione del grafico per gli screen reader (il grafico e' role="img": il dettaglio sta nei tooltip)
+    tone       default (accent) | warning | danger: colore delle colonne con valore > 0
+
+  Uso (le liste si preparano nel controller o con proiezioni SpEL; tutti i parametri passati):
+    <div th:replace="~{fragments/core/bar-chart :: columns(labels=${labels}, values=${values}, titles=${titles}, ariaLabel=#{x.chart}, tone='default')}"></div>
+  Le tre liste devono avere la stessa lunghezza; una serie vuota non renderizza nulla (usare fragments/core/empty-state).
+-->
+<div th:fragment="columns(labels, values, titles, ariaLabel, tone)" th:if="${!#lists.isEmpty(values)}"
+     th:with="peak=${#lists.sort(values)[values.size() - 1]}">
+    <div class="flex h-32 items-end gap-px" role="img" th:aria-label="${ariaLabel}">
+        <div th:each="value, stat : ${values}" class="flex h-full flex-1 flex-col justify-end" th:title="${titles[stat.index]}">
+            <div class="min-h-px w-full rounded-t-sm"
+                 th:style="'height:' + ${peak.doubleValue() > 0 ? value.doubleValue() * 100 / peak.doubleValue() : 0} + '%'"
+                 th:classappend="${value.doubleValue() <= 0} ? 'bg-line dark:bg-line-dark' : (${tone == 'danger'} ? 'bg-danger dark:bg-danger-dark' : (${tone == 'warning'} ? 'bg-warning dark:bg-warning-dark' : 'bg-accent dark:bg-accent-dark'))"></div>
+        </div>
+    </div>
+    <div class="mt-1 flex justify-between text-[0.75rem] text-ink-muted dark:text-ink-muted-dark" aria-hidden="true">
+        <span th:text="${labels[0]}">1 ott</span>
+        <span th:text="${labels[labels.size() - 1]}">30 ott</span>
+    </div>
+</div>
+
+</body>
+</html>

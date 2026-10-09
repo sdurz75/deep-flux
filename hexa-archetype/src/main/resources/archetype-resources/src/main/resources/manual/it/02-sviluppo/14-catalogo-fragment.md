@@ -41,7 +41,7 @@ In `field-buttons.html`, le icone dei campi: `tagRemove(title)`, `clearInput(tit
 - `accordion :: panels(labels, bodies, storageKey)` e `accordion :: staticPanels(labels, bodies)`.
 - `popover :: floating(align, extraClass, bodyClass, trap, body)` dentro un antenato `x-data="pinesPopover"`; `popover :: panel(label, labelId, title, body, align, extraClass, icon)` quando il pannello porta la propria etichetta; `popover :: script` per lo script.
 - `slideover :: drawer(persistent, body)`: pannello laterale di navigazione (assume `navOpen` su un antenato).
-- `pagination :: nav(basePath, hxTarget, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, ariaLabel)`: i numeri vengono da `PaginationSupport`. Per elenchi lunghi si può preferire lo scroll infinito.
+- `pagination :: nav(basePath, hxTarget, currentPage, totalPages, hasPrevious, hasNext, pageNumbers, ariaLabel, totalElements, pageSize)`: i numeri vengono da `PaginationSupport`. Per elenchi lunghi si può preferire lo scroll infinito.
 - `description-list :: term(text)`: coppie termine e valore nelle schede di dettaglio.
 - `chip :: neutral(text, textClass)` e `chip :: link(href, text, textClass)`: etichette compatte.
 

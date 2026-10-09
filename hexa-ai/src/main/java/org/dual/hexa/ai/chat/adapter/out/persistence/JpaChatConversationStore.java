@@ -42,6 +42,11 @@ class JpaChatConversationStore implements IChatConversationStore {
     }
 
     @Override
+    public long count() {
+        return repository.count();
+    }
+
+    @Override
     public void delete(ChatConversation conversation) {
         repository.delete(conversation);
     }

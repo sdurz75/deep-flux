@@ -1,10 +1,12 @@
 package org.dual.hexa.app.training.port.in;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.dual.hexa.app.training.domain.LaunchCheck;
 import org.dual.hexa.app.training.domain.Training;
+import org.dual.hexa.app.training.domain.TrainingStatus;
 import org.dual.hexa.core.kernel.Paged;
 
 /**
@@ -44,6 +46,9 @@ public interface ITrainings {
 
     /** Elimina il training col suo dataset congelato e i file; se era in corso lo annulla. NON elimina il modello Replicate, il repo HuggingFace ne' il preset. */
     void delete(Long id);
+
+    /** Quanti training ci sono per stato (solo gli stati presenti), per la dashboard. Sola lettura. */
+    Map<TrainingStatus, Long> countByStatus();
 
     /** I training non terminali, per il poller. */
     List<Training> inProgress();

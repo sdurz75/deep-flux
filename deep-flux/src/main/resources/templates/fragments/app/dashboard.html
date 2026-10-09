@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Pezzi APP della dashboard della home (templates/app/index.html). I contenitori generici (tessera, riquadro, grafici, stato vuoto) sono in
+  fragments/core: qui ci sono solo quelli che conoscono il dominio (credito, ultime generazioni, eventi).
+
+  credits(creditLines): una tessera per provider, risposta di GET /dashboard/credits (caricata da htmx dal contenitore `display: contents`
+  dell'index, quindi le tessere sono figlie dirette della griglia). Come la barra in basso, Replicate e' una STIMA (prefisso ~) e sotto
+  CreditLine.LOW_THRESHOLD_USD o senza saldo impostato la tessera prende il tono `warning`. `creditLines`: List<CreditLine>.
+-->
+<th:block th:fragment="credits(creditLines)">
+    <th:block th:each="line : ${creditLines}"
+              th:with="ok=${line.status.name() == 'OK'}, prefix=${line.estimated} ? '~$' : '$',
+                       labelKey='credits.label.' + ${line.provider},
+                       value=${ok} ? (${prefix} + ${#numbers.formatDecimal(line.amountUsd, 1, 2)})
+                                   : (${line.status.name() == 'NOT_SET'} ? #{credits.notSet} : #{credits.unavailable}),
+                       tone=${line.low() or line.status.name() == 'NOT_SET'} ? 'warning' : 'default'">
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{${labelKey}}, value=${value}, hint=#{index.dashboard.tile.credits.hint}, href=null, tone=${tone})}"></div>
+    </th:block>
+</th:block>
+
+<!--
+  recent(items): le ultime generazioni riuscite come miniature che portano al dettaglio. `items`: List<GalleryItem> (un file per generazione).
+  Niente lightbox ne' selezione (a differenza di gallery-card): e' solo un colpo d'occhio. I video sono un <video> senza controlli
+  (preload="metadata", stessa scelta della galleria).
+-->
+<div th:fragment="recent(items)" class="grid grid-cols-3 gap-2 md:grid-cols-6">
+    <a th:each="item : ${items}" th:href="@{'/generations/' + ${item.generation.id}}"
+       class="block aspect-square overflow-hidden rounded-md border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark"
+       th:title="${item.generation.model}">
+        <img th:unless="${item.generation.video}" th:src="@{'/images/' + ${item.filename}}" alt="" loading="lazy" class="h-full w-full object-cover">
+        <video th:if="${item.generation.video}" th:src="@{'/images/' + ${item.filename}}" preload="metadata" muted playsinline class="h-full w-full object-cover"></video>
+    </a>
+</div>
+
+<!--
+  attention(unseen, running): cosa richiede uno sguardo. `unseen`: ISystemEvents.Unseen (eventi non letti, almeno WARNING, con gli ultimi);
+  `running`: training in corso. Senza nessuno dei due mostra un messaggio rassicurante (stato vuoto del core).
+-->
+<div th:fragment="attention(unseen, running)" class="flex flex-col gap-2">
+    <th:block th:if="${unseen.count() == 0 and running == 0}">
+        <p th:replace="~{fragments/core/empty-state :: message(text=#{index.dashboard.attention.none})}"></p>
+    </th:block>
+    <a th:if="${running > 0}" th:href="@{/trainings}" class="text-[0.85rem]"
+       th:text="#{index.dashboard.attention.trainings(${running})}">2 training in corso</a>
+    <th:block th:if="${unseen.count() > 0}">
+        <a th:href="@{/system/events}" class="text-[0.85rem] font-semibold"
+           th:classappend="${unseen.hasError()} ? 'text-danger dark:text-danger-dark' : 'text-warning dark:text-warning-dark'"
+           th:text="#{index.dashboard.attention.events(${unseen.count()})}">3 eventi da leggere</a>
+        <ul class="m-0 flex list-none flex-col gap-1 p-0 text-[0.8rem] text-ink-muted dark:text-ink-muted-dark">
+            <li th:each="event : ${unseen.latest()}" class="truncate" th:title="${event.message}"
+                th:text="${event.operation + ': ' + event.message}">operazione: messaggio</li>
+        </ul>
+    </th:block>
+</div>
+
+</body>
+</html>

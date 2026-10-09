@@ -39,7 +39,7 @@
         </li>
     </ul>
 
-    <div th:replace="~{fragments/core/pagination :: nav('/trainings', '#trainings-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null)}"></div>
+    <div th:replace="~{fragments/core/pagination :: nav('/trainings', '#trainings-content', ${currentPage}, ${totalPages}, ${hasPrevious}, ${hasNext}, ${pageNumbers}, null, ${totalElements}, ${pageSize})}"></div>
 </th:block>
 
 </body>

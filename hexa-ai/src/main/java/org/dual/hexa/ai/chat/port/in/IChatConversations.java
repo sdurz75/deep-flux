@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.dual.hexa.ai.chat.domain.ChatConversation;
 import org.dual.hexa.ai.chat.domain.ChatMessage;
+import org.dual.hexa.ai.chat.domain.ChatStats;
 
 /** Le conversazioni di /deep-chat: elenco, creazione, rinomina, cancellazione, cronologia. */
 public interface IChatConversations {
@@ -45,6 +46,9 @@ public interface IChatConversations {
 
     /** Cancella i turni e la conversazione; non tocca le generazioni (ciclo di vita indipendente). */
     void delete(Long id);
+
+    /** Conteggi per la dashboard: conversazioni, turni e ultima attivita'. Sola lettura, nessuna chiamata remota. */
+    ChatStats stats();
 
     /** I turni persistiti, in ordine cronologico. */
     List<ChatMessage> history(Long conversationId);

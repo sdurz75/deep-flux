@@ -18,5 +18,7 @@ public interface IChatConversationStore {
 
     List<ChatConversation> findAll();
 
+    long count();
+
     void delete(ChatConversation conversation);
 }

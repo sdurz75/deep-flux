@@ -56,6 +56,12 @@ class Oauth2ConfigModule implements IConfigModule {
     public List<ConfigField> fields() {
         return List.of(
                 ConfigField.bool(ConfigKeys.ENABLED, false, "oauth2.field.enabled", "oauth2.field.enabled.help").withEnvVar("HX_OAUTH2_ENABLED"),
+                ConfigField.integer(ConfigKeys.SESSION_DAYS, 30, 1, 365, "oauth2.field.sessionDays", "oauth2.field.sessionDays.help")
+                        .withEnvVar("HX_OAUTH2_SESSION_DAYS"),
+                ConfigField.integer(ConfigKeys.SESSION_MAX_DAYS, 0, 0, 3650, "oauth2.field.sessionMaxDays", "oauth2.field.sessionMaxDays.help")
+                        .withEnvVar("HX_OAUTH2_SESSION_MAX_DAYS"),
+                ConfigField.bool(ConfigKeys.SESSION_REMEMBER, true, "oauth2.field.sessionRemember", "oauth2.field.sessionRemember.help")
+                        .withEnvVar("HX_OAUTH2_SESSION_REMEMBER"),
                 ConfigField.collection(ConfigKeys.PROVIDERS, "oauth2.field.providers", "oauth2.field.providers.help", List.of(
                         ConfigField.Column.text(ConfigKeys.SLUG, "oauth2.column.slug", SLUG.pattern(), "oauth2.error.slugFormat", true),
                         ConfigField.Column.text(ConfigKeys.TITLE, "oauth2.column.title", null, null, true),
@@ -77,6 +83,10 @@ class Oauth2ConfigModule implements IConfigModule {
     @Override
     public void validate(ConfigChange change) {
         ModuleValues proposed = change.proposed();
+        int maxDays = proposed.getInt(ConfigKeys.SESSION_MAX_DAYS);
+        if (maxDays > 0 && maxDays < proposed.getInt(ConfigKeys.SESSION_DAYS)) {
+            throw new ConfigException(messages.get("oauth2.error.sessionMax"));
+        }
         List<ModuleValues.Row> rows = proposed.getRows(ConfigKeys.PROVIDERS);
         String envSlug = providers.getObject().list().stream().filter(p -> p.fromEnv()).map(p -> p.slug()).findFirst().orElse("");
         for (ModuleValues.Row row : rows) {

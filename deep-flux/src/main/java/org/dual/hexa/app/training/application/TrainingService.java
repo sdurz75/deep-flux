@@ -138,6 +138,11 @@ public class TrainingService implements ITrainings {
     }
 
     @Override
+    public java.util.Map<TrainingStatus, Long> countByStatus() {
+        return store.countByStatus();
+    }
+
+    @Override
     public List<Training> inProgress() {
         return store.findByStatusIn(List.of(TrainingStatus.PENDING, TrainingStatus.PROCESSING));
     }

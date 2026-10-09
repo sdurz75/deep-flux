@@ -21,4 +21,6 @@ public interface IChatMessageStore {
     void deleteAll(List<ChatMessage> messages);
 
     List<ChatMessage> findAll();
+
+    long count();
 }

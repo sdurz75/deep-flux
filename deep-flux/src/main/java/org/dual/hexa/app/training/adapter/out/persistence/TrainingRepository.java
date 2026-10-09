@@ -30,5 +30,8 @@ interface TrainingRepository extends JpaRepository<Training, Long> {
             order by t.id""")
     List<Training> findResultsToComplete(@Param("since") Instant since, @Param("pendingModel") ModelStatus pendingModel, @Param("pendingHf") HfStatus pendingHf);
 
+    @Query("select t.status, count(t) from Training t group by t.status")
+    List<Object[]> countGroupedByStatus();
+
     Optional<Training> findBySnapshotDatasetId(Long snapshotDatasetId);
 }
