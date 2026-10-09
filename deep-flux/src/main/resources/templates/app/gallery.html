@@ -25,7 +25,6 @@
     <!-- Suggerimenti del filtro per tag (id known-tags): fuori da #gallery-content, che si ricarica. -->
     <datalist id="known-tags"><option th:each="s : ${@generationService.allTags()}" th:value="${s}"></option></datalist>
 
-    <div th:replace="~{fragments/core/live-events :: connect}"></div>
 </div>
 </body>
 </html>

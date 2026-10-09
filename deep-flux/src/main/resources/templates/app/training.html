@@ -72,10 +72,6 @@
         </th:block>
     </div>
 
-    <!--/* SSE solo dove serve: lo storico si aggiorna da solo quando un training cambia stato (anche col poller, a pagina chiusa). */-->
-    <th:block th:if="${tab == 'history'}">
-        <div th:replace="~{fragments/core/live-events :: connect}"></div>
-    </th:block>
 </div>
 </body>
 </html>

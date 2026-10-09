@@ -3,23 +3,28 @@
 <body>
 
 <!--
-  Unico punto che sa parlare SSE: apre GET /events (core.push EventStreamController)
-  e ri-dispatcha ogni evento ricevuto come CustomEvent su document.body,
-  cosi' ogni pagina/fragment decide cosa farne con gli strumenti che gia'
-  usa altrove (htmx hx-trigger="nome-evento from:body" per un refresh,
-  vedi fragments/app/gallery.html; un listener JS dedicato per un caso piu'
+  Unico punto che sa parlare SSE: apre GET /events (core.push EventStreamController) e ri-dispatcha ogni evento ricevuto come
+  CustomEvent su document.body, cosi' ogni pagina/fragment decide cosa farne con gli strumenti che gia' usa altrove (htmx
+  hx-trigger="nome-evento from:body" per un refresh, vedi fragments/app/gallery.html; un listener JS dedicato per un caso piu'
   specifico, vedi deep-chat.html) senza dover conoscere SSE.
 
-  Incluso solo dalle pagine che ne hanno bisogno (gallery.html,
-  deep-chat.html, generation-status.html, system-events.html: tutte dove qualcosa
-  arriva in un secondo momento, errori compresi), non da fragments/core/layout.html: una connessione persistente
-  aperta su OGNI pagina saturerebbe le ~6 connessioni HTTP/1.1 per host che
-  i browser concedono quando l'utente tiene piu' tab dell'app aperte
-  contemporaneamente.
+  Incluso UNA volta da fragments/core/layout.html, quindi su OGNI pagina: le notifiche (toast di errore, avviso, successo) devono arrivare
+  qualunque pagina sia aperta. Per non saturare le ~6 connessioni HTTP/1.1 per host che i browser concedono (piu' tab dell'app aperte
+  insieme) la connessione la tiene UNA sola tab per browser:
+  - il LEADER e' la tab che ottiene il lock `hexa-events` (Web Locks API, tenuto finche' la tab vive: se si chiude o naviga, il lock passa
+    a un'altra tab in attesa, che apre la connessione al suo posto);
+  - il leader apre l'EventSource e ritrasmette ogni evento alle altre tab con un BroadcastChannel (stesso nome); ogni tab, leader compresa,
+    ri-dispatcha poi gli eventi sul PROPRIO document;
+  - senza Web Locks o BroadcastChannel (browser molto vecchi) ogni tab apre la propria connessione, come prima.
 
-  I nomi degli eventi dell'app vengono da app.push.client-events (es. "gallery-update": solo un segnale "qualcosa e'
-  cambiato, ricarica"; "chat-message": il dettaglio e' il payload JSON cosi' com'e' mandato da GalleryPushNotifier);
-  "system-event" (toast) e' sempre gestito.
+  Eventi gestiti:
+  - i nomi dell'app (app.push.client-events, via PushModelAdvice): CustomEvent su body, il payload JSON e' il `detail` (es. "gallery-update":
+    solo un segnale "qualcosa e' cambiato, ricarica"; "chat-message": il dettaglio e' il payload cosi' com'e' mandato da GalleryPushNotifier);
+  - "system-event" (SystemEventService: errori e avvisi del registro eventi): `system-toast` su window per fragments/core/toast.html e
+    CustomEvent `system-event` su body per le liste che si aggiornano da sole (/system/events);
+  - "notice" (INotifications: notifiche di successo, effimere): SOLO `system-toast` su window, mai su body: non tocca il registro.
+  EventSource si riconnette da solo ma gli eventi emessi nel frattempo sono persi (nessun replay): alla riconnessione si ri-dispatchano
+  gli eventi "da refresh" (app.push.reconnect-events, es. gallery-update).
 -->
 <th:block th:fragment="connect">
     <script th:inline="javascript">
@@ -28,34 +33,59 @@
             // Nomi degli eventi dell'app (app.push.client-events / reconnect-events, PushModelAdvice): niente e' hardcoded qui.
             var appEvents = /*[[${pushEvents}]]*/ [];
             var reconnectEvents = /*[[${pushReconnectEvents}]]*/ [];
-            var source = new EventSource(eventsUrl);
-            // EventSource si riconnette da solo ma gli eventi emessi nel frattempo sono persi (nessun replay):
-            // alla riconnessione si ri-dispatchano gli eventi "da refresh" (es. gallery-update).
-            var dropped = false;
-            source.addEventListener('error', function () { dropped = true; });
-            source.addEventListener('open', function () {
-                if (dropped) {
-                    dropped = false;
-                    reconnectEvents.forEach(function (name) {
-                        document.body.dispatchEvent(new CustomEvent(name));
-                    });
+            var RECONNECT = '__reconnect';
+            var channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('hexa-events') : null;
+
+            function parse(data) {
+                try { return JSON.parse(data); } catch (e) { return data; }
+            }
+
+            // Consegna un evento a QUESTA tab (le altre lo ricevono dal canale).
+            function deliver(name, data) {
+                if (name === RECONNECT) {
+                    reconnectEvents.forEach(function (n) { document.body.dispatchEvent(new CustomEvent(n)); });
+                } else if (name === 'system-event') {
+                    var event = parse(data);
+                    window.dispatchEvent(new CustomEvent('system-toast', {detail: event}));
+                    document.body.dispatchEvent(new CustomEvent('system-event', {detail: event}));
+                } else if (name === 'notice') {
+                    window.dispatchEvent(new CustomEvent('system-toast', {detail: parse(data)}));
+                } else {
+                    document.body.dispatchEvent(new CustomEvent(name, {detail: parse(data)}));
                 }
-            });
-            // Eventi dell'app: il payload (JSON) diventa il detail del CustomEvent su body.
-            appEvents.forEach(function (name) {
-                source.addEventListener(name, function (event) {
-                    var detail;
-                    try { detail = JSON.parse(event.data); } catch (e) { detail = event.data; }
-                    document.body.dispatchEvent(new CustomEvent(name, {detail: detail}));
+            }
+
+            // Solo il leader: consegna a se' e alle altre tab.
+            function relay(name, data) {
+                deliver(name, data);
+                if (channel) { channel.postMessage({name: name, data: data}); }
+            }
+
+            function connect() {
+                var source = new EventSource(eventsUrl);
+                var dropped = false;
+                source.addEventListener('error', function () { dropped = true; });
+                source.addEventListener('open', function () {
+                    if (dropped) {
+                        dropped = false;
+                        relay(RECONNECT, null);
+                    }
                 });
-            });
-            // Toast (SystemEventService), sempre gestito: al contenitore di fragments/core/toast.html (evento window) e,
-            // come CustomEvent su body, alle liste che si aggiornano da sole (/system/events).
-            source.addEventListener('system-event', function (event) {
-                var detail = JSON.parse(event.data);
-                window.dispatchEvent(new CustomEvent('system-toast', {detail: detail}));
-                document.body.dispatchEvent(new CustomEvent('system-event', {detail: detail}));
-            });
+                appEvents.concat(['system-event', 'notice']).forEach(function (name) {
+                    source.addEventListener(name, function (event) { relay(name, event.data); });
+                });
+            }
+
+            if (channel && navigator.locks && typeof navigator.locks.request === 'function') {
+                channel.onmessage = function (message) { deliver(message.data.name, message.data.data); };
+                // Il lock si tiene per sempre (la promessa non si risolve): lo rilascia solo la chiusura della tab.
+                navigator.locks.request('hexa-events', function () {
+                    connect();
+                    return new Promise(function () {});
+                });
+            } else {
+                connect();
+            }
         })();
     </script>
 </th:block>

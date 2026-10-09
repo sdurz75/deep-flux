@@ -4,7 +4,7 @@ Il server può avvisare il browser di un cambiamento senza polling, con Server-S
 
 ## Come funziona
 
-Il browser apre `GET /events` (il fragment `fragments/core/live-events.html` è già nel layout). Il servizio emette un evento con [`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPush.html)`#emit(eventName, data)`; la pagina lo ascolta con htmx (`hx-trigger="sse:<nome>"`) o con Alpine.
+Il browser apre `GET /events` (il fragment `fragments/core/live-events.html` è già nel layout, su ogni pagina: non includerlo di nuovo; una sola tab per browser tiene la connessione, con Web Locks, e ritrasmette alle altre con un `BroadcastChannel`). Il servizio emette un evento con [`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPush.html)`#emit(eventName, data)`; la pagina lo ascolta con htmx (`hx-trigger="sse:<nome>"`) o con Alpine.
 
 ## Eventi propri
 
@@ -17,3 +17,7 @@ Per esiti che arrivano in ritardo (un'elaborazione in background che termina). P
 ## Riferimento API
 
 [`IClientPush`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPush.html), [`IClientPushStream`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/push/port/in/IClientPushStream.html).
+
+## Toast di successo
+
+Per avvisare l'utente di un esito positivo avvenuto in background (un'elaborazione finita) inietta `INotifications` (`core.events.port.in`) e chiama `success(key, messaggio, path)`: `key` evita il doppione, `messaggio` è già tradotto, `path` (facoltativo, senza context path) è il link «Apri». Il toast compare su qualunque pagina aperta, non entra nel registro eventi né nella campanella, e viaggia sull'evento SSE `notice`, che il core gestisce sempre (non va in `app.push.client-events`). Errori e avvisi restano di `ISystemEvents`.

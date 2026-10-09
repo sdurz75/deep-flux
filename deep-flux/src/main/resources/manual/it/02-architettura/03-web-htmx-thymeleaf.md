@@ -78,8 +78,21 @@ Lato Java si inietta `Messages` e si risolve nel punto in cui si lancia l'errore
 ## Interazione e stato
 
 - Un'operazione htmx non-GET blocca l'intera interfaccia con un **overlay** «operazione in corso» finché non finisce, così un secondo clic non avvia una seconda operazione a pagamento. Si opta fuori con `data-busy="off"`.
-- I **toast** arrivano via SSE o via header `HX-Trigger`, e sono guidati da un payload generico: nessun codice per servizio.
+- I **toast** arrivano via SSE o via header `HX-Trigger`, e sono guidati da un payload generico: nessun codice per servizio. Errori e avvisi passano dal registro (`ISystemEvents`); i **successi** effimeri (una generazione completata) da `INotifications#success(key, messaggio, path)`, che non scrive nel registro: vedi [Notifiche e SSE](#notifiche-e-sse).
 - Lo stato delle form di parametri sta in `localStorage` per `/generations/new` e **sul server, per conversazione,** per Deep Chat.
 - Il canale **SSE** `GET /events` porta alle schede aperte gli eventi dell'app (`gallery-update`, `chat-message`) e quelli di sistema.
+
+## Notifiche e SSE
+
+Le notifiche sono del core (`core.events` e `core.push`), non dell'app. Un solo contenitore (`fragments/core/toast.html`, evento `system-toast` su `window`) mostra tre tipi di toast:
+
+| Tipo | Chi lo emette | SSE | Registro e campanella |
+|---|---|---|---|
+| Errore, avviso | `ISystemEvents#record` / `#warn` (o l'header `HX-Trigger`) | `system-event` | sì |
+| Successo | `INotifications#success(key, messaggio, path)` | `notice` | no |
+
+`key` serve a non mostrare due volte la stessa notifica, `messaggio` è già tradotto (il core non conosce i testi dell'host), `path` è il link «Apri» (senza context path, facoltativo). Il toast di successo dura 10 secondi, ha il bordo `accent` e non chiede nulla all'utente. Per ora lo usa la generazione: a ogni generazione riuscita (immagine o video, non le importate) compare un avviso con il link al dettaglio, su qualunque pagina sia aperta. I fallimenti hanno già i loro errori.
+
+La connessione `GET /events` è nel layout, quindi su ogni pagina, ma ne tiene aperta una sola il browser: la tab che ottiene il lock `hexa-events` (Web Locks) apre l'`EventSource` e ritrasmette gli eventi alle altre con un `BroadcastChannel`; se quella tab si chiude, il lock passa a un'altra. Senza queste API ogni tab apre la propria. Una pagina non deve includere di nuovo `live-events :: connect`. Un limite noto: il testo del toast è risolto quando si emette, quindi se la generazione finisce nel watcher in background vale la lingua di default.
 
 Per cosa succede dietro il pulsante **Genera**, vedi [Generazione e Replicate](04-generazione-replicate.md).

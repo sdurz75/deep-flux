@@ -169,7 +169,7 @@ class TrainingRunControllerTest {
         String page = body(mockMvc.perform(get("/trainings")).andExpect(status().isOk()).andReturn());
 
         assertThat(page).contains("Nuovo dataset").contains("Nessun dataset ancora").contains("tab=history").doesNotContain("Il mio gatto #")
-                .doesNotContain("training-update");
+                .doesNotContain("hx-trigger=\"training-update from:body\"");
     }
 
     @Test

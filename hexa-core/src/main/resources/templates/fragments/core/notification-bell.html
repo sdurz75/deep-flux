@@ -9,7 +9,7 @@
 
   container: incluso UNA volta da header.html, fuori dallo slideover (visibile a ogni larghezza). Lo stato Alpine `open` vive QUI,
   sul contenitore, che non viene mai sostituito: l'aggiornamento (hx-swap="innerHTML") riscrive solo bottone+pannello, quindi un
-  pannello aperto resta aperto. Si ricarica al load, ogni 30s (le pagine senza connessione SSE: live-events non e' globale) e subito
+  pannello aperto resta aperto. Si ricarica al load, ogni 30s (rete di sicurezza se la connessione SSE e' caduta) e subito
   quando arriva un evento: "system-toast" su window (toast, anche da HX-Trigger) e "system-event" su body (SSE).
 
   bell(count, hasError, items): contenuto, reso da SystemEventController (GET /system/events/bell, POST /system/events/seen).

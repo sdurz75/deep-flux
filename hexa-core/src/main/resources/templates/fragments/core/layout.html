@@ -185,6 +185,8 @@
 
 <div th:replace="~{fragments/core/busy-overlay :: container}"></div>
 <div th:replace="~{fragments/core/toast :: container}"></div>
+<!-- Connessione SSE (una per browser) per i toast e gli aggiornamenti live: vedi fragments/core/live-events.html. -->
+<th:block th:replace="~{fragments/core/live-events :: connect}"></th:block>
 <th:block th:replace="~{fragments/core/confirm-dialog :: container}"></th:block>
 <div th:replace="~{fragments/core/status-bar :: bar(sidebarNav=${sidebarNav})}"></div>
 

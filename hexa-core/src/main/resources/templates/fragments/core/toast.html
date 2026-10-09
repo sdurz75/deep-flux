@@ -3,15 +3,18 @@
 <body>
 
 <!--
-  Contenitore dei toast degli eventi di sistema (errori e avvisi), incluso una volta da fragments/core/layout.html. Ascolta l'evento window
-  "system-toast" ({key, message}), che arriva da tre sorgenti:
-  1. SSE "system-event" (GalleryPushNotifier) ri-dispatchato da fragments/core/live-events.html: errori
-     nati in thread async/watcher e nella chat, su ogni pagina che include live-events;
+  Contenitore dei toast (errori, avvisi e successi), incluso una volta da fragments/core/layout.html. Ascolta l'evento window
+  "system-toast" ({key, message}), che arriva da quattro sorgenti:
+  1. SSE "system-event" (PushToastNotifier) ri-dispatchato da fragments/core/live-events.html: errori
+     nati in thread async/watcher e nella chat, su ogni pagina (la connessione e' nel layout);
+  1b. SSE "notice" (INotifications, core.events): notifiche di successo effimere, es. una generazione completata; non passano dal
+     registro eventi ne' dalla campanella;
   2. header HX-Trigger {"system-toast": {...}} (SystemEventService#addToastHeader) sulle risposte htmx dei
      controller: htmx lo trasforma in un evento "system-toast" (con detail = l'oggetto) che risale a window;
   3. listener globali htmx:responseError / htmx:sendError / htmx:timeout qui sotto (risposta 4xx/5xx, server non
      raggiungibile o richiesta scaduta: htmx.config.timeout, vedi busy-overlay.html), SOLO se la risposta non portava gia' un toast dal server (punto 2).
-  Il payload ha `severity` ("ERROR" default | "WARNING": bordo warning invece di danger, es. token in scadenza).
+  Il payload ha `severity` ("ERROR" default | "WARNING": bordo warning invece di danger, es. token in scadenza | "SUCCESS": bordo accent,
+  da INotifications) e, facoltativo, `path` (path dell'app senza context path): diventa il link «Apri», risolto con la base del data-base.
   Il payload puo' avere `transient: true` (RemoteServiceException.Kind.TRANSIENT): si aggiunge il suggerimento di riprovare.
   Dedupe per `key`: lo stesso errore puo' arrivare da piu' sorgenti (SSE + HX-Trigger), va mostrato una volta.
   Testi client-only dal server via data-* (ponte documentato in CLAUDE.md, "Convenzione: theming").
@@ -25,9 +28,11 @@
             const key = detail.key || detail.message;
             if (this.seen[key]) { return; }
             this.seen[key] = true;
-            this.toasts.push({ key: key, message: detail.message, transient: detail.transient === true, warning: detail.severity === 'WARNING' });
+            this.toasts.push({ key: key, message: detail.message, transient: detail.transient === true, warning: detail.severity === 'WARNING',
+                               success: detail.severity === 'SUCCESS', path: detail.path || null });
             setTimeout(() => this.dismiss(key), 10000);
         },
+        href(path) { return this.$root.dataset.base + path.replace(/^\//, ''); },
         dismiss(key) { this.toasts = this.toasts.filter((t) => t.key !== key); }
      }"
      x-init="
@@ -48,15 +53,18 @@
      th:data-http-error="#{toast.error.http('{0}')}"
      th:data-network-error="#{toast.error.network}"
      th:data-transient-hint="#{toast.error.transientHint}"
+     th:data-base="@{/}"
      class="fixed bottom-12 right-4 z-[110] flex flex-col gap-2 w-[min(24rem,calc(100vw-2rem))] pointer-events-none">
     <template x-for="t in toasts" :key="t.key">
-        <div role="alert"
+        <div :role="t.success ? 'status' : 'alert'"
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity-0 translate-y-2"
              class="pointer-events-auto flex items-start gap-3 rounded-md border bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-lg px-4 py-3 text-[0.9rem]"
-             :class="t.warning ? 'border-warning dark:border-warning-dark' : 'border-danger dark:border-danger-dark'">
+             :class="t.success ? 'border-accent dark:border-accent-dark' : (t.warning ? 'border-warning dark:border-warning-dark' : 'border-danger dark:border-danger-dark')">
             <div class="flex-1 break-words">
                 <span x-text="t.message"></span>
+                <!-- Successo con destinazione (INotifications): link al dettaglio. -->
+                <a x-show="t.path" :href="t.path ? href(t.path) : '#'" class="ml-1 underline" th:text="#{toast.open}">Apri</a>
                 <!-- Errore transitorio (rete, timeout, 5xx: l'app ha gia' ritentato): il servizio tornera' raggiungibile, riprovare piu' tardi. -->
                 <span x-show="t.transient" x-text="$root.dataset.transientHint" class="block text-ink-muted dark:text-ink-muted-dark text-[0.8rem]"></span>
             </div>

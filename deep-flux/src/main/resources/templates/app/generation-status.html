@@ -19,7 +19,6 @@
     <div th:replace="~{fragments/app/generation :: status}"></div>
 
     <!-- Solo per i toast d'errore (system-event): un poll che fallisce ripetutamente non ha altro canale su questa pagina. -->
-    <div th:replace="~{fragments/core/live-events :: connect}"></div>
 
     <!-- Lato scrittura dello slot globale prompt/seed ("Usa prompt"/"Usa seed" nel dettaglio), vedi il fragment. -->
     <th:block th:replace="~{fragments/app/generation-shared-slot :: pusher}"></th:block>

@@ -14,6 +14,8 @@ La pagina [Eventi](/system/events), nel menu **Gestione**, è il registro. Ogni 
 
 Il filtro **Filtra per gravità** limita l'elenco a **Errori** o **Avvisi**. **Svuota** cancella il registro (chiede conferma).
 
+Quando una generazione finisce con successo compare un avviso in basso a destra, su qualunque pagina tu sia, con il link **Apri** al suo dettaglio. Non è un evento: sparisce da solo dopo qualche secondo e non resta nel registro né nella campanella.
+
 Gli **avvisi** non sono errori: oggi servono per i segreti in scadenza o scaduti. Gli errori nascono da chiamate a servizi esterni (Replicate, OpenRouter, il motore di ricerca web) o da un guasto interno.
 
 ## Cosa fare, in ordine

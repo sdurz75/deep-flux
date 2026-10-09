@@ -101,16 +101,19 @@ class TemplateRenderingTests {
 
     /**
      * fragments/core/live-events.html non ha nomi di eventi hardcoded: li legge da app.push.client-events / reconnect-events
-     * (core.push.PushModelAdvice), e "system-event" (toast) e' sempre gestito.
+     * (core.push.PushModelAdvice), e "system-event" (toast di errore/avviso) e "notice" (toast di successo) sono sempre gestiti.
+     * La connessione e' nel layout, quindi su OGNI pagina (qui la home), e la tiene una sola tab (Web Locks + BroadcastChannel).
      */
     @Test
     void liveEventsBridgeTakesTheAppEventNamesFromConfiguration() throws Exception {
-        String page = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String page = mockMvc.perform(get("/")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("new EventSource(eventsUrl)")
                 .containsPattern("appEvents = \\[\\s*\"gallery-update\",\\s*\"chat-message\",\\s*\"training-update\"\\s*\\]")
                 .containsPattern("reconnectEvents = \\[\\s*\"gallery-update\",\\s*\"training-update\"\\s*\\]")
-                .contains("addEventListener('system-event'");
+                .contains("'system-event', 'notice'")
+                .contains("navigator.locks.request('hexa-events'")
+                .contains("new BroadcastChannel('hexa-events')");
     }
 
     /**

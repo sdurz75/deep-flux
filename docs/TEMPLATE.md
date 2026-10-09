@@ -40,8 +40,8 @@ adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 | Sottosistema | Cosa da' | Cosa si aspetta dall'app |
 |---|---|---|
 | `core.kernel` | `RemoteCaller`/`RetryPolicy`/`RestClientTranslator`/`RestRemoteClient` (errori e retry delle chiamate remote), `RemoteServiceException`, `Messages` (i18n), `ChunkedAesGcmCipher`, `EventSource`, `Paged`, `ToastMessage` | - |
-| `core.events` | registro eventi di sistema (`ISystemEvents`: `record`/`warn`), pagina `/system/events`, campanella, toast, `UnhandledExceptionResolver`, `AsyncErrorConfig` | opzionale `IEventLinkResolver`; le proprie `EventSource` |
-| `core.push` | SSE `GET /events` (`EventStreamController`), `IClientPush` (emit), `IClientPushStream`, `PushModelAdvice`, `fragments/core/live-events.html` | i nomi degli eventi propri in `app.push.client-events` |
+| `core.events` | registro eventi di sistema (`ISystemEvents`: `record`/`warn`), notifiche di successo effimere (`INotifications#success`, SSE `notice`, niente registro), pagina `/system/events`, campanella, toast, `UnhandledExceptionResolver`, `AsyncErrorConfig` | opzionale `IEventLinkResolver`; le proprie `EventSource` |
+| `core.push` | SSE `GET /events` (`EventStreamController`), `IClientPush` (emit), `IClientPushStream`, `PushModelAdvice`, `fragments/core/live-events.html` (nel layout: una connessione per browser, Web Locks + `BroadcastChannel`) | i nomi degli eventi propri in `app.push.client-events` |
 | `core.secrets` | `ISecretCipher` (AES-256-GCM, stessa chiave dei binari WebDAV) | - |
 | `core.secrets` | CRUD segreti cifrati con tipo in `/secrets` (token API, password, segreti dei moduli), scadenza con avvisi (`SecretExpiryScheduler`) | opzionale `ISecretTypeCatalog` (senza: solo i tipi di default del core) |
 | `core.storage` | `IImageStorageService` (binari su filesystem locale o WebDAV cifrato, cache, migrazione), `ImageController` (`/images/**`) | - |
@@ -162,7 +162,7 @@ Il `systemPropertyVariables` di Surefire (`storage.type`, chiave di test dei seg
    pagina eventi. Oggi `AppEventLinks`. Se non c'e' nessun bean, nessun link (`ObjectProvider`).
 6. **`ISecretTypeCatalog`** (`core.secrets.port.out`, opzionale, PIU' bean si sommano): i tipi di segreto (`SecretType`) tra cui scegliere in `/secrets`. Oggi
    `AppSecretTypes` (CivitAI, HuggingFace). Senza bean restano i tipi di default del core. Chi usa un segreto lo risolve da `ISecrets`.
-7. **Eventi SSE dell'app**: il core emette solo `system-event`. Gli altri si pubblicano con `IClientPush#emit(nome, payload)` e vanno
+7. **Eventi SSE dell'app**: il core emette solo `system-event` e `notice` (toast di successo, `INotifications`: per avvisare di un esito positivo in background non serve un evento proprio). Gli altri si pubblicano con `IClientPush#emit(nome, payload)` e vanno
    elencati in `app.push.client-events` (separati da virgola; `app.push.reconnect-events` per quelli da ri-dispatchare alla riconnessione):
    `PushModelAdvice` li passa a `fragments/core/live-events.html`, che li ri-dispatcha come `CustomEvent` su `document.body`.
 8. **Storage dei binari**: l'app lo usa solo tramite `IImageStorageService`; nessun accesso diretto al filesystem/WebDAV.
