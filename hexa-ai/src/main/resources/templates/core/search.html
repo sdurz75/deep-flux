@@ -8,8 +8,12 @@
 <div layout:fragment="breadcrumbs">
     <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{search.title})}"></nav>
 </div>
-<div layout:fragment="content">
-    <h1 th:text="#{search.title}">Ricerca semantica</h1>
+<div layout:fragment="content" x-data="pullRefresh" @touchstart.window.passive="touchStart($event)" @touchmove.window.passive="touchMove($event)" @touchend.window="touchEnd()" @touchcancel.window="cancel()">
+    <div th:replace="~{fragments/core/pull-refresh :: indicator(pull=#{refresh.pull}, release=#{refresh.release})}"></div>
+    <div class="flex items-center justify-between gap-3">
+        <h1 th:text="#{search.title}">Ricerca semantica</h1>
+        <button th:replace="~{fragments/core/button :: refresh(title=#{refresh.title}, extraClass=null)}">Aggiorna</button>
+    </div>
     <p class="text-ink-muted dark:text-ink-muted-dark" th:text="#{search.intro}">Interroga e gestisci il vector store.</p>
 
     <div th:replace="~{fragments/core/search :: stats(stats=${stats}, oob=false)}"></div>
@@ -37,7 +41,7 @@
           Le label sovrascrivono il margine di base (mt-0): in griglia stanno a filo del campo.
         -->
         <form id="search-form" th:hx-get="@{/search/results}" hx-target="#search-results" hx-swap="innerHTML"
-              hx-trigger="submit, input changed delay:500ms, change, note-saved from:body"
+              hx-trigger="submit, input changed delay:500ms, change, note-saved from:body, refresh-list from:body"
               class="mt-3 flex flex-col gap-5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4 sm:p-5">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <div class="relative flex-1">

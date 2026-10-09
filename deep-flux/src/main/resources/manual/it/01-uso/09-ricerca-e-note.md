@@ -15,7 +15,7 @@ L'indice si tiene aggiornato da solo, in background e a ogni nuova generazione.
 
 ## La pagina di ricerca
 
-C'è un solo form, che si ri-invia mentre scrivi e cambi i filtri:
+C'è un solo form, che si ri-invia mentre scrivi e cambi i filtri. Per rileggere la lista con i filtri correnti c'è l'icona **Aggiorna** accanto al titolo; da telefono basta tirare la pagina verso il basso, in cima, e rilasciare:
 
 - **Cerca**: il testo (per esempio «un gatto che dorme»).
 - **Tipo**: **Tutti**, **Generazioni**, **Importate**, **Messaggi**, **Conversazioni**, **Note**.

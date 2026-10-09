@@ -8,10 +8,14 @@
 <div layout:fragment="breadcrumbs">
     <nav th:replace="~{fragments/core/breadcrumbs :: trail(group=null, parentPath=null, parentText=null, current=#{gallery.title})}"></nav>
 </div>
-<div layout:fragment="content">
+<div layout:fragment="content" x-data="pullRefresh" @touchstart.window.passive="touchStart($event)" @touchmove.window.passive="touchMove($event)" @touchend.window="touchEnd()" @touchcancel.window="cancel()">
+    <div th:replace="~{fragments/core/pull-refresh :: indicator(pull=#{refresh.pull}, release=#{refresh.release})}"></div>
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
         <h1 th:text="#{gallery.title}">Galleria</h1>
+        <div class="flex items-center gap-3">
+        <button th:replace="~{fragments/core/button :: refresh(title=#{refresh.title}, extraClass=null)}">Aggiorna</button>
         <a th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}" th:href="@{/search(type=generation)}" th:text="#{gallery.link.generations}" class="text-[0.9rem]">Tutte le generazioni</a>
+        </div>
     </div>
 
     <!-- Messaggio "galleria vuota" spostato dentro fragments/app/gallery :: content, vedi commento li'. -->

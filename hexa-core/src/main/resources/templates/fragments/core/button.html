@@ -169,6 +169,17 @@
 </button>
 
 <!--
+  refresh(title, extraClass): icona "Aggiorna" di una lista (fragments/core/pull-refresh.html). Assume l'antenato `x-data="pullRefresh"` (state, refresh()):
+  il click emette `refresh-list`, la lista che lo ascolta si ricarica; mentre carica l'icona gira. `title` = tooltip e aria-label GIA' risolti;
+  `extraClass` = solo layout del chiamante (null = niente).
+-->
+<button th:fragment="refresh(title, extraClass)" type="button" @click="refresh()" data-busy="off"
+        th:title="${title}" th:aria-label="${title}"
+        th:class="'inline-flex items-center justify-center shrink-0 border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark rounded-md px-2.5 py-1.5 cursor-pointer leading-none ' + (${extraClass} ?: '')">
+    <svg class="h-4 w-4" :class="{ 'animate-spin': state === 'loading' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+</button>
+
+<!--
   panelToggle(content, title, extraClass): apre/chiude una colonna laterale collassabile della pagina (es. le conversazioni di /deep-chat). Assume sull'antenato
   x-data `panelOpen` (booleano) e `togglePanel()`. `content` = testo/glifo (es. ✕), oppure null per l'icona "colonna laterale"; `title` = tooltip e
   aria-label GIA' risolti; `extraClass` = solo layout del chiamante (es. md:hidden).
