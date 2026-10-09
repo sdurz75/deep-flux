@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/* Host di prova di /search (app.search.host-fragment): i cinque punti di innesto che la ricerca chiama per nome, qui con markup minimo. */-->
+
+<div th:fragment="filterMedia">
+    <input type="hidden" id="search-media" name="media" th:value="${media}">
+</div>
+
+<th:block th:fragment="filterFavourites">
+    <input type="hidden" id="search-favourites" name="favourites" th:value="${favourites}">
+</th:block>
+
+<th:block th:fragment="rowBadges(d)">
+    <span class="host-badge" th:if="${d.metadata['kind'] != null}" th:text="${d.metadata['kind']}">kind</span>
+    <span th:if="${d.metadata['model'] != null}" th:text="${d.metadata['model']}">modello</span>
+</th:block>
+
+<th:block th:fragment="rowLinks(d)">
+    <a th:if="${d.type == 'generation'}" th:href="@{/generations/{id}(id=${d.refId})}">Apri</a>
+</th:block>
+
+<th:block th:fragment="rowMedia(d)">
+    <th:block th:if="${d.metadata['files'] != null}" th:each="f : ${d.metadata['files']}">
+        <video th:if="${#strings.endsWith(f, '.mp4')}" th:src="@{/images/{n}(n=${f})}"></video>
+        <img th:unless="${#strings.endsWith(f, '.mp4')}" th:src="@{/images/{n}(n=${f})}" alt="">
+    </th:block>
+</th:block>
+</body>
+</html>
