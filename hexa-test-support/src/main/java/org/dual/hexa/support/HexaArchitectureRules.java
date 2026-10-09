@@ -94,8 +94,9 @@ public final class HexaArchitectureRules {
         Pattern feature = Pattern.compile("^" + Pattern.quote(rootPackage) + "\\.([^.]+)(?:\\.(.*))?$");
         Map<String, ArchRule> rules = new LinkedHashMap<>();
 
+        // Solo le classi di primo livello: i record/tipi annidati di una porta (IGenerations.CreateCommand, IDashboard.View) sono legittimi.
         rules.put("portsAreInterfacesNamedWithTheIPrefix", classes()
-                .that().resideInAPackage("..port..")
+                .that().resideInAPackage("..port..").and().areTopLevelClasses()
                 .should().beInterfaces().andShould().haveSimpleNameStartingWith("I")
                 .allowEmptyShould(true));
 
