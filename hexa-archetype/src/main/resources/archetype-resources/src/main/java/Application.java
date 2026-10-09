@@ -16,7 +16,7 @@ public class Application {
 
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(Application.class);
-        if (args.length > 0 && (args[0].equals("export") || args[0].equals("import"))) {
+        if (args.length > 0 && (args[0].equals("export") || args[0].equals("import") || args[0].equals("set-pin"))) {
             application.setAdditionalProfiles("backup");
             application.setWebApplicationType(WebApplicationType.NONE);
         }

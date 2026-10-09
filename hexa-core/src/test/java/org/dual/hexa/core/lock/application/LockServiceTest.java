@@ -159,4 +159,32 @@ class LockServiceTest {
         assertThat(service.isEnabled()).isFalse();
         assertThat(store.lock).isNull();
     }
+
+    @Test
+    void forceSetPinTurnsTheLockOnWhenItWasOff() {
+        service.forceSetPin("4321");
+
+        assertThat(service.isEnabled()).isTrue();
+        service.verify("4321");
+    }
+
+    @Test
+    void forceSetPinReplacesThePinKeepingTheTimeoutAndClearingThrottling() {
+        service.enable("1234", 3600);
+        for (int i = 0; i < 4; i++) {
+            assertThatThrownBy(() -> service.verify("0000")).isInstanceOf(LockException.class);
+        }
+
+        service.forceSetPin("5678");
+
+        service.verify("5678");
+        assertThat(service.idleTimeoutSeconds()).isEqualTo(3600);
+        assertThatThrownBy(() -> service.verify("1234")).isInstanceOf(LockException.class);
+    }
+
+    @Test
+    void forceSetPinRejectsAMalformedPin() {
+        assertThatThrownBy(() -> service.forceSetPin("12")).isInstanceOf(LockException.class);
+        assertThat(service.isEnabled()).isFalse();
+    }
 }

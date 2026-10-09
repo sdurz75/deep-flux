@@ -123,6 +123,22 @@ class LockService implements ILock {
         snapshot = null;
     }
 
+    @Override
+    @Transactional
+    public void forceSetPin(String pin) {
+        requireValidPin(pin);
+        byte[] salt = newSalt();
+        Optional<AppLock> existing = store.find();
+        if (existing.isPresent()) {
+            AppLock lock = existing.get();
+            lock.changePin(hash(pin, salt, ITERATIONS), encode(salt), ITERATIONS, clock.instant());
+            store.save(lock);
+        } else {
+            store.save(new AppLock(hash(pin, salt, ITERATIONS), encode(salt), ITERATIONS, DEFAULT_TIMEOUT_SECONDS, clock.instant()));
+        }
+        snapshot = null;
+    }
+
     private Snapshot snapshot() {
         Snapshot current = snapshot;
         if (current == null) {

@@ -17,3 +17,5 @@ Per cambiare il PIN, il tempo di inattività o per disattivare il blocco serve i
 ## Se dimentichi il PIN
 
 Non c'è un recupero dall'app. Chi gestisce il server può impostare `HX_LOCK_RESET=true` nel file `.env` e riavviare: il blocco si spegne e l'evento resta negli [Eventi](/system/events). Poi va tolta la riga, altrimenti ogni riavvio spegne il blocco.
+
+Se preferisci tenere il blocco acceso, chi gestisce il server può impostare un nuovo PIN da terminale con `java -jar app.jar set-pin 1234` (4-8 cifre, dalla cartella `deep-flux`): il comando non avvia l'app, imposta il PIN ed esce. Poi conviene cambiarlo dalla pagina Sicurezza, perché resta nella cronologia della shell.

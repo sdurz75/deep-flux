@@ -44,4 +44,12 @@ public interface ILock {
 
     /** Spegne il blocco SENZA PIN: il recupero di un PIN dimenticato ({@code app.lock.reset=true} all'avvio). */
     void reset();
+
+    /**
+     * Imposta il PIN a {@code pin} SENZA chiedere quello attuale: il recupero da riga di comando ({@code set-pin}). Se il blocco e' spento lo attiva col
+     * timeout di default, se e' attivo sostituisce il PIN mantenendo il timeout e azzerando i tentativi falliti.
+     *
+     * @throws org.dual.hexa.core.lock.domain.LockException se il PIN non e' di 4-8 cifre
+     */
+    void forceSetPin(String pin);
 }
