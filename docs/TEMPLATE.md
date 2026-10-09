@@ -10,12 +10,12 @@ mvn archetype:generate -DarchetypeGroupId=org.dual -DarchetypeArtifactId=hexa-ar
     -DgroupId=com.example -DartifactId=my-app -Dpackage=com.example.myapp -DappName="My App" -DuseAi=false
 ```
 
-Proprieta': `appName` (brand, default l'artifactId), `useOauth2` (`true` aggiunge `hexa-oauth2`: accesso con OAuth2/OIDC e lista degli utenti ammessi, configurabile da `/oauth2` e, per l'essenziale, con le variabili `HX_OAUTH2_*` del `.env.example`; il cancello resta spento finche' non lo si accende), `usePwa` (`true` aggiunge `hexa-pwa`: app installabile con manifest, icone segnaposto e service worker con shell offline, nessuna configurazione da importare), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
+Proprieta': `appName` (brand, default l'artifactId), `useOauth2` (`true` aggiunge `hexa-oauth2`: accesso con OAuth2/OIDC e lista degli utenti ammessi, configurabile da `/settings` (scheda «Accesso OAuth2») e, per l'essenziale, con le variabili `HX_OAUTH2_*` del `.env.example`; il cancello resta spento finche' non lo si accende), `usePwa` (`true` aggiunge `hexa-pwa`: app installabile con manifest, icone segnaposto e service worker con shell offline, nessuna configurazione da importare), `useAi` (`true` aggiunge `hexa-ai`, `ai.yml`, `prompts.properties`, Deep Chat e Ricerca nel menu e
 `pgvector/pgvector:pg17` nel compose), `dbName` (default l'artifactId). Si genera con package radice QUALUNQUE (autoconfigurazione, nessuno scan da scrivere).
 
 `hexa-bom` allinea le versioni (`hexa-core`, `hexa-ai`, `hexa-pwa`, `hexa-oauth2`, `hexa-test-support`): l'app lo importa in `dependencyManagement` e aggiorna hexa cambiando `hexa.version`.
 
-L'app generata include la **guida dello sviluppatore** (manuale, gruppo `02-sviluppo`, con link al javadoc di hexa-core/hexa-ai pubblicato da `.github/workflows/javadoc.yml` su GitHub Pages; in locale `mvn -Pjavadoc javadoc:aggregate` -> `target/reports/apidocs`): e' modificabile o cancellabile. L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
+L'app generata include la **guida dello sviluppatore** (manuale, gruppo `02-sviluppo`, con link ai sorgenti commentati delle porte di hexa-core/hexa-ai sul repository Forgejo, indice in [`docs/API.md`](./API.md); il javadoc non si pubblica, in locale `mvn -Pjavadoc javadoc:aggregate` -> `target/reports/apidocs`): e' modificabile o cancellabile. L'app generata ha: layout con **menu laterale** (`app.layout.nav: sidebar`; `top` per la barra in alto) e selettore tema chiaro/scuro/auto, i punti di estensione
 `fragments/app/nav` e `status-extras`, una slice esagonale di esempio `example/` (da copiare e poi cancellare, con la sua migrazione) che mostra anche un allegato nello storage con `IBlobReferences` per il backup (e il test che lo impone), una `EventSource` propria con `ISystemEvents`/`IEventLinkResolver`, un provider di token (`ITokenProviderCatalog`) e una pagina di manuale, `ArchitectureTest` (le regole di layering di hexa, da `HexaArchitectureRules` in `hexa-test-support`: dentro la feature, fra feature e verso le librerie solo `port.in`/`domain`), test di rendering (con bundle disgiunti dalle librerie) e
 di contesto (Testcontainers), `compose.yaml`, `.env.example`, `Dockerfile`, workflow GitHub Actions, profilo `-Ptailwind` (CSS compilato, scansiona anche i template di hexa-core
 estratti in `target/hexa-templates`), e un `CLAUDE.md` con le convenzioni. `mvn install` del repo esegue quattro test d'integrazione dell'archetype (`src/test/resources/projects/{minimal,ai,pwa,oauth2}`):
@@ -26,13 +26,11 @@ generano un progetto e ne lanciano `mvn verify` (serve Docker). Il primo build s
 
 Il codice e' diviso in due:
 
-- **`core`** (`org.dual.hexa.core`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.
-- **`app`** (`org.dual.hexa.app`): l'applicazione attuale (generazione immagini via Replicate, galleria, deep-chat, LoRA,
-  ricerca semantica). Si **sostituisce** con la propria.
+- **`core`** (`org.dual.hexa.core`, con le librerie opzionali `ai`, `pwa`, `oauth2`): la parte riusabile, indipendente da cio' che fa l'app. Si tiene.
+- **`app`**: l'applicazione, di dominio. Non fa parte di questo repo: si scrive la propria (con l'archetype, o copiando il repo).
 
-**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.dual:hexa-core`), `app` il modulo `deep-flux` (package `org.dual.hexa.app`), `hexa-test-support` il container di test. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `ArchitectureTest.HOST_SPIS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. I percorsi `src/...` qui sotto valgono per il modulo `deep-flux` (`deep-flux/src/...`) o `hexa-core` secondo il package. Il riuso per copia: copiare il repo, cancellare `app` e cio' che le appartiene, scrivere la propria
-app implementando i punti di estensione sotto. La regola `coreDoesNotKnowApp` di `ArchitectureTest` impedisce che il codice di `core`
-dipenda da `app`; ogni sottosistema (di `core` e di `app`) e' un esagono (domain / application / port.in / port.out / adapter.in /
+**Moduli Maven**: `core` e' il modulo `hexa-core` (jar riusabile, `org.dual:hexa-core`), con `hexa-ai`, `hexa-pwa`, `hexa-oauth2` opzionali; `hexa-test-support` e' il container di test, `hexa-integration-tests` prova le librerie su un host senza dominio. Una nuova app puo' dipendere da `hexa-core` (`mvn install`, poi la dipendenza nel suo pom; contratto: SPI `HexaArchitectureRules.LIBRARY_EXTENSION_POINTS`, gli slot di template `app.chat.host-fragment`/`app.search.host-fragment`, `fragments/app/nav` e `status-extras`) oppure, come sotto, copiare il repo. Il riuso per copia: copiare il repo, scrivere la propria
+app implementando i punti di estensione sotto. Il codice di `core` non dipende dall'app; ogni sottosistema e' un esagono (domain / application / port.in / port.out / adapter.in /
 adapter.out), per le regole vedi "Architettura" in [`CLAUDE.md`](../CLAUDE.md).
 
 ## Cosa offre il core

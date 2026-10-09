@@ -22,7 +22,8 @@
         hexa-ai (libreria opzionale sopra hexa-core: chat, ricerca semantica, prompt/visione, crediti OpenRouter),
         hexa-pwa (libreria opzionale sopra hexa-core: manifest, service worker e shell offline per rendere l'app installabile),
         hexa-oauth2 (libreria opzionale sopra hexa-core: accesso con OAuth2/OIDC e lista degli utenti ammessi),
-        hexa-test-support (container PostgreSQL per i test) e l'app deep-flux (dominio: generazione, training).
+        hexa-test-support (container PostgreSQL per i test), hexa-integration-tests (test di integrazione e architettura delle librerie su un host senza dominio)
+        e hexa-archetype (generatore di app).
     </description>
 
     <modules>
@@ -32,7 +33,7 @@
         <module>hexa-ai</module>
         <module>hexa-pwa</module>
         <module>hexa-oauth2</module>
-        <module>deep-flux</module>
+        <module>hexa-integration-tests</module>
         <module>hexa-archetype</module>
     </modules>
 
@@ -147,8 +148,8 @@
                         <links>
                             <link>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</link>
                         </links>
-                        <!-- Solo le librerie: l'app (deep-flux, org.dual.hexa.app) non fa parte dell'API documentata. -->
-                        <excludePackageNames>org.dual.hexa.app.*:org.dual.hexa.support.*</excludePackageNames>
+                        <!-- Il container e le regole di test (hexa-test-support) non fanno parte dell'API documentata delle librerie. -->
+                        <excludePackageNames>org.dual.hexa.support.*</excludePackageNames>
                         <overview>${maven.multiModuleProjectDirectory}/src/main/javadoc/overview.html</overview>
                         <windowtitle>hexa ${project.version}</windowtitle>
                         <doctitle>hexa-core e hexa-ai ${project.version}</doctitle>
@@ -159,7 +160,7 @@
     </build>
 
     <profiles>
-        <!-- Documentazione API: mvn -Pjavadoc javadoc:aggregate -> target/reports/apidocs (publicata da .github/workflows/javadoc.yml). Fuori dal build normale. -->
+        <!-- Documentazione API: mvn -Pjavadoc javadoc:aggregate -> target/reports/apidocs, solo per uso locale (non si pubblica: la documentazione delle API e' docs/API.md). Fuori dal build normale. -->
         <profile>
             <id>javadoc</id>
             <build>

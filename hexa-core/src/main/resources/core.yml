@@ -108,7 +108,7 @@ storage:
   # Directory locale (type=local) dove vengono salvate le immagini/video scaricati.
   images-dir: ./data/images
   webdav:
-    # Collezione WebDAV che contiene i blob (es. https://host/remote.php/dav/files/utente/deep-flux/).
+    # Collezione WebDAV che contiene i blob (es. https://host/remote.php/dav/files/utente/app/).
     url: ${HX_STORAGE_WEBDAV_URL:}
     username: ${HX_STORAGE_WEBDAV_USERNAME:}
     password: ${HX_STORAGE_WEBDAV_PASSWORD:}

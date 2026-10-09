@@ -1,0 +1,6 @@
+# Config dell'host di prova: i YAML delle librerie e i testi dei prompt (host-prompts.properties arriva dal test-jar di hexa-ai).
+spring:
+  config:
+    import: classpath:core.yml,classpath:ai.yml,classpath:host-prompts.properties
+  application:
+    name: hexa-integration-tests
