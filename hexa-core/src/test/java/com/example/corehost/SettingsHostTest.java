@@ -121,6 +121,33 @@ class SettingsHostTest {
     }
 
     @Test
+    void theSectionTracksChangesAndOffersARevertToTheSavedState() throws Exception {
+        String body = mockMvc.perform(get("/settings")).andReturn().getResponse().getContentAsString();
+        assertThat(body).contains("x-data=\"settingsForm\"", "data-initial-dirty=\"false\"", "hx-get=\"/settings/demo\"");
+
+        String saved = mockMvc.perform(get("/settings/demo").header("HX-Request", "true")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(saved).contains("id=\"settings-demo\"").doesNotContain("value=\"99\"");
+        mockMvc.perform(get("/settings/nope").header("HX-Request", "true")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aRejectedSaveKeepsTheFormDirtyAndASuccessfulOneSendsAToast() throws Exception {
+        try {
+            var rejected = mockMvc.perform(post("/settings/demo").param("limit", "99").header("HX-Request", "true")).andReturn().getResponse();
+            assertThat(rejected.getContentAsString()).contains("data-initial-dirty=\"true\"");
+            assertThat(rejected.getHeader("HX-Trigger")).isNull();
+
+            var ok = mockMvc.perform(post("/settings/demo").param("limit", "7").param("mode", "b").param("name", "y").header("HX-Request", "true"))
+                    .andReturn().getResponse();
+            assertThat(ok.getHeader("HX-Trigger")).contains("system-toast", "SUCCESS");
+            assertThat(ok.getContentAsString()).contains("data-saved=\"true\"");
+        } finally {
+            mockMvc.perform(post("/settings/demo/reset"));
+        }
+    }
+
+    @Test
     void anUnknownModuleIsNotFound() throws Exception {
         mockMvc.perform(post("/settings/nope")).andExpect(status().isNotFound());
     }

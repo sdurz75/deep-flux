@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Tracciamento delle modifiche del form di una sezione di /settings (fragments/core/settings-section.html). `script` registra UNA volta il
+  componente Alpine `settingsForm` (alpine:init), a livello di PAGINA (layout.html, prima del core Alpine). Imposto dal core: il form e i bottoni
+  sono del template core, quindi ogni modulo (campi generati e fragment proprio, che sta DENTRO il form) lo eredita senza fare nulla.
+
+  - Lo snapshot e' la serializzazione del FormData presa in $nextTick (dopo l'init di select/switch/clear-field), cioe' lo stato SALVATO: la sezione
+    viene sempre risostituita (outerHTML) dopo salva/annulla/predefiniti, quindi il componente riparte da capo.
+  - `dirty` = FormData corrente diverso dallo snapshot; ricalcolato su input, change e sui sync dei componenti (`pines-select:sync`,
+    `clear-field:sync`). `data-initial-dirty="true"` (sezione resa dopo un rifiuto: mostra i valori INVIATI) la tiene "modificata" in partenza.
+  - `saved` (data-saved) mostra l'esito del salvataggio per qualche secondo.
+  I bottoni `primaryDirty`/`neutralDirty` (button.html) leggono `dirty` dall'antenato.
+-->
+<th:block th:fragment="script">
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('settingsForm', () => ({
+                dirty: false,
+                saved: false,
+                snapshot: '',
+                serialize() {
+                    return JSON.stringify(Array.from(new FormData(this.$el).entries()).map(([k, v]) => [k, typeof v === 'string' ? v : '']));
+                },
+                init() {
+                    const forcedDirty = this.$el.dataset.initialDirty === 'true';
+                    this.$nextTick(() => {
+                        this.snapshot = this.serialize();
+                        this.dirty = forcedDirty;
+                    });
+                    /* In fase di cattura: i sync dei componenti sono eventi che non risalgono. */
+                    ['input', 'change', 'pines-select:sync', 'clear-field:sync'].forEach((type) => {
+                        this.$el.addEventListener(type, () => this.refresh(), true);
+                    });
+                    if (this.$el.dataset.saved === 'true') {
+                        this.saved = true;
+                        setTimeout(() => { this.saved = false; }, 4000);
+                    }
+                },
+                refresh() {
+                    this.dirty = this.$el.dataset.initialDirty === 'true' || this.serialize() !== this.snapshot;
+                }
+            }));
+        });
+    </script>
+</th:block>
+
+</body>
+</html>

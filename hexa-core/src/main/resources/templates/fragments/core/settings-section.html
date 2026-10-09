@@ -7,11 +7,10 @@
   sono generati dal tipo dichiarato dal modulo (l'<input> ha un id statico solo perche' clear-field :: wrap lo seleziona; a runtime vale th:id); un fragment proprio del modulo (view.fragment, senza parametri) va sotto i campi. I testi sono chiavi
   di bundle del modulo, risolte qui con #{${...}}.
 -->
-<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="max-w-md">
-    <h2 th:text="#{${view.titleKey}}">Modulo</h2>
+<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="max-w-md border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3 my-6">
+    <h2 class="mt-0" th:text="#{${view.titleKey}}">Modulo</h2>
     <th:block th:if="${error}"><p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p></th:block>
-    <p th:if="${saved}" th:text="#{settings.saved}" class="text-ink-muted dark:text-ink-muted-dark">Salvato.</p>
-    <form th:hx-post="@{/settings/{id}(id=${view.id})}" th:hx-target="|#settings-${view.id}|" hx-swap="outerHTML"
+    <form x-data="settingsForm" th:attr="data-initial-dirty=${error != null}, data-saved=${saved}" th:hx-post="@{/settings/{id}(id=${view.id})}" th:hx-target="|#settings-${view.id}|" hx-swap="outerHTML"
           th:action="@{/settings/{id}(id=${view.id})}" method="post" autocomplete="off">
         <th:block th:each="field : ${view.fields}" th:with="fid=|cfg-${view.id}-${field.key}|, current=${view.state.values.get(field.key)}">
             <div th:if="${field.type.name() == 'BOOL'}" class="my-3">
@@ -94,10 +93,15 @@
             <p th:if="${field.helpKey != null}" th:text="#{${field.helpKey}}" class="text-sm text-ink-muted dark:text-ink-muted-dark">Aiuto</p>
         </th:block>
         <th:block th:if="${view.fragment != null}"><div th:insert="~{__${view.fragment}__}"></div></th:block>
-        <div class="mt-4 flex gap-2">
-            <button th:replace="~{fragments/core/button :: primary(type='submit', text=#{settings.save}, extraClass=null)}">Salva</button>
-            <button th:replace="~{fragments/core/button :: neutral(type='button', text=#{settings.reset}, hxGet=null, hxPost=@{/settings/{id}/reset(id=${view.id})}, hxTarget=|#settings-${view.id}|, hxSwap='outerHTML', extraClass=null)}">Ripristina</button>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button th:replace="~{fragments/core/button :: primaryDirty(text=#{settings.save})}">Salva</button>
+            <button th:replace="~{fragments/core/button :: neutralDirty(text=#{settings.revert}, hxGet=@{/settings/{id}(id=${view.id})}, hxTarget=|#settings-${view.id}|, hxSwap='outerHTML')}">Annulla modifiche</button>
+            <button th:replace="~{fragments/core/button :: danger(type='button', text=#{settings.reset}, hxPost=@{/settings/{id}/reset(id=${view.id})}, hxDelete=null, hxConfirm=#{settings.reset.confirm}, hxSwap='outerHTML', hxTarget=|#settings-${view.id}|, extraClass='ml-auto')}">Predefiniti</button>
         </div>
+        <p class="mt-2 mb-0 text-sm" role="status">
+            <span x-cloak x-show="dirty" class="text-warning dark:text-warning-dark" th:text="#{settings.dirty}">Modifiche non salvate</span>
+            <span x-cloak x-show="saved &amp;&amp; !dirty" class="text-accent dark:text-accent-dark" th:text="|✓ #{settings.saved}|">Salvato</span>
+        </p>
     </form>
 </section>
 

@@ -16,4 +16,4 @@ Dopo ogni nuova versione dell'app il browser sostituisce da solo i file memorizz
 
 ## Colori e modalità di apertura
 
-In [Impostazioni](/settings), nel menu «Gestione», la sezione «App installabile (PWA)» permette di cambiare il colore del tema (chiaro e scuro) e la modalità di apertura (finestra normale, a tutto schermo, e così via). Il salvataggio vale subito; «Ripristina predefiniti» toglie le tue modifiche. Chi ha già installato l'app vede il cambio solo dopo averla reinstallata.
+In [Impostazioni](/settings), nel menu «Gestione», la sezione «App installabile (PWA)» permette di cambiare il colore del tema (chiaro e scuro) e la modalità di apertura (finestra normale, a tutto schermo, e così via). Ogni sezione ha il proprio «Salva», attivo solo quando c'è una modifica (compare «Modifiche non salvate»); «Annulla modifiche» rimette il form com'era all'ultimo salvataggio, «Ripristina predefiniti» (con conferma) toglie le modifiche salvate. Il salvataggio vale subito e lo conferma una notifica. Chi ha già installato l'app vede il cambio solo dopo averla reinstallata.

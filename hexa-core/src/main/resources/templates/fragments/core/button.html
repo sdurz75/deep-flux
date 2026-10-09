@@ -96,6 +96,23 @@
         th:text="${text}">Elimina selezionate</button>
 
 <!--
+  Varianti "con modifiche" per il form di una sezione di /settings (fragments/core/settings-section.html): disabilitate finche' il form non ha
+  modifiche. `dirty` e' il binding Alpine FISSO del componente `settingsForm` (fragments/core/settings-form.html) sull'antenato <form>, come
+  selectedIds per dangerSelectable. primaryDirty = "Salva" (submit); neutralDirty = "Annulla modifiche" (htmx GET che rilegge lo stato salvato).
+-->
+<button th:fragment="primaryDirty(text)" type="submit" disabled
+        class="disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="!dirty"
+        th:text="${text}">Salva</button>
+
+<button th:fragment="neutralDirty(text, hxGet, hxTarget, hxSwap)" type="button" disabled
+        class="bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark
+               disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="!dirty"
+        th:hx-get="${hxGet}" th:hx-target="${hxTarget}" th:hx-swap="${hxSwap}"
+        th:text="${text}">Annulla modifiche</button>
+
+<!--
   Dialog modale (Pines UI): dialogOpen/dialogClose assumono la variabile Alpine `dialogOpen` su un antenato x-data (stesso
   accoppiamento esplicito di dangerSelectable con selectedIds o toastClose con dismiss): la pagina che ospita il dialog la
   dichiara (vedi search.html); lo scheletro del dialog e' in fragments/core/modal :: dialog. dialogClose e' la variante neutra ("Annulla"); dialogCloseIcon la "x" nell'intestazione.
