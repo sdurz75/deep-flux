@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 import org.dual.hexa.core.config.domain.ConfigChange;
 import org.dual.hexa.core.config.domain.ConfigException;
 import org.dual.hexa.core.config.domain.ConfigField;
+import org.dual.hexa.core.config.domain.ConfigGroup;
 import org.dual.hexa.core.config.domain.ModuleValues;
 import org.dual.hexa.core.config.port.in.IConfigModule;
 import org.dual.hexa.core.kernel.i18n.Messages;
@@ -73,6 +74,14 @@ class Oauth2ConfigModule implements IConfigModule {
                         EMAIL_PATTERN, "oauth2.error.emailFormat", true, true),
                 ConfigField.list(ConfigKeys.ALLOWED_DOMAINS, "oauth2.field.allowedDomains", "oauth2.field.allowedDomains.help", "HX_OAUTH2_ALLOWED_DOMAINS",
                         DOMAIN_PATTERN, "oauth2.error.domainFormat", true, true));
+    }
+
+    @Override
+    public List<ConfigGroup> groups() {
+        return List.of(
+                ConfigGroup.of("oauth2.group.session", ConfigKeys.ENABLED, ConfigKeys.SESSION_DAYS, ConfigKeys.SESSION_MAX_DAYS, ConfigKeys.SESSION_REMEMBER),
+                ConfigGroup.of("oauth2.group.allowed", ConfigKeys.ALLOWED_EMAILS, ConfigKeys.ALLOWED_DOMAINS),
+                ConfigGroup.of("oauth2.group.providers", ConfigKeys.PROVIDERS));
     }
 
     @Override

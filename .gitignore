@@ -22,3 +22,6 @@ data/
 .env
 .env.*
 !.env.example
+
+# Progetto estratto (non versionato, fase successiva)
+tmp/

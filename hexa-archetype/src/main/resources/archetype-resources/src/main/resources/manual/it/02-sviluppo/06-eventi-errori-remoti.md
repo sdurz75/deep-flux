@@ -4,7 +4,7 @@ Ogni errore interno e ogni chiamata a un servizio esterno passa dal registro deg
 
 ## Registrare un evento
 
-[`ISystemEvents`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/events/port/in/ISystemEvents.html) espone `record(operation, throwable[, subject])` per gli errori e `warn(source, operation, subject, message)` per gli avvisi (messaggio già tradotto). `record` non lancia mai e consegna il toast alla prima occorrenza di una serie di eventi uguali (finestra di 5 minuti). Registra chi gestisce o ingoia l'eccezione (servizi in background, strumenti); se l'eccezione risale a un controller, registra il controller. Gli eventi si vedono in [/system/events](/system/events).
+[`ISystemEvents`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/events/port/in/ISystemEvents.java) espone `record(operation, throwable[, subject])` per gli errori e `warn(source, operation, subject, message)` per gli avvisi (messaggio già tradotto). `record` non lancia mai e consegna il toast alla prima occorrenza di una serie di eventi uguali (finestra di 5 minuti). Registra chi gestisce o ingoia l'eccezione (servizi in background, strumenti); se l'eccezione risale a un controller, registra il controller. Gli eventi si vedono in [/system/events](/system/events).
 
 ## Una sorgente propria
 
@@ -31,4 +31,4 @@ Le operazioni non idempotenti o a pagamento passano `RetryPolicy.NONE` esplicita
 
 ## Riferimento API
 
-[`ISystemEvents`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/events/port/in/ISystemEvents.html), e in [`org.dual.hexa.core.kernel.remote`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/kernel/remote/package-summary.html): `RemoteCaller`, `RetryPolicy`, `RemoteServiceException`.
+[`ISystemEvents`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/events/port/in/ISystemEvents.java), e in [`org.dual.hexa.core.kernel.remote`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/kernel/remote): `RemoteCaller`, `RetryPolicy`, `RemoteServiceException`.

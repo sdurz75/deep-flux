@@ -52,7 +52,7 @@ class Oauth2GateOffTest {
 
     @Test
     void theSectionRegistersInTheSettingsPageAndRendersItsFieldsAndStatus() throws Exception {
-        String page = mockMvc.perform(get("/settings")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String page = mockMvc.perform(get("/settings").param("module", "oauth2")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(page).contains("id=\"settings-oauth2\"", "Cancello di accesso", "name=\"enabled\"", "name=\"allowed-emails\"", "name=\"providers.__new.client-secret\"",
                 "oauth2-extra").doesNotContain("??");

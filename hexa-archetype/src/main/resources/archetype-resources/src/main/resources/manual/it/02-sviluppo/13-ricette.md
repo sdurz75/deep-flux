@@ -30,4 +30,4 @@ Cancellare la slice `example/` con la sua migrazione, la pagina e il fragment, l
 
 ## Riferimento API
 
-[indice generale delle API](https://sdurz75.github.io/deep-flux/apidocs/index.html).
+[indice generale delle API](https://git.trenolab.com/a.duca/hexa/src/branch/main/docs/API.md).

@@ -24,4 +24,4 @@ I testi visibili stanno nei bundle `messages(.en).properties`. Le librerie hanno
 
 ## Riferimento API
 
-Le classi di autoconfigurazione sono in [`org.dual.hexa.core.autoconfigure`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/autoconfigure/package-summary.html); i punti di estensione in `port.in` sono elencati nell'[indice generale delle API](https://sdurz75.github.io/deep-flux/apidocs/index.html).
+Le classi di autoconfigurazione sono in [`org.dual.hexa.core.autoconfigure`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/autoconfigure); i punti di estensione in `port.in` sono elencati nell'[indice generale delle API](https://git.trenolab.com/a.duca/hexa/src/branch/main/docs/API.md).

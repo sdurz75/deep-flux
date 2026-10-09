@@ -28,4 +28,4 @@ Ogni testo visibile viene da `#{...}` e dal bundle, in entrambe le lingue.
 
 ## Riferimento API
 
-Gli helper lato Java sono in [`org.dual.hexa.core.web`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/web/package-summary.html): `HtmxEvents` (toast e `HX-Trigger`), `PaginationSupport`, `TailwindAssets`.
+Gli helper lato Java sono in [`org.dual.hexa.core.web`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/web): `HtmxEvents` (toast e `HX-Trigger`), `PaginationSupport`, `TailwindAssets`.

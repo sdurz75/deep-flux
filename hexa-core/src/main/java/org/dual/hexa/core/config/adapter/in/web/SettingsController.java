@@ -1,10 +1,14 @@
 package org.dual.hexa.core.config.adapter.in.web;
 
+import java.util.ArrayList;
 import java.util.List;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.dual.hexa.core.config.domain.ConfigException;
+import org.dual.hexa.core.config.domain.ConfigField;
+import org.dual.hexa.core.config.domain.ConfigGroup;
 import org.dual.hexa.core.config.domain.FormState;
 import org.dual.hexa.core.config.port.in.IConfigModule;
 import org.dual.hexa.core.config.port.in.IModuleSettings;
@@ -21,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * La pagina «Impostazioni», autogenerata dai moduli registrati ({@code IConfigModule}): una sezione per modulo, ognuna col proprio form. Stessa URL,
+ * La pagina «Impostazioni», autogenerata dai moduli registrati ({@code IConfigModule}): una scheda per modulo ({@code ?module=<id>}, il primo se manca o e' sconosciuto), ognuna con la propria sezione e il proprio form. Stessa URL,
  * due risposte distinte da {@code HX-Request} (pagina intera o solo la sezione). Un valore non valido ({@code ConfigException}) e' un rifiuto atteso:
  * messaggio nella sezione, niente registro eventi, e il form mostra quanto inviato.
  */
@@ -42,8 +46,11 @@ class SettingsController {
     }
 
     @GetMapping("/settings")
-    String page(Model model) {
-        model.addAttribute("views", settings.modules().stream().map(module -> view(module, settings.formState(module.id()), null, false)).toList());
+    String page(@RequestParam(value = "module", required = false) String moduleId, Model model) {
+        List<SettingsView> views = settings.modules().stream().map(module -> view(module, settings.formState(module.id()), null, false)).toList();
+        model.addAttribute("views", views);
+        model.addAttribute("active", views.stream().map(SettingsView::id).filter(id -> id.equals(moduleId)).findFirst()
+                .orElse(views.isEmpty() ? "" : views.get(0).id()));
         return "core/settings";
     }
 
@@ -52,7 +59,7 @@ class SettingsController {
     String section(@PathVariable("module") String moduleId, Model model, @RequestHeader(value = "HX-Request", required = false) String hx) {
         IConfigModule module = find(moduleId);
         if (hx == null) {
-            return "redirect:/settings";
+            return "redirect:/settings?module=" + module.id();
         }
         return render(model, hx, view(module, settings.formState(moduleId), null, false));
     }
@@ -96,6 +103,7 @@ class SettingsController {
         if (hx != null) {
             return SECTION;
         }
+        model.addAttribute("active", view.id());
         model.addAttribute("views", settings.modules().stream()
                 .map(module -> module.id().equals(view.id()) ? view : view(module, settings.formState(module.id()), null, false)).toList());
         return "core/settings";
@@ -106,6 +114,23 @@ class SettingsController {
     }
 
     private SettingsView view(IConfigModule module, FormState state, String error, boolean saved) {
-        return new SettingsView(module.id(), module.titleKey(), List.copyOf(module.fields()), state, module.fragment().orElse(null), error, saved);
+        return new SettingsView(module.id(), module.titleKey(), groups(module), state, module.fragment().orElse(null), error, saved);
+    }
+
+    /** I riquadri dichiarati dal modulo; i campi non nominati da nessun gruppo (o tutti, senza gruppi) in un riquadro finale senza titolo. */
+    private static List<SettingsView.Group> groups(IConfigModule module) {
+        Map<String, ConfigField> byKey = new LinkedHashMap<>();
+        module.fields().forEach(field -> byKey.put(field.key(), field));
+        List<SettingsView.Group> groups = new ArrayList<>();
+        for (ConfigGroup group : module.groups()) {
+            List<ConfigField> fields = group.fieldKeys().stream().map(byKey::remove).filter(Objects::nonNull).toList();
+            if (!fields.isEmpty()) {
+                groups.add(new SettingsView.Group(group.titleKey(), fields));
+            }
+        }
+        if (!byKey.isEmpty()) {
+            groups.add(new SettingsView.Group(null, List.copyOf(byKey.values())));
+        }
+        return groups;
     }
 }

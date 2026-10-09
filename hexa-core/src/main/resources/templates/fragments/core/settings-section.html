@@ -7,12 +7,18 @@
   sono generati dal tipo dichiarato dal modulo (l'<input> ha un id statico solo perche' clear-field :: wrap lo seleziona; a runtime vale th:id); un fragment proprio del modulo (view.fragment, senza parametri) va sotto i campi. I testi sono chiavi
   di bundle del modulo, risolte qui con #{${...}}.
 -->
-<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="max-w-md border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3 my-6">
+<section th:fragment="section(view, error, saved)" th:id="|settings-${view.id}|" class="w-full border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-4 py-3 my-6">
     <h2 class="mt-0" th:text="#{${view.titleKey}}">Modulo</h2>
     <th:block th:if="${error}"><p th:replace="~{fragments/core/alert :: error(text=${error})}">Errore</p></th:block>
     <form x-data="settingsForm" th:attr="data-initial-dirty=${error != null}, data-saved=${saved}" th:hx-post="@{/settings/{id}(id=${view.id})}" th:hx-target="|#settings-${view.id}|" hx-swap="outerHTML"
           th:action="@{/settings/{id}(id=${view.id})}" method="post" autocomplete="off">
-        <th:block th:each="field : ${view.fields}" th:with="fid=|cfg-${view.id}-${field.key}|, current=${view.state.values.get(field.key)}">
+        <div class="grid gap-4 items-start xl:grid-cols-2">
+        <div th:each="group : ${view.groups}" class="border border-line dark:border-line-dark rounded-lg px-4 py-3"
+             th:classappend="${group.wide} ? 'xl:col-span-2'" th:with="soloTitled=${group.titleKey != null and group.fields.size() == 1}">
+        <h3 th:if="${group.titleKey != null}" class="mt-0" th:text="#{${group.titleKey}}">Gruppo</h3>
+        <div class="grid gap-x-6 sm:grid-cols-2">
+        <div th:each="field : ${group.fields}" th:with="fid=|cfg-${view.id}-${field.key}|, current=${view.state.values.get(field.key)}"
+             th:classappend="${field.type.name() == 'LIST' or field.type.name() == 'COLLECTION'} ? 'sm:col-span-2'">
             <div th:if="${field.type.name() == 'BOOL'}" class="my-3">
                 <label th:replace="~{fragments/core/switch :: toggle(id=${fid}, name=${field.key}, text=#{${field.labelKey}}, checked=${current == 'true'}, model=null, title=null)}">Interruttore</label>
             </div>
@@ -31,12 +37,14 @@
                 </div>
             </th:block>
             <th:block th:if="${field.type.name() == 'COLLECTION'}">
-                <h3 class="mt-4" th:text="#{${field.labelKey}}">Elenco</h3>
+                <h4 th:unless="${soloTitled}" class="mt-4" th:text="#{${field.labelKey}}">Elenco</h4>
+                <div class="grid gap-3 my-2 lg:grid-cols-2">
                 <div th:each="row : ${view.state.rows.get(field.key)}" th:unless="${row.id.isEmpty()}"
-                     class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-3 py-2 my-2">
+                     class="border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark px-3 py-2">
                     <strong th:text="${row.id}">id</strong>
                     <input type="hidden" th:name="|${field.key}.${row.id}.__row|" value="1">
-                    <th:block th:each="column : ${field.columns}" th:unless="${column.key == field.idColumn}"
+                    <div class="grid gap-x-4 sm:grid-cols-2">
+                    <div th:each="column : ${field.columns}" th:unless="${column.key == field.idColumn}"
                               th:with="cid=|${fid}-${row.id}-${column.key}|">
                         <label th:for="${cid}" th:text="#{${column.labelKey}}">Colonna</label>
                         <input th:if="${column.type.name() == 'SECRET'}" type="password" th:id="${cid}" th:name="|${field.key}.${row.id}.${column.key}|"
@@ -51,15 +59,17 @@
                         </div>
                         <input th:if="${column.type.name() == 'TEXT'}" type="text" th:id="${cid}" th:name="|${field.key}.${row.id}.${column.key}|"
                                th:value="${row.values.get(column.key)}">
-                    </th:block>
+                    </div>
+                    </div>
                     <div class="mt-2">
                         <label th:replace="~{fragments/core/switch :: toggle(id=|${fid}-${row.id}-remove|, name=|${field.key}.${row.id}.__remove|, text=#{settings.collection.remove}, checked=${row.removed}, model=null, title=null)}">Rimuovi</label>
                     </div>
                 </div>
-                <div class="border border-dashed border-line dark:border-line-dark rounded-lg px-3 py-2 my-2"
+                <div class="border border-dashed border-line dark:border-line-dark rounded-lg px-3 py-2"
                      th:with="fresh=${view.state.rows.get(field.key).isEmpty() ? null : view.state.rows.get(field.key).get(view.state.rows.get(field.key).size() - 1)}">
                     <strong th:text="#{settings.collection.new}">Nuova voce</strong>
-                    <th:block th:each="column : ${field.columns}" th:with="cid=|${fid}-new-${column.key}|, freshValue=${fresh != null and fresh.id.isEmpty() ? fresh.values.get(column.key) : ''}">
+                    <div class="grid gap-x-4 sm:grid-cols-2">
+                    <div th:each="column : ${field.columns}" th:with="cid=|${fid}-new-${column.key}|, freshValue=${fresh != null and fresh.id.isEmpty() ? fresh.values.get(column.key) : ''}">
                         <label th:for="${cid}" th:text="#{${column.labelKey}}">Colonna</label>
                         <input th:if="${column.type.name() == 'SECRET'}" type="password" th:id="${cid}" th:name="|${field.key}.__new.${column.key}|"
                                autocomplete="new-password" maxlength="500">
@@ -72,7 +82,9 @@
                         </div>
                         <input th:if="${column.type.name() == 'TEXT'}" type="text" th:id="${cid}" th:name="|${field.key}.__new.${column.key}|"
                                th:value="${freshValue}">
-                    </th:block>
+                    </div>
+                    </div>
+                </div>
                 </div>
             </th:block>
             <th:block th:if="${field.type.name() != 'BOOL' and field.type.name() != 'SECRET' and field.type.name() != 'LIST' and field.type.name() != 'COLLECTION'}">
@@ -91,7 +103,10 @@
                 </th:block>
             </th:block>
             <p th:if="${field.helpKey != null}" th:text="#{${field.helpKey}}" class="text-sm text-ink-muted dark:text-ink-muted-dark">Aiuto</p>
-        </th:block>
+        </div>
+        </div>
+        </div>
+        </div>
         <th:block th:if="${view.fragment != null}"><div th:insert="~{__${view.fragment}__}"></div></th:block>
         <div class="mt-4 flex flex-wrap items-center gap-2">
             <button th:replace="~{fragments/core/button :: primaryDirty(text=#{settings.save})}">Salva</button>

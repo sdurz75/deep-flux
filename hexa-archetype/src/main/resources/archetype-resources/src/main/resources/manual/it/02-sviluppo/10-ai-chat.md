@@ -8,10 +8,10 @@ Il client invia solo l'ultimo messaggio; la cronologia è ricostruita dal server
 
 ## Le SPI
 
-- [`IChatToolkit`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatToolkit.html): un insieme di strumenti `@Tool` con una sezione di prompt (`promptSection`) e un `@Order`; `beginTurn`/`endTurn` aprono e chiudono il turno.
-- [`IChatTurnContributor`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatTurnContributor.html): aggiunge dati al contesto degli strumenti a partire dalle impostazioni del client.
-- [`IChatPageContributor`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatPageContributor.html): attributi per la pagina di una conversazione.
-- [`IChatOutcomeResolver`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/IChatOutcomeResolver.html): trasforma i riferimenti in esiti da mostrare.
+- [`IChatToolkit`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/chat/port/in/IChatToolkit.java): un insieme di strumenti `@Tool` con una sezione di prompt (`promptSection`) e un `@Order`; `beginTurn`/`endTurn` aprono e chiudono il turno.
+- [`IChatTurnContributor`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/chat/port/in/IChatTurnContributor.java): aggiunge dati al contesto degli strumenti a partire dalle impostazioni del client.
+- [`IChatPageContributor`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/chat/port/in/IChatPageContributor.java): attributi per la pagina di una conversazione.
+- [`IChatOutcomeResolver`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/chat/port/in/IChatOutcomeResolver.java): trasforma i riferimenti in esiti da mostrare.
 
 Le implementazioni si iniettano come `Optional<...>` nei servizi della chat.
 
@@ -29,4 +29,4 @@ I link che il bot può citare sono un elenco chiuso di percorsi (`app.chat.link-
 
 ## Riferimento API
 
-[`org.dual.hexa.ai.chat.port.in`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/chat/port/in/package-summary.html), [`IPromptEnhancer`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/llm/port/in/IPromptEnhancer.html), [`IImageDescriber`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/ai/llm/port/in/IImageDescriber.html).
+[`org.dual.hexa.ai.chat.port.in`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/chat/port/in), [`IPromptEnhancer`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/llm/port/in/IPromptEnhancer.java), [`IImageDescriber`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-ai/src/main/java/org/dual/hexa/ai/llm/port/in/IImageDescriber.java).

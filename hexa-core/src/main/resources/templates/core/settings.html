@@ -12,7 +12,14 @@
     <h1 th:text="#{settings.title}">Impostazioni</h1>
     <p th:text="#{settings.intro}">Impostazioni dei moduli.</p>
     <p th:if="${#lists.isEmpty(views)}" th:text="#{settings.empty}" class="text-ink-muted dark:text-ink-muted-dark">Nessun modulo configurabile.</p>
-    <th:block th:each="view : ${views}">
+    <th:block th:unless="${#lists.isEmpty(views)}" th:replace="~{fragments/core/tabs :: list(extraClass='mb-4', body=~{::#settings-tabs})}">
+        <th:block id="settings-tabs">
+            <th:block th:each="view : ${views}" th:with="tabHref=@{/settings(module=${view.id})}">
+                <a th:replace="~{fragments/core/tabs :: tab(text=#{${view.titleKey}}, href=${tabHref}, hxTarget=null, selected=${view.id == active}, compact=false)}">Scheda</a>
+            </th:block>
+        </th:block>
+    </th:block>
+    <th:block th:each="view : ${views}" th:if="${view.id == active}">
         <div th:replace="~{fragments/core/settings-section :: section(view=${view}, error=${view.error}, saved=${view.saved})}"></div>
     </th:block>
 </div>

@@ -1,6 +1,6 @@
 # ${appName}
 
-Applicazione basata su [hexa](https://github.com/sdurz75/deep-flux) (`hexa-core`#if( $useAi == "true" ) + `hexa-ai`#end#if( $usePwa == "true" ) + `hexa-pwa`#end#if( $useOauth2 == "true" ) + `hexa-oauth2`#end): Spring MVC + Thymeleaf, htmx, Alpine e Tailwind senza build frontend.
+Applicazione basata su [hexa](https://git.trenolab.com/a.duca/hexa) (`hexa-core`#if( $useAi == "true" ) + `hexa-ai`#end#if( $usePwa == "true" ) + `hexa-pwa`#end#if( $useOauth2 == "true" ) + `hexa-oauth2`#end): Spring MVC + Thymeleaf, htmx, Alpine e Tailwind senza build frontend.
 
 **Avvio**
 

@@ -1,0 +1,61 @@
+# deep-flux (hexa)
+
+> Webapp Spring Boot 4 / Java 21 hypermedia-first (Spring MVC + Thymeleaf, htmx, Alpine, Tailwind senza build frontend) per generare e archiviare immagini e video con Replicate, con una chat assistita e ricerca semantica. Il repository contiene anche le librerie riusabili `hexa-core`, `hexa-ai`, `hexa-pwa`, `hexa-oauth2` e un archetype Maven per creare nuove app. Documentazione in italiano.
+
+## Per iniziare
+
+- [README](https://git.trenolab.com/a.duca/hexa/raw/branch/main/README.md): avvio, backup, reverse proxy, OAuth2 e tabella della documentazione
+- [CLAUDE.md](https://git.trenolab.com/a.duca/hexa/raw/branch/main/CLAUDE.md): vincoli, architettura esagonale, convenzioni, comandi (riferimento principale per chi modifica il codice)
+- [AGENTS.md](https://git.trenolab.com/a.duca/hexa/raw/branch/main/AGENTS.md): punto d'ingresso per agenti di codice
+- [docs/TEMPLATE.md](https://git.trenolab.com/a.duca/hexa/raw/branch/main/docs/TEMPLATE.md): usare hexa come base di una nuova app (archetype)
+- [Indice delle API pubbliche](https://git.trenolab.com/a.duca/hexa/raw/branch/main/docs/API.md): le porte `port.in` e le SPI di estensione, con link ai sorgenti documentati
+
+## Manuale di sviluppo
+
+- [Panoramica](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/01-panoramica.md)
+- [Esagoni, core e app](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/02-esagoni-core-app.md)
+- [Web, htmx e Thymeleaf](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/03-web-htmx-thymeleaf.md)
+- [Generazione e Replicate](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/04-generazione-replicate.md)
+- [Chat e assistente](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/05-chat-e-assistente.md)
+- [Archivio e ricerca](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/06-archivio-e-ricerca.md)
+- [Dati, storage e sicurezza](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/07-dati-storage-sicurezza.md)
+- [Operatività](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/08-operativita.md)
+- [Estendere il sistema e questo manuale](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/02-architettura/09-estendere-e-manuale.md)
+
+## Manuale d'uso
+
+- [Introduzione](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/01-introduzione.md)
+- [Deep Chat](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/02-deep-chat.md)
+- [Genera immagini](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/03-genera-immagini.md)
+- [Modifica e inpainting](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/04-modifica-e-inpainting.md)
+- [LoRA e segreti](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/05-lora-e-segreti.md)
+- [Video](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/06-video.md)
+- [Galleria e archivio](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/07-galleria-e-archivio.md)
+- [Importare immagini](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/08-importare-immagini.md)
+- [Ricerca e note](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/09-ricerca-e-note.md)
+- [Crediti e costi](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/10-crediti-e-costi.md)
+- [Eventi e problemi](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/11-eventi-e-problemi.md)
+- [Addestrare un LoRA](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/12-addestrare-lora.md)
+- [Installare come app](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/13-installare-come-app.md)
+- [Blocco con PIN](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/14-blocco-con-pin.md)
+- [Accesso con OAuth2](https://git.trenolab.com/a.duca/hexa/raw/branch/main/deep-flux/src/main/resources/manual/it/01-uso/15-accesso-con-oauth2.md)
+
+## Guida dello sviluppatore delle app generate (archetype)
+
+- [Introduzione per lo sviluppatore](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/01-introduzione.md)
+- [Architettura esagonale](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/02-architettura-esagonale.md)
+- [Configurazione](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/03-configurazione.md)
+- [Persistenza e migrazioni](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/04-persistenza-e-migrazioni.md)
+- [Web, htmx e Thymeleaf](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/05-web-htmx-thymeleaf.md)
+- [Eventi, errori e servizi remoti](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/06-eventi-errori-remoti.md)
+- [Storage, segreti e backup](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/07-storage-segreti-backup.md)
+- [Push in tempo reale](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/08-push-sse.md)
+- [Il manuale online](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/09-manuale-online.md)
+- [Chat e strumenti (hexa-ai)](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/10-ai-chat.md)
+- [Ricerca e crediti (hexa-ai)](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/11-ai-ricerca-e-crediti.md)
+- [Testare](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/12-testare.md)
+- [Ricette](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/13-ricette.md)
+- [Catalogo dei fragment di hexa-core](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/14-catalogo-fragment.md)
+- [App installabile (hexa-pwa)](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/15-pwa.md)
+- [Blocco con PIN (hexa-core)](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/16-blocco-con-pin.md)
+- [Accesso con OAuth2 (hexa-oauth2)](https://git.trenolab.com/a.duca/hexa/raw/branch/main/hexa-archetype/src/main/resources/archetype-resources/src/main/resources/manual/it/02-sviluppo/17-oauth2.md)

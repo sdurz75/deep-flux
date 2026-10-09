@@ -23,4 +23,4 @@ L'app è un host: dipende dai jar tramite `hexa-bom` (le versioni sono allineate
 
 ## Riferimento API
 
-La documentazione javadoc è su [indice generale delle API](https://sdurz75.github.io/deep-flux/apidocs/index.html). Il punto di partenza sono i package `port.in` di ogni sottosistema: contengono le capability da usare e le SPI da implementare. Il modello da copiare è la slice `example/` di questa app (si apre da [/example](/example)).
+La documentazione delle API sono i commenti dei sorgenti, con l'[indice generale delle API](https://git.trenolab.com/a.duca/hexa/src/branch/main/docs/API.md). Il punto di partenza sono i package `port.in` di ogni sottosistema: contengono le capability da usare e le SPI da implementare. Il modello da copiare è la slice `example/` di questa app (si apre da [/example](/example)).

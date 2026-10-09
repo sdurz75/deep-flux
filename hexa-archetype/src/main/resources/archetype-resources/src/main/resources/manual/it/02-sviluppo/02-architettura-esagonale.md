@@ -31,4 +31,4 @@ Per citare classi di altri strati si usa `{@code Nome}`, mai `{@link}`: un link 
 
 ## Riferimento API
 
-Esempi di porte `in` delle librerie: [`ISystemEvents`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/events/port/in/ISystemEvents.html), [`IImageStorageService`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/storage/port/in/IImageStorageService.html), [`IManual`](https://sdurz75.github.io/deep-flux/apidocs/org/dual/hexa/core/manual/port/in/IManual.html).
+Esempi di porte `in` delle librerie: [`ISystemEvents`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/events/port/in/ISystemEvents.java), [`IImageStorageService`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/storage/port/in/IImageStorageService.java), [`IManual`](https://git.trenolab.com/a.duca/hexa/src/branch/main/hexa-core/src/main/java/org/dual/hexa/core/manual/port/in/IManual.java).

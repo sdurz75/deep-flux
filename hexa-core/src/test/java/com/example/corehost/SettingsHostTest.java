@@ -82,6 +82,33 @@ class SettingsHostTest {
         }
 
         @Bean
+        IConfigModule groupedModule() {
+            return new IConfigModule() {
+                @Override
+                public String id() {
+                    return "grouped";
+                }
+
+                @Override
+                public String titleKey() {
+                    return "rich.title";
+                }
+
+                @Override
+                public List<ConfigField> fields() {
+                    return List.of(ConfigField.text("a", "x", "demo.name", null), ConfigField.text("b", "y", "demo.name", null),
+                            ConfigField.collection("items", "rich.items", null, List.of(ConfigField.Column.text("slug", "rich.slug", null, null, true)),
+                                    "slug", 5, null));
+                }
+
+                @Override
+                public List<org.dual.hexa.core.config.domain.ConfigGroup> groups() {
+                    return List.of(org.dual.hexa.core.config.domain.ConfigGroup.of("rich.title", "items", "nope"));
+                }
+            };
+        }
+
+        @Bean
         ISecretTypeCatalog richTypes() {
             return () -> List.of(new SecretType("RICH_TYPE", "secrets.type.GENERIC", true));
         }
@@ -95,10 +122,31 @@ class SettingsHostTest {
 
     @Test
     void aRegisteredModuleGetsASectionAndAMenuEntry() throws Exception {
-        String body = mockMvc.perform(get("/settings")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String body = mockMvc.perform(get("/settings").param("module", "demo")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(body).contains("id=\"settings-demo\"", "name=\"limit\"", "name=\"flag\"", "name=\"mode\"", "name=\"name\"");
         assertThat(layoutSlots.manageMenuEntries()).anyMatch(entry -> entry.path().equals("/settings"));
+    }
+
+    @Test
+    void theTabBarListsEveryModuleAndOnlyTheActiveSectionIsRendered() throws Exception {
+        String demo = mockMvc.perform(get("/settings").param("module", "demo")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(demo).contains("role=\"tablist\"", "href=\"/settings?module=demo\"", "href=\"/settings?module=rich\"", "id=\"settings-demo\"")
+                .doesNotContain("id=\"settings-rich\"");
+
+        String rich = mockMvc.perform(get("/settings").param("module", "rich")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(rich).contains("id=\"settings-rich\"").doesNotContain("id=\"settings-demo\"");
+
+        String unknown = mockMvc.perform(get("/settings").param("module", "nope")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(unknown).contains("role=\"tablist\"").containsOnlyOnce("<section");
+    }
+
+    @Test
+    void fieldsAreGroupedIntoTitledPanelsAndTheUnlistedOnesFallIntoATrailingOne() throws Exception {
+        String body = mockMvc.perform(get("/settings").param("module", "grouped")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        assertThat(body).containsOnlyOnce("xl:col-span-2\"").contains("name=\"a\"", "name=\"b\"", "name=\"items.__new.slug\"");
+        assertThat(body.indexOf("name=\"items.__new.slug\"")).isLessThan(body.indexOf("name=\"a\""));
     }
 
     @Test
@@ -122,7 +170,7 @@ class SettingsHostTest {
 
     @Test
     void theSectionTracksChangesAndOffersARevertToTheSavedState() throws Exception {
-        String body = mockMvc.perform(get("/settings")).andReturn().getResponse().getContentAsString();
+        String body = mockMvc.perform(get("/settings").param("module", "demo")).andReturn().getResponse().getContentAsString();
         assertThat(body).contains("x-data=\"settingsForm\"", "data-initial-dirty=\"false\"", "hx-get=\"/settings/demo\"");
 
         String saved = mockMvc.perform(get("/settings/demo").header("HX-Request", "true")).andExpect(status().isOk())

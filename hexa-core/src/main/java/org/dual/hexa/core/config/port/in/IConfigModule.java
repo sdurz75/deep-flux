@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import org.dual.hexa.core.config.domain.ConfigChange;
 import org.dual.hexa.core.config.domain.ConfigField;
+import org.dual.hexa.core.config.domain.ConfigGroup;
 
 /**
  * SPI di un modulo che ha bisogno di configurazione: basta un bean (si autoregistra, come {@code ILayoutContributor}) e la pagina {@code /settings} e
@@ -22,6 +23,14 @@ public interface IConfigModule {
     String titleKey();
 
     List<ConfigField> fields();
+
+    /**
+     * Raggruppamento semantico dei campi (riquadri con titolo, in griglia). Vuoto = un solo riquadro senza titolo con tutti i campi; i campi che nessun
+     * gruppo nomina finiscono in un riquadro finale senza titolo.
+     */
+    default List<ConfigGroup> groups() {
+        return List.of();
+    }
 
     /** Fragment Thymeleaf facoltativo, senza parametri (es. {@code fragments/core/pwa-settings :: extra}). */
     default Optional<String> fragment() {
