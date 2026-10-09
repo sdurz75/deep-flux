@@ -50,6 +50,8 @@
             </ul>
         </th:block>
     </th:block>
+    <!--/* Statistiche fuori banda (pagina 1, non lo scroll infinito): solo se il controller le mette nel model come statsOob, la pagina intera ha gia' le sue. th:if sul blocco esterno: sullo stesso elemento th:replace ha la precedenza. */-->
+    <th:block th:if="${statsOob != null}"><th:block th:replace="~{::stats(stats=${statsOob}, oob=true)}"></th:block></th:block>
 </th:block>
 
 <!--

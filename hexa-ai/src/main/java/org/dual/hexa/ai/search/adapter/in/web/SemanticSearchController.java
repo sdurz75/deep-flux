@@ -122,6 +122,10 @@ public class SemanticSearchController {
                           @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "false") boolean more,
                           Model model) {
         populateResults(q, type, from, to, threshold, media, favourites, tag, more ? page : 1, model);
+        if (!more) {
+            // Anche le statistiche in cima (OOB, id search-stats): "Aggiorna" rilegge la lista e i conteggi.
+            model.addAttribute("statsOob", stats());
+        }
         // Scroll infinito: la sentinella in fondo alla lista chiede la pagina successiva ({@code more=true}) e ottiene solo
         // le righe (e la nuova sentinella); ogni altra richiesta (form, note salvata) riparte dalla prima.
         return more
