@@ -653,8 +653,8 @@ public class GenerationService implements IGenerations {
     private Generation saveAndLogIfTerminal(Generation generation) {
         if (!repository.existsById(generation.getId())) {
             // La riga e' stata cancellata (GenerationController#deleteOne/delete/deleteImage/
-            // deleteAll/deleteEverything) mentre questo refresh() era in volo su Replicate: da
-            // /generations (vedi CLAUDE.md) anche generazioni non terminali sono ora cancellabili,
+            // deleteAll) mentre questo refresh() era in volo su Replicate: anche generazioni
+            // non terminali sono cancellabili (vedi CLAUDE.md),
             // quindi questa corsa e' possibile (non lo era finche' solo generazioni SUCCEEDED,
             // sempre gia' terminali, erano esposte alla cancellazione). Le immagini appena
             // scaricate vanno comunque ripulite da disco, altrimenti resterebbero orfane - ma
@@ -721,21 +721,17 @@ public class GenerationService implements IGenerations {
 
     @Override
     public Paged<GalleryItem> galleryPage(int pageIndex, int pageSize) {
-        return repository.pageByStatus(GenerationStatus.SUCCEEDED, pageIndex, pageSize).map(GalleryItem::first);
+        return repository.pageSucceededItems(false, false, null, pageIndex, pageSize);
     }
 
     @Override
     public Paged<GalleryItem> galleryPage(String tag, int pageIndex, int pageSize) {
-        String wanted = Tags.normalize(tag);
-        return wanted.isEmpty() ? galleryPage(pageIndex, pageSize)
-                : repository.pageSucceededByTag(wanted, false, pageIndex, pageSize).map(GalleryItem::first);
+        return repository.pageSucceededItems(false, false, Tags.normalize(tag), pageIndex, pageSize);
     }
 
     @Override
     public Paged<GalleryItem> importedPage(String tag, int pageIndex, int pageSize) {
-        String wanted = Tags.normalize(tag);
-        return wanted.isEmpty() ? importedPage(pageIndex, pageSize)
-                : repository.pageSucceededByTag(wanted, true, pageIndex, pageSize).map(GalleryItem::first);
+        return repository.pageSucceededItems(false, true, Tags.normalize(tag), pageIndex, pageSize);
     }
 
     @Override
@@ -751,23 +747,17 @@ public class GenerationService implements IGenerations {
 
     @Override
     public Paged<GalleryItem> importedPage(int pageIndex, int pageSize) {
-        return repository.pageSucceeded(null, GenerationOrigin.IMPORTED, pageIndex, pageSize).map(GalleryItem::first);
+        return repository.pageSucceededItems(false, true, null, pageIndex, pageSize);
     }
 
     @Override
     public Paged<GalleryItem> imagePickerPage(boolean importedOnly, int pageIndex, int pageSize) {
-        return repository.pageSucceeded(GenerationKind.IMAGE, importedOnly ? GenerationOrigin.IMPORTED : null, pageIndex, pageSize)
-                .map(GalleryItem::first);
+        return repository.pageSucceededItems(true, importedOnly, null, pageIndex, pageSize);
     }
 
     @Override
     public Paged<GalleryItem> favouritesPage(int pageIndex, int pageSize) {
         return repository.pageFavouriteItems(pageIndex, pageSize);
-    }
-
-    @Override
-    public Paged<Generation> listPage(int pageIndex, int pageSize) {
-        return repository.pageAll(pageIndex, pageSize);
     }
 
     @Override
@@ -777,7 +767,7 @@ public class GenerationService implements IGenerations {
     }
 
     /**
-     * Corpo comune di delete/deleteAll/deleteEverything: cancella i file
+     * Corpo comune di delete/deleteAll: cancella i file
      * immagine di ogni generazione, poi le righe (SEMPRE via entita'
      * caricate, mai una query bulk come deleteAllInBatch - GENERATION_IMAGE
      * non ha ON DELETE CASCADE, vedi V4__generation_multiple_images.sql, il
@@ -833,17 +823,6 @@ public class GenerationService implements IGenerations {
     @Override
     public void deleteAll(List<Long> ids) {
         deleteGenerations(repository.findAllById(ids));
-    }
-
-    /**
-     * Azione nucleare (GenerationController#deleteAll, "Elimina tutto" in
-     * /generations): elimina OGNI generazione esistente, non solo una
-     * selezione. Riusa lo stesso deleteGenerations delle altre due varianti
-     * sopra, quindi passa comunque per entita' caricate (mai bulk).
-     */
-    @Override
-    public void deleteEverything() {
-        deleteGenerations(repository.findAll());
     }
 
     /**

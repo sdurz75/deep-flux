@@ -4,15 +4,11 @@ import java.util.List;
 
 /**
  * Una card di galleria: UN file (immagine o video) di una generazione.
- * La tab "Tutte" mostra il primo file di ogni generazione ({@link #first}),
- * la galleria contestuale di /deep-chat TUTTI i file ({@link #allOf}), la
- * tab "Preferiti" un item per ogni file con la star.
+ * Ogni galleria (tab "Tutte", "Importate" e "Preferiti", selettore
+ * dell'archivio, galleria contestuale di /deep-chat) mostra un item per file,
+ * mai raggruppati per generazione.
  */
 public record GalleryItem(Generation generation, String filename) {
-
-    public static GalleryItem first(Generation generation) {
-        return new GalleryItem(generation, generation.getImageFilenames().get(0));
-    }
 
     /** Un item per ogni file della generazione, nell'ordine di {@code imageFilenames}. */
     public static List<GalleryItem> allOf(Generation generation) {

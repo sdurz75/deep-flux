@@ -43,7 +43,7 @@ class ChatGalleryController {
         model.addAttribute("contextualGalleryEmptyMessage", messages.get("deepChat.accordion.gallery.empty"));
         model.addAttribute("conversationId", id);
         if (append) {
-            return "fragments/app/gallery :: cards(items=${contextualItems}, selectable=true, selectionByFile=true, "
+            return "fragments/app/gallery :: cards(items=${contextualItems}, selectable=true, "
                     + "conversationId=${conversationId}, nextPage=${contextualNextPage}, tab=null, tag=null)";
         }
         return "fragments/app/gallery :: gridOrEmpty(items=${contextualItems}, emptyMessage=${contextualGalleryEmptyMessage}, "

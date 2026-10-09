@@ -10,7 +10,7 @@
   di dettaglio separata da cui questo fragment veniva incluso una
   seconda volta in forma "bare".
 
-  conversationId/generationsPage (entrambi nullable, propagati dal
+  conversationId (nullable, propagato dal
   chiamante): finiscono come query param sul bottone elimina, cosi' il
   redirect del caso a cascata (ultima immagine, vedi
   GenerationController#deleteImage) segue la stessa provenienza del
@@ -47,7 +47,7 @@
   spazio residuo per formati non quadrati, es. i 16:9/21:9/9:21 di
   FluxKreaDevParameterHandler).
 -->
-<div th:fragment="grid(generation, conversationId, generationsPage)" id="generation-images-grid"
+<div th:fragment="grid(generation, conversationId)" id="generation-images-grid"
      class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 my-4"
      x-data="{
         imageGalleryOpened: false,
@@ -103,7 +103,7 @@
         <button th:replace="~{fragments/app/button-gen :: starOverlay(generationId=${generation.id}, filename=${filename}, favourite=${generation.favouriteFilenames.contains(filename)}, refresh=false, variant=${generation.video} ? 'detail-video' : 'detail')}"></button>
         <button th:replace="~{fragments/core/button :: danger(type='button', text=#{gallery.button.deleteImage},
                     hxPost=null,
-                    hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId}, generationsPage=${generationsPage})},
+                    hxDelete=@{'/generations/' + ${generation.id} + '/images/' + ${filename}(conversationId=${conversationId})},
                     hxConfirm=${generation.imageFilenames.size() == 1} ? #{gallery.confirm.deleteLastImage} : #{gallery.confirm.deleteImage},
                     hxSwap='outerHTML', hxTarget='#generation-images-grid',
                     extraClass='absolute top-1 right-1 px-1.5 py-0.5 text-[0.75rem]')}">Elimina</button>

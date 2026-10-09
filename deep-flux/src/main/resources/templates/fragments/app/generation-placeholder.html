@@ -20,7 +20,7 @@
   cancelDisabled: l'interruzione e' gia' stata richiesta o e' fallita, il
   bottone resta ma non e' piu' cliccabile finche' la generazione non termina.
 -->
-<div th:fragment="placeholder(generationId, conversationId, generationsPage, cancelDisabled, count)"
+<div th:fragment="placeholder(generationId, conversationId, cancelDisabled, count)"
      data-generation-placeholder th:attr="data-generation-id=${generationId}"
      style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:12px;max-width:100%">
     <!-- Un riquadro per file atteso, poi UN solo bottone "Interrompi" in una riga propria sotto, centrato sui riquadri. -->
@@ -32,7 +32,7 @@
     <div style="align-self:stretch;display:flex;justify-content:center">
         <button th:replace="~{fragments/app/button-gen :: stop(text=#{generationPlaceholder.button.cancel}, disabledText=#{generationPlaceholder.button.canceling},
                     confirmText=#{generationPlaceholder.confirm.cancel}, failedText=#{generationPlaceholder.cancelFailed},
-                    url=@{/generations/{id}/cancel(id=${generationId}, conversationId=${conversationId}, generationsPage=${generationsPage})},
+                    url=@{/generations/{id}/cancel(id=${generationId}, conversationId=${conversationId})},
                     disabled=${cancelDisabled})}">Interrompi</button>
     </div>
 </div>

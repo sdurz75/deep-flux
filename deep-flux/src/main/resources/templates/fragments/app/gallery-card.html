@@ -33,17 +33,8 @@
   modello, con una piccola icona overlay al hover per raggiungere il
   dettaglio.
 
-  Una generazione puo' avere piu' di un'immagine (num_outputs > 1): la
-  card ne resta comunque a UNA sola (imageFilenames[0]), con un badge
-  "+N" se ce ne sono altre, invece di renderizzare N <img> qui dentro -
-  scelta deliberata, non solo per il layout della card (pensata per una
-  singola thumbnail a aspect-ratio fisso, non per una sotto-griglia),
-  ma anche perche' un'altra <img> qui corromperebbe l'indice della
-  lightbox (vedi il commento sull'overlay SVG sotto). Tutte le immagini
-  restano comunque raggiungibili dal dettaglio (/generations/{id}, vedi
-  CLAUDE.md), che le mostra tutte.
-
-  selectionByFile: la card e' un singolo file della galleria contestuale (checkbox "files" = "<idGenerazione>:<filename>", niente badge "+N").
+  La card e' UN SOLO file (immagine o video): una generazione con piu' immagini (num_outputs > 1) produce piu' card, mai raggruppate.
+  La selezione usa la checkbox "files" = "<idGenerazione>:<filename>".
 
   conversationId (nullable): quando la card viene dalla galleria
   contestuale di /deep-chat (vedi fragments/app/gallery.html :: grid),
@@ -54,7 +45,7 @@
   parametro di link expression Thymeleaf con valore null viene omesso
   dalla query string, non serve un ramo condizionale qui.
 -->
-<div th:fragment="card(item, conversationId, selectable, selectionByFile)"
+<div th:fragment="card(item, conversationId, selectable)"
      class="gallery-card border border-line dark:border-line-dark rounded-lg overflow-hidden
             bg-surface dark:bg-surface-dark shadow-sm hover:shadow-md transition-shadow duration-200">
 
@@ -98,13 +89,13 @@
             </span>
         </a>
 
-        <!-- "Anima": img2video sulla thumbnail mostrata (imageFilenames[0]), vedi fragments/app/button-gen.html :: animateOverlay. Solo immagini. -->
+        <!-- "Anima": img2video sul file mostrato, vedi fragments/app/button-gen.html :: animateOverlay. Solo immagini. -->
         <th:block th:unless="${item.generation.video}">
             <a th:replace="~{fragments/app/button-gen :: animateOverlay(url=@{/generations/new(source=${item.generation.id}, sourceImage=${item.filename})}, title=#{generationDetail.action.animate}, extraClass='top-12 right-2')}"></a>
             <a th:replace="~{fragments/app/button-gen :: sourceOverlay(url=@{/generations/new(source=${item.generation.id}, sourceImage=${item.filename}, kind='image')}, title=#{generationDetail.action.useAsSource}, extraClass='top-[5.5rem] right-2')}"></a>
         </th:block>
 
-        <!-- "Scarica": il file mostrato dalla card (imageFilenames[0]), immagine o video, vedi fragments/app/button-gen.html :: downloadOverlay. Colonna sotto l'icona di dettaglio: Anima, Usa come sorgente, Scarica (subito sotto il dettaglio per i video). -->
+        <!-- "Scarica": il file mostrato dalla card, immagine o video, vedi fragments/app/button-gen.html :: downloadOverlay. Colonna sotto l'icona di dettaglio: Anima, Usa come sorgente, Scarica (subito sotto il dettaglio per i video). -->
         <a th:replace="~{fragments/app/button-gen :: downloadOverlay(url=@{'/images/' + ${item.filename}}, filename=${item.filename}, title=#{gallery.card.download}, extraClass=${item.generation.video} ? 'top-12 right-2' : 'top-32 right-2')}"></a>
 
         <!--
@@ -114,30 +105,22 @@
         -->
         <button th:replace="~{fragments/app/button-gen :: starOverlay(generationId=${item.generation.id}, filename=${item.filename}, favourite=${item.favourite}, refresh=${!selectable}, variant=${selectable} ? 'card' : 'card-solo')}"></button>
 
-        <span th:if="${selectable and !selectionByFile and item.generation.imageFilenames.size() > 1}"
-              th:text="'+' + (${item.generation.imageFilenames.size()} - 1)"
-              class="absolute bottom-2 left-2 text-xs font-semibold text-white bg-black/60 rounded-full px-2 py-0.5 pointer-events-none"></span>
-
         <!--
           Checkbox di selezione multipla (cancellazione in blocco, vedi
           fragments/app/gallery.html :: grid/fragments/button.html ::
           dangerSelectable): SEMPRE visibile, non solo all'hover come
           l'icona di dettaglio sotto - e' un controllo primario, deve
-          restare leggibile anche su touch. name="ids" e' il campo che
-          il <form> di grid(...) invia a POST /gallery/delete-selected
-          (vedi GalleryController#deleteSelected); x-model="selectedIds"
+          restare leggibile anche su touch. name="files" e' il campo che
+          il <form> di grid(...) invia a POST /gallery/delete-selected-files
+          (vedi GalleryController#deleteSelectedFiles); x-model="selectedIds"
           e' il binding Alpine gemello per lo stato del bottone/contatore,
           stesso <input>, nessun conflitto: sono solo due letture dello
           stesso stato nativo checked/unchecked. Nessun @click.stop
           necessario: sibling di <img>, non discendente, stesso principio
           gia' documentato sotto per l'overlay "vedi dettaglio".
         -->
-        <input th:if="${selectable and !selectionByFile}" type="checkbox" name="ids" th:value="${item.generation.id}" x-model="selectedIds"
-               th:aria-label="#{gallery.card.select}"
-               class="absolute top-2 left-2 z-10 w-5 h-5 rounded accent-accent dark:accent-accent-dark
-                      bg-canvas/80 dark:bg-canvas-dark/80 cursor-pointer">
-        <!--/* Selezione per file (galleria contestuale): il valore identifica il FILE, non la generazione. */-->
-        <input th:if="${selectable and selectionByFile}" type="checkbox" name="files" th:value="${item.generation.id + ':' + item.filename}" x-model="selectedIds"
+        <!--/* Il valore identifica il FILE ("<idGenerazione>:<filename>"). */-->
+        <input th:if="${selectable}" type="checkbox" name="files" th:value="${item.generation.id + ':' + item.filename}" x-model="selectedIds"
                th:aria-label="#{gallery.card.select}"
                class="absolute top-2 left-2 z-10 w-5 h-5 rounded accent-accent dark:accent-accent-dark
                       bg-canvas/80 dark:bg-canvas-dark/80 cursor-pointer">

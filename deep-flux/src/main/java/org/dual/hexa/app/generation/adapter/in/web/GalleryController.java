@@ -67,7 +67,7 @@ public class GalleryController {
         // Nota: come vista di risposta diretta (non dentro un th:replace inline)
         // Thymeleaf richiede parametri nominati, non posizionali.
         if (append) {
-            return "fragments/app/gallery :: cards(items=${items}, selectable=${tab != 'favourites'}, selectionByFile=false, "
+            return "fragments/app/gallery :: cards(items=${items}, selectable=${tab != 'favourites'}, "
                     + "conversationId=null, nextPage=${nextPage}, tab=${tab}, tag=${tag})";
         }
         return isHtmxRequest
@@ -76,8 +76,8 @@ public class GalleryController {
     }
 
     /**
-     * Tab "Tutte": una card per generazione (primo file); "Preferiti": una card per file con la star; "Importate": le immagini arrivate
-     * dall'esterno (una card per immagine).
+     * Una card per FILE in ogni tab: "Tutte" (generazioni riuscite), "Preferiti" (file con la star), "Importate" (immagini arrivate
+     * dall'esterno).
      */
     private Paged<GalleryItem> fetch(String tab, String tag, int pageIndex) {
         return switch (tab) {
@@ -114,39 +114,12 @@ public class GalleryController {
 
 
     /**
-     * Cancellazione in blocco dalla griglia (checkbox multiple, bottone
-     * "Elimina selezionate" in fragments/app/gallery.html :: grid, disabilitato
-     * lato client finche' la selezione e' vuota — vedi fragments/core/button.html
-     * :: dangerSelectable). La pagina corrente (globale o contestuale di
-     * /deep-chat) resta valida dopo la cancellazione: nessun redirect,
-     * risposta vuota. Il refresh — sia della tab che ha cliccato sia di
-     * qualunque altra tab con una galleria aperta — arriva dall'evento SSE
-     * pubblicato da IGenerations#deleteAll (GenerationsDeletedEvent →
-     * "gallery-update", vedi GalleryPushNotifier), non da uno swap
-     * diretto di questa risposta.
-     * <p>
-     * {@code required = false} sul parametro e' puramente difensivo: il
-     * bottone che chiama questo endpoint e' disabilitato lato client
-     * quando non c'e' selezione, quindi in pratica non dovrebbe mai
-     * arrivare senza id.
-     * <p>
-     * {@code @ResponseBody}: senza, un metodo void su un {@code @Controller}
-     * verrebbe risolto da Spring con RequestToViewNameTranslator, che
-     * proverebbe a renderizzare un template "gallery/delete-selected"
-     * inesistente (verificato dal vivo, 500 in test).
-     */
-    @PostMapping("/delete-selected")
-    @ResponseBody
-    public void deleteSelected(@RequestParam(required = false) List<Long> ids) {
-        if (ids != null && !ids.isEmpty()) {
-            generationService.deleteAll(ids);
-        }
-    }
-
-    /**
-     * Cancellazione in blocco PER FILE (selezione della galleria contestuale di /deep-chat, una card per file): ogni voce di
+     * Cancellazione in blocco dalla griglia (checkbox multiple, bottone "Elimina selezionate" in fragments/app/gallery.html :: grid,
+     * disabilitato lato client finche' la selezione e' vuota; ogni card e' UN file, anche nella galleria contestuale di /deep-chat).
+     * L'ultimo file di una generazione elimina la generazione. Ogni voce di
      * {@code files} e' "<idGenerazione>:<filename>" (i filename sono hex + estensione, mai ':'). Voci malformate ignorate; come per
-     * {@link #deleteSelected} nessuna risposta (il refresh arriva dall'evento SSE "gallery-update").
+     * nessuna risposta: il refresh arriva dall'evento SSE "gallery-update" (GalleryPushNotifier), non da uno swap diretto; {@code @ResponseBody}
+     * perche' senza un metodo void su un {@code @Controller} verrebbe risolto come nome di vista inesistente.
      */
     @PostMapping("/delete-selected-files")
     @ResponseBody

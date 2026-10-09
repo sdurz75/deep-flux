@@ -164,7 +164,7 @@ class ReuseConfigRenderingTests {
         chat = mockMvc.perform(get(chat)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         // Il valore e' una stringa JS gia' escapata da Thymeleaf: "\\" nel sorgente e' un backslash nella regex.
-        assertThat(chat).contains("window.deepChatLinkAlternatives = \"generations\\/new|generations\\/\\\\d+|generations|import\\/\\\\d+|import|gallery|search|loras|secrets|system\\/events|manual\\/")
+        assertThat(chat).contains("window.deepChatLinkAlternatives = \"generations\\/new|generations\\/\\\\d+|import\\/\\\\d+|import|gallery|search|loras|secrets|system\\/events|manual\\/")
                 .contains("window.deepChatLinkEntities = \"generations|import\"");
     }
 }

@@ -21,16 +21,6 @@ import org.springframework.data.repository.query.Param;
 /** Dettaglio di persistenza: fuori dall'adapter si usa solo la porta out corrispondente. */
 interface GenerationRepository extends JpaRepository<Generation, Long> {
 
-    /** Usata dalla galleria: solo le generazioni completate, piu' recenti prima. */
-    Page<Generation> findByStatusOrderByCreatedAtDesc(GenerationStatus status, Pageable pageable);
-
-    Page<Generation> findByStatusAndOriginOrderByCreatedAtDesc(GenerationStatus status, GenerationOrigin origin, Pageable pageable);
-
-    Page<Generation> findByStatusAndKindOrderByCreatedAtDesc(GenerationStatus status, GenerationKind kind, Pageable pageable);
-
-    Page<Generation> findByStatusAndKindAndOriginOrderByCreatedAtDesc(GenerationStatus status, GenerationKind kind,
-                                                                      GenerationOrigin origin, Pageable pageable);
-
     List<Generation> findByAnalysisStatus(AnalysisStatus status);
 
     List<Generation> findByAnalysisStatusAndCreatedAtBefore(AnalysisStatus status, Instant before);
@@ -43,16 +33,35 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
     Page<GalleryItem> findFavouriteItems(Pageable pageable);
 
     /**
-     * Galleria filtrata per tag utente: generazioni riuscite col tag sulla generazione O su uno dei suoi file; {@code importedOnly}
-     * restringe alle importate.
+     * Galleria (tab "Tutte"/"Importate", selettore dell'archivio): un item per ogni FILE delle generazioni RIUSCITE, piu' recenti prima
+     * e, nella stessa generazione, nell'ordine dei file. {@code imagesOnly} esclude i video, {@code importedOnly} restringe alle importate.
      */
-    @Query(value = "select g from Generation g where g.status = org.dual.hexa.app.generation.domain.GenerationStatus.SUCCEEDED "
+    @Query(value = "select new org.dual.hexa.app.generation.domain.GalleryItem(g, f) from Generation g join g.imageFilenames f "
+            + "where g.status = org.dual.hexa.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:imagesOnly = false or g.kind = org.dual.hexa.app.generation.domain.GenerationKind.IMAGE) "
             + "and (:importedOnly = false or g.origin = org.dual.hexa.app.generation.domain.GenerationOrigin.IMPORTED) "
-            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.tag = :tag)) order by g.createdAt desc",
-            countQuery = "select count(g) from Generation g where g.status = org.dual.hexa.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "order by g.createdAt desc, g.id desc, index(f)",
+            countQuery = "select count(f) from Generation g join g.imageFilenames f "
+            + "where g.status = org.dual.hexa.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:imagesOnly = false or g.kind = org.dual.hexa.app.generation.domain.GenerationKind.IMAGE) "
+            + "and (:importedOnly = false or g.origin = org.dual.hexa.app.generation.domain.GenerationOrigin.IMPORTED)")
+    Page<GalleryItem> findSucceededItems(@Param("imagesOnly") boolean imagesOnly, @Param("importedOnly") boolean importedOnly,
+                                         Pageable pageable);
+
+    /** Come {@link #findSucceededItems} filtrata per tag utente: tag della generazione (tutti i suoi file) o di QUEL file. */
+    @Query(value = "select new org.dual.hexa.app.generation.domain.GalleryItem(g, f) from Generation g join g.imageFilenames f "
+            + "where g.status = org.dual.hexa.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:imagesOnly = false or g.kind = org.dual.hexa.app.generation.domain.GenerationKind.IMAGE) "
             + "and (:importedOnly = false or g.origin = org.dual.hexa.app.generation.domain.GenerationOrigin.IMPORTED) "
-            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.tag = :tag))")
-    Page<Generation> findSucceededByTag(@Param("tag") String tag, @Param("importedOnly") boolean importedOnly, Pageable pageable);
+            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.filename = f and ft.tag = :tag)) "
+            + "order by g.createdAt desc, g.id desc, index(f)",
+            countQuery = "select count(f) from Generation g join g.imageFilenames f "
+            + "where g.status = org.dual.hexa.app.generation.domain.GenerationStatus.SUCCEEDED "
+            + "and (:imagesOnly = false or g.kind = org.dual.hexa.app.generation.domain.GenerationKind.IMAGE) "
+            + "and (:importedOnly = false or g.origin = org.dual.hexa.app.generation.domain.GenerationOrigin.IMPORTED) "
+            + "and (:tag member of g.tags or exists (select 1 from g.fileTags ft where ft.filename = f and ft.tag = :tag))")
+    Page<GalleryItem> findSucceededItemsByTag(@Param("tag") String tag, @Param("imagesOnly") boolean imagesOnly,
+                                              @Param("importedOnly") boolean importedOnly, Pageable pageable);
 
     /** Tab "Preferiti" filtrata per tag: tag della generazione o di QUEL file. */
     @Query(value = "select new org.dual.hexa.app.generation.domain.GalleryItem(g, f) from Generation g join g.favouriteFilenames f "
@@ -72,8 +81,6 @@ interface GenerationRepository extends JpaRepository<Generation, Long> {
     @Query("select distinct ft.tag from Generation g join g.fileTags ft")
     List<String> findDistinctFileTags();
 
-    /** Usata dal listato /generations: tutte le generazioni, qualunque stato, piu' recenti prima. */
-    Page<Generation> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     /**
      * Generazioni non terminali di UN modello, create dopo {@code after}:

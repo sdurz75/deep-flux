@@ -10,16 +10,17 @@
   (htmx, ogni 5 minuti e a fine generazione). I contenitori sono i fragment generici di fragments/core (stat-tile, card, bar-chart,
   breakdown, empty-state); i dati sono gia' formattati dal controller. In fondo restano i link di avvio rapido.
 -->
-<div layout:fragment="content">
+<div layout:fragment="content"
+     th:with="generationsHref=${@environment.getProperty('app.search.enabled', 'true') == 'true'} ? @{/search(type=generation)} : @{/gallery}">
     <h1>deep-flux</h1>
     <p th:text="#{index.intro}">Genera immagini e video con l'aiuto di un assistente, modificali, ritrovali in galleria.</p>
 
     <!-- Tessere -->
     <div class="my-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.generations}, value=${view.generation().launchedInWindow()}, hint=#{index.dashboard.tile.window(${windowDays})}, href=@{/generations}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.generations}, value=${view.generation().launchedInWindow()}, hint=#{index.dashboard.tile.window(${windowDays})}, href=${generationsHref}, tone='default')}"></div>
         <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.cost}, value=${costWindow}, hint=#{index.dashboard.tile.cost.hint(${costLast7}, ${costTotal})}, href=null, tone='default')}"></div>
         <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.success}, value=${successRate}, hint=#{index.dashboard.tile.success.hint(${view.generation().failed()})}, href=null, tone=${successTone})}"></div>
-        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.running}, value=${view.generation().inProgress()}, hint=null, href=@{/generations}, tone='default')}"></div>
+        <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.running}, value=${view.generation().inProgress()}, hint=null, href=${generationsHref}, tone='default')}"></div>
         <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.archive}, value=${view.generation().images() + view.generation().videos() + view.generation().imported()}, hint=#{index.dashboard.tile.archive.hint(${view.generation().favourites()})}, href=@{/gallery}, tone='default')}"></div>
         <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.chat}, value=${view.chat().conversations()}, hint=#{index.dashboard.tile.chat.hint(${view.chat().messages()})}, href=@{/deep-chat}, tone='default')}"></div>
         <div th:replace="~{fragments/core/stat-tile :: tile(label=#{index.dashboard.tile.trainings}, value=${view.trainingsTotal()}, hint=#{index.dashboard.tile.trainings.hint(${view.trainingsRunning()}, ${view.trainingsSucceeded()})}, href=@{/trainings}, tone='default')}"></div>
@@ -30,7 +31,7 @@
 
     <!-- Riquadri -->
     <div class="my-4 grid gap-3 lg:grid-cols-2">
-        <th:block th:replace="~{fragments/core/card :: section(title=#{index.dashboard.activity.title(${windowDays})}, body=~{::#dash-activity}, href=@{/generations}, linkText=#{index.dashboard.all})}">
+        <th:block th:replace="~{fragments/core/card :: section(title=#{index.dashboard.activity.title(${windowDays})}, body=~{::#dash-activity}, href=${generationsHref}, linkText=#{index.dashboard.all})}">
             <div id="dash-activity">
                 <th:block th:if="${view.generation().launchedInWindow() > 0}">
                     <div th:replace="~{fragments/core/bar-chart :: columns(labels=${dailyLabels}, values=${dailyValues}, titles=${dailyTitles}, ariaLabel=#{index.dashboard.activity.aria(${windowDays})}, tone='default')}"></div>

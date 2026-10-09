@@ -428,10 +428,10 @@ class TemplateRenderingTests {
         assertThat(withoutCost).doesNotContain("Estimated cost").doesNotContain("Costo stimato");
     }
 
-    /** Galleria e listato mostrano un video come <video>, non come <img> (che romperebbe anche la lightbox). */
+    /** La galleria mostra un video come <video>, non come <img> (che romperebbe anche la lightbox). */
     @Test
     @Transactional
-    void galleryAndListRenderVideosAsVideoElements() throws Exception {
+    void galleryRendersVideosAsVideoElements() throws Exception {
         Generation video = new Generation("pred-gv", "prunaai/p-video", null, "clip", null);
         video.setKind(GenerationKind.VIDEO);
         video.setStatus(GenerationStatus.SUCCEEDED);
@@ -439,12 +439,9 @@ class TemplateRenderingTests {
         repository.save(video);
 
         String gallery = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String list = mockMvc.perform(get("/generations")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertThat(gallery).containsPattern("<video[^>]*/images/9-0.mp4");
         assertThat(gallery).doesNotContainPattern("<img[^>]*/images/9-0.mp4");
-        assertThat(list).containsPattern("<video[^>]*/images/9-0.mp4");
-        assertThat(list).doesNotContainPattern("<img[^>]*/images/9-0.mp4");
     }
 
     /** Star per file + tab Tutte/Preferiti: la tab Preferiti mostra solo i file con la star, senza checkbox di selezione. */
@@ -461,9 +458,9 @@ class TemplateRenderingTests {
         String favourites = mockMvc.perform(get("/gallery").param("tab", "favourites")).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(all).contains("/images/7-0.png").doesNotContain("/images/7-1.png").contains("/favourite?filename=7-0.png");
+        assertThat(all).contains("/images/7-0.png").contains("/images/7-1.png").contains("/favourite?filename=7-0.png");
         assertThat(favourites).contains("/images/7-1.png").doesNotContain("/images/7-0.png")
-                .doesNotContainPattern("<input[^>]*name=\"ids\"").contains("text-favourite");
+                .doesNotContainPattern("<input[^>]*name=\"files\"").contains("text-favourite");
 
         mockMvc.perform(post("/generations/" + g.getId() + "/favourite").param("filename", "7-1.png").param("refresh", "true"))
                 .andExpect(status().isOk())
@@ -503,7 +500,8 @@ class TemplateRenderingTests {
         String unknown = mockMvc.perform(get("/gallery").param("tag", "inesistente")).andReturn().getResponse().getContentAsString();
         assertThat(byGeneration).contains("/images/8-0.png").doesNotContain("/images/9-0.png").contains("href=\"/gallery?tag=estate\"")
                 .contains("name=\"tag\"").contains("id=\"known-tags\"");
-        assertThat(byFile).contains("/images/8-0.png").doesNotContain("/images/9-0.png");
+        assertThat(byGeneration).contains("/images/8-1.png");
+        assertThat(byFile).contains("/images/8-1.png").doesNotContain("/images/8-0.png").doesNotContain("/images/9-0.png");
         assertThat(favouritesByFile).contains("/images/8-1.png");
         assertThat(unknown).doesNotContain("/images/8-0.png").doesNotContain("/images/9-0.png");
 
@@ -715,7 +713,8 @@ class TemplateRenderingTests {
         assertThat(body.split("href=\"/generations/new\\?kind=video\"", -1)).hasSize(3); // barra + slideover
         assertThat(body.split("href=\"/deep-chat\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/gallery\"", -1)).hasSize(3);
-        assertThat(body.split("href=\"/generations\"", -1)).hasSize(3);
+        // La voce «Generazioni» (scorciatoia a /search?type=generation) c'e' solo con la ricerca attiva, spenta nei test.
+        assertThat(body).doesNotContain("href=\"/generations\"");
         assertThat(body.split("href=\"/loras\"", -1)).hasSize(3);
         assertThat(body.split("href=\"/trainings\"", -1)).hasSize(3); // dal menu Crea: barra + slideover
         assertThat(body.split("href=\"/system/events\"", -1)).hasSize(3);
@@ -753,9 +752,6 @@ class TemplateRenderingTests {
 
         String gallery = breadcrumbsOf(mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(gallery).contains("href=\"/\"").contains("Galleria").containsPattern("aria-current=\"page\"[^>]*>Galleria<");
-
-        String generations = breadcrumbsOf(mockMvc.perform(get("/generations")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        assertThat(generations).contains("Gestione").containsPattern("aria-current=\"page\"[^>]*>Generazioni<");
 
         String image = breadcrumbsOf(mockMvc.perform(get("/generations/new")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(image).contains("Crea").containsPattern("aria-current=\"page\"[^>]*>Genera immagine<");
@@ -805,9 +801,6 @@ class TemplateRenderingTests {
         String page = mockMvc.perform(get(url)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(breadcrumbsOf(page)).contains("href=\"/gallery\"").containsPattern("aria-current=\"page\"[^>]*>Generazione #" + g.getId() + "<");
         assertThat(page).doesNotContain("Torna a");
-
-        String fromList = breadcrumbsOf(mockMvc.perform(get(url).param("generationsPage", "2")).andReturn().getResponse().getContentAsString());
-        assertThat(fromList).contains("href=\"/generations?page=2\"").contains("Generazioni");
 
         String fromChat = breadcrumbsOf(mockMvc.perform(get(url).param("conversationId", "7")).andReturn().getResponse().getContentAsString());
         assertThat(fromChat).contains("href=\"/deep-chat/7\"").contains("Deep Chat");
@@ -1108,8 +1101,8 @@ class TemplateRenderingTests {
 
     /**
      * La galleria contestuale mostra UNA card per OGNI file della conversazione (non solo il primo di ogni generazione), con la
-     * selezione per file ("files" = "<idGenerazione>:<filename>") e senza il badge "+N"; la galleria globale resta una card per
-     * generazione col badge.
+     * selezione per file ("files" = "<idGenerazione>:<filename>") e senza il badge "+N"; anche la galleria globale mostra una card
+     * per file.
      */
     @Test
     @Transactional
@@ -1137,12 +1130,14 @@ class TemplateRenderingTests {
                 .andReturn().getResponse().getContentAsString();
         assertThat(fragment).contains("/images/dc-a.png").contains("/images/dc-b.png");
 
-        // Galleria globale: una card per generazione (solo il primo file), col badge "+1" e la selezione per generazione.
+        // Galleria globale: anche qui una card per file, selezione per file, nessun badge.
         String global = mockMvc.perform(get("/gallery"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        assertThat(global).contains("/images/dc-a.png").doesNotContain("/images/dc-b.png");
-        assertThat(global).contains("value=\"" + multi.getId() + "\"").contains("hx-post=\"/gallery/delete-selected\"");
+        assertThat(global).contains("/images/dc-a.png").contains("/images/dc-b.png");
+        assertThat(global).contains("value=\"" + multi.getId() + ":dc-a.png\"").contains("value=\"" + multi.getId() + ":dc-b.png\"")
+                .contains("hx-post=\"/gallery/delete-selected-files\"").doesNotContain("hx-post=\"/gallery/delete-selected\"");
+        assertThat(global).doesNotContain("pointer-events-none\">+1<");
     }
 
     /**
@@ -1185,7 +1180,7 @@ class TemplateRenderingTests {
     /**
      * Una pagina puo' smettere di esistere fra un refresh e l'altro
      * (cancellazione in blocco dell'ultima pagina, vedi
-     * GalleryController#deleteSelected): il refresh SSE (fragments/app/gallery.html,
+     * GalleryController#deleteSelectedFiles): il refresh SSE (fragments/app/gallery.html,
      * hx-get="@{/gallery(page=...)}") ri-richiede esattamente la pagina
      * gia' servita, che potrebbe non esistere piu' - GalleryController#list
      * deve ripiegare sull'ultima pagina rimasta, non mostrare "nessuna
@@ -1337,11 +1332,21 @@ class TemplateRenderingTests {
         assertThat(body).containsPattern("<textarea[^>]*id=\"prompt\"[^>]*>a red fox</textarea>");
     }
 
+    /** "Generazioni" non e' piu' una pagina: GET /generations non esiste e nessun link la nomina (con la ricerca spenta le scorciatoie spariscono o ripiegano su /gallery). */
+    @Test
+    void generationsListPageIsGone() throws Exception {
+        mockMvc.perform(get("/generations")).andExpect(status().isMethodNotAllowed());
+
+        for (String page : List.of("/", "/gallery")) {
+            String body = mockMvc.perform(get(page)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            assertThat(body).doesNotContain("href=\"/generations\"");
+        }
+    }
+
     /**
      * Il link "indietro" del dettaglio dipende da dove si arriva (vedi
      * GenerationController#status): dalla galleria globale o da una
      * generazione appena creata (nessun param) torna a /gallery, dal
-     * listato /generations (generationsPage) torna a quella pagina,
      * dalla galleria contestuale di una conversazione /deep-chat
      * (conversationId sulla query string, propagato da
      * fragments/app/gallery-card.html) torna a quella conversazione.
@@ -1362,11 +1367,6 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertThat(fromDeepChat).contains("href=\"/deep-chat/7\"");
-
-        String fromGenerationsList = mockMvc.perform(get("/generations/" + generation.getId()).param("generationsPage", "2"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(fromGenerationsList).contains("href=\"/generations?page=2\"");
     }
 
     /**
@@ -1376,7 +1376,7 @@ class TemplateRenderingTests {
      * controller porta il browser a /gallery (default, nessuna
      * provenienza specifica) via l'header HX-Redirect (non uno swap di
      * contenuto) — diverso dalla cancellazione in blocco dalla griglia
-     * (deleteSelectedRemovesEveryGeneration sotto), dove la pagina
+     * (deleteSelectedFilesRemovesOnlyThoseFiles sotto), dove la pagina
      * corrente resta valida.
      */
     @Test
@@ -1401,7 +1401,7 @@ class TemplateRenderingTests {
      * dal disco ma ancora elencata in galleria con tutti i suoi dettagli.
      * Niente @Transactional qui (a differenza di altri test in questa
      * classe, ma come i suoi vicini deleteSetsHxRedirectHeader/
-     * deleteSelectedRemovesEveryGeneration sopra): la DELETE deve essere
+     * deleteSelectedFilesRemovesOnlyThoseFiles sotto): la DELETE deve essere
      * davvero committata perche' scatti l'ON DELETE SET NULL della
      * migrazione V9 - dentro un'unica transazione di test, ancora aperta
      * al momento della query sotto, l'istruzione DELETE resterebbe solo
@@ -1435,7 +1435,7 @@ class TemplateRenderingTests {
      * Regressione: una tab che sta ancora pollando GET /generations/{id}
      * ogni 2s (vedi fragments/app/generation.html) non deve incappare in un
      * 500 quando la generazione sparisce nel frattempo (cancellata da
-     * un'altra tab/dal listato - vedi GenerationController#status).
+     * un'altra tab - vedi GenerationController#status).
      * Simula la race cancellando direttamente la riga via repository
      * (niente chiamata a /generations/{id} DELETE, che scaricherebbe
      * anche il file immagine: qui basta che la riga non esista piu' al
@@ -1443,7 +1443,7 @@ class TemplateRenderingTests {
      * concorrente. Copre entrambi i rami di status(): richiesta htmx
      * (header HX-Redirect) e navigazione diretta del browser (redirect
      * HTTP), con lo stesso identico target "indietro" a parita' di
-     * conversationId/generationsPage (vedi backPath/backTarget).
+     * conversationId (vedi backPath/backTarget).
      */
     @Test
     void statusRedirectsInsteadOfErroringWhenGenerationWasDeletedConcurrently() throws Exception {
@@ -1453,9 +1453,9 @@ class TemplateRenderingTests {
         repository.deleteAllById(List.of(htmxGeneration.getId()));
 
         mockMvc.perform(get("/generations/" + htmxGeneration.getId())
-                        .param("generationsPage", "3")
+                        .param("conversationId", "3")
                         .header("HX-Request", "true"))
-                .andExpect(header().string("HX-Redirect", "/generations?page=3"));
+                .andExpect(header().string("HX-Redirect", "/deep-chat/3"));
 
         Generation browserGeneration = new Generation("pred-race-browser", "owner/model", null, "a wolf", null);
         browserGeneration.setStatus(GenerationStatus.PROCESSING);
@@ -1530,7 +1530,6 @@ class TemplateRenderingTests {
         var context = new org.thymeleaf.context.WebContext(exchange, java.util.Locale.ITALIAN);
         context.setVariable("generation", generation);
         context.setVariable("conversationId", null);
-        context.setVariable("generationsPage", null);
         context.setVariable("cancelDisabled", cancelDisabled ? Boolean.TRUE : null);
         return templateEngine.process("fragments/app/generation", java.util.Set.of("status"), context);
     }
@@ -1553,37 +1552,35 @@ class TemplateRenderingTests {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(body).contains("name=\"ids\"", "x-model=\"selectedIds\"", ":disabled=\"selectedIds.length === 0\"",
-                "hx-post=\"/gallery/delete-selected\"");
+        assertThat(body).contains("name=\"files\"", "x-model=\"selectedIds\"", ":disabled=\"selectedIds.length === 0\"",
+                "hx-post=\"/gallery/delete-selected-files\"");
         // Attributo "disabled" LETTERALE (non solo il binding Alpine ":disabled"): senza, il bottone sarebbe
         // cliccabile per un istante al primo paint, prima che Alpine inizializzi - vedi fragments/core/button.html.
-        assertThat(body).containsPattern("<button[^>]*\\bdisabled\\b[^>]*hx-post=\"/gallery/delete-selected\"[^>]*>");
+        assertThat(body).containsPattern("<button[^>]*\\bdisabled\\b[^>]*hx-post=\"/gallery/delete-selected-files\"[^>]*>");
     }
 
     /**
-     * L'endpoint di cancellazione in blocco cancella davvero righe e file
-     * (vedi IGenerations#deleteAll), a differenza del bottone lato
-     * client (disabilitato quando la selezione e' vuota, mai testabile
-     * qui: MockMvc non esegue JS/Alpine).
+     * Una generazione con piu' file (num_outputs > 1) compare in /gallery come una card per file, nell'ordine dei file, e il tag di un
+     * singolo file seleziona solo quel file; nessun badge "+N".
      */
     @Test
-    void deleteSelectedRemovesEveryGeneration() throws Exception {
-        Generation first = new Generation("pred-bulk-1", "owner/model", null, "a cat", null);
-        first.setStatus(GenerationStatus.SUCCEEDED);
-        first.setImageFilenames(List.of("bulk-1.png"));
-        first = repository.save(first);
+    @Transactional
+    void galleryListsEveryFileSeparatelyAndFiltersByFileTag() throws Exception {
+        Generation multi = new Generation("pred-each-1", "owner/model", null, "three guitars", null);
+        multi.setStatus(GenerationStatus.SUCCEEDED);
+        multi.setImageFilenames(new java.util.ArrayList<>(List.of("each-a.png", "each-b.png", "each-c.png")));
+        multi = repository.save(multi);
 
-        Generation second = new Generation("pred-bulk-2", "owner/model", null, "a dog", null);
-        second.setStatus(GenerationStatus.SUCCEEDED);
-        second.setImageFilenames(List.of("bulk-2.png"));
-        second = repository.save(second);
+        String body = mockMvc.perform(get("/gallery")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(body).contains("/images/each-a.png", "/images/each-b.png", "/images/each-c.png")
+                .contains("value=\"" + multi.getId() + ":each-b.png\"");
+        assertThat(body.indexOf("/images/each-a.png")).isLessThan(body.indexOf("/images/each-b.png"));
+        assertThat(body).doesNotContain("pointer-events-none\">+2<");
 
-        mockMvc.perform(post("/gallery/delete-selected")
-                        .param("ids", first.getId().toString(), second.getId().toString()))
+        mockMvc.perform(post("/generations/" + multi.getId() + "/tags/add").param("tag", "mio").param("filename", "each-b.png"))
                 .andExpect(status().isOk());
-
-        assertThat(repository.findById(first.getId())).isEmpty();
-        assertThat(repository.findById(second.getId())).isEmpty();
+        String tagged = mockMvc.perform(get("/gallery").param("tag", "mio")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(tagged).contains("/images/each-b.png").doesNotContain("/images/each-a.png").doesNotContain("/images/each-c.png");
     }
 
     /**
@@ -1644,68 +1641,8 @@ class TemplateRenderingTests {
     }
 
     /**
-     * Listato /generations: a differenza di /gallery, qualunque stato
-     * (qui una PENDING, mai esposta dalla galleria) deve comparire.
-     * Copre sia pagina intera sia fragment (HX-Request), stesso motivo
-     * di ogni altro test "renders" in questa classe.
-     */
-    @Test
-    void generationsListRendersFullPageAndFragmentForAnyStatus() throws Exception {
-        Generation pending = new Generation("pred-list-1", "owner/model", null, "a cat", null);
-        repository.save(pending);
-
-        mockMvc.perform(get("/generations")).andExpect(status().isOk());
-        String fragmentBody = mockMvc.perform(get("/generations").header("HX-Request", "true"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        assertThat(fragmentBody).contains("a cat");
-    }
-
-    /**
-     * Stesso aggiustamento "pagina svuotata da una cancellazione" gia'
-     * verificato per /gallery (requestingAPageBeyondTheLastOneFallsBackInsteadOfShowingEmpty):
-     * GenerationController#list deve ripiegare sull'ultima pagina
-     * rimasta, non mostrare "nessuna generazione" mentre pagine
-     * precedenti hanno ancora contenuto.
-     */
-    @Test
-    void generationsListFallsBackWhenPageBeyondLast() throws Exception {
-        repository.save(new Generation("pred-list-2", "owner/model", null, "a cat", null));
-
-        String body = mockMvc.perform(get("/generations").param("page", "999").header("HX-Request", "true"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        assertThat(body).doesNotContain("Nessuna generazione ancora");
-    }
-
-    /**
-     * Cancellazione della sola selezione (checkbox multiple, vedi
-     * fragments/app/generations.html :: list): stesso principio di
-     * deleteSelectedRemovesEveryGeneration per /gallery, ma qui una
-     * terza generazione NON selezionata deve sopravvivere.
-     */
-    @Test
-    void generationsDeleteSelectedRemovesOnlySelected() throws Exception {
-        Generation first = repository.save(new Generation("pred-gsel-1", "owner/model", null, "a cat", null));
-        Generation second = repository.save(new Generation("pred-gsel-2", "owner/model", null, "a dog", null));
-        Generation untouched = repository.save(new Generation("pred-gsel-3", "owner/model", null, "a fox", null));
-
-        mockMvc.perform(post("/generations/delete-selected")
-                        .param("ids", first.getId().toString(), second.getId().toString()))
-                .andExpect(status().isOk());
-
-        assertThat(repository.findById(first.getId())).isEmpty();
-        assertThat(repository.findById(second.getId())).isEmpty();
-        assertThat(repository.findById(untouched.getId())).isPresent();
-    }
-
-    /**
-     * Cancellazione di riga singola dal listato (bottone "Elimina" di
-     * fragments/app/generation-row.html): a differenza di delete-selected,
-     * ignora qualunque id passato come parametro form-wide - qui non ne
-     * passiamo nessuno, la sola presenza dell'id nel path deve bastare.
+     * Cancellazione di una riga (azione DELETE della chat): la sola
+     * presenza dell'id nel path deve bastare.
      */
     @Test
     void generationsDeleteOneRemovesSingleRow() throws Exception {
@@ -1716,15 +1653,6 @@ class TemplateRenderingTests {
 
         assertThat(repository.findById(generation.getId())).isEmpty();
     }
-
-    // NOTA: nessun test MockMvc per POST /generations/delete-all in questa classe.
-    // Questa classe gira contro il vero DB/storage di sviluppo (nessun datasource
-    // separato per i test, vedi javadoc in cima al file) - un test che chiama
-    // repository.findAll() su OGNI riga esistente e le cancella tutte sarebbe
-    // distruttivo per qualunque dato reale presente in locale, a differenza di
-    // ogni altro test qui che tocca solo le righe che crea da solo. La logica di
-    // deleteEverything() e' gia' coperta senza questo rischio da
-    // GenerationServiceTest#deleteEverything* (repository mockato, nessun disco/DB reale).
 
     /**
      * Cancellazione per-immagine, caso NON a cascata (restano altre

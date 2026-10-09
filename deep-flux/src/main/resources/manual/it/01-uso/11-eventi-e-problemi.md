@@ -66,7 +66,7 @@ Gli **avvisi** non sono errori: oggi servono per i segreti in scadenza o scaduti
 
 ## L'archivio e la ricerca
 
-- Un'immagine riuscita non è in [Galleria](/gallery): controlla lo stato in [Generazioni](/generations); in galleria compaiono solo le riuscite.
+- Un'immagine riuscita non è in [Galleria](/gallery): controlla lo stato nel suo dettaglio o negli [Eventi](/system/events): in galleria compaiono solo le riuscite.
 - Un'immagine importata non esce nelle ricerche: la sua analisi è fallita; premi **Riprova l'analisi** nel dettaglio.
 - Cercando non trovi una cosa appena creata: l'indice si aggiorna entro pochi istanti; **Riconcilia ora** in [Ricerca](/search) lo forza.
 

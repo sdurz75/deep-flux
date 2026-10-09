@@ -33,14 +33,12 @@ public interface IGenerationStore {
     /** Svuota la tabella (test e reset). */
     void deleteAll();
 
-    /** Usata dalla galleria: solo le generazioni completate, piu' recenti prima. */
-    Paged<Generation> pageByStatus(GenerationStatus status, int pageIndex, int pageSize);
-
     /**
-     * Generazioni RIUSCITE filtrate per tipo di media e/o origine ({@code null} = nessun filtro), piu' recenti prima: la tab "Importate"
-     * della galleria e il selettore dell'archivio (solo immagini).
+     * Galleria (tab "Tutte"/"Importate", selettore dell'archivio): un item per ogni FILE delle generazioni RIUSCITE, piu' recenti prima.
+     * {@code imagesOnly} esclude i video, {@code importedOnly} restringe alle importate, {@code tag} (vuoto/null = nessun filtro) tiene i
+     * file col tag proprio o della loro generazione.
      */
-    Paged<Generation> pageSucceeded(GenerationKind kind, GenerationOrigin origin, int pageIndex, int pageSize);
+    Paged<GalleryItem> pageSucceededItems(boolean imagesOnly, boolean importedOnly, String tag, int pageIndex, int pageSize);
 
     /** Le importate in un dato stato di analisi (recupero all'avvio). */
     List<Generation> findByAnalysisStatus(AnalysisStatus status);
@@ -51,17 +49,11 @@ public interface IGenerationStore {
     /** Tab "Preferiti" della galleria: un item per ogni file con la star, di generazioni SUCCEEDED, piu' recenti prima. */
     Paged<GalleryItem> pageFavouriteItems(int pageIndex, int pageSize);
 
-    /** Generazioni RIUSCITE con il tag utente (sulla generazione o su un suo file), opzionalmente solo le importate, piu' recenti prima. */
-    Paged<Generation> pageSucceededByTag(String tag, boolean importedOnly, int pageIndex, int pageSize);
-
     /** Come {@link #pageFavouriteItems} ma solo i file con il tag (proprio o della generazione). */
     Paged<GalleryItem> pageFavouriteItemsByTag(String tag, int pageIndex, int pageSize);
 
     /** Tutti i tag utente (di generazione e di file) senza doppioni, in ordine alfabetico. */
     List<String> distinctTags();
-
-    /** Listato /generations: tutte le generazioni, qualunque stato, piu' recenti prima. */
-    Paged<Generation> pageAll(int pageIndex, int pageSize);
 
     /**
      * Generazioni non terminali di UN modello create dopo {@code after}: il cap di concorrenza per modello. {@code after} esclude le

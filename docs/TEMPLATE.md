@@ -72,7 +72,7 @@ Percorsi relativi alla radice del repo; `<pkg>` = `src/main/java/org/dual/hexa`.
 
 **Template e fragment**
 
-- `src/main/resources/templates/app/` (8 pagine: `index`, `generate`, `generation-status`, `generations-list`, `gallery`, `deep-chat`,
+- `src/main/resources/templates/app/` (7 pagine: `index`, `generate`, `generation-status`, `gallery`, `deep-chat`,
   `loras`, `search`).
 - `src/main/resources/templates/fragments/app/` (file di dominio: i generici stanno in `fragments/core`). Da **riscrivere**, non solo cancellare: `fragments/app/nav.html`
   (vedi sotto). Le pagine app decorano `fragments/core/layout` con `layout:decorate`: la nuova pagina iniziale va fatta allo stesso modo.

@@ -612,7 +612,7 @@ class GenerationServiceTest {
 
     /**
      * Cancellazione in blocco (checkbox multiple nella lista/griglia, vedi
-     * GenerationController#deleteSelected/GalleryController#deleteSelected):
+     * GalleryController#deleteSelectedFiles):
      * un solo evento per l'intero batch, non uno per riga (vedi Javadoc di
      * GenerationService#deleteAll).
      */
@@ -647,43 +647,6 @@ class GenerationServiceTest {
 
         verify(eventPublisher, never()).publishEvent(any());
         verify(repository).deleteAllById(List.of());
-    }
-
-    /**
-     * Azione nucleare ("Elimina tutto" in /generations, GenerationController
-     * #deleteAll): riusa lo stesso deleteGenerations di delete/deleteAll,
-     * quindi passa per repository.findAll() (entita' caricate, non una
-     * query bulk) e pubblica un solo evento per l'intero archivio.
-     */
-    @Test
-    void deleteEverythingRemovesEveryImageFileAndPublishesOneEvent() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, secretInputs, modelCatalog);
-
-        Generation first = new Generation("pred-1", "owner/model", null, "a cat", null);
-        ReflectionTestUtils.setField(first, "id", 1L);
-        first.setImageFilenames(List.of("1-0.png"));
-        Generation second = new Generation("pred-2", "owner/model", null, "a dog", null);
-        ReflectionTestUtils.setField(second, "id", 2L);
-        second.setImageFilenames(List.of("2-0.png"));
-        when(repository.findAll()).thenReturn(List.of(first, second));
-
-        service.deleteEverything();
-
-        verify(imageStorageService).delete("1-0.png");
-        verify(imageStorageService).delete("2-0.png");
-        verify(repository).deleteAllById(List.of(1L, 2L));
-        verify(eventPublisher, org.mockito.Mockito.times(1)).publishEvent(new GenerationsDeletedEvent(List.of(1L, 2L)));
-    }
-
-    @Test
-    void deleteEverythingPublishesNothingWhenArchiveIsEmpty() {
-        GenerationService service = new GenerationService(repository, replicateClient, imageStorageService, objectMapper, messages, eventPublisher, systemEvents, secretInputs, modelCatalog);
-
-        when(repository.findAll()).thenReturn(List.of());
-
-        service.deleteEverything();
-
-        verify(eventPublisher, never()).publishEvent(any());
     }
 
     /**

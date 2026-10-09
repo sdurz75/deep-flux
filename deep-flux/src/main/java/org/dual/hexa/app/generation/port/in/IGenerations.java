@@ -112,23 +112,20 @@ public interface IGenerations {
     /** Id (le piu' recenti, al massimo {@code limit}) delle generazioni terminali di una conversazione completate prima di {@code before}. */
     List<Long> terminalIdsWithConversation(Instant before, int limit);
 
-    /** Galleria: tab "Tutte" (una card per generazione RIUSCITA, primo file), piu' recenti prima. */
+    /** Galleria: tab "Tutte" (una card per FILE delle generazioni RIUSCITE), piu' recenti prima. */
     Paged<GalleryItem> galleryPage(int pageIndex, int pageSize);
 
-    /** Galleria: tab "Importate" (una card per immagine importata RIUSCITA), piu' recenti prima. */
+    /** Galleria: tab "Importate" (una card per file delle importate RIUSCITE), piu' recenti prima. */
     Paged<GalleryItem> importedPage(int pageIndex, int pageSize);
 
     /**
-     * Selettore dell'archivio (sorgente img2img/video/modifica): una card per generazione RIUSCITA con un'IMMAGINE (mai un video), piu'
+     * Selettore dell'archivio (sorgente img2img/video/modifica): una card per FILE-IMMAGINE delle generazioni RIUSCITE (mai un video), piu'
      * recenti prima; {@code importedOnly} restringe alle importate.
      */
     Paged<GalleryItem> imagePickerPage(boolean importedOnly, int pageIndex, int pageSize);
 
     /** Galleria: tab "Preferiti" (una card per file con la star, di generazioni riuscite), piu' recenti prima. */
     Paged<GalleryItem> favouritesPage(int pageIndex, int pageSize);
-
-    /** Listato di TUTTE le generazioni, qualunque stato, piu' recenti prima. */
-    Paged<Generation> listPage(int pageIndex, int pageSize);
 
     /** Costo stimato totale ({@code cost_usd}) delle generazioni create da {@code since} in poi (0 se nessuna): serve alla stima del credito. */
     BigDecimal totalCostSince(Instant since);
@@ -137,7 +134,6 @@ public interface IGenerations {
 
     void deleteAll(List<Long> ids);
 
-    void deleteEverything();
 
     /** Elimina un file (e, se era l'ultimo, l'intera generazione): {@code true} se la generazione e' stata eliminata a cascata. */
     boolean deleteImage(Long generationId, String filename);
@@ -163,7 +159,7 @@ public interface IGenerations {
     /** Tutti i tag utente usati (generazioni e file), in ordine alfabetico: suggerimenti dei campi tag. */
     List<String> allTags();
 
-    /** Come {@link #galleryPage(int, int)} ma solo le generazioni col tag (sulla generazione o su un file); tag vuoto = nessun filtro. */
+    /** Come {@link #galleryPage(int, int)} ma solo i file col tag (proprio o della loro generazione); tag vuoto = nessun filtro. */
     Paged<GalleryItem> galleryPage(String tag, int pageIndex, int pageSize);
 
     /** Come {@link #importedPage(int, int)} filtrata per tag. */

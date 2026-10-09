@@ -71,7 +71,7 @@ la ricerca semantica). Per lo sviluppo basta `docker compose up -d`
    aggiorna da sola (polling htmx ogni 2s) finche' la generazione non e' terminata.
 4. A generazione riuscita il dettaglio mostra prompt, modello, parametri e costo stimato, con tutte le immagini in griglia
    (cancellabili una a una, con la stella dei preferiti e le azioni "Anima"/"Modifica"). Le generazioni riuscite stanno
-   anche in **Galleria** (`/gallery`, tab Tutte/Preferiti) e tutte, anche quelle fallite, in **Generazioni** (`/generations`).
+   anche in **Galleria** (`/gallery`, tab Tutte/Preferiti) e, filtrate per tipo, nella **Ricerca** (`/search?type=generation`, voce **Generazioni** del menu).
 
 In alternativa, la stessa cosa si fa conversando in **Deep Chat** (`/deep-chat`): l'assistente genera sempre col modello
 scelto nel pannello impostazioni e l'esito arriva in chat via SSE.

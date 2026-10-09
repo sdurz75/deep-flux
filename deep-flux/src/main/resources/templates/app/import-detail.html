@@ -24,7 +24,7 @@
                         extraClass='px-3 py-1.5 text-[0.85rem]')}">Elimina</button>
         </div>
 
-        <div th:replace="~{fragments/app/generation-images :: grid(${generation}, null, null)}"></div>
+        <div th:replace="~{fragments/app/generation-images :: grid(${generation}, null)}"></div>
 
         <dl>
             <dt th:replace="~{fragments/core/description-list :: term(text=#{generationDetail.label.analysis})}">Analisi del contenuto</dt>

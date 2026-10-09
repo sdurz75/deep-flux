@@ -65,24 +65,11 @@ class JpaGenerationStore implements IGenerationStore {
     }
 
     @Override
-    public Paged<Generation> pageByStatus(GenerationStatus status, int pageIndex, int pageSize) {
-        return paged(repository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(pageIndex, pageSize)));
-    }
-
-    @Override
-    public Paged<Generation> pageSucceeded(GenerationKind kind, GenerationOrigin origin, int pageIndex, int pageSize) {
+    public Paged<GalleryItem> pageSucceededItems(boolean imagesOnly, boolean importedOnly, String tag, int pageIndex, int pageSize) {
         PageRequest page = PageRequest.of(pageIndex, pageSize);
-        GenerationStatus succeeded = GenerationStatus.SUCCEEDED;
-        if (kind == null && origin == null) {
-            return pageByStatus(succeeded, pageIndex, pageSize);
-        }
-        if (kind == null) {
-            return paged(repository.findByStatusAndOriginOrderByCreatedAtDesc(succeeded, origin, page));
-        }
-        if (origin == null) {
-            return paged(repository.findByStatusAndKindOrderByCreatedAtDesc(succeeded, kind, page));
-        }
-        return paged(repository.findByStatusAndKindAndOriginOrderByCreatedAtDesc(succeeded, kind, origin, page));
+        return paged(tag == null || tag.isEmpty()
+                ? repository.findSucceededItems(imagesOnly, importedOnly, page)
+                : repository.findSucceededItemsByTag(tag, imagesOnly, importedOnly, page));
     }
 
     @Override
@@ -101,11 +88,6 @@ class JpaGenerationStore implements IGenerationStore {
     }
 
     @Override
-    public Paged<Generation> pageSucceededByTag(String tag, boolean importedOnly, int pageIndex, int pageSize) {
-        return paged(repository.findSucceededByTag(tag, importedOnly, PageRequest.of(pageIndex, pageSize)));
-    }
-
-    @Override
     public Paged<GalleryItem> pageFavouriteItemsByTag(String tag, int pageIndex, int pageSize) {
         return paged(repository.findFavouriteItemsByTag(tag, PageRequest.of(pageIndex, pageSize)));
     }
@@ -115,11 +97,6 @@ class JpaGenerationStore implements IGenerationStore {
         java.util.TreeSet<String> tags = new java.util.TreeSet<>(repository.findDistinctGenerationTags());
         tags.addAll(repository.findDistinctFileTags());
         return List.copyOf(tags);
-    }
-
-    @Override
-    public Paged<Generation> pageAll(int pageIndex, int pageSize) {
-        return paged(repository.findAllByOrderByCreatedAtDesc(PageRequest.of(pageIndex, pageSize)));
     }
 
     @Override

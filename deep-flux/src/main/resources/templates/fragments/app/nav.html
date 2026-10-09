@@ -34,7 +34,10 @@
 </th:block>
 
 <th:block th:fragment="navManage">
-    <a th:replace="~{fragments/core/header :: navLink(path='/generations', text=#{header.nav.generations})}">Generazioni</a>
+    <!-- Scorciatoia alla ricerca prefiltrata sulle generazioni: senza la ricerca semantica (app.search.enabled) /search non esiste. -->
+    <th:block th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}">
+        <a th:replace="~{fragments/core/header :: navLink(path='/search?type=generation', text=#{header.nav.generations})}">Generazioni</a>
+    </th:block>
     <a th:replace="~{fragments/core/header :: navLink(path='/loras', text=#{header.nav.loras})}">LoRA</a>
     <th:block th:replace="~{fragments/core/header :: navSystemCore}"></th:block>
 </th:block>

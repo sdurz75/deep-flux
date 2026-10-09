@@ -96,7 +96,6 @@ app:
     link-paths:
       - 'generations/new'
       - 'generations/\d+'
-      - 'generations'
       - 'import/\d+'
       - 'import'
       - 'gallery'

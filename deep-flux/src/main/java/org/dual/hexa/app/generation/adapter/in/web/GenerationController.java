@@ -12,7 +12,6 @@ import org.dual.hexa.core.events.domain.CoreEventSource;
 import org.dual.hexa.core.storage.domain.UploadedFile;
 import org.dual.hexa.core.storage.domain.SourceImage;
 import org.dual.hexa.core.web.HtmxEvents;
-import org.dual.hexa.core.web.PaginationSupport;
 import org.dual.hexa.app.generation.domain.Generation;
 import org.dual.hexa.app.generation.domain.GenerationConfig;
 import org.dual.hexa.app.generation.domain.GenerationFormType;
@@ -27,7 +26,6 @@ import org.dual.hexa.app.generation.port.in.IGenerations;
 import org.dual.hexa.core.storage.port.in.IImageStorageService;
 import org.dual.hexa.ai.llm.domain.PromptEnhancementRefusedException;
 import org.dual.hexa.ai.llm.port.in.IPromptEnhancer;
-import org.dual.hexa.core.kernel.Paged;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -57,7 +55,6 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/generations")
 public class GenerationController {
 
-    private static final int PAGE_SIZE = 12;
 
     private final IGenerations generationService;
     private final IModelCatalog modelCatalog;
@@ -209,10 +206,9 @@ public class GenerationController {
                     parameters, sourceGenerationId, sourceImage, upload, mask));
             uiModel.addAttribute("generation", generation);
             // Appena creata: mai terminale al primo giro (status()/refresh() la portera' li' col
-            // polling), quindi conversationId/generationsPage qui non decidono ancora nulla - li si
-            // valorizza comunque per coerenza col Model di status() sotto, stesso fragment condiviso.
+            // polling), quindi conversationId qui non decide ancora nulla - lo si valorizza comunque
+            // per coerenza col Model di status() sotto, stesso fragment condiviso.
             uiModel.addAttribute("conversationId", null);
-            uiModel.addAttribute("generationsPage", null);
             return "fragments/app/generation :: status";
         } catch (org.dual.hexa.core.kernel.remote.RemoteServiceException e) {
             // Validazioni applicative (modello sconosciuto, sorgente mancante, troppe in corso) non hanno una
@@ -430,61 +426,9 @@ public class GenerationController {
     }
 
     /**
-     * Listato paginato di TUTTE le generazioni, qualunque stato (a
-     * differenza di /gallery, che resta filtrato a sole SUCCEEDED) -
-     * stesso pattern "same URL, two responses"/self-heal pagina vuota di
-     * GalleryController#list.
-     */
-    @GetMapping
-    public String list(@RequestParam(defaultValue = "1") int page,
-                        @RequestHeader(value = "HX-Request", required = false) String hxRequest,
-                        Model model) {
-        int pageIndex = Math.max(0, page - 1);
-        Paged<Generation> result = generationService.listPage(pageIndex, PAGE_SIZE);
-
-        if (result.isEmpty() && result.totalPages() > 0 && pageIndex >= result.totalPages()) {
-            pageIndex = result.totalPages() - 1;
-            result = generationService.listPage(pageIndex, PAGE_SIZE);
-        }
-        int currentPage = pageIndex + 1;
-
-        model.addAttribute("generations", result.content());
-        model.addAttribute("currentPage", currentPage);
-        model.addAttribute("totalPages", result.totalPages());
-        model.addAttribute("totalElements", result.totalElements());
-        model.addAttribute("pageSize", result.pageSize());
-        model.addAttribute("hasPrevious", result.hasPrevious());
-        model.addAttribute("hasNext", result.hasNext());
-        model.addAttribute("pageNumbers", PaginationSupport.window(currentPage, result.totalPages()));
-
-        boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
-        return isHtmxRequest
-                ? "fragments/app/generations :: content(generations=${generations}, currentPage=${currentPage}, "
-                        + "totalPages=${totalPages}, hasPrevious=${hasPrevious}, hasNext=${hasNext}, pageNumbers=${pageNumbers})"
-                : "app/generations-list";
-    }
-
-
-    /**
-     * Cancellazione in blocco dal listato (checkbox multiple, vedi
-     * fragments/app/generations.html :: list): stesso pattern di
-     * GalleryController#deleteSelected, nessun redirect, il refresh
-     * arriva dall'evento SSE pubblicato da GenerationService#deleteAll.
-     */
-    @PostMapping("/delete-selected")
-    @ResponseBody
-    public void deleteSelected(@RequestParam(required = false) List<Long> ids) {
-        if (ids != null && !ids.isEmpty()) {
-            generationService.deleteAll(ids);
-        }
-    }
-
-    /**
-     * Cancellazione di riga singola dal listato: a differenza di
-     * deleteSelected sopra, ignora deliberatamente le checkbox
-     * eventualmente spuntate nel form circostente (elimina SOLO l'id nel
-     * path). La pagina lista resta valida dopo la cancellazione, nessun
-     * redirect - stesso motivo di deleteSelected.
+     * Cancellazione di una generazione dall'azione DELETE della chat
+     * (elimina SOLO l'id nel path). Nessun redirect: la pagina chiamante
+     * resta valida.
      */
     @PostMapping("/{id}/delete")
     @ResponseBody
@@ -493,29 +437,16 @@ public class GenerationController {
     }
 
     /**
-     * Azione nucleare ("Elimina tutto", modal con conferma testuale in
-     * generations-list.html): elimina OGNI generazione esistente, non
-     * solo la selezione/pagina corrente.
-     */
-    @PostMapping("/delete-all")
-    @ResponseBody
-    public void deleteAll() {
-        generationService.deleteEverything();
-    }
-
-    /**
-     * conversationId/generationsPage (entrambi opzionali): decidono il
-     * link "indietro" e il target del redirect dopo una cancellazione da
-     * questa pagina (vedi delete/deleteImage sotto) - conversationId
-     * quando si arriva dalla galleria contestuale di una conversazione
-     * /deep-chat (vedi fragments/app/gallery-card.html), generationsPage
-     * quando si arriva dal listato /generations, nessuno dei due dalla
-     * galleria globale (default a /gallery).
+     * conversationId (opzionale): decide il link "indietro" e il target
+     * del redirect dopo una cancellazione da questa pagina (vedi
+     * delete/deleteImage sotto) - presente quando si arriva dalla galleria
+     * contestuale di una conversazione /deep-chat (vedi
+     * fragments/app/gallery-card.html), assente dalla galleria globale
+     * (default a /gallery).
      */
     @GetMapping("/{id}")
     public String status(@PathVariable Long id,
                           @RequestParam(required = false) Long conversationId,
-                          @RequestParam(required = false) Integer generationsPage,
                           @RequestParam(required = false) Boolean cancelDisabled,
                           @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           HttpServletRequest request, HttpServletResponse response,
@@ -541,18 +472,18 @@ public class GenerationController {
                 // polling ripeterebbe identico ogni 2s. Il recupero (GenerationRecoveryService) la chiude.
                 systemEvents.record(CoreEventSource.INTERNAL, "refreshGeneration", e, AppEventSubjects.of(id, null));
                 generation = generationService.find(id).orElseThrow(() -> e);
-                return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
+                return renderStatus(generation, conversationId, cancelDisabled, isHtmxRequest, model);
             }
             if (isHtmxRequest) {
-                response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
+                response.setHeader("HX-Redirect", backTarget(conversationId, request));
                 return null;
             }
-            return "redirect:" + backPath(conversationId, generationsPage);
+            return "redirect:" + backPath(conversationId);
         }
-        return renderStatus(generation, conversationId, generationsPage, cancelDisabled, isHtmxRequest, model);
+        return renderStatus(generation, conversationId, cancelDisabled, isHtmxRequest, model);
     }
 
-    private String renderStatus(Generation generation, Long conversationId, Integer generationsPage,
+    private String renderStatus(Generation generation, Long conversationId,
                                  Boolean cancelDisabled, boolean isHtmxRequest, Model model) {
         if (generation.isImported()) {
             // Un'immagine importata non e' una "Generazione": ha il suo dettaglio (ImportController#detail).
@@ -560,7 +491,6 @@ public class GenerationController {
         }
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
-        model.addAttribute("generationsPage", generationsPage);
         model.addAttribute("cancelDisabled", cancelDisabled);
 
         return isHtmxRequest ? "fragments/app/generation :: status" : "app/generation-status";
@@ -579,7 +509,6 @@ public class GenerationController {
     @PostMapping("/{id}/cancel")
     public String cancel(@PathVariable Long id,
                           @RequestParam(required = false) Long conversationId,
-                          @RequestParam(required = false) Integer generationsPage,
                           @RequestHeader(value = "HX-Request", required = false) String hxRequest,
                           HttpServletResponse response, Model model) {
         boolean isHtmxRequest = "true".equalsIgnoreCase(hxRequest);
@@ -624,7 +553,6 @@ public class GenerationController {
         }
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
-        model.addAttribute("generationsPage", generationsPage);
         model.addAttribute("cancelDisabled", true);
         return "fragments/app/generation :: status";
     }
@@ -640,10 +568,9 @@ public class GenerationController {
     @DeleteMapping("/{id}")
     public String delete(@PathVariable Long id,
                           @RequestParam(required = false) Long conversationId,
-                          @RequestParam(required = false) Integer generationsPage,
                           HttpServletRequest request, HttpServletResponse response) {
         generationService.delete(id);
-        response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
+        response.setHeader("HX-Redirect", backTarget(conversationId, request));
         return null;
     }
 
@@ -658,8 +585,7 @@ public class GenerationController {
     @DeleteMapping("/{id}/images/{filename}")
     public String deleteImage(@PathVariable Long id, @PathVariable String filename,
                                @RequestParam(required = false) Long conversationId,
-                               @RequestParam(required = false) Integer generationsPage,
-                               HttpServletRequest request, HttpServletResponse response, Model model) {
+                                    HttpServletRequest request, HttpServletResponse response, Model model) {
         boolean cascaded;
         try {
             cascaded = generationService.deleteImage(id, filename);
@@ -670,14 +596,13 @@ public class GenerationController {
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, null, e);
         }
         if (cascaded) {
-            response.setHeader("HX-Redirect", backTarget(conversationId, generationsPage, request));
+            response.setHeader("HX-Redirect", backTarget(conversationId, request));
             return null;
         }
         Generation generation = generationService.get(id);
         model.addAttribute("generation", generation);
         model.addAttribute("conversationId", conversationId);
-        model.addAttribute("generationsPage", generationsPage);
-        return "fragments/app/generation-images :: grid(generation=${generation}, conversationId=${conversationId}, generationsPage=${generationsPage})";
+        return "fragments/app/generation-images :: grid(generation=${generation}, conversationId=${conversationId})";
     }
 
     /**
@@ -739,28 +664,22 @@ public class GenerationController {
      * Percorso "indietro" dopo la cancellazione di una generazione (o
      * della sua ultima immagine, o la scomparsa per race mentre la si
      * pollava, vedi status(...) sopra) dal proprio dettaglio:
-     * conversationId (deep-chat) prevale su generationsPage (listato
-     * /generations), che a sua volta prevale sul default /gallery -
-     * stesso ordine di priorita' in cui questi parametri arrivano dalla
-     * pagina di dettaglio, mai entrambi valorizzati insieme in pratica
-     * (dipende da dove si e' arrivati). SENZA prefisso di contextPath:
+     * conversationId (deep-chat) se si arriva dalla conversazione,
+     * altrimenti il default /gallery. SENZA prefisso di contextPath:
      * usato sia come header HX-Redirect (via backTarget sotto, che il
      * prefisso lo aggiunge) sia come nome di vista "redirect:..." (che
      * il prefisso lo aggiunge gia' da solo, vedi CLAUDE.md - prependerlo
      * qui lo duplicherebbe in quel secondo caso).
      */
-    private String backPath(Long conversationId, Integer generationsPage) {
+    private String backPath(Long conversationId) {
         if (conversationId != null) {
             return "/deep-chat/" + conversationId;
-        }
-        if (generationsPage != null) {
-            return "/generations?page=" + generationsPage;
         }
         return "/gallery";
     }
 
     /** Come backPath(...) sopra, ma per l'header di risposta HX-Redirect: li' il prefisso di un eventuale reverse proxy va aggiunto a mano, vedi CLAUDE.md. */
-    private String backTarget(Long conversationId, Integer generationsPage, HttpServletRequest request) {
-        return request.getContextPath() + backPath(conversationId, generationsPage);
+    private String backTarget(Long conversationId, HttpServletRequest request) {
+        return request.getContextPath() + backPath(conversationId);
     }
 }

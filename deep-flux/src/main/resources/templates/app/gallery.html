@@ -11,7 +11,7 @@
 <div layout:fragment="content">
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
         <h1 th:text="#{gallery.title}">Galleria</h1>
-        <a th:href="@{/generations}" th:text="#{gallery.link.generations}" class="text-[0.9rem]">Tutte le generazioni</a>
+        <a th:if="${@environment.getProperty('app.search.enabled', 'true') == 'true'}" th:href="@{/search(type=generation)}" th:text="#{gallery.link.generations}" class="text-[0.9rem]">Tutte le generazioni</a>
     </div>
 
     <!-- Messaggio "galleria vuota" spostato dentro fragments/app/gallery :: content, vedi commento li'. -->
